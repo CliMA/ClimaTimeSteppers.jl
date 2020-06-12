@@ -166,12 +166,14 @@ end
 
 # TODO: Include concrete implementations and interfaces
 
+# Implicit solver interface
+include("ImplicitSolverInterface.jl")
+
 # In-house RK methods
-include("BackwardEulerSolverInterface.jl")
-include("LowStorageRungeKuttaMethods.jl")
-include("StrongStabilityPreservingRungeKuttaMethods.jl")
-include("AdditiveRungeKuttaMethods.jl")
-include("MultirateInfinitesimalStepMethods.jl")
-include("MultirateRungeKuttaMethods.jl")
+include("RungeKuttaMethods/LowStorageRungeKuttaMethods.jl")
+include("RungeKuttaMethods/StrongStabilityPreservingRungeKuttaMethods.jl")
+include("RungeKuttaMethods/AdditiveRungeKuttaMethods.jl")
+include("RungeKuttaMethods/MultirateInfinitesimalStepMethods.jl")
+include("RungeKuttaMethods/MultirateRungeKuttaMethods.jl")
 
 end

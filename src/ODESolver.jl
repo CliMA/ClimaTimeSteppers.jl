@@ -172,7 +172,7 @@ include("ImplicitSolverInterface.jl")
 # RK methods
 include("RungeKuttaMethods/MultirateInfinitesimalGARKExplicit.jl")
 include("RungeKuttaMethods/MultirateInfinitesimalGARKDecoupledImplicit.jl")
-include("RungeKuttaMethods/LowStorageRungeKuttaMethods.jl")
+include("RungeKuttaMethods/LowStorageRungeKuttaMethods")
 include("RungeKuttaMethods/StrongStabilityPreservingRungeKuttaMethods.jl")
 include("RungeKuttaMethods/AdditiveRungeKuttaMethods.jl")
 include("RungeKuttaMethods/MultirateInfinitesimalStepMethods.jl")

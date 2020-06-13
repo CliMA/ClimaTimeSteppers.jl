@@ -80,9 +80,9 @@ calls to the solver.
 setup_backward_Euler_solver(solver::AbstractBackwardEulerSolver, _...) = solver
 
 
-function applylinearsolve!(lin::LinBESolver, Q, Qhat, p, t) end
-function initialize_linearsovler(op::EulerOperator, solver, Q) end
-function update_linearsovler(op::EulerOperator, solver, Q) end
+function applylinearsolve!(op::EulerOperator, solver::LinBESolver, Q, Qhat, p, t) end
+function initialize_linearsovler(op::EulerOperator, solver, args...) end
+function update_linearsovler(op::EulerOperator, solver, args...) end
 
 """
     LinearBackwardEulerSolver(::AbstractSystemSolver; isadjustable = false)
@@ -137,5 +137,5 @@ function (lin::LinBESolver)(Q, Qhat, α, p, t)
         @assert lin.isadjustable
         update_backward_Euler_solver!(lin, Q, α)
     end
-    applylinearsolve!(lin, Q, Qhat, p, t)
+    applylinearsolve!(lin.linearoperator, lin.solver, Q, Qhat, p, t)
 end

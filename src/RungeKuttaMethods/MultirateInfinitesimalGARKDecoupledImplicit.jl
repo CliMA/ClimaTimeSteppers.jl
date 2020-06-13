@@ -42,6 +42,8 @@ The available concrete implementations are:
   - [`MRIGARKIRK21aSandu`](@ref)
   - [`MRIGARKESDIRK34aSandu`](@ref)
   - [`MRIGARKESDIRK46aSandu`](@ref)
+  - [`MRIGARKESDIRK23LSA`](@ref)
+  - [`MRIGARKESDIRK24LSA`](@ref)
 
 ### References
 

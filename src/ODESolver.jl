@@ -164,12 +164,14 @@ function solve!(
     gettime(solver)
 end
 
-# TODO: Include concrete implementations and interfaces
+# Include concrete implementations and interfaces
 
 # Implicit solver interface
 include("ImplicitSolverInterface.jl")
 
-# In-house RK methods
+# RK methods
+include("RungeKuttaMethods/MultirateInfinitesimalGARKExplicit.jl")
+include("RungeKuttaMethods/MultirateInfinitesimalGARKDecoupledImplicit.jl")
 include("RungeKuttaMethods/LowStorageRungeKuttaMethods.jl")
 include("RungeKuttaMethods/StrongStabilityPreservingRungeKuttaMethods.jl")
 include("RungeKuttaMethods/AdditiveRungeKuttaMethods.jl")

@@ -1,3 +1,4 @@
+
 export LinearBackwardEulerSolver, AbstractBackwardEulerSolver
 
 """
@@ -78,6 +79,11 @@ calls to the solver.
 """
 setup_backward_Euler_solver(solver::AbstractBackwardEulerSolver, _...) = solver
 
+
+function applylinearsolve!(lin::LinBESolver, Q, Qhat, p, t) end
+function initialize_linearsovler(op::EulerOperator, solver, Q) end
+function update_linearsovler(op::EulerOperator, solver, Q) end
+
 """
     LinearBackwardEulerSolver(::AbstractSystemSolver; isadjustable = false)
 
@@ -99,9 +105,9 @@ Concrete implementation of an `AbstractBackwardEulerSolver` to use linear
 solvers of type `AbstractSystemSolver`. See helper type
 [`LinearBackwardEulerSolver`](@ref)
 """
-mutable struct LinBESolver{FT, FAC, LS, F} <: AbstractBackwardEulerSolver
+mutable struct LinBESolver{FT, LOP, LS, F} <: AbstractBackwardEulerSolver
     α::FT
-    factors::FAC
+    linearoperator::LOP
     solver::LS
     isadjustable::Bool
     rhs!::F
@@ -111,20 +117,18 @@ end
 
 function setup_backward_Euler_solver(lin::LinearBackwardEulerSolver, Q, α, rhs!)
     FT = eltype(α)
-    factors =
-        prefactorize(EulerOperator(rhs!, -α), lin.solver, Q, nothing, FT(NaN))
-    LinBESolver(α, factors, lin.solver, lin.isadjustable, rhs!)
+    linearop =
+        initialize_linearsovler(EulerOperator(rhs!, -α), lin.solver, Q)
+    LinBESolver(α, linearop, lin.solver, lin.isadjustable, rhs!)
 end
 
 function update_backward_Euler_solver!(lin::LinBESolver, Q, α)
     lin.α = α
     FT = eltype(Q)
-    lin.factors = prefactorize(
+    lin.linearoperator = update_linearsovler(
         EulerOperator(lin.rhs!, -α),
         lin.solver,
         Q,
-        nothing,
-        FT(NaN),
     )
 end
 
@@ -133,7 +137,5 @@ function (lin::LinBESolver)(Q, Qhat, α, p, t)
         @assert lin.isadjustable
         update_backward_Euler_solver!(lin, Q, α)
     end
-    # TODO: Make this interface more generic.
-    # FIXME: Depend on SystemSolvers?
-    linearsolve!(lin.factors, lin.solver, Q, Qhat, p, t)
+    applylinearsolve!(lin, Q, Qhat, p, t)
 end

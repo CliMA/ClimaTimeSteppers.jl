@@ -79,10 +79,8 @@ calls to the solver.
 """
 setup_backward_Euler_solver(solver::AbstractBackwardEulerSolver, _...) = solver
 
-
-function applylinearsolver!(args...) end
-function initialize_linearsovler(args...) end
-function update_linearsovler(args...) end
+function prefactorize end
+function linearsolve! end
 
 """
     LinearBackwardEulerSolver(::AbstractSystemSolver; isadjustable = false)
@@ -117,18 +115,20 @@ end
 
 function setup_backward_Euler_solver(lin::LinearBackwardEulerSolver, Q, α, rhs!)
     FT = eltype(α)
-    linearop =
-        initialize_linearsovler(EulerOperator(rhs!, -α), lin.solver, Q)
-    LinBESolver(α, linearop, lin.solver, lin.isadjustable, rhs!)
+    factors =
+        prefactorize(EulerOperator(rhs!, -α), lin.solver, Q, nothing, FT(NaN))
+    LinBESolver(α, factors, lin.solver, lin.isadjustable, rhs!)
 end
 
 function update_backward_Euler_solver!(lin::LinBESolver, Q, α)
     lin.α = α
     FT = eltype(Q)
-    lin.linearoperator = update_linearsovler(
+    lin.linearoperator = prefactorize(
         EulerOperator(lin.rhs!, -α),
         lin.solver,
         Q,
+        nothing,
+        FT(NaN),
     )
 end
 
@@ -137,5 +137,5 @@ function (lin::LinBESolver)(Q, Qhat, α, p, t)
         @assert lin.isadjustable
         update_backward_Euler_solver!(lin, Q, α)
     end
-    applylinearsolver!(lin.linearoperator, lin.solver, Q, Qhat, p, t)
+    linearsolve!(lin.linearoperator, lin.solver, Q, Qhat, p, t)
 end

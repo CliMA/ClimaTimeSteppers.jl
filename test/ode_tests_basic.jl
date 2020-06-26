@@ -103,6 +103,7 @@ Qexact = exactsolution(finaltime, q0, t0)
                 Q .= Qinit
                 prob = IncrementODEProblem(rhs!, Q, (t0, finaltime))
                 solve(prob, method; dt=dt, adjustfinal=true)
+                errors[n] = norm(Q - Qexact)
             end
             rates = log2.(errors[1:(end - 1)] ./ errors[2:end])
             @test isapprox(rates[end], expected_order; atol = 0.7)

@@ -49,7 +49,7 @@ function cache(
     prob::DiffEqBase.AbstractODEProblem{uType, tType, true}, 
     alg::StrongStabilityPreservingRungeKutta) where {uType,tType}
 
-    tab = tableau(alg, uType)
+    tab = tableau(alg, eltype(prob.u0))
     # can't use Vector{T}(undef) as need to ensure no NaNs
     fU = zero(prob.u0)
     U = zero(prob.u0)
@@ -112,7 +112,7 @@ Exact choice of coefficients from wikipedia page for Heun's method :)
 struct SSPRK22Heuns <: StrongStabilityPreservingRungeKutta end
 
 function tableau(::SSPRK22Heuns, RT)
-    RKA1 = (RT(1), RT(1 // 2)) 
+    RKA1 = (RT(1), RT(1 // 2))
     RKA2 = (RT(0), RT(1 // 2))
     RKB  = (RT(1), RT(1 // 2))
     RKC  = (RT(0), RT(1))
@@ -183,7 +183,7 @@ function tableau(::SSPRK33ShuOsher, RT)
     RKA2 = (RT(0), RT(1 // 4), RT(2 // 3))
     RKB = (RT(1), RT(1 // 4), RT(2 // 3))
     RKC = (RT(0), RT(1), RT(1 // 2))
-    StrongStabilityPreservingRungeKutta(RKA1, RKA2, RKB, RKC)
+    StrongStabilityPreservingRungeKuttaTableau(RKA1, RKA2, RKB, RKC)
 end
 
 """

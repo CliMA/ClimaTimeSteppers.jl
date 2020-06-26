@@ -10,11 +10,11 @@
 const explicit_methods = (
     (LSRK54CarpenterKennedy(), 4),
     (LSRK144NiegemannDiehlBusch(), 4),
+    (LSRKEulerMethod(), 1),
     (SSPRK22Heuns(), 2),
     (SSPRK22Ralstons(), 2),
     (SSPRK33ShuOsher(), 3),
     (SSPRK34SpiteriRuuth(), 3),
-    (LSRKEulerMethod(), 1),
 )
 
 # const imex_methods = (

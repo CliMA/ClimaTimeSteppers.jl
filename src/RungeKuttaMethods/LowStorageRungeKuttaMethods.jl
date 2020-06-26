@@ -1,253 +1,64 @@
-
 export LowStorageRungeKutta2N
 export LSRK54CarpenterKennedy, LSRK144NiegemannDiehlBusch, LSRKEulerMethod
 
 """
-    LowStorageRungeKutta2N(f, RKA, RKB, RKC, Q; dt, t0 = 0)
+    abstract type LowStorageRungeKutta2N <: DistributedODEAlgorithm end
 
-This is a time stepping object for explicitly time stepping the differential
-equation given by the right-hand-side function `f` with the state `Q`, i.e.,
-
-```math
-  \\dot{Q} = f(Q, t)
-```
-
-with the required time step size `dt` and optional initial time `t0`.  This
-time stepping object is intended to be passed to the `solve!` command.
-
-The constructor builds a low-storage Runge-Kutta scheme using 2N
-storage based on the provided `RKA`, `RKB` and `RKC` coefficient arrays.
+A class of low-storage Runge-Kutta algorithms. Subtypes `L` should define a
+`tableau(::L, RT)` method which returns an instance of
+`LowStorageRungeKutta2NTableau`.
 
 The available concrete implementations are:
-
-  - [`LSRKEulerMethod`](@ref)
-  - [`LSRK54CarpenterKennedy`](@ref)
-  - [`LSRK144NiegemannDiehlBusch`](@ref)
+ - [`LSRK54CarpenterKennedy`](@ref)
+ - [`LSRK144NiegemannDiehlBusch`](@ref)
 """
-mutable struct LowStorageRungeKutta2N{T, RT, AT, Nstages} <: AbstractODESolver
-    "time step"
-    dt::RT
-    "time"
-    t::RT
-    "rhs function"
-    rhs!
-    "Storage for RHS during the LowStorageRungeKutta update"
-    dQ::AT
+abstract type LowStorageRungeKutta2N <: DistributedODEAlgorithm end
+
+
+"""
+    LowStorageRungeKutta2NTableau
+
+Storage for the tableau of a [`LowStorageRungeKutta2N`](@ref) algorithm.
+"""
+struct LowStorageRungeKutta2NTableau{Nstages, RT}
     "low storage RK coefficient vector A (rhs scaling)"
-    RKA::NTuple{Nstages, RT}
+    A::NTuple{Nstages, RT}
     "low storage RK coefficient vector B (rhs add in scaling)"
-    RKB::NTuple{Nstages, RT}
+    B::NTuple{Nstages, RT}
     "low storage RK coefficient vector C (time scaling)"
-    RKC::NTuple{Nstages, RT}
+    C::NTuple{Nstages, RT}
+end
 
-    function LowStorageRungeKutta2N(
-        rhs!,
-        RKA,
-        RKB,
-        RKC,
-        Q::AT;
-        dt = 0,
-        t0 = 0,
-    ) where {AT <: AbstractArray}
+struct LowStorageRungeKutta2NIncCache{Nstages, RT, A}    
+    tableau::LowStorageRungeKutta2NTableau{Nstages, RT}
+    du::A
+end
 
-        T = eltype(Q)
-        RT = real(T)
+function cache(prob::IncrementODEProblem, alg::LowStorageRungeKutta2N)
+    du = zero(prob.u0)
+    return LowStorageRungeKutta2NIncCache(tableau(alg, eltype(du)), du)
+end
 
-        dQ = similar(Q)
-        fill!(dQ, 0)
 
-        new{T, RT, AT, length(RKA)}(RT(dt), RT(t0), rhs!, dQ, RKA, RKB, RKC)
+function step_u!(int, cache::LowStorageRungeKutta2NIncCache{Nstages}) where {Nstages}
+    tab = cache.tableau
+    du = cache.du
+
+    u = int.u
+    p = int.prob.p
+    t = int.t
+    dt = int.dt
+
+    for stage in 1:Nstages
+        #  du .= f(u, p, t + tab.C[stage]*dt) .+ tab.A[stage] .* du
+        stage_time = t + tab.C[stage]*dt
+        int.prob.f(du, u, p, stage_time, 1, tab.A[stage])
+        u .+= (dt*tab.B[stage]) .* du
     end
 end
 
 """
-    dostep!(Q, lsrk::LowStorageRungeKutta2N, p, time::Real,
-            [slow_δ, slow_rv_dQ, slow_scaling])
-
-Use the 2N low storage Runge--Kutta method `lsrk` to step `Q` forward in time
-from the current time `time` to final time `time + getdt(lsrk)`.
-
-If the optional parameter `slow_δ !== nothing` then `slow_rv_dQ * slow_δ` is
-added as an additionall ODE right-hand side source. If the optional parameter
-`slow_scaling !== nothing` then after the final stage update the scaling
-`slow_rv_dQ *= slow_scaling` is performed.
-"""
-function dostep!(
-    Q,
-    lsrk::LowStorageRungeKutta2N,
-    p,
-    time,
-    slow_δ = nothing,
-    slow_rv_dQ = nothing,
-    in_slow_scaling = nothing,
-)
-    dt = lsrk.dt
-
-    RKA, RKB, RKC = lsrk.RKA, lsrk.RKB, lsrk.RKC
-    rhs!, dQ = lsrk.rhs!, lsrk.dQ
-
-    rv_Q = realview(Q)
-    rv_dQ = realview(dQ)
-
-    groupsize = 256
-
-    for s in 1:length(RKA)
-        rhs!(dQ, Q, p, time + RKC[s] * dt, increment = true)
-
-        slow_scaling = nothing
-        if s == length(RKA)
-            slow_scaling = in_slow_scaling
-        end
-        # update solution and scale RHS
-        event = Event(array_device(Q))
-        event = update!(array_device(Q), groupsize)(
-            rv_dQ,
-            rv_Q,
-            RKA[s % length(RKA) + 1],
-            RKB[s],
-            dt,
-            slow_δ,
-            slow_rv_dQ,
-            slow_scaling;
-            ndrange = length(rv_Q),
-            dependencies = (event,),
-        )
-        wait(array_device(Q), event)
-    end
-end
-
-@kernel function update!(dQ, Q, rka, rkb, dt, slow_δ, slow_dQ, slow_scaling)
-    i = @index(Global, Linear)
-    @inbounds begin
-        if slow_δ !== nothing
-            dQ[i] += slow_δ * slow_dQ[i]
-        end
-        Q[i] += rkb * dt * dQ[i]
-        dQ[i] *= rka
-        if slow_scaling !== nothing
-            slow_dQ[i] *= slow_scaling
-        end
-    end
-end
-
-"""
-    dostep!(Q, lsrk::LowStorageRungeKutta2N, p::MRIParam, time::Real,
-            dt::Real)
-
-Use the 2N low storage Runge--Kutta method `lsrk` to step `Q` forward in time
-from the current time `time` to final time `time + dt`.
-
-If the optional parameter `slow_δ !== nothing` then `slow_rv_dQ * slow_δ` is
-added as an additionall ODE right-hand side source. If the optional parameter
-`slow_scaling !== nothing` then after the final stage update the scaling
-`slow_rv_dQ *= slow_scaling` is performed.
-"""
-function dostep!(Q, lsrk::LowStorageRungeKutta2N, mrip::MRIParam, time::Real)
-    dt = lsrk.dt
-
-    RKA, RKB, RKC = lsrk.RKA, lsrk.RKB, lsrk.RKC
-    rhs!, dQ = lsrk.rhs!, lsrk.dQ
-
-    rv_Q = realview(Q)
-    rv_dQ = realview(dQ)
-
-    groupsize = 256
-
-    for s in 1:length(RKA)
-        stage_time = time + RKC[s] * dt
-        rhs!(dQ, Q, mrip.p, stage_time, increment = true)
-
-        # update solution and scale RHS
-        τ = (stage_time - mrip.ts) / mrip.Δts
-        event = Event(array_device(Q))
-        event = lsrk_mri_update!(array_device(Q), groupsize)(
-            rv_dQ,
-            rv_Q,
-            RKA[s % length(RKA) + 1],
-            RKB[s],
-            τ,
-            dt,
-            mrip.γs,
-            mrip.Rs;
-            ndrange = length(rv_Q),
-            dependencies = (event,),
-        )
-        wait(array_device(Q), event)
-    end
-end
-
-@kernel function lsrk_mri_update!(dQ, Q, rka, rkb, τ, dt, γs, Rs)
-    i = @index(Global, Linear)
-    @inbounds begin
-        NΓ = length(γs)
-        Ns = length(γs[1])
-        dqi = dQ[i]
-
-        for s in 1:Ns
-            ri = Rs[s][i]
-            sc = γs[NΓ][s]
-            for k in (NΓ - 1):-1:1
-                sc = sc * τ + γs[k][s]
-            end
-            dqi += sc * ri
-        end
-
-        Q[i] += rkb * dt * dqi
-        dQ[i] = rka * dqi
-    end
-end
-
-
-"""
-    LSRKEulerMethod(f, Q; dt, t0 = 0)
-
-This function returns a [`LowStorageRungeKutta2N`](@ref) time stepping object
-for explicitly time stepping the differential
-equation given by the right-hand-side function `f` with the state `Q`, i.e.,
-
-```math
-  \\dot{Q} = f(Q, t)
-```
-
-with the required time step size `dt` and optional initial time `t0`.  This
-time stepping object is intended to be passed to the `solve!` command.
-
-This method uses the LSRK2N framework to implement a simple Eulerian forward time stepping scheme for the use of debugging.
-
-### References
-
-"""
-function LSRKEulerMethod(
-    F,
-    Q::AT;
-    dt = nothing,
-    t0 = 0,
-) where {AT <: AbstractArray}
-    T = eltype(Q)
-    RT = real(T)
-
-    RKA = (RT(0),)
-
-    RKB = (RT(1),)
-
-    RKC = (RT(0),)
-
-    LowStorageRungeKutta2N(F, RKA, RKB, RKC, Q; dt = dt, t0 = t0)
-end
-
-"""
-    LSRK54CarpenterKennedy(f, Q; dt, t0 = 0)
-
-This function returns a [`LowStorageRungeKutta2N`](@ref) time stepping object
-for explicitly time stepping the differential
-equation given by the right-hand-side function `f` with the state `Q`, i.e.,
-
-```math
-  \\dot{Q} = f(Q, t)
-```
-
-with the required time step size `dt` and optional initial time `t0`.  This
-time stepping object is intended to be passed to the `solve!` command.
+    LSRK54CarpenterKennedy()
 
 This uses the fourth-order, low-storage, Runge--Kutta scheme of Carpenter
 and Kennedy (1994) (in their notation (5,4) 2N-Storage RK scheme).
@@ -263,15 +74,9 @@ and Kennedy (1994) (in their notation (5,4) 2N-Storage RK scheme).
       address = {Langley Research Center, Hampton, VA},
     }
 """
-function LSRK54CarpenterKennedy(
-    F,
-    Q::AT;
-    dt = 0,
-    t0 = 0,
-) where {AT <: AbstractArray}
-    T = eltype(Q)
-    RT = real(T)
+struct LSRK54CarpenterKennedy <: LowStorageRungeKutta2N end
 
+function tableau(::LSRK54CarpenterKennedy, RT)
     RKA = (
         RT(0),
         RT(-567301805773 // 1357537059087),
@@ -296,24 +101,13 @@ function LSRK54CarpenterKennedy(
         RT(2802321613138 // 2924317926251),
     )
 
-    LowStorageRungeKutta2N(F, RKA, RKB, RKC, Q; dt = dt, t0 = t0)
+    return LowStorageRungeKutta2NTableau(RKA, RKB, RKC)
 end
 
 """
-    LSRK144NiegemannDiehlBusch((f, Q; dt, t0 = 0)
+    LSRK144NiegemannDiehlBusch()
 
-This function returns a [`LowStorageRungeKutta2N`](@ref) time stepping object
-for explicitly time stepping the differential
-equation given by the right-hand-side function `f` with the state `Q`, i.e.,
-
-```math
-  \\dot{Q} = f(Q, t)
-```
-
-with the required time step size `dt` and optional initial time `t0`.  This
-time stepping object is intended to be passed to the `solve!` command.
-
-This uses the fourth-order, 14-stage, low-storage, Runge--Kutta scheme of
+The fourth-order, 14-stage, low-storage, Runge--Kutta scheme of
 Niegemann, Diehl, and Busch (2012) with optimized stability region
 
 ### References
@@ -329,14 +123,9 @@ Niegemann, Diehl, and Busch (2012) with optimized stability region
       publisher={Elsevier}
     }
 """
-function LSRK144NiegemannDiehlBusch(
-    F,
-    Q::AT;
-    dt = 0,
-    t0 = 0,
-) where {AT <: AbstractArray}
-    T = eltype(Q)
-    RT = real(T)
+struct LSRK144NiegemannDiehlBusch <: LowStorageRungeKutta2N end
+
+function tableau(::LSRK144NiegemannDiehlBusch, RT)
 
     RKA = (
         RT(0),
@@ -389,5 +178,17 @@ function LSRK144NiegemannDiehlBusch(
         RT(0.8734213127600976),
     )
 
-    LowStorageRungeKutta2N(F, RKA, RKB, RKC, Q; dt = dt, t0 = t0)
+    LowStorageRungeKutta2NTableau(RKA, RKB, RKC)
 end
+
+
+"""
+    LSRKEulerMethod()
+
+An implementation of explicit Euler method using [`LowStorageRungeKutta2N`](@ref) infrastructure. 
+This is mainly for debugging.
+"""
+struct LSRKEulerMethod <: LowStorageRungeKutta2N
+end
+tableau(::LSRKEulerMethod, RT) = 
+    LowStorageRungeKutta2NTableau((RT(0),), (RT(1),), (RT(0),))

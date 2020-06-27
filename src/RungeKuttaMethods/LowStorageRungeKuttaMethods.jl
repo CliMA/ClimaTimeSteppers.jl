@@ -9,6 +9,7 @@ A class of low-storage Runge-Kutta algorithms. Subtypes `L` should define a
 `LowStorageRungeKutta2NTableau`.
 
 The available concrete implementations are:
+ - [`LSRKEulerMethod`](@ref)
  - [`LSRK54CarpenterKennedy`](@ref)
  - [`LSRK144NiegemannDiehlBusch`](@ref)
 """

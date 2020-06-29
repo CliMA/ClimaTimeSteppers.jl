@@ -30,7 +30,7 @@ module ODESolvers
 import DiffEqBase
 
 
-include("problems.jl")
+include("functions.jl")
 
 abstract type DistributedODEAlgorithm <: DiffEqBase.AbstractODEAlgorithm
 end

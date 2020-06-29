@@ -35,7 +35,7 @@ struct LowStorageRungeKutta2NIncCache{Nstages, RT, A}
     du::A
 end
 
-function cache(prob::IncrementODEProblem, alg::LowStorageRungeKutta2N)
+function cache(prob::IncrementingODEProblem, alg::LowStorageRungeKutta2N)
     du = zero(prob.u0)
     return LowStorageRungeKutta2NIncCache(tableau(alg, eltype(du)), du)
 end

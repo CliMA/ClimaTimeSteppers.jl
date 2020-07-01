@@ -14,6 +14,8 @@ mutable struct DistributedODEIntegrator{algType,uType,tType} <: DiffEqBase.Abstr
     step::Int
     stepstop::Int # -1
     adjustfinal::Bool
+    callback::DiffEqBase.CallbackSet
+    u_modified::Bool
     cache
 end
 
@@ -24,12 +26,19 @@ function DiffEqBase.__init(
     args...; 
     dt,  # required
     stepstop=-1, 
-    adjustfinal=false, 
+    adjustfinal=false,
+    callback=nothing,
     kwargs...)    
     
-    integrator = DistributedODEIntegrator(prob, alg, prob.u0, dt, prob.tspan[1], prob.tspan[2], 0, stepstop, adjustfinal, cache(prob, alg))
+    u = prob.u0
+    t = prob.tspan[1]
+    tstop = prob.tspan[2]
 
-    # TODO: init callbacks
+    callbackset = DiffEqBase.CallbackSet(callback)
+    isempty(callbackset.continuous_callbacks) || error("Continuous callbacks are not supported")
+    integrator = DistributedODEIntegrator(prob, alg, u, dt, t, tstop, 0, stepstop, adjustfinal, callbackset, false, cache(prob, alg))
+
+    DiffEqBase.initialize!(callbackset,u,t,integrator)
     return integrator
 end
 
@@ -46,14 +55,14 @@ function DiffEqBase.__solve(
     return integrator.u # ODEProblem returns a Solution objec
 end
 
-# either called directly (after init), or by solve (via __solve)
+# either called directly (after init), or by solv e (via __solve)
 function DiffEqBase.solve!(integrator::DistributedODEIntegrator)
     while integrator.t < integrator.tstop
         if integrator.adjustfinal && integrator.t + integrator.dt > integrator.tstop
             adjust_dt!(integrator, integrator.tstop - integrator.t)
         end
         DiffEqBase.step!(integrator)
-        # TODO: apply callbacks
+
         if integrator.step == integrator.stepstop
             break
         end
@@ -66,9 +75,22 @@ function DiffEqBase.step!(integrator::DistributedODEIntegrator)
     step_u!(integrator, integrator.cache) # solvers need to define this interface
     integrator.t += integrator.dt
     integrator.step += 1
+
+    # apply callbacks
+    discrete_callbacks = integrator.callback.discrete_callbacks
+    for callback in discrete_callbacks
+        if callback.condition(integrator.u,integrator.t,integrator)
+            callback.affect!(integrator)
+        end
+    end
 end
 
 function adjust_dt!(integrator::DistributedODEIntegrator, dt)
     # TODO: figure out interface for recomputing other objects (linear operators, etc)
     integrator.dt = dt
 end
+
+
+# not sure what this should do?
+# defined as default initialize: https://github.com/SciML/DiffEqBase.jl/blob/master/src/callbacks.jl#L3
+DiffEqBase.u_modified!(i::DistributedODEIntegrator,bool) = nothing

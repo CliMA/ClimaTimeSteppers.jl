@@ -5,6 +5,311 @@ Provides concrete implementations of IMEX (IMplicit-EXplicit)
 methods using ARK (Additively-partitioned Runge-Kutta) methods. 
 """
 
+abstract type AdditiveRungeKutta <: DistributedODEAlgorithm end
+
+struct AdditiveRungeKuttaTableau{Nstages, RT}
+    "RK coefficient vector A (rhs scaling) for the explicit part"
+    Aexpl::NTuple{Nstages, RT}
+    "RK coefficient vector A (rhs scaling) for the implicit part"
+    Aimpl::NTuple{Nstages, RT}
+    "low storage RK coefficient vector B (rhs add in scaling)"
+    B::NTuple{Nstages, RT}
+    "low storage RK coefficient vector C (time scaling)"
+    C::NTuple{Nstages, RT}
+end
+
+struct AdditiveRungeKuttaFullCache{Nstages, Nm1, RT, A, O, L}
+    U::NTuple{Nm1,A} #Qstages
+    L::NTuple{Nstages,A} #Lstages
+    R::NTuple{Nstages,A} #Rstages
+    tableau::AdditiveRungeKuttaTableau{Nstages, RT}
+    W::O
+    linsolve!::L
+end
+struct AdditiveRungeKuttaLowStorageCache{Nstages, RT, A, IO}
+    U::NTuple{Nm1,A} #Qstages
+    Utt::A
+    R::NTuple{Nstages,A} #Rstages
+    tableau::AdditiveRungeKuttaTableau{Nstages, RT}
+    W::O
+    linsolve!::L
+end
+
+
+struct ARK2GiraldoKellyConstantinescu{F} <: AdditiveRungeKutta
+    linsolve::L
+end
+
+# we need to provide:
+#   - linear part: as arguments to `ODEFunction`
+#        https://github.com/SciML/DiffEqBase.jl/blob/871fe1efe728680eb0a835121b75429d75606a82/src/diffeqfunction.jl#L21-L36
+#        https://github.com/SciML/DiffEqDocs.jl/blob/ccf16708a78fbdf65c512d3b449ac498f434a077/docs/src/features/performance_overloads.md#function-choice-definitions
+#        https://github.com/SciML/OrdinaryDiffEq.jl/blob/f93630317658b0c5460044a5d349f99391bc2f9c/src/derivative_utils.jl#L426
+#      - we can provide a `jac` keyword argument
+#      - there is also a `jvp` argument (Jacobian vector product): this isn't currently used
+
+#   - linear solver: passed as arguments to the Algorithm objects.
+#   https://docs.sciml.ai/latest/features/linear_nonlinear/#Linear-Solvers:-linsolve-Specification-1
+#   https://docs.sciml.ai/latest/features/linear_nonlinear/#Implementing-Your-Own-LinSolve:-How-LinSolveFactorize-Was-Created-1
+#
+# e.g.
+#=
+prob = ODEProblem(ODEFunction(dg, jac=dg_1dliner), u, (t0,t1))
+solve(prob, Rosenbrock23(linsolve=ColumnGMRES))
+
+
+=#
+
+#  
+#
+# W = M - gamma*J <=> our EulerOperator
+# https://github.com/SciML/OrdinaryDiffEq.jl/blob/f93630317658b0c5460044a5d349f99391bc2f9c/src/derivative_utils.jl#L126
+
+
+
+
+function step_u!(int, cache::AdditiveRungeKuttaFullCache{Nstages}) where {Nstages}
+    tab = cache.tableau
+    Uhat = cache.Uhat
+
+
+    u = int.u
+    p = int.prob.p
+    t = int.t
+    dt = int.dt
+
+    # two possible formulations
+    #  - fL! + fR!  => SplitODEFunction(fL!, fR!) (may need to wrap fL! in an AbstractDiffEqOperator
+    #    https://github.com/SciML/DiffEqOperators.jl
+    #    https://docs.sciml.ai/dev/features/diffeq_operator/#
+      # https://github.com/SciML/DiffEqBase.jl/blob/52bcd26cbbf64a43228286b5eb91d60c2e917d00/src/operators/diffeq_operator.jl
+    #  - fL! + (f! - fL!) =>jac ODEFunction(f!, jjac=fL!)  or jvp (Jacobian vector product) argument?
+
+
+    # Assume SplitODEFunction for now
+    fL! = int.prob.f.f1 # linear part
+    fR! = int.prob.f.f2 # remainder
+
+
+    # first stage is always explicit
+    τ = t + tab.C[1] * dt
+
+    #  cache.L[i] .= fL(cache.U[i-1], p, t + tab.C[i]*dt)
+    #  cache.R[1] .= fR(cache.U[i-1], p, t + tab.C[i]*dt)
+    
+
+    fL!(cache.L[1], u, p, τ)
+    fR!(cache.R[1], u, p, τ)
+
+    for i in 2:Nstages
+        U = cache.U[i-1]
+        U .= Uhat .= u        
+        # solve for W * U = Uhat
+        # set U to initial guess based on explicit
+        for j = 1:s-1
+            Uhat .+= (dt * tab.Aimpl[i,j]) .* cache.L[j] .+ (dt * tab.Aexpl[i,j]) .* cache.R[j]
+            # U is set to the initial guess
+            U    .+= (dt * tab.Aexpl[i,j]) .* (cache.L[j] .+ cache.R[j])
+        end        
+        #  W = I - dt * Aimpl[i,i] * L
+        # currently only use SDIRK methods where 
+        #    Aimpl[i,i] = i == 1 ? 0 : const
+        # TODO: handle changing Aimpl[i,i] coeffs
+        # do we need matrix_updated= kwarg?
+        cache.linsolve!(U, cache.W, Uhat)
+        
+        τ = t + tab.C[i] * dt
+        fL!(cache.L[i], U, p, τ)
+        fR!(cache.R[i], U, p, τ)
+    end
+
+    # compute next step
+    for i = 1:Nstages
+        u .+= (dt * tab.B[i]) .* (cache.L[i] .+ cache.R[i])
+    end
+end
+
+
+function step_u!(int, cache::AdditiveRungeKuttaLowStorageCache{Nstages}) where {Nstages}
+    tab = cache.tableau
+    Uhat = cache.Uhat
+
+
+    u = int.u
+    p = int.prob.p
+    t = int.t
+    dt = int.dt
+
+    # two possible formulations
+    #  - fL! + fR!  => SplitODEFunction(fL!, fR!) (may need to wrap fL! in an AbstractDiffEqOperator
+    #    https://github.com/SciML/DiffEqOperators.jl
+    #    https://docs.sciml.ai/dev/features/diffeq_operator/#
+      # https://github.com/SciML/DiffEqBase.jl/blob/52bcd26cbbf64a43228286b5eb91d60c2e917d00/src/operators/diffeq_operator.jl
+    #  - fL! + (f! - fL!) =>jac ODEFunction(f!, jjac=fL!)  or jvp (Jacobian vector product) argument?
+
+
+    # Assume SplitODEFunction for now
+    fL! = int.prob.f.f1 # linear part
+    fR! = int.prob.f.f2 # remainder
+
+
+    # first stage is always explicit
+    τ = t + tab.C[1] * dt
+
+    #  cache.L[i] .= fL(cache.U[i-1], p, t + tab.C[i]*dt)
+    #  cache.R[1] .= fR(cache.U[i-1], p, t + tab.C[i]*dt)
+    
+
+    # fL!(cache.L[1], u, p, τ)
+    fR!(cache.R[1], u, p, τ)
+
+    for i in 2:Nstages
+        U = cache.U[i-1]
+        Utt = cache.Utt
+        
+        Uhat .= u
+        U .= 0
+        # solve for W * U = Uhat
+        # set U to initial guess based on explicit
+        for j = 1:s-1
+            Uhat .+= (dt * tab.Aimpl[i,j]) .* cache.L[j] .+ (dt * tab.Aexpl[i,j]) .* cache.R[j]
+            # U is set to the initial guess
+            U    .+= (dt * tab.Aexpl[i,j]) .* (cache.L[j] .+ cache.R[j])
+        end        
+        #  W = I - dt * Aimpl[i,i] * L
+        # currently only use SDIRK methods where 
+        #    Aimpl[i,i] = i == 1 ? 0 : const
+        # TODO: handle changing Aimpl[i,i] coeffs
+        # do we need matrix_updated= kwarg?
+        cache.linsolve!(U, cache.W, Uhat)
+        
+        τ = t + tab.C[i] * dt
+        fL!(cache.L[i], U, p, τ)
+        fR!(cache.R[i], U, p, τ)
+    end
+
+    # compute next step
+    for i = 1:Nstages
+        u .+= (dt * tab.B[i]) .* (cache.L[i] .+ cache.R[i])
+    end
+end
+
+
+#=
+
+            Qhat_i = Q[i]
+        Qstages_is_i = Q[i]
+
+        \hat
+
+        @unroll for js in 1:(is - 1)
+            R_explicit = dt * RKA_explicit[is, js] * Rstages[js][i]
+            L_explicit = dt * RKA_explicit[is, js] * Lstages[js][i]
+            L_implicit = dt * RKA_implicit[is, js] * Lstages[js][i]
+            Qhat_i += (R_explicit + L_implicit)
+            Qstages_is_i += R_explicit
+            if split_explicit_implicit
+                Qstages_is_i += L_explicit
+            else
+                Qhat_i -= L_explicit
+            end
+        end
+        Qstages[is][i] = Qstages_is_i
+        Qhat[i] = Qhat_i
+        =#
+
+
+    #=
+    besolver! = ark.besolver!
+    RKA_explicit, RKA_implicit = ark.RKA_explicit, ark.RKA_implicit
+    RKB, RKC = ark.RKB, ark.RKC
+    rhs!, rhs_implicit! = ark.rhs!, ark.rhs_implicit!
+    Qstages, Rstages = (Q, ark.Qstages...), ark.Rstages
+    Qhat = ark.Qhat
+    split_explicit_implicit = ark.split_explicit_implicit
+    Lstages = ark.variant_storage.Lstages
+
+    rv_Q = realview(Q)
+    rv_Qstages = realview.(Qstages)
+    rv_Lstages = realview.(Lstages)
+    rv_Rstages = realview.(Rstages)
+    rv_Qhat = realview(Qhat)
+
+    Nstages = length(RKB)
+
+    groupsize = 256
+    =#
+
+    # note that it is important that this loop does not modify Q!
+    for stage in 2:Nstages
+        stagetime = t + tab.C[stage] * dt
+
+        # this kernel also initializes Qstages[istage] with an initial guess
+        # for the linear solver
+        event = Event(array_device(Q))
+        event = stage_update!(array_device(Q), groupsize)(
+            variant,
+            rv_Q,
+            rv_Qstages,
+            rv_Lstages,
+            rv_Rstages,
+            rv_Qhat,
+            RKA_explicit,
+            RKA_implicit,
+            dt,
+            Val(istage),
+            Val(split_explicit_implicit),
+            slow_δ,
+            slow_rv_dQ;
+            ndrange = length(rv_Q),
+            dependencies = (event,),
+        )
+        wait(array_device(Q), event)
+
+        # solves
+        # Qs = Qhat + dt * RKA_implicit[istage, istage] * rhs_implicit!(Qs)
+        α = dt * tab.A_implicit[istage, istage]
+        besolver!(Qstages[istage], Qhat, α, p, stagetime)
+
+        f!(Rstages[istage], Qstages[istage], p, stagetime, increment = false)
+        rhs_implicit!(
+            Lstages[istage],
+            Qstages[istage],
+            p,
+            stagetime,
+            increment = false,
+        )
+    end
+
+    # compose the final solution
+    event = Event(array_device(Q))
+    event = solution_update!(array_device(Q), groupsize)(
+        variant,
+        rv_Q,
+        rv_Lstages,
+        rv_Rstages,
+        RKB,
+        dt,
+        Val(Nstages),
+        Val(split_explicit_implicit),
+        slow_δ,
+        slow_rv_dQ,
+        slow_scaling;
+        ndrange = length(rv_Q),
+        dependencies = (event,),
+    )
+    wait(array_device(Q), event)
+
+end
+
+
+
+
+
+
+
+
+
 export AbstractAdditiveRungeKutta
 export LowStorageVariant, NaiveVariant
 export AdditiveRungeKutta

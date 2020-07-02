@@ -1,10 +1,88 @@
 """
-    AdditiveRungeKuttaMethods.jl
+    AdditiveRungeKutta
 
-Provides concrete implementations of IMEX (IMplicit-EXplicit)
-methods using ARK (Additively-partitioned Runge-Kutta) methods. 
+IMEX (IMplicit-EXplicit) methods using ARK (Additively-partitioned Runge-Kutta) methods. 
+
+
+ARK methods are based on splitting the tendency function ``f(u) = f_L(u) + f_R(t)`` 
+where ``f_L(u) = L u`` is a linear operator which is treated implicitly. The value
+ on the ``i``th stage ``U^{(i)}``` is
+```math
+U^{(i)} = u^n + \Delta t \sum_{j=1}^i \tilde a_{ij} f_L(u^{(j)}) 
+              + \Delta t \sum_{j=1}^{i-1} a_{ij} f_R(u^{(j)})
+```
+which can be written as the solution to the linear problem:
+```math
+(I - \Delta t \tilde a_{ii} L) U^{(i)} = \hat U^{(i)}
+```
+where
+```math
+\hat U^{(i)} = u^n + \Delta t \sum_{j=1}^{i-1} \tilde a_{ij} f_L(u^{(j)}) 
+                                             + \Delta t \sum_{j=1}^{i-1} a_{ij} f_R(u^{(j)}
+```
+When an iterative solver is used, the initial value for `U^{(i)}` can be used by an explicit approximation
+```math
+\bar U^{(i)} = u^n + \Delta t \sum_{j=1}^{i-1} a_{ij} [ f_L(u^{(j)}) + f_R(u^{(j)}) ]
+            = \hat U^{(i)} + \Delta t \sum_{j=1}^{i-1} (a_{ij} - \tilde a_{ij})  f_L(u^{(j)}) 
+```
+
+By convention, ``\tilde a_{11} = 0``, so that ``U^{(1)} = u^n``, and all remaining stages use
+the same left-hand side linear operator (``\tilde a_{ii} = \tilde a_{jj}`` for ``i,j>1``).
+
+Additionally we assume the linear operator ``L`` is time-invariant, which lets us write
+```math
+\bar U^{(i)} = u^n + \Delta t \sum_{j=1}^{i-1} a_{ij} ( f_L(u^{(j)}) + f_R(u^{(j)}) ) 
+            = \hat U^{(i)} + \Delta t  L \sum_{j=1}^{i-1} (a_{ij} - \tilde a_{ij})  u^{(j)}
+```
+at the cost of one evaluation of ``f_L``.
+
+# Reducing storage
+## Remainder form
+
+We can avoid storing ``f_L(u^{(j)}`` by further defining
+```
+\Omega^{(i)} = \sum_{j=1}^{i-1} \frac{\tilde a_{ij}}{\tilde a_{ii}} U^{(j)}
+```
+and writing
+```math
+\hat U^{(i)} = u^n + \Delta t \tilde a_{ii} L \Omega^{(i)} + \Delta t \sum_{j=1}^{i-1} a_{ij} f_R(u^{(j)}
+```
+which requires only 1 evaluation of ``f_L`` (+ one extra if we want ``\bar U^{(i)}``). We can reduce this further by defining
+
+```math
+U_*^{(i)} = U^{(i)} + \Omega^{(i)}
+```
+and rewriting the linear problem as
+```math
+(I - \Delta t \tilde a_{ii} L) U_*^{(i)} = \hat U_*_{(i)}
+```
+where
+```math
+\hat U_*_{(i)} = \hat U_{(i)} + (I - \Delta t \tilde a_{ii} L)  \Omega^{(i)} 
+               = u^n + \Omega^{(i)} + \Delta t \sum_{j=1}^{i-1} a_{ij} f_R(u^{(j)}
+```
+
+```math
+\hat U_*^{(i)} = u^n + \Omega^{(i)} + \Delta t \sum_{j=1}^{i-1} a_{ij} f_R(u^{(j)}
+```
+and
+Then we are left with
+
+
+
+
+This can be written as predictor ``U_p^{(i)}`` 
+```math
+U_p^{(i)} = u^n + \Delta t \sum_{j=1}^{i-1} a_{ij} f(u^{(j)})
+```
+and a corrector
+```math
+(I - \Delta t \tilde a_{ii} L) U^{(i)} = U_p^{(i)} 
+  + \Delta t L \sum_{j=1}^{i-1} (\tilde a_{ij} - a_{ij}) u^{(j)}
+```
+
+
 """
-
 abstract type AdditiveRungeKutta <: DistributedODEAlgorithm end
 
 struct AdditiveRungeKuttaTableau{Nstages, RT}
@@ -19,6 +97,7 @@ struct AdditiveRungeKuttaTableau{Nstages, RT}
 end
 
 struct AdditiveRungeKuttaFullCache{Nstages, Nm1, RT, A, O, L}
+    "`U[i]` = ``U^{(i+1)}`` (since ``U^{(1)} = u^n``)"
     U::NTuple{Nm1,A} #Qstages
     L::NTuple{Nstages,A} #Lstages
     R::NTuple{Nstages,A} #Rstages
@@ -102,13 +181,13 @@ function step_u!(int, cache::AdditiveRungeKuttaFullCache{Nstages}) where {Nstage
     fR!(cache.R[1], u, p, τ)
 
     for i in 2:Nstages
+        # solve for W * U = Uhat
+        # set U to initial guess based on fully explicit
+        # TODO: we don't need this for direct solves
         U = cache.U[i-1]
         U .= Uhat .= u        
-        # solve for W * U = Uhat
-        # set U to initial guess based on explicit
         for j = 1:s-1
             Uhat .+= (dt * tab.Aimpl[i,j]) .* cache.L[j] .+ (dt * tab.Aexpl[i,j]) .* cache.R[j]
-            # U is set to the initial guess
             U    .+= (dt * tab.Aexpl[i,j]) .* (cache.L[j] .+ cache.R[j])
         end        
         #  W = I - dt * Aimpl[i,i] * L
@@ -159,14 +238,14 @@ function step_u!(int, cache::AdditiveRungeKuttaLowStorageCache{Nstages}) where {
     #  cache.L[i] .= fL(cache.U[i-1], p, t + tab.C[i]*dt)
     #  cache.R[1] .= fR(cache.U[i-1], p, t + tab.C[i]*dt)
     
-
+    
     # fL!(cache.L[1], u, p, τ)
     fR!(cache.R[1], u, p, τ)
 
     for i in 2:Nstages
         U = cache.U[i-1]
         Utt = cache.Utt
-        
+
         Uhat .= u
         U .= 0
         # solve for W * U = Uhat
@@ -195,112 +274,6 @@ function step_u!(int, cache::AdditiveRungeKuttaLowStorageCache{Nstages}) where {
 end
 
 
-#=
-
-            Qhat_i = Q[i]
-        Qstages_is_i = Q[i]
-
-        \hat
-
-        @unroll for js in 1:(is - 1)
-            R_explicit = dt * RKA_explicit[is, js] * Rstages[js][i]
-            L_explicit = dt * RKA_explicit[is, js] * Lstages[js][i]
-            L_implicit = dt * RKA_implicit[is, js] * Lstages[js][i]
-            Qhat_i += (R_explicit + L_implicit)
-            Qstages_is_i += R_explicit
-            if split_explicit_implicit
-                Qstages_is_i += L_explicit
-            else
-                Qhat_i -= L_explicit
-            end
-        end
-        Qstages[is][i] = Qstages_is_i
-        Qhat[i] = Qhat_i
-        =#
-
-
-    #=
-    besolver! = ark.besolver!
-    RKA_explicit, RKA_implicit = ark.RKA_explicit, ark.RKA_implicit
-    RKB, RKC = ark.RKB, ark.RKC
-    rhs!, rhs_implicit! = ark.rhs!, ark.rhs_implicit!
-    Qstages, Rstages = (Q, ark.Qstages...), ark.Rstages
-    Qhat = ark.Qhat
-    split_explicit_implicit = ark.split_explicit_implicit
-    Lstages = ark.variant_storage.Lstages
-
-    rv_Q = realview(Q)
-    rv_Qstages = realview.(Qstages)
-    rv_Lstages = realview.(Lstages)
-    rv_Rstages = realview.(Rstages)
-    rv_Qhat = realview(Qhat)
-
-    Nstages = length(RKB)
-
-    groupsize = 256
-    =#
-
-    # note that it is important that this loop does not modify Q!
-    for stage in 2:Nstages
-        stagetime = t + tab.C[stage] * dt
-
-        # this kernel also initializes Qstages[istage] with an initial guess
-        # for the linear solver
-        event = Event(array_device(Q))
-        event = stage_update!(array_device(Q), groupsize)(
-            variant,
-            rv_Q,
-            rv_Qstages,
-            rv_Lstages,
-            rv_Rstages,
-            rv_Qhat,
-            RKA_explicit,
-            RKA_implicit,
-            dt,
-            Val(istage),
-            Val(split_explicit_implicit),
-            slow_δ,
-            slow_rv_dQ;
-            ndrange = length(rv_Q),
-            dependencies = (event,),
-        )
-        wait(array_device(Q), event)
-
-        # solves
-        # Qs = Qhat + dt * RKA_implicit[istage, istage] * rhs_implicit!(Qs)
-        α = dt * tab.A_implicit[istage, istage]
-        besolver!(Qstages[istage], Qhat, α, p, stagetime)
-
-        f!(Rstages[istage], Qstages[istage], p, stagetime, increment = false)
-        rhs_implicit!(
-            Lstages[istage],
-            Qstages[istage],
-            p,
-            stagetime,
-            increment = false,
-        )
-    end
-
-    # compose the final solution
-    event = Event(array_device(Q))
-    event = solution_update!(array_device(Q), groupsize)(
-        variant,
-        rv_Q,
-        rv_Lstages,
-        rv_Rstages,
-        RKB,
-        dt,
-        Val(Nstages),
-        Val(split_explicit_implicit),
-        slow_δ,
-        slow_rv_dQ,
-        slow_scaling;
-        ndrange = length(rv_Q),
-        dependencies = (event,),
-    )
-    wait(array_device(Q), event)
-
-end
 
 
 
@@ -779,17 +752,17 @@ end
 
         @unroll for js in 1:(is - 1)
             if split_explicit_implicit
-                rkcoeff = RKA_implicit[is, js] / RKA_implicit[is, is]
+                rkcoeff = RKA_implicit[is, js] / RKA_implicit[is, is] # A[i,j] / A[i,i]
             else
                 rkcoeff =
                     (RKA_implicit[is, js] - RKA_explicit[is, js]) /
                     RKA_implicit[is, is]
             end
-            commonterm = rkcoeff * Qstages[js][i]
+            commonterm = rkcoeff * Qstages[js][i] 
             Qhat_i += commonterm + dt * RKA_explicit[is, js] * Rstages[js][i]
             Qstages_is_i -= commonterm
         end
-        Qstages[is][i] = Qstages_is_i
+        Qstages[is][i] = Qstages_is_i   # Qstages[i] = - sum(j -> A[i,j] / A[i,i] * Qstages[j], 1:i-1)
         Qhat[i] = Qhat_i
         Qtt[i] = Qhat_i
     end

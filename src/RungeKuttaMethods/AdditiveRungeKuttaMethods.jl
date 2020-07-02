@@ -4,8 +4,8 @@
 IMEX (IMplicit-EXplicit) methods using ARK (Additively-partitioned Runge-Kutta) methods. 
 
 
-ARK methods are based on splitting the tendency function ``f(u) = f_L(u) + f_R(t)`` 
-where ``f_L(u) = L u`` is a linear operator which is treated implicitly. The value
+ARK methods are based on splitting the ODE function ``f(u) = f_L(u) + f_R(t)`` 
+where ``f_L(u) = L u`` is a linear operator which is treated implicitly.  The value
  on the ``i``th stage ``U^{(i)}``` is
 ```math
 U^{(i)} = u^n + \Delta t \sum_{j=1}^i \tilde a_{ij} f_L(u^{(j)}) 
@@ -20,7 +20,7 @@ where
 \hat U^{(i)} = u^n + \Delta t \sum_{j=1}^{i-1} \tilde a_{ij} f_L(u^{(j)}) 
                                              + \Delta t \sum_{j=1}^{i-1} a_{ij} f_R(u^{(j)}
 ```
-When an iterative solver is used, the initial value for `U^{(i)}` can be used by an explicit approximation
+When an iterative solver is used, an initial value `\bar U^{(i)}` can be chosen by an explicit approximation
 ```math
 \bar U^{(i)} = u^n + \Delta t \sum_{j=1}^{i-1} a_{ij} [ f_L(u^{(j)}) + f_R(u^{(j)}) ]
             = \hat U^{(i)} + \Delta t \sum_{j=1}^{i-1} (a_{ij} - \tilde a_{ij})  f_L(u^{(j)}) 
@@ -39,16 +39,17 @@ at the cost of one evaluation of ``f_L``.
 # Reducing storage
 ## Remainder form
 
-We can avoid storing ``f_L(u^{(j)}`` by further defining
+If we are given ``f_L`` and ``f_R``, we can avoid storing ``f_L(u^{(j)}`` by further defining
 ```
 \Omega^{(i)} = \sum_{j=1}^{i-1} \frac{\tilde a_{ij}}{\tilde a_{ii}} U^{(j)}
 ```
 and writing
 ```math
-\hat U^{(i)} = u^n + \Delta t \tilde a_{ii} L \Omega^{(i)} + \Delta t \sum_{j=1}^{i-1} a_{ij} f_R(u^{(j)}
+\hat U^{(i)} = u^n + \Delta t \tilde a_{ii} f_L( \Omega^{(i)} ) + \Delta t \sum_{j=1}^{i-1} a_{ij} f_R(u^{(j)}
 ```
-which requires only 1 evaluation of ``f_L`` (+ one extra if we want ``\bar U^{(i)}``). We can reduce this further by defining
+which requires only 1 evaluation of ``f_L`` (+ one extra if we want ``\bar U^{(i)}``).
 
+We can remove this evaluation by defining
 ```math
 U_*^{(i)} = U^{(i)} + \Omega^{(i)}
 ```
@@ -58,29 +59,9 @@ and rewriting the linear problem as
 ```
 where
 ```math
-\hat U_*_{(i)} = \hat U_{(i)} + (I - \Delta t \tilde a_{ii} L)  \Omega^{(i)} 
+\hat U_*^{(i)} = \hat U_{(i)} + (I - \Delta t \tilde a_{ii} L)  \Omega^{(i)} 
                = u^n + \Omega^{(i)} + \Delta t \sum_{j=1}^{i-1} a_{ij} f_R(u^{(j)}
 ```
-
-```math
-\hat U_*^{(i)} = u^n + \Omega^{(i)} + \Delta t \sum_{j=1}^{i-1} a_{ij} f_R(u^{(j)}
-```
-and
-Then we are left with
-
-
-
-
-This can be written as predictor ``U_p^{(i)}`` 
-```math
-U_p^{(i)} = u^n + \Delta t \sum_{j=1}^{i-1} a_{ij} f(u^{(j)})
-```
-and a corrector
-```math
-(I - \Delta t \tilde a_{ii} L) U^{(i)} = U_p^{(i)} 
-  + \Delta t L \sum_{j=1}^{i-1} (\tilde a_{ij} - a_{ij}) u^{(j)}
-```
-
 
 """
 abstract type AdditiveRungeKutta <: DistributedODEAlgorithm end

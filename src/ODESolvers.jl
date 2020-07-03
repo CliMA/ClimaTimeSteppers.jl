@@ -56,5 +56,6 @@ include("integrators.jl")
 # Include concrete implementations
 include("RungeKuttaMethods/LowStorageRungeKuttaMethods.jl")
 include("RungeKuttaMethods/StrongStabilityPreservingRungeKuttaMethods.jl")
+include("RungeKuttaMethods/AdditiveRungeKuttaMethods.jl")
 
 end

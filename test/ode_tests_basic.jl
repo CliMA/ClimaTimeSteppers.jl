@@ -18,24 +18,34 @@ c = 1 / 100
 function rhs!(du, u, param, t, α=true, β=false)
     @. du = $(α * cos(t)) * (a + b * u + c * u^2) + β * du
 end
-#=
-function rhs_linear!(dQ, Q, ::Nothing, t; increment)
+function rhs_zero!(du, u, param, t)
+    @. du = 0
+end
+
+
+function rhs_linear!(dQ, Q, param, t; increment=false)
     if increment
         @. dQ += $cos(t) * b * Q
     else
         @. dQ = $cos(t) * b * Q
     end
 end
+
+#=
 struct ODETestBasicLinBE <: AbstractBackwardEulerSolver end
 ODESolvers.Δt_is_adjustable(::ODETestBasicLinBE) = true
 (::ODETestBasicLinBE)(Q, Qhat, α, p, t) = @. Q = Qhat / (1 - α * $cos(t) * b)
-function rhs_nonlinear!(dQ, Q, ::Nothing, t; increment)
+=#
+
+function rhs_nonlinear!(dQ, Q, param, t; increment=false)
     if increment
         @. dQ += $cos(t) * (a + c * Q^2)
     else
         @. dQ = $cos(t) * (a + c * Q^2)
     end
 end
+
+#=
 function rhs_fast!(dQ, Q, ::Any, t; increment)
     if increment
         @. dQ += α1 * $cos(t) * (a + b * Q + c * Q^2)
@@ -88,13 +98,14 @@ end
 
 q0 = ArrayType === Array ? [1.0] : range(-1.0, 1.0, length = 303)
 t0 = 0.1
-finaltime = 1.2
+finaltime = 1.1
 
 Qinit = exactsolution(t0, q0, t0)
 Q = similar(Qinit)
 Qexact = exactsolution(finaltime, q0, t0)
 
 @testset "Convergence/limited" begin
+#=
     @testset "Explicit methods" begin
         dts = [2.0^(-k) for k in 3:4]
         errors = similar(dts)
@@ -103,54 +114,46 @@ Qexact = exactsolution(finaltime, q0, t0)
                 Q .= Qinit
                 prob = IncrementingODEProblem(rhs!, Q, (t0, finaltime))
                 solve(prob, method; dt=dt, adjustfinal=true)
-                    errors[n] = norm(Q - Qexact)
+                errors[n] = norm(Q - Qexact)
             end
             rates = log2.(errors[1:(end - 1)] ./ errors[2:end])
             @test isapprox(rates[end], expected_order; atol = 0.7)
         end
     end
+    =#
 
-    # @testset "IMEX methods" begin
-    #     dts = [2.0^(-k) for k in 4:5]
-    #     errors = similar(dts)
-    #     for (method, order) in imex_methods
-    #         for split_explicit_implicit in (false, true)
-    #             for variant in (LowStorageVariant(), NaiveVariant())
-    #                 for (n, dt) in enumerate(dts)
-    #                     Q .= Qinit
-    #                     rhs_arg! =
-    #                         split_explicit_implicit ? rhs_nonlinear! : rhs!
-    #                     solver = method(
-    #                         rhs_arg!,
-    #                         rhs_linear!,
-    #                         LinearBackwardEulerSolver(
-    #                             DivideLinearSolver();
-    #                             isadjustable = true,
-    #                         ),
-    #                         Q;
-    #                         dt = dt,
-    #                         t0 = t0,
-    #                         split_explicit_implicit = split_explicit_implicit,
-    #                         variant = variant,
-    #                     )
-    #                     solve!(Q, solver; timeend = finaltime)
-    #                     errors[n] = norm(Q - Qexact)
-    #                 end
-    #                 rates = log2.(errors[1:(end - 1)] ./ errors[2:end])
-    #                 if variant isa LowStorageVariant && split_explicit_implicit
-    #                     if method === ARK1ForwardBackwardEuler
-    #                         expected_order = 1
-    #                     else
-    #                         expected_order = 2
-    #                     end
-    #                 else
-    #                     expected_order = order
-    #                 end
-    #                 @test isapprox(rates[end], expected_order; rtol = 0.3)
-    #             end
-    #         end
-    #     end
-    # end
+    @testset "IMEX methods" begin
+        dts = [2.0^(-k) for k in 5:10]
+        errors = similar(dts)
+        for (method, order) in imex_methods
+            #for split_explicit_implicit in (false, true)
+                #for variant in (LowStorageVariant(), NaiveVariant())
+                    for (n, dt) in enumerate(dts)
+                        Q .= Qinit
+                        # rhs_arg! =
+                        #   split_explicit_implicit ? rhs_nonlinear! : rhs!
+                        prob = SplitODEProblem(rhs_linear!, rhs_nonlinear!, Q, (t0, finaltime))
+                        linsolver = nothing
+                        solve(prob, method(linsolver); dt=dt, adjustfinal=false)
+                        errors[n] = norm(Q - Qexact)
+                        @show (log2(dt), norm(Q - Qexact))
+                    end
+                    rates = log2.(errors[1:(end - 1)] ./ errors[2:end])
+                    @show rates
+                    #=if variant isa LowStorageVariant && split_explicit_implicit
+                        if method === ARK1ForwardBackwardEuler
+                            expected_order = 1
+                        else
+                            expected_order = 2
+                        end
+                    else
+                        expected_order = order
+                    end=#
+                    @test isapprox(rates[end], order; rtol = 0.3)
+                #end
+            #end
+        end
+    end
 
     # @testset "IMEX methods with direct solver" begin
     #     dts = [2.0^(-k) for k in 4:5]

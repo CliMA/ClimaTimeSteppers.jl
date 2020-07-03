@@ -1,3 +1,7 @@
+using StaticArrays, LinearAlgebra
+
+export ARK2GiraldoKellyConstantinescu
+
 """
     AdditiveRungeKutta
 
@@ -5,11 +9,11 @@ IMEX (IMplicit-EXplicit) algorithms using ARK (Additively-partitioned Runge-Kutt
 """
 abstract type AdditiveRungeKutta <: DistributedODEAlgorithm end
 
-struct AdditiveRungeKuttaTableau{Nstages, RT}
+struct AdditiveRungeKuttaTableau{Nstages, Nstages², RT}
     "RK coefficient vector A (rhs scaling) for the explicit part"
-    Aexpl::NTuple{Nstages, RT}
+    Aexpl::SArray{NTuple{2, Nstages}, RT, 2, Nstages²}
     "RK coefficient vector A (rhs scaling) for the implicit part"
-    Aimpl::NTuple{Nstages, RT}
+    Aimpl::SArray{NTuple{2, Nstages}, RT, 2, Nstages²}
     "low storage RK coefficient vector B (rhs add in scaling)"
     B::NTuple{Nstages, RT}
     "low storage RK coefficient vector C (time scaling)"
@@ -27,6 +31,30 @@ struct AdditiveRungeKuttaFullCache{Nstages, RT, A, O, L}
     W::O
     linsolve!::L
 end
+
+
+function cache(
+    prob::DiffEqBase.AbstractODEProblem{uType, tType, true}, 
+    alg::AdditiveRungeKutta, dt) where {uType,tType}
+
+    tab = tableau(alg, eltype(prob.u0))
+    Nstages = length(tab.B) # TODO: create function for this
+    U = zero(prob.u0)
+    L = ntuple(i -> zero(prob.u0), Nstages)
+    R = ntuple(i -> zero(prob.u0), Nstages)
+
+    n = length(prob.u0)
+    fL(u) = prob.f.f1(similar(u), u, prob.p, prob.tspan[1])
+    LI = mapslices(fL, Matrix{Float64}(I,n,n), dims=1)
+    W = lu(I - tab.Aimpl[2,2] * dt * LI)
+    linsolve!(x,W,y) = x .= W\y
+
+    AdditiveRungeKuttaFullCache(U,L,R,tab, W, linsolve!)
+end
+
+
+
+#=
 struct AdditiveRungeKuttaLowStorageCache{Nstages, RT, A, IO}
     U::NTuple{Nm1,A} #Qstages
     Utt::A
@@ -35,10 +63,31 @@ struct AdditiveRungeKuttaLowStorageCache{Nstages, RT, A, IO}
     W::O
     linsolve!::L
 end
+=#
 
-
-struct ARK2GiraldoKellyConstantinescu{F} <: AdditiveRungeKutta
+struct ARK2GiraldoKellyConstantinescu{L} <: AdditiveRungeKutta
     linsolve::L
+end
+
+function tableau(::ARK2GiraldoKellyConstantinescu, RT)
+    paperversion = false
+    a32 = RT(paperversion ? (3 + 2 * sqrt(2)) / 6 : 1 // 2)
+    RKA_explicit = @SArray [
+        RT(0) RT(0) RT(0)
+        RT(2 - sqrt(2)) RT(0) RT(0)
+        RT(1 - a32) RT(a32) RT(0)
+    ]
+
+    RKA_implicit = @SArray [
+        RT(0) RT(0) RT(0)
+        RT(1 - 1 / sqrt(2)) RT(1 - 1 / sqrt(2)) RT(0)
+        RT(1 / (2 * sqrt(2))) RT(1 / (2 * sqrt(2))) RT(1 - 1 / sqrt(2))
+    ]
+
+    RKB = (RT(1 / (2 * sqrt(2))), RT(1 / (2 * sqrt(2))), RT(1 - 1 / sqrt(2)))
+    RKC = (RT(0), RT(2 - sqrt(2)), RT(1))
+
+    AdditiveRungeKuttaTableau(RKA_explicit, RKA_implicit, RKB, RKC)
 end
 
 # we need to provide:
@@ -65,6 +114,7 @@ solve(prob, Rosenbrock23(linsolve=ColumnGMRES))
 #
 # W = M - gamma*J <=> our EulerOperator
 # https://github.com/SciML/OrdinaryDiffEq.jl/blob/f93630317658b0c5460044a5d349f99391bc2f9c/src/derivative_utils.jl#L126
+
 
 
 
@@ -108,7 +158,7 @@ function step_u!(int, cache::AdditiveRungeKuttaFullCache{Nstages}) where {Nstage
         # set U to initial guess based on fully explicit
         # TODO: we don't need this for direct solves
         U .= Uhat .= u        
-        for j = 1:s-1
+        for j = 1:i-1
             Uhat .+= (dt * tab.Aimpl[i,j]) .* cache.L[j] .+ (dt * tab.Aexpl[i,j]) .* cache.R[j]
             # initial value: we only need to do this if using an iterative method:
             U    .+= (dt * tab.Aexpl[i,j]) .* (cache.L[j] .+ cache.R[j])
@@ -132,7 +182,7 @@ function step_u!(int, cache::AdditiveRungeKuttaFullCache{Nstages}) where {Nstage
     end
 end
 
-
+#=
 function step_u!(int, cache::AdditiveRungeKuttaLowStorageCache{Nstages}) where {Nstages}
     tab = cache.tableau
     Uhat = cache.Uhat
@@ -197,11 +247,11 @@ function step_u!(int, cache::AdditiveRungeKuttaLowStorageCache{Nstages}) where {
     end
 end
 
+=#
 
 
 
-
-
+#=
 
 
 
@@ -1260,3 +1310,5 @@ function ARK437L2SA1KennedyCarpenter(
         t0 = t0,
     )
 end
+
+=#

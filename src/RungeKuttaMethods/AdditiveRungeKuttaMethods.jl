@@ -116,8 +116,10 @@ solve(prob, Rosenbrock23(linsolve=ColumnGMRES))
 # https://github.com/SciML/OrdinaryDiffEq.jl/blob/f93630317658b0c5460044a5d349f99391bc2f9c/src/derivative_utils.jl#L126
 
 
-
-
+function form_matrix(f, u)
+    n = length(u)
+    mapslices(f, Matrix{Float64}(I,n,n), dims=1)
+end
 
 function step_u!(int, cache::AdditiveRungeKuttaFullCache{Nstages}) where {Nstages}
     tab = cache.tableau
@@ -148,7 +150,6 @@ function step_u!(int, cache::AdditiveRungeKuttaFullCache{Nstages}) where {Nstage
 
     #  cache.L[i] .= fL(cache.U[i-1], p, t + tab.C[i]*dt)
     #  cache.R[1] .= fR(cache.U[i-1], p, t + tab.C[i]*dt)
-    
 
     fL!(cache.L[1], u, p, τ)
     fR!(cache.R[1], u, p, τ)
@@ -168,8 +169,11 @@ function step_u!(int, cache::AdditiveRungeKuttaFullCache{Nstages}) where {Nstage
         #    Aimpl[i,i] = i == 1 ? 0 : const
         # TODO: handle changing Aimpl[i,i] coeffs
         # do we need matrix_updated= kwarg?
-        cache.linsolve!(U, cache.W, Uhat)
-        
+        #cache.linsolve!(U, cache.W, Uhat)
+
+        W = form_matrix(u -> u - dt*tab.Aimpl[i,i]*fL!(similar(u),u,p,τ), U)
+        U .= W \ Uhat
+
         τ = t + tab.C[i] * dt
         fL!(cache.L[i], U, p, τ) 
         # or use cache.L[i] .= (U .- Uhat) ./ (dt * tab.Aimpl[i,i]) ?

@@ -1,68 +1,7 @@
 """
     AdditiveRungeKutta
 
-IMEX (IMplicit-EXplicit) methods using ARK (Additively-partitioned Runge-Kutta) methods. 
-
-
-ARK methods are based on splitting the ODE function ``f(u) = f_L(u) + f_R(t)`` 
-where ``f_L(u) = L u`` is a linear operator which is treated implicitly.  The value
- on the ``i``th stage ``U^{(i)}``` is
-```math
-U^{(i)} = u^n + \Delta t \sum_{j=1}^i \tilde a_{ij} f_L(u^{(j)}) 
-              + \Delta t \sum_{j=1}^{i-1} a_{ij} f_R(u^{(j)})
-```
-which can be written as the solution to the linear problem:
-```math
-(I - \Delta t \tilde a_{ii} L) U^{(i)} = \hat U^{(i)}
-```
-where
-```math
-\hat U^{(i)} = u^n + \Delta t \sum_{j=1}^{i-1} \tilde a_{ij} f_L(u^{(j)}) 
-                                             + \Delta t \sum_{j=1}^{i-1} a_{ij} f_R(u^{(j)}
-```
-When an iterative solver is used, an initial value `\bar U^{(i)}` can be chosen by an explicit approximation
-```math
-\bar U^{(i)} = u^n + \Delta t \sum_{j=1}^{i-1} a_{ij} [ f_L(u^{(j)}) + f_R(u^{(j)}) ]
-            = \hat U^{(i)} + \Delta t \sum_{j=1}^{i-1} (a_{ij} - \tilde a_{ij})  f_L(u^{(j)}) 
-```
-
-By convention, ``\tilde a_{11} = 0``, so that ``U^{(1)} = u^n``, and all remaining stages use
-the same left-hand side linear operator (``\tilde a_{ii} = \tilde a_{jj}`` for ``i,j>1``).
-
-Additionally we assume the linear operator ``L`` is time-invariant, which lets us write
-```math
-\bar U^{(i)} = u^n + \Delta t \sum_{j=1}^{i-1} a_{ij} ( f_L(u^{(j)}) + f_R(u^{(j)}) ) 
-            = \hat U^{(i)} + \Delta t  L \sum_{j=1}^{i-1} (a_{ij} - \tilde a_{ij})  u^{(j)}
-```
-at the cost of one evaluation of ``f_L``.
-
-# Reducing storage
-## Remainder form
-
-If we are given ``f_L`` and ``f_R``, we can avoid storing ``f_L(u^{(j)}`` by further defining
-```
-\Omega^{(i)} = \sum_{j=1}^{i-1} \frac{\tilde a_{ij}}{\tilde a_{ii}} U^{(j)}
-```
-and writing
-```math
-\hat U^{(i)} = u^n + \Delta t \tilde a_{ii} f_L( \Omega^{(i)} ) + \Delta t \sum_{j=1}^{i-1} a_{ij} f_R(u^{(j)}
-```
-which requires only 1 evaluation of ``f_L`` (+ one extra if we want ``\bar U^{(i)}``).
-
-We can remove this evaluation by defining
-```math
-U_*^{(i)} = U^{(i)} + \Omega^{(i)}
-```
-and rewriting the linear problem as
-```math
-(I - \Delta t \tilde a_{ii} L) U_*^{(i)} = \hat U_*_{(i)}
-```
-where
-```math
-\hat U_*^{(i)} = \hat U_{(i)} + (I - \Delta t \tilde a_{ii} L)  \Omega^{(i)} 
-               = u^n + \Omega^{(i)} + \Delta t \sum_{j=1}^{i-1} a_{ij} f_R(u^{(j)}
-```
-
+IMEX (IMplicit-EXplicit) algorithms using ARK (Additively-partitioned Runge-Kutta) methods. 
 """
 abstract type AdditiveRungeKutta <: DistributedODEAlgorithm end
 

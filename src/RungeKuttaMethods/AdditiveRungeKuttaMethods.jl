@@ -16,10 +16,12 @@ struct AdditiveRungeKuttaTableau{Nstages, RT}
     C::NTuple{Nstages, RT}
 end
 
-struct AdditiveRungeKuttaFullCache{Nstages, Nm1, RT, A, O, L}
-    "`U[i]` = ``U^{(i+1)}`` (since ``U^{(1)} = u^n``)"
-    U::NTuple{Nm1,A} #Qstages
+struct AdditiveRungeKuttaFullCache{Nstages, RT, A, O, L}
+    "stage value of the state variable"
+    U::A #Qstages
+    "evaluated linear part of each stage ``f_L(U^{(i)})``"
     L::NTuple{Nstages,A} #Lstages
+    "evaluated remainder part of each stage ``f_R(U^{(i)})``"
     R::NTuple{Nstages,A} #Rstages
     tableau::AdditiveRungeKuttaTableau{Nstages, RT}
     W::O
@@ -69,7 +71,8 @@ solve(prob, Rosenbrock23(linsolve=ColumnGMRES))
 
 function step_u!(int, cache::AdditiveRungeKuttaFullCache{Nstages}) where {Nstages}
     tab = cache.tableau
-    Uhat = cache.Uhat
+    U = cache.U
+    Uhat = cache.R[end] # can be used as work array, as only used in last stage
 
 
     u = int.u
@@ -104,10 +107,10 @@ function step_u!(int, cache::AdditiveRungeKuttaFullCache{Nstages}) where {Nstage
         # solve for W * U = Uhat
         # set U to initial guess based on fully explicit
         # TODO: we don't need this for direct solves
-        U = cache.U[i-1]
         U .= Uhat .= u        
         for j = 1:s-1
             Uhat .+= (dt * tab.Aimpl[i,j]) .* cache.L[j] .+ (dt * tab.Aexpl[i,j]) .* cache.R[j]
+            # initial value: we only need to do this if using an iterative method:
             U    .+= (dt * tab.Aexpl[i,j]) .* (cache.L[j] .+ cache.R[j])
         end        
         #  W = I - dt * Aimpl[i,i] * L
@@ -118,7 +121,8 @@ function step_u!(int, cache::AdditiveRungeKuttaFullCache{Nstages}) where {Nstage
         cache.linsolve!(U, cache.W, Uhat)
         
         τ = t + tab.C[i] * dt
-        fL!(cache.L[i], U, p, τ)
+        fL!(cache.L[i], U, p, τ) 
+        # or use cache.L[i] .= (U .- Uhat) ./ (dt * tab.Aimpl[i,i]) ?
         fR!(cache.R[i], U, p, τ)
     end
 

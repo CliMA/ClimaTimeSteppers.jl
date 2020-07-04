@@ -1,3 +1,4 @@
+using LinearAlgebra
 
 # const slow_mrrk_methods =
 #     ((LSRK54CarpenterKennedy, 4), (LSRK144NiegemannDiehlBusch, 4))
@@ -42,26 +43,12 @@ const explicit_methods = (
 # const fast_mrigark_methods =
 #     ((LSRK54CarpenterKennedy, 4), (LSRK144NiegemannDiehlBusch, 4))
 
-#=
-struct DivideLinearSolver end
+struct DirectSolver end
 
-function ODESolvers.prefactorize(
-    linearoperator!,
-    ::DivideLinearSolver,
-    args...,
-)
-    linearoperator!
-end
+DirectSolver(args...) = DirectSolver()
 
-function ODESolvers.linearsolve!(
-    linearoperator!,
-    ::DivideLinearSolver,
-    Qtt,
-    Qhat,
-    args...,
-)
-    @. Qhat = 1 / Qhat
-    linearoperator!(Qtt, Qhat, args...)
-    @. Qtt = 1 / Qtt
+function (::DirectSolver)(x,A,b,matrix_updated; kwargs...)
+    n = length(x)
+    M = mapslices(y -> mul!(similar(y), A, y), Matrix{eltype(x)}(I,n,n), dims=1)
+    x .= M \ b 
 end
-=#

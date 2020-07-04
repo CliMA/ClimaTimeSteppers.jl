@@ -43,9 +43,10 @@ JuliaDiffEq terminology:
 """
 module ODESolvers
 
-import DiffEqBase
+import DiffEqBase, LinearAlgebra
 
 include("functions.jl")
+include("operators.jl")
 
 abstract type DistributedODEAlgorithm <: DiffEqBase.AbstractODEAlgorithm
 end

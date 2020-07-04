@@ -14,9 +14,9 @@ struct AdditiveRungeKuttaTableau{Nstages, Nstages², RT}
     Aexpl::SArray{NTuple{2, Nstages}, RT, 2, Nstages²}
     "RK coefficient vector A (rhs scaling) for the implicit part"
     Aimpl::SArray{NTuple{2, Nstages}, RT, 2, Nstages²}
-    "low storage RK coefficient vector B (rhs add in scaling)"
+    "RK coefficient vector B (rhs add in scaling)"
     B::NTuple{Nstages, RT}
-    "low storage RK coefficient vector C (time scaling)"
+    "RK coefficient vector C (time scaling)"
     C::NTuple{Nstages, RT}
 end
 
@@ -35,7 +35,7 @@ end
 
 function cache(
     prob::DiffEqBase.AbstractODEProblem{uType, tType, true}, 
-    alg::AdditiveRungeKutta, dt) where {uType,tType}
+    alg::AdditiveRungeKutta; dt, kwargs...) where {uType,tType}
 
     tab = tableau(alg, eltype(prob.u0))
     Nstages = length(tab.B) # TODO: create function for this
@@ -43,13 +43,10 @@ function cache(
     L = ntuple(i -> zero(prob.u0), Nstages)
     R = ntuple(i -> zero(prob.u0), Nstages)
 
-    n = length(prob.u0)
-    fL(u) = prob.f.f1(similar(u), u, prob.p, prob.tspan[1])
-    LI = mapslices(fL, Matrix{Float64}(I,n,n), dims=1)
-    W = lu(I - tab.Aimpl[2,2] * dt * LI)
-    linsolve!(x,W,y) = x .= W\y
-
-    AdditiveRungeKuttaFullCache(U,L,R,tab, W, linsolve!)
+    W = EulerOperator(prob.f.f1, -dt*tab.Aimpl[2,2], prob.p, prob.tspan[1])
+    linsolve! = alg.linsolve(Val{:init}, W, prob.u0; kwargs...)
+    
+    AdditiveRungeKuttaFullCache(U, L, R, tab, W, linsolve!)
 end
 
 
@@ -116,11 +113,6 @@ solve(prob, Rosenbrock23(linsolve=ColumnGMRES))
 # https://github.com/SciML/OrdinaryDiffEq.jl/blob/f93630317658b0c5460044a5d349f99391bc2f9c/src/derivative_utils.jl#L126
 
 
-function form_matrix(f, u)
-    n = length(u)
-    mapslices(f, Matrix{Float64}(I,n,n), dims=1)
-end
-
 function step_u!(int, cache::AdditiveRungeKuttaFullCache{Nstages}) where {Nstages}
     tab = cache.tableau
     U = cache.U
@@ -163,16 +155,22 @@ function step_u!(int, cache::AdditiveRungeKuttaFullCache{Nstages}) where {Nstage
             Uhat .+= (dt * tab.Aimpl[i,j]) .* cache.L[j] .+ (dt * tab.Aexpl[i,j]) .* cache.R[j]
             # initial value: we only need to do this if using an iterative method:
             U    .+= (dt * tab.Aexpl[i,j]) .* (cache.L[j] .+ cache.R[j])
-        end        
+        end
+
         #  W = I - dt * Aimpl[i,i] * L
         # currently only use SDIRK methods where 
         #    Aimpl[i,i] = i == 1 ? 0 : const
-        # TODO: handle changing Aimpl[i,i] coeffs
-        # do we need matrix_updated= kwarg?
-        #cache.linsolve!(U, cache.W, Uhat)
-
-        W = form_matrix(u -> u - dt*tab.Aimpl[i,i]*fL!(similar(u),u,p,τ), U)
-        U .= W \ Uhat
+        # TODO: handle changing dt & Aimpl[i,i] coeffs
+        if !(DiffEqBase.isconstant(cache.W))
+            cache.W.t = τ
+            W_updated = true
+        end
+        γ = -dt*tab.Aimpl[i,i]
+        if cache.W.γ != γ
+            cache.W.γ = γ
+            W_updated = true
+        end
+        cache.linsolve!(U, cache.W, Uhat, W_updated)
 
         τ = t + tab.C[i] * dt
         fL!(cache.L[i], U, p, τ) 

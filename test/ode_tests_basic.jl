@@ -133,8 +133,7 @@ Qexact = exactsolution(finaltime, q0, t0)
                         # rhs_arg! =
                         #   split_explicit_implicit ? rhs_nonlinear! : rhs!
                         prob = SplitODEProblem(rhs_linear!, rhs_nonlinear!, Q, (t0, finaltime))
-                        linsolver = nothing
-                        solve(prob, method(linsolver); dt=dt, adjustfinal=false)
+                        solve(prob, method(DirectSolver); dt=dt, adjustfinal=false)
                         errors[n] = norm(Q - Qexact)
                         @show (log2(dt), norm(Q - Qexact))
                     end

@@ -36,7 +36,7 @@ function DiffEqBase.__init(
 
     callbackset = DiffEqBase.CallbackSet(callback)
     isempty(callbackset.continuous_callbacks) || error("Continuous callbacks are not supported")
-    integrator = DistributedODEIntegrator(prob, alg, u, dt, t, tstop, 0, stepstop, adjustfinal, callbackset, false, cache(prob, alg, dt))
+    integrator = DistributedODEIntegrator(prob, alg, u, dt, t, tstop, 0, stepstop, adjustfinal, callbackset, false, cache(prob, alg; dt=dt, kwargs...))
 
     DiffEqBase.initialize!(callbackset,u,t,integrator)
     return integrator

@@ -159,10 +159,11 @@ function step_u!(int, cache::AdditiveRungeKuttaFullCache{Nstages}) where {Nstage
     end
 end
 
-#=
-function step_u!(int, cache::AdditiveRungeKuttaLowStorageCache{Nstages}) where {Nstages}
+# WIP
+function step_u!(int, cache::AdditiveRungeKuttaFullCache{Nstages}) where {Nstages}
     tab = cache.tableau
-    Uhat = cache.Uhat
+    U = cache.U
+    Uhat = cache.R[end] # can be used as work array, as only used in last stage
 
 
     u = int.u
@@ -179,8 +180,8 @@ function step_u!(int, cache::AdditiveRungeKuttaLowStorageCache{Nstages}) where {
 
 
     # Assume SplitODEFunction for now
-    fL! = int.prob.f.f1 # linear part
-    fR! = int.prob.f.f2 # remainder
+    fL! = int.prob.f.jvp # linear part
+    f! = int.prob.f.f # remainder
 
 
     # first stage is always explicit
@@ -188,34 +189,41 @@ function step_u!(int, cache::AdditiveRungeKuttaLowStorageCache{Nstages}) where {
 
     #  cache.L[i] .= fL(cache.U[i-1], p, t + tab.C[i]*dt)
     #  cache.R[1] .= fR(cache.U[i-1], p, t + tab.C[i]*dt)
-    
-    
-    # fL!(cache.L[1], u, p, τ)
-    fR!(cache.R[1], u, p, τ)
+
+    f!(cache.R[1], u, p, τ)
 
     for i in 2:Nstages
-        U = cache.U[i-1]
-        Utt = cache.Utt
-
-        Uhat .= u
-        U .= 0
         # solve for W * U = Uhat
-        # set U to initial guess based on explicit
-        for j = 1:s-1
-            Uhat .+= (dt * tab.Aimpl[i,j]) .* cache.L[j] .+ (dt * tab.Aexpl[i,j]) .* cache.R[j]
-            # U is set to the initial guess
-            U    .+= (dt * tab.Aexpl[i,j]) .* (cache.L[j] .+ cache.R[j])
-        end        
+        # set U to initial guess based on fully explicit
+        # TODO: we don't need this for direct solves
+        V .= u
+        Ω .= 0
+        for j = 1:i-1
+            V .+= dt * tab.Aexpl[i,j] .* cache.R[j]
+            Ω .+= (tab.Aimpl[i,j]-tab.Aexpl[i,j])/tab.Aimpl[i,i] .* cache.U[j]
+        end
+        Vhat .= V .+ Ω
+
         #  W = I - dt * Aimpl[i,i] * L
         # currently only use SDIRK methods where 
         #    Aimpl[i,i] = i == 1 ? 0 : const
-        # TODO: handle changing Aimpl[i,i] coeffs
-        # do we need matrix_updated= kwarg?
-        cache.linsolve!(U, cache.W, Uhat)
-        
+        # TODO: handle changing dt & Aimpl[i,i] coeffs
+        if !(DiffEqBase.isconstant(cache.W))
+            cache.W.t = τ
+            W_updated = true
+        end
+        γ = -dt*tab.Aimpl[i,i]
+        if cache.W.γ != γ
+            cache.W.γ = γ
+            W_updated = true
+        end
+        cache.linsolve!(V, cache.W, Vhat, W_updated)
+        U = V .- Ω
+
         τ = t + tab.C[i] * dt
         fL!(cache.L[i], U, p, τ)
-        fR!(cache.R[i], U, p, τ)
+        # or use cache.L[i] .= (U .- Uhat) ./ (dt * tab.Aimpl[i,i]) ?
+        f!(cache.R[i], U, p, τ)
     end
 
     # compute next step
@@ -224,7 +232,6 @@ function step_u!(int, cache::AdditiveRungeKuttaLowStorageCache{Nstages}) where {
     end
 end
 
-=#
 
 """
     ARK1ForwardBackwardEuler()

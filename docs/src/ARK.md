@@ -2,7 +2,10 @@
 
 ARK methods are IMEX (Implicit-Explicit) methods   based on splitting the ODE function ``f(u) = f_L(u) + f_R(t)`` 
 where ``f_L(u) = L u`` is a linear operator which is treated implicitly, and ``f_R(u)`` is the remainder to be
-treated explicitly. The value on the ``i``th stage ``U^{(i)}`` is
+treated explicitly. Typically we will be given either the pair ``(f_R, f_L)``, which we will term the _remainder form_,
+or ``(f, f_L)`` which we will term the _full form_. 
+
+The value on the ``i``th stage ``U^{(i)}`` is
 ```math
 U^{(i)} = u^n + \Delta t \sum_{j=1}^i \tilde a_{ij} f_L(U^{(j)}) 
               + \Delta t \sum_{j=1}^{i-1} a_{ij} f_R(U^{(j)})
@@ -37,7 +40,7 @@ By convention, ``\tilde a_{11} = 0``, so that ``U^{(1)} = u^n``, and for all oth
 
 Alternatively if an iterative solver is used used, we can write
 ```math
-\bar U^{(i)} = u^n + \Delta t \sum_{j=1}^{i-1} a_{ij} ( f_L(U^{(j)}) + f_R(U^{(j)}) ) 
+\bar U^{(i)} = u^n + \Delta t \sum_{j=1}^{i-1} a_{ij} [ f_L(U^{(j)}) + f_R(U^{(j)}) ]
             = \hat U^{(i)} + \Delta t  L \sum_{j=1}^{i-1} (a_{ij} - \tilde a_{ij})  U^{(j)}
 ```
 at the cost of one evaluation of ``f_L``.
@@ -64,7 +67,7 @@ W (U^{(i)} + \Omega^{(i)})
 
 ### Full form
 
-Similary, if we are given ``f`` and ``f_L``, we can avoid storing ``f_L(U^{(j)}`` by defining
+Similary, if we are given ``f`` and ``f_L``, we can avoid storing ``f_L(U^{(j)})`` by defining
 ```math
 \Omega^{(i)} = \sum_{j=1}^{i-1} \frac{\tilde a_{ij} - a_{ij}}{\tilde a_{ii}} U^{(j)}
 ```
@@ -76,10 +79,25 @@ which only requires one evaluation of ``f_L``.
 
 As above, we can eliminate this stage by rewriting into an offset linear problem
 ```math
-W (U^{(i)} + \Omega^{(i)}) 
+W V^{(i)} = \hat V^{(i)}
+```
+where
+```math
+V^{(i)} = U^{(i)} + \Omega^{(i)}
+```
+and
+```math
+\hat V^{(i)} 
   = \hat U_{(i)} + (I - \Delta t \tilde a_{ii} L)  \Omega^{(i)} 
   = u^n + \Omega^{(i)} + \Delta t \sum_{j=1}^{i-1} a_{ij} f(U^{(j)})
 ```
+If using an iterative method, an initial guess is
+```math
+\bar V^{(i)} = \bar U^{(i)} + \Omega^{(i)}
+  = u^n + \Delta t \sum_{j=1}^{i-1} a_{ij} f(U^{(j)}) 
+  = \hat V^{(i)} - \Omega^{(i)}
+```
+
 
 ## References
 

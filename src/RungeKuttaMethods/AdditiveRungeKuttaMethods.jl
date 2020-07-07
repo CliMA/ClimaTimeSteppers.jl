@@ -43,7 +43,11 @@ function cache(
     L = ntuple(i -> zero(prob.u0), Nstages)
     R = ntuple(i -> zero(prob.u0), Nstages)
 
-    W = EulerOperator(prob.f.f1, -dt*tab.Aimpl[2,2], prob.p, prob.tspan[1])
+    if prob.f isa DiffEqBase.ODEFunction
+        W = EulerOperator(prob.f.jvp, -dt*tab.Aimpl[2,2], prob.p, prob.tspan[1])
+    elseif prob.f isa DiffEqBase.SplitFunction
+        W = EulerOperator(prob.f.f1, -dt*tab.Aimpl[2,2], prob.p, prob.tspan[1])
+    end
     linsolve! = alg.linsolve(Val{:init}, W, prob.u0; kwargs...)
     
     AdditiveRungeKuttaFullCache(U, L, R, tab, W, linsolve!)
@@ -87,8 +91,11 @@ solve(prob, Rosenbrock23(linsolve=ColumnGMRES))
 # W = M - gamma*J <=> our EulerOperator
 # https://github.com/SciML/OrdinaryDiffEq.jl/blob/f93630317658b0c5460044a5d349f99391bc2f9c/src/derivative_utils.jl#L126
 
-
 function step_u!(int, cache::AdditiveRungeKuttaFullCache{Nstages}) where {Nstages}
+    step_u!(int, cache, int.prob.f)
+end
+
+function step_u!(int, cache::AdditiveRungeKuttaFullCache{Nstages}, f::DiffEqBase.SplitFunction) where {Nstages}
     tab = cache.tableau
     U = cache.U
     Uhat = cache.R[end] # can be used as work array, as only used in last stage
@@ -99,18 +106,8 @@ function step_u!(int, cache::AdditiveRungeKuttaFullCache{Nstages}) where {Nstage
     t = int.t
     dt = int.dt
 
-    # two possible formulations
-    #  - fL! + fR!  => SplitODEFunction(fL!, fR!) (may need to wrap fL! in an AbstractDiffEqOperator
-    #    https://github.com/SciML/DiffEqOperators.jl
-    #    https://docs.sciml.ai/dev/features/diffeq_operator/#
-      # https://github.com/SciML/DiffEqBase.jl/blob/52bcd26cbbf64a43228286b5eb91d60c2e917d00/src/operators/diffeq_operator.jl
-    #  - fL! + (f! - fL!) =>jac ODEFunction(f!, jjac=fL!)  or jvp (Jacobian vector product) argument?
-
-
-    # Assume SplitODEFunction for now
-    fL! = int.prob.f.f1 # linear part
-    fR! = int.prob.f.f2 # remainder
-
+    fL! = f.f1 # linear part
+    fR! = f.f2 # remainder
 
     # first stage is always explicit
     τ = t + tab.C[1] * dt
@@ -160,7 +157,7 @@ function step_u!(int, cache::AdditiveRungeKuttaFullCache{Nstages}) where {Nstage
 end
 
 # WIP
-function step_u!(int, cache::AdditiveRungeKuttaFullCache{Nstages}) where {Nstages}
+function step_u!(int, cache::AdditiveRungeKuttaFullCache{Nstages}, f::DiffEqBase.ODEFunction) where {Nstages}
     tab = cache.tableau
     U = cache.U
     Uhat = cache.R[end] # can be used as work array, as only used in last stage
@@ -171,28 +168,25 @@ function step_u!(int, cache::AdditiveRungeKuttaFullCache{Nstages}) where {Nstage
     t = int.t
     dt = int.dt
 
-    # two possible formulations
-    #  - fL! + fR!  => SplitODEFunction(fL!, fR!) (may need to wrap fL! in an AbstractDiffEqOperator
-    #    https://github.com/SciML/DiffEqOperators.jl
-    #    https://docs.sciml.ai/dev/features/diffeq_operator/#
-      # https://github.com/SciML/DiffEqBase.jl/blob/52bcd26cbbf64a43228286b5eb91d60c2e917d00/src/operators/diffeq_operator.jl
-    #  - fL! + (f! - fL!) =>jac ODEFunction(f!, jjac=fL!)  or jvp (Jacobian vector product) argument?
-
-
-    # Assume SplitODEFunction for now
-    fL! = int.prob.f.jvp # linear part
-    f! = int.prob.f.f # remainder
-
+    fL! = f.jvp # linear part
+    f! = f.f # remainder
 
     # first stage is always explicit
     τ = t + tab.C[1] * dt
 
-    #  cache.L[i] .= fL(cache.U[i-1], p, t + tab.C[i]*dt)
-    #  cache.R[1] .= fR(cache.U[i-1], p, t + tab.C[i]*dt)
-
     f!(cache.R[1], u, p, τ)
-
+    fL!(cache.L[1], u, p, τ)
     for i in 2:Nstages
+        # solve for W * U = Uhat
+        # set U to initial guess based on fully explicit
+        # TODO: we don't need this for direct solves
+        U .= Uhat .= u        
+        for j = 1:i-1
+            Uhat .+= (dt * tab.Aimpl[i,j]) .* cache.L[j] .+ (dt * tab.Aexpl[i,j]) .* (cache.R[j] .- cache.L[j])
+            # initial value: we only need to do this if using an iterative method:
+            U    .+= (dt * tab.Aexpl[i,j]) .* cache.R[j]
+        end
+#=
         # solve for W * U = Uhat
         # set U to initial guess based on fully explicit
         # TODO: we don't need this for direct solves
@@ -203,7 +197,7 @@ function step_u!(int, cache::AdditiveRungeKuttaFullCache{Nstages}) where {Nstage
             Ω .+= (tab.Aimpl[i,j]-tab.Aexpl[i,j])/tab.Aimpl[i,i] .* cache.U[j]
         end
         Vhat .= V .+ Ω
-
+=#
         #  W = I - dt * Aimpl[i,i] * L
         # currently only use SDIRK methods where 
         #    Aimpl[i,i] = i == 1 ? 0 : const
@@ -217,8 +211,8 @@ function step_u!(int, cache::AdditiveRungeKuttaFullCache{Nstages}) where {Nstage
             cache.W.γ = γ
             W_updated = true
         end
-        cache.linsolve!(V, cache.W, Vhat, W_updated)
-        U = V .- Ω
+        cache.linsolve!(U, cache.W, Uhat, W_updated)
+        # U = V .- Ω
 
         τ = t + tab.C[i] * dt
         fL!(cache.L[i], U, p, τ)
@@ -228,7 +222,7 @@ function step_u!(int, cache::AdditiveRungeKuttaFullCache{Nstages}) where {Nstage
 
     # compute next step
     for i = 1:Nstages
-        u .+= (dt * tab.B[i]) .* (cache.L[i] .+ cache.R[i])
+        u .+= (dt * tab.B[i]) .* cache.R[i]
     end
 end
 

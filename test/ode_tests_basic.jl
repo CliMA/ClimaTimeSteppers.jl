@@ -18,9 +18,6 @@ c = 1 / 100
 function rhs!(du, u, param, t, α=true, β=false)
     @. du = $(α * cos(t)) * (a + b * u + c * u^2) + β * du
 end
-function rhs_zero!(du, u, param, t)
-    @. du = 0
-end
 
 
 function rhs_linear!(dQ, Q, param, t; increment=false)
@@ -122,7 +119,7 @@ Qexact = exactsolution(finaltime, q0, t0)
     end
     =#
 
-    @testset "IMEX methods" begin
+    @testset "IMEX methods - split" begin
         dts = [2.0^(-k) for k in 5:10]
         errors = similar(dts)
         for (method, order) in imex_methods
@@ -133,7 +130,38 @@ Qexact = exactsolution(finaltime, q0, t0)
                         # rhs_arg! =
                         #   split_explicit_implicit ? rhs_nonlinear! : rhs!
                         prob = SplitODEProblem(rhs_linear!, rhs_nonlinear!, Q, (t0, finaltime))
-                        solve(prob, method(DirectSolver); dt=dt, adjustfinal=false)
+                        solve(prob, method(DirectSolver); dt=dt, adjustfinal=true)
+                        errors[n] = norm(Q - Qexact)
+                        @show (log2(dt), norm(Q - Qexact))
+                    end
+                    rates = log2.(errors[1:(end - 1)] ./ errors[2:end])
+                    @show rates
+                    #=if variant isa LowStorageVariant && split_explicit_implicit
+                        if method === ARK1ForwardBackwardEuler
+                            expected_order = 1
+                        else
+                            expected_order = 2
+                        end
+                    else
+                        expected_order = order
+                    end=#
+                    @test isapprox(rates[end], order; rtol = 0.3)
+                #end
+            #end
+        end
+    end
+    @testset "IMEX methods - full" begin
+        dts = [2.0^(-k) for k in 5:10]
+        errors = similar(dts)
+        for (method, order) in imex_methods
+            #for split_explicit_implicit in (false, true)
+                #for variant in (LowStorageVariant(), NaiveVariant())
+                    for (n, dt) in enumerate(dts)
+                        Q .= Qinit
+                        # rhs_arg! =
+                        #   split_explicit_implicit ? rhs_nonlinear! : rhs!
+                        prob = ODEProblem(ODEFunction(rhs!, jvp=rhs_linear!), Q, (t0, finaltime))
+                        solve(prob, method(DirectSolver); dt=dt, adjustfinal=true)
                         errors[n] = norm(Q - Qexact)
                         @show (log2(dt), norm(Q - Qexact))
                     end

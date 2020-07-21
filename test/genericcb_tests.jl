@@ -1,7 +1,7 @@
 using MPI
 using Test
-using ODESolvers
-using ODESolvers: AbstractODESolver, EveryXWallTimeSeconds, EveryXSimulationTime, EveryXSimulationSteps
+using TimeMachine
+using TimeMachine: AbstractODESolver, EveryXWallTimeSeconds, EveryXSimulationTime, EveryXSimulationSteps
 
 mutable struct PseudoSolver <: AbstractODESolver
     t::UInt64

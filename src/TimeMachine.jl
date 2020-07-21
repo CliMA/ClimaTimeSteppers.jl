@@ -1,5 +1,5 @@
 """
-    ODESolvers
+    TimeMachine
 
 Ordinary differential equation solvers
 
@@ -41,9 +41,24 @@ JuliaDiffEq terminology:
 
 
 """
-module ODESolvers
+module TimeMachine
+
+
+using KernelAbstractions
+using KernelAbstractions.Extras: @unroll
+using StaticArrays
+using CUDA
+using MPI
+
+
+array_device(::Union{Array, SArray, MArray}) = CPU()
+array_device(::CuArray) = CUDADevice()
+realview(x::Union{Array, SArray, MArray}) = x
+realview(x::CuArray) = x
+
 
 import DiffEqBase, LinearAlgebra
+
 
 include("functions.jl")
 include("operators.jl")

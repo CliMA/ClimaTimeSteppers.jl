@@ -1,5 +1,5 @@
 using Test
-using ODESolvers
+using TimeMachine
 using CuArrays
 using LinearAlgebra
 
@@ -30,7 +30,7 @@ function rhs_linear!(dQ, Q, ::Nothing, t; increment)
     end
 end
 struct ODETestBasicLinBE <: AbstractBackwardEulerSolver end
-ODESolvers.Δt_is_adjustable(::ODETestBasicLinBE) = true
+TimeMachine.Δt_is_adjustable(::ODETestBasicLinBE) = true
 (::ODETestBasicLinBE)(Q, Qhat, α, p, t) = @. Q = Qhat / (1 - α * $cos(t) * b)
 function rhs_nonlinear!(dQ, Q, ::Nothing, t; increment)
     if increment

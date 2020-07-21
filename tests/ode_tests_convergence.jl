@@ -1,6 +1,6 @@
 using Test
-using ODESolvers
-using ODESolvers: array_device
+using TimeMachine
+using TimeMachine: array_device
 using StaticArrays
 using LinearAlgebra
 using KernelAbstractions
@@ -649,7 +649,7 @@ const ArrayType = CuArray
             end
 
             struct ODETestConvNonLinBE <: AbstractBackwardEulerSolver end
-            ODESolvers.Δt_is_adjustable(::ODETestConvNonLinBE) = true
+            TimeMachine.Δt_is_adjustable(::ODETestConvNonLinBE) = true
             function (::ODETestConvNonLinBE)(Q, Qhat, α, p, t)
                 @kernel function knl!(Q, Qhat, α, p, t)
                     @inbounds begin
@@ -867,7 +867,7 @@ const ArrayType = CuArray
                 wait(array_device(Q), event)
             end
             struct ODETestConvNonLinBE3Rate <: AbstractBackwardEulerSolver end
-            ODESolvers.Δt_is_adjustable(::ODETestConvNonLinBE3Rate) = true
+            TimeMachine.Δt_is_adjustable(::ODETestConvNonLinBE3Rate) = true
             function (::ODETestConvNonLinBE3Rate)(Q, Qhat, α, p, t)
                 @kernel function knl!(Q, Qhat, α, p, t)
                     @inbounds begin

@@ -45,7 +45,7 @@ const fast_mrigark_methods =
 
 struct DivideLinearSolver end
 
-function ODESolvers.prefactorize(
+function TimeMachine.prefactorize(
     linearoperator!,
     ::DivideLinearSolver,
     args...,
@@ -53,7 +53,7 @@ function ODESolvers.prefactorize(
     linearoperator!
 end
 
-function ODESolvers.linearsolve!(
+function TimeMachine.linearsolve!(
     linearoperator!,
     ::DivideLinearSolver,
     Qtt,

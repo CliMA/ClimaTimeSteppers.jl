@@ -1,9 +1,9 @@
 """
-    ODESolvers
+    TimeMachine
 
 Ordinary differential equation solvers
 """
-module ODESolvers
+module TimeMachine
 
 using KernelAbstractions
 using KernelAbstractions.Extras: @unroll

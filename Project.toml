@@ -1,4 +1,4 @@
-name = "ODESolvers"
+name = "TimeMachine"
 uuid = "595c0a79-7f3d-439a-bc5a-b232dc3bde79"
 authors = ["Climate Modeling Alliance"]
 version = "0.0.0"

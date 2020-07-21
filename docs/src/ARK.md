@@ -35,7 +35,9 @@ When an iterative solver is used, an initial value ``\bar U^{(i)}`` can be chose
             = \hat U^{(i)} + \Delta t \sum_{j=1}^{i-1} (a_{ij} - \tilde a_{ij})  f_L(U^{(j)}) 
 ```
 
-By convention, ``\tilde a_{11} = 0``, so that ``U^{(1)} = u^n``, and for all other stages the implicit coefficient ``\tilde a_{ii}`` is the same. Additionally we assume the linear operator ``L`` is time-invariant, which means that when using direct methods ``W`` only needs to be factorized once (assuming a constant ``\Delta t``).
+By convention, ``\tilde a_{11} = 0``, so that ``U^{(1)} = u^n``, and for all other stages the implicit coefficients ``\tilde a_{ii}`` are the same. 
+
+If the linear operator ``L`` is time-invariant and ``\Delta t`` is constantm, then if using a direct solver, ``W`` only needs to be factorized once.
 
 
 Alternatively if an iterative solver is used used, we can write
@@ -45,7 +47,10 @@ Alternatively if an iterative solver is used used, we can write
 ```
 at the cost of one evaluation of ``f_L``.
 
-## Reducing storage
+## Reducing evaluations and storage
+
+If the linear operator ``L`` is constant, then we are able to avoid evaluating the ``f_L`` explicitly.
+
 ### Remainder form
 
 If we are given ``f_L`` and ``f_R``, we can avoid storing ``f_L(U^{(j)})`` by further defining
@@ -56,13 +61,26 @@ and writing
 ```math
 \hat U^{(i)} = u^n + \Delta t \tilde a_{ii} f_L( \Omega^{(i)} ) + \Delta t \sum_{j=1}^{i-1} a_{ij} f_R(U^{(j)})
 ```
-which requires only 1 evaluation of ``f_L`` per stage (plus one extra if we want ``\bar U^{(i)}``).
 
-We can reduce this further evaluation by solving the offset linear problem
+This can be rewritten into an offset linear problem
 ```math
-W (U^{(i)} + \Omega^{(i)}) 
+W V^{(i)} = \hat V^{(i)}
+```
+where
+```math
+V^{(i)} = U^{(i)} + \Omega^{(i)}
+```
+and
+```math
+\hat V^{(i)}
   = \hat U_{(i)} + (I - \Delta t \tilde a_{ii} L)  \Omega^{(i)} 
   = u^n + \Omega^{(i)} + \Delta t \sum_{j=1}^{i-1} a_{ij} f_R(U^{(j)})
+```
+If using an iterative method, an initial guess is
+```math
+\bar V^{(i)} = \bar U^{(i)} + \Omega^{(i)}
+  = u^n + \Delta t \sum_{j=1}^{i-1} a_{ij} f_R(U^{(j)}) + \Omega^{(i)} + \Delta t \sum_{j=1}^{i-1} a_{ij} f_L(U^{(j)})
+  = \hat V^{(i)} + \Delta t L \sum_{j=1}^{i-1} a_{ij} U^{(j)}
 ```
 
 ### Full form
@@ -75,9 +93,8 @@ so that we can write
 ```math
 \hat U^{(i)} = u^n + \Delta t \tilde a_{ii} f_L(\Omega^{(i)}) + \Delta t \sum_{j=1}^{i-1} a_{ij} f(U^{(j)})
 ```
-which only requires one evaluation of ``f_L``. 
 
-As above, we can eliminate this stage by rewriting into an offset linear problem
+As above, we can rewrite into an offset linear problem
 ```math
 W V^{(i)} = \hat V^{(i)}
 ```

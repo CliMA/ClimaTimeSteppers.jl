@@ -8,13 +8,13 @@ module TimeMachine
 using KernelAbstractions
 using KernelAbstractions.Extras: @unroll
 using StaticArrays
-using CuArrays
+using CUDA
 using MPI
 
 export solve!, updatedt!, gettime
 
 array_device(::Union{Array, SArray, MArray}) = CPU()
-array_device(::CuArray) = CUDA()
+array_device(::CuArray) = CUDADevice()
 realview(x::Union{Array, SArray, MArray}) = x
 realview(x::CuArray) = x
 

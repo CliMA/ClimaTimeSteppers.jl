@@ -1,11 +1,11 @@
 using Test
 using TimeMachine
-using CuArrays
+using CUDA
 using LinearAlgebra
 
 include("ode_tests_common.jl")
 
-const ArrayType = CuArray
+const ArrayType = Array
 
 a = 100
 b = 1

@@ -4,7 +4,7 @@ using TimeMachine: array_device
 using StaticArrays
 using LinearAlgebra
 using KernelAbstractions
-using CuArrays
+using CUDA
 
 include("ode_tests_common.jl")
 

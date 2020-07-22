@@ -1,12 +1,12 @@
 push!(LOAD_PATH,"..")
 
 using Documenter
-using ODESolvers
+using TimeMachine
 
 makedocs(
-    sitename = "ODESolvers",
+    sitename = "TimeMachine",
     format = Documenter.HTML(),
-    modules = [ODESolvers],
+    modules = [TimeMachine],
     pages = [
         "index.md",
         "ARK.md",

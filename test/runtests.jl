@@ -1,4 +1,4 @@
-using TimeMachine, Test, MPI
+using TimeMachine, DiffEqBase, Test, MPI
 
 include(joinpath("testhelper.jl"))
 

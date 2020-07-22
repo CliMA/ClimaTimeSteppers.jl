@@ -1,9 +1,616 @@
-"""
-    AdditiveRungeKuttaMethods.jl
+using StaticArrays, LinearAlgebra
 
-Provides concrete implementations of IMEX (IMplicit-EXplicit)
-methods using ARK (Additively-partitioned Runge-Kutta) methods. 
+export ARK2GiraldoKellyConstantinescu
+
 """
+    AdditiveRungeKutta
+
+IMEX (IMplicit-EXplicit) algorithms using ARK (Additively-partitioned Runge-Kutta) methods. 
+"""
+abstract type AdditiveRungeKutta <: DistributedODEAlgorithm end
+
+struct AdditiveRungeKuttaTableau{Nstages, Nstages², RT}
+    "RK coefficient vector A (rhs scaling) for the explicit part"
+    Aexpl::SArray{NTuple{2, Nstages}, RT, 2, Nstages²}
+    "RK coefficient vector A (rhs scaling) for the implicit part"
+    Aimpl::SArray{NTuple{2, Nstages}, RT, 2, Nstages²}
+    "RK coefficient vector B (rhs add in scaling)"
+    B::NTuple{Nstages, RT}
+    "RK coefficient vector C (time scaling)"
+    C::NTuple{Nstages, RT}
+end
+
+struct AdditiveRungeKuttaFullCache{Nstages, RT, A, O, L}
+    "stage value of the state variable"
+    U::A #Qstages
+    "evaluated linear part of each stage ``f_L(U^{(i)})``"
+    L::NTuple{Nstages,A} #Lstages
+    "evaluated remainder part of each stage ``f_R(U^{(i)})``"
+    R::NTuple{Nstages,A} #Rstages
+    tableau::AdditiveRungeKuttaTableau{Nstages, RT}
+    W::O
+    linsolve!::L
+end
+
+
+function cache(
+    prob::DiffEqBase.AbstractODEProblem{uType, tType, true}, 
+    alg::AdditiveRungeKutta; dt, kwargs...) where {uType,tType}
+
+    tab = tableau(alg, eltype(prob.u0))
+    Nstages = length(tab.B) # TODO: create function for this
+    U = zero(prob.u0)
+    L = ntuple(i -> zero(prob.u0), Nstages)
+    R = ntuple(i -> zero(prob.u0), Nstages)
+
+    if prob.f isa DiffEqBase.ODEFunction
+        W = EulerOperator(prob.f.jvp, -dt*tab.Aimpl[2,2], prob.p, prob.tspan[1])
+    elseif prob.f isa DiffEqBase.SplitFunction
+        W = EulerOperator(prob.f.f1, -dt*tab.Aimpl[2,2], prob.p, prob.tspan[1])
+    end
+    linsolve! = alg.linsolve(Val{:init}, W, prob.u0; kwargs...)
+    
+    AdditiveRungeKuttaFullCache(U, L, R, tab, W, linsolve!)
+end
+
+
+
+#=
+struct AdditiveRungeKuttaLowStorageCache{Nstages, RT, A, IO}
+    U::NTuple{Nm1,A} #Qstages
+    Utt::A
+    R::NTuple{Nstages,A} #Rstages
+    tableau::AdditiveRungeKuttaTableau{Nstages, RT}
+    W::O
+    linsolve!::L
+end
+=#
+
+# we need to provide:
+#   - linear part: as arguments to `ODEFunction`
+#        https://github.com/SciML/DiffEqBase.jl/blob/871fe1efe728680eb0a835121b75429d75606a82/src/diffeqfunction.jl#L21-L36
+#        https://github.com/SciML/DiffEqDocs.jl/blob/ccf16708a78fbdf65c512d3b449ac498f434a077/docs/src/features/performance_overloads.md#function-choice-definitions
+#        https://github.com/SciML/OrdinaryDiffEq.jl/blob/f93630317658b0c5460044a5d349f99391bc2f9c/src/derivative_utils.jl#L426
+#      - we can provide a `jac` keyword argument
+#      - there is also a `jvp` argument (Jacobian vector product): this isn't currently used
+
+#   - linear solver: passed as arguments to the Algorithm objects.
+#   https://docs.sciml.ai/latest/features/linear_nonlinear/#Linear-Solvers:-linsolve-Specification-1
+#   https://docs.sciml.ai/latest/features/linear_nonlinear/#Implementing-Your-Own-LinSolve:-How-LinSolveFactorize-Was-Created-1
+#
+# e.g.
+#=
+prob = ODEProblem(ODEFunction(dg, jac=dg_1dliner), u, (t0,t1))
+solve(prob, Rosenbrock23(linsolve=ColumnGMRES))
+
+
+=#
+
+#  
+#
+# W = M - gamma*J <=> our EulerOperator
+# https://github.com/SciML/OrdinaryDiffEq.jl/blob/f93630317658b0c5460044a5d349f99391bc2f9c/src/derivative_utils.jl#L126
+
+function step_u!(int, cache::AdditiveRungeKuttaFullCache{Nstages}) where {Nstages}
+    step_u!(int, cache, int.prob.f)
+end
+
+function step_u!(int, cache::AdditiveRungeKuttaFullCache{Nstages}, f::DiffEqBase.SplitFunction) where {Nstages}
+    tab = cache.tableau
+    U = cache.U
+    Uhat = cache.R[end] # can be used as work array, as only used in last stage
+
+
+    u = int.u
+    p = int.prob.p
+    t = int.t
+    dt = int.dt
+
+    fL! = f.f1 # linear part
+    fR! = f.f2 # remainder
+
+    # first stage is always explicit
+    τ = t + tab.C[1] * dt
+
+    #  cache.L[i] .= fL(cache.U[i-1], p, t + tab.C[i]*dt)
+    #  cache.R[1] .= fR(cache.U[i-1], p, t + tab.C[i]*dt)
+
+    fL!(cache.L[1], u, p, τ)
+    fR!(cache.R[1], u, p, τ)
+
+    for i in 2:Nstages
+        # solve for W * U = Uhat
+        # set U to initial guess based on fully explicit
+        # TODO: we don't need this for direct solves
+        U .= Uhat .= u        
+        for j = 1:i-1
+            Uhat .+= (dt * tab.Aimpl[i,j]) .* cache.L[j] .+ (dt * tab.Aexpl[i,j]) .* cache.R[j]
+            # initial value: we only need to do this if using an iterative method:
+            U    .+= (dt * tab.Aexpl[i,j]) .* (cache.L[j] .+ cache.R[j])
+        end
+
+        #  W = I - dt * Aimpl[i,i] * L
+        # currently only use SDIRK methods where 
+        #    Aimpl[i,i] = i == 1 ? 0 : const
+        # TODO: handle changing dt & Aimpl[i,i] coeffs
+        if !(DiffEqBase.isconstant(cache.W))
+            cache.W.t = τ
+            W_updated = true
+        end
+        γ = -dt*tab.Aimpl[i,i]
+        if cache.W.γ != γ
+            cache.W.γ = γ
+            W_updated = true
+        end
+        cache.linsolve!(U, cache.W, Uhat, W_updated)
+
+        τ = t + tab.C[i] * dt
+        fL!(cache.L[i], U, p, τ) 
+        # or use cache.L[i] .= (U .- Uhat) ./ (dt * tab.Aimpl[i,i]) ?
+        fR!(cache.R[i], U, p, τ)
+    end
+
+    # compute next step
+    for i = 1:Nstages
+        u .+= (dt * tab.B[i]) .* (cache.L[i] .+ cache.R[i])
+    end
+end
+
+# WIP
+function step_u!(int, cache::AdditiveRungeKuttaFullCache{Nstages}, f::DiffEqBase.ODEFunction) where {Nstages}
+    tab = cache.tableau
+    U = cache.U
+    Uhat = cache.R[end] # can be used as work array, as only used in last stage
+
+
+    u = int.u
+    p = int.prob.p
+    t = int.t
+    dt = int.dt
+
+    fL! = f.jvp # linear part
+    f! = f.f # remainder
+
+    # first stage is always explicit
+    τ = t + tab.C[1] * dt
+
+    f!(cache.R[1], u, p, τ)
+    fL!(cache.L[1], u, p, τ)
+    for i in 2:Nstages
+        # solve for W * U = Uhat
+        # set U to initial guess based on fully explicit
+        # TODO: we don't need this for direct solves
+        U .= Uhat .= u        
+        for j = 1:i-1
+            Uhat .+= (dt * tab.Aimpl[i,j]) .* cache.L[j] .+ (dt * tab.Aexpl[i,j]) .* (cache.R[j] .- cache.L[j])
+            # initial value: we only need to do this if using an iterative method:
+            U    .+= (dt * tab.Aexpl[i,j]) .* cache.R[j]
+        end
+#=
+        # solve for W * U = Uhat
+        # set U to initial guess based on fully explicit
+        # TODO: we don't need this for direct solves
+        V .= u
+        Ω .= 0
+        for j = 1:i-1
+            V .+= dt * tab.Aexpl[i,j] .* cache.R[j]
+            Ω .+= (tab.Aimpl[i,j]-tab.Aexpl[i,j])/tab.Aimpl[i,i] .* cache.U[j]
+        end
+        Vhat .= V .+ Ω
+=#
+        #  W = I - dt * Aimpl[i,i] * L
+        # currently only use SDIRK methods where 
+        #    Aimpl[i,i] = i == 1 ? 0 : const
+        # TODO: handle changing dt & Aimpl[i,i] coeffs
+        if !(DiffEqBase.isconstant(cache.W))
+            cache.W.t = τ
+            W_updated = true
+        end
+        γ = -dt*tab.Aimpl[i,i]
+        if cache.W.γ != γ
+            cache.W.γ = γ
+            W_updated = true
+        end
+        cache.linsolve!(U, cache.W, Uhat, W_updated)
+        # U = V .- Ω
+
+        τ = t + tab.C[i] * dt
+        fL!(cache.L[i], U, p, τ)
+        # or use cache.L[i] .= (U .- Uhat) ./ (dt * tab.Aimpl[i,i]) ?
+        f!(cache.R[i], U, p, τ)
+    end
+
+    # compute next step
+    for i = 1:Nstages
+        u .+= (dt * tab.B[i]) .* cache.R[i]
+    end
+end
+
+
+"""
+    ARK1ForwardBackwardEuler()
+
+This function returns an [`AdditiveRungeKutta`](@ref) time stepping object,
+see the documentation of [`AdditiveRungeKutta`](@ref) for arguments definitions.
+This time stepping object is intended to be passed to the `solve!` command.
+
+This uses a first-order-accurate two-stage additive Runge--Kutta scheme
+by combining a forward Euler explicit step with a backward Euler implicit
+correction.
+
+### References
+    @article{Ascher1997,
+      title = {Implicit-explicit Runge-Kutta methods for time-dependent
+               partial differential equations},
+      author = {Uri M. Ascher and Steven J. Ruuth and Raymond J. Spiteri},
+      volume = {25},
+      number = {2-3},
+      pages = {151--167},
+      year = {1997},
+      journal = {Applied Numerical Mathematics},
+      publisher = {Elsevier {BV}}
+    }
+"""
+struct ARK1ForwardBackwardEuler{L} <: AdditiveRungeKutta
+    linsolve::L
+end
+
+function tableau(::ARK1ForwardBackwardEuler, RT)
+    RKA_explicit = @SArray [
+        RT(0) RT(0)
+        RT(1) RT(0)
+    ]
+
+    RKA_implicit = @SArray [
+        RT(0) RT(0)
+        RT(0) RT(1)
+    ]
+
+    RKB = (RT(0), RT(1))
+    RKC = (RT(0), RT(1))
+
+    return AdditiveRungeKuttaTableau(RKA_explicit, RKA_implicit, RKB, RKC)
+end
+
+"""
+    ARK2ImplicitExplicitMidpoint()
+
+This function returns an [`AdditiveRungeKutta`](@ref) time stepping object,
+see the documentation of [`AdditiveRungeKutta`](@ref) for arguments definitions.
+This time stepping object is intended to be passed to the `solve!` command.
+
+This uses a second-order-accurate two-stage additive Runge--Kutta scheme
+by combining the implicit and explicit midpoint methods.
+
+### References
+    @article{Ascher1997,
+      title = {Implicit-explicit Runge-Kutta methods for time-dependent
+               partial differential equations},
+      author = {Uri M. Ascher and Steven J. Ruuth and Raymond J. Spiteri},
+      volume = {25},
+      number = {2-3},
+      pages = {151--167},
+      year = {1997},
+      journal = {Applied Numerical Mathematics},
+      publisher = {Elsevier {BV}}
+    }
+"""
+struct ARK2ImplicitExplicitMidpoint{L} <: AdditiveRungeKutta
+    linsolve::L
+end
+
+function tableau(::ARK2ImplicitExplicitMidpoint, RT)
+    RKA_explicit = @SArray [
+        RT(0) RT(0)
+        RT(1 / 2) RT(0)
+    ]
+
+    RKA_implicit = @SArray [
+        RT(0) RT(0)
+        RT(0) RT(1 / 2)
+    ]
+
+    RKB = (RT(0), RT(1))
+    RKC = (RT(0), RT(1 / 2))
+
+    return AdditiveRungeKuttaTableau(RKA_explicit, RKA_implicit, RKB, RKC)
+end
+
+"""
+    ARK2GiraldoKellyConstantinescu()
+
+This function returns an [`AdditiveRungeKutta`](@ref) time stepping object,
+see the documentation of [`AdditiveRungeKutta`](@ref) for arguments definitions.
+This time stepping object is intended to be passed to the `solve!` command.
+
+`paperversion=true` uses the coefficients from the paper, `paperversion=false`
+uses coefficients that make the scheme (much) more stable but less accurate
+
+This uses the second-order-accurate 3-stage additive Runge--Kutta scheme of
+Giraldo, Kelly and Constantinescu (2013).
+
+### References
+    @article{giraldo2013implicit,
+      title={Implicit-explicit formulations of a three-dimensional
+             nonhydrostatic unified model of the atmosphere ({NUMA})},
+      author={Giraldo, Francis X and Kelly, James F and Constantinescu, Emil M},
+      journal={SIAM Journal on Scientific Computing},
+      volume={35},
+      number={5},
+      pages={B1162--B1194},
+      year={2013},
+      publisher={SIAM}
+    }
+"""
+struct ARK2GiraldoKellyConstantinescu{L} <: AdditiveRungeKutta
+    linsolve::L
+end
+
+function tableau(::ARK2GiraldoKellyConstantinescu, RT)
+    paperversion = false
+    a32 = RT(paperversion ? (3 + 2 * sqrt(2)) / 6 : 1 // 2)
+    RKA_explicit = @SArray [
+        RT(0) RT(0) RT(0)
+        RT(2 - sqrt(2)) RT(0) RT(0)
+        RT(1 - a32) RT(a32) RT(0)
+    ]
+
+    RKA_implicit = @SArray [
+        RT(0) RT(0) RT(0)
+        RT(1 - 1 / sqrt(2)) RT(1 - 1 / sqrt(2)) RT(0)
+        RT(1 / (2 * sqrt(2))) RT(1 / (2 * sqrt(2))) RT(1 - 1 / sqrt(2))
+    ]
+
+    RKB = (RT(1 / (2 * sqrt(2))), RT(1 / (2 * sqrt(2))), RT(1 - 1 / sqrt(2)))
+    RKC = (RT(0), RT(2 - sqrt(2)), RT(1))
+
+    return AdditiveRungeKuttaTableau(RKA_explicit, RKA_implicit, RKB, RKC)
+end
+
+"""
+    ARK548L2SA2KennedyCarpenter()
+
+This function returns an [`AdditiveRungeKutta`](@ref) time stepping object,
+see the documentation of [`AdditiveRungeKutta`](@ref) for arguments definitions.
+This time stepping object is intended to be passed to the `solve!` command.
+
+This uses the fifth-order-accurate 8-stage additive Runge--Kutta scheme of
+Kennedy and Carpenter (2013).
+
+### References
+
+    @article{kennedy2019higher,
+      title={Higher-order additive Runge--Kutta schemes for ordinary
+             differential equations},
+      author={Kennedy, Christopher A and Carpenter, Mark H},
+      journal={Applied Numerical Mathematics},
+      volume={136},
+      pages={183--205},
+      year={2019},
+      publisher={Elsevier}
+    }
+"""
+struct ARK548L2SA2KennedyCarpenter{L} <: AdditiveRungeKutta
+    linsolve::L
+end
+
+function tableau(::ARK548L2SA2KennedyCarpenter, RT)
+    Nstages = 8
+    gamma = RT(2 // 9)
+
+    # declared as Arrays for mutability, later these will be converted to static
+    # arrays
+    RKA_explicit = zeros(RT, Nstages, Nstages)
+    RKA_implicit = zeros(RT, Nstages, Nstages)
+    RKB = zeros(RT, Nstages)
+    RKC = zeros(RT, Nstages)
+
+    # the main diagonal
+    for is in 2:Nstages
+        RKA_implicit[is, is] = gamma
+    end
+
+    RKA_implicit[3, 2] = RT(2366667076620 // 8822750406821)
+    RKA_implicit[4, 2] = RT(-257962897183 // 4451812247028)
+    RKA_implicit[4, 3] = RT(128530224461 // 14379561246022)
+    RKA_implicit[5, 2] = RT(-486229321650 // 11227943450093)
+    RKA_implicit[5, 3] = RT(-225633144460 // 6633558740617)
+    RKA_implicit[5, 4] = RT(1741320951451 // 6824444397158)
+    RKA_implicit[6, 2] = RT(621307788657 // 4714163060173)
+    RKA_implicit[6, 3] = RT(-125196015625 // 3866852212004)
+    RKA_implicit[6, 4] = RT(940440206406 // 7593089888465)
+    RKA_implicit[6, 5] = RT(961109811699 // 6734810228204)
+    RKA_implicit[7, 2] = RT(2036305566805 // 6583108094622)
+    RKA_implicit[7, 3] = RT(-3039402635899 // 4450598839912)
+    RKA_implicit[7, 4] = RT(-1829510709469 // 31102090912115)
+    RKA_implicit[7, 5] = RT(-286320471013 // 6931253422520)
+    RKA_implicit[7, 6] = RT(8651533662697 // 9642993110008)
+
+    RKA_explicit[3, 1] = RT(1 // 9)
+    RKA_explicit[3, 2] = RT(1183333538310 // 1827251437969)
+    RKA_explicit[4, 1] = RT(895379019517 // 9750411845327)
+    RKA_explicit[4, 2] = RT(477606656805 // 13473228687314)
+    RKA_explicit[4, 3] = RT(-112564739183 // 9373365219272)
+    RKA_explicit[5, 1] = RT(-4458043123994 // 13015289567637)
+    RKA_explicit[5, 2] = RT(-2500665203865 // 9342069639922)
+    RKA_explicit[5, 3] = RT(983347055801 // 8893519644487)
+    RKA_explicit[5, 4] = RT(2185051477207 // 2551468980502)
+    RKA_explicit[6, 1] = RT(-167316361917 // 17121522574472)
+    RKA_explicit[6, 2] = RT(1605541814917 // 7619724128744)
+    RKA_explicit[6, 3] = RT(991021770328 // 13052792161721)
+    RKA_explicit[6, 4] = RT(2342280609577 // 11279663441611)
+    RKA_explicit[6, 5] = RT(3012424348531 // 12792462456678)
+    RKA_explicit[7, 1] = RT(6680998715867 // 14310383562358)
+    RKA_explicit[7, 2] = RT(5029118570809 // 3897454228471)
+    RKA_explicit[7, 3] = RT(2415062538259 // 6382199904604)
+    RKA_explicit[7, 4] = RT(-3924368632305 // 6964820224454)
+    RKA_explicit[7, 5] = RT(-4331110370267 // 15021686902756)
+    RKA_explicit[7, 6] = RT(-3944303808049 // 11994238218192)
+    RKA_explicit[8, 1] = RT(2193717860234 // 3570523412979)
+    RKA_explicit[8, 2] = RKA_explicit[8, 1]
+    RKA_explicit[8, 3] = RT(5952760925747 // 18750164281544)
+    RKA_explicit[8, 4] = RT(-4412967128996 // 6196664114337)
+    RKA_explicit[8, 5] = RT(4151782504231 // 36106512998704)
+    RKA_explicit[8, 6] = RT(572599549169 // 6265429158920)
+    RKA_explicit[8, 7] = RT(-457874356192 // 11306498036315)
+
+    RKB[2] = 0
+    RKB[3] = RT(3517720773327 // 20256071687669)
+    RKB[4] = RT(4569610470461 // 17934693873752)
+    RKB[5] = RT(2819471173109 // 11655438449929)
+    RKB[6] = RT(3296210113763 // 10722700128969)
+    RKB[7] = RT(-1142099968913 // 5710983926999)
+
+    RKC[2] = RT(4 // 9)
+    RKC[3] = RT(6456083330201 // 8509243623797)
+    RKC[4] = RT(1632083962415 // 14158861528103)
+    RKC[5] = RT(6365430648612 // 17842476412687)
+    RKC[6] = RT(18 // 25)
+    RKC[7] = RT(191 // 200)
+
+    for is in 2:Nstages
+        RKA_implicit[is, 1] = RKA_implicit[is, 2]
+    end
+
+    for is in 1:(Nstages - 1)
+        RKA_implicit[Nstages, is] = RKB[is]
+    end
+
+    RKB[1] = RKB[2]
+    RKB[8] = gamma
+
+    RKA_explicit[2, 1] = RKC[2]
+    RKA_explicit[Nstages, 1] = RKA_explicit[Nstages, 2]
+
+    RKC[1] = 0
+    RKC[Nstages] = 1
+
+    # conversion to static arrays
+    RKA_explicit = SMatrix{Nstages, Nstages}(RKA_explicit)
+    RKA_implicit = SMatrix{Nstages, Nstages}(RKA_implicit)
+    RKB = tuple(RKB)
+    RKC = tuple(RKC)
+
+    return AdditiveRungeKuttaTableau(RKA_explicit, RKA_implicit, RKB, RKC)
+end
+
+"""
+    ARK437L2SA1KennedyCarpenter()
+
+This function returns an [`AdditiveRungeKutta`](@ref) time stepping object,
+see the documentation of [`AdditiveRungeKutta`](@ref) for arguments definitions.
+This time stepping object is intended to be passed to the `solve!` command.
+
+This uses the fourth-order-accurate 7-stage additive Runge--Kutta scheme of
+Kennedy and Carpenter (2013).
+
+### References
+    @article{kennedy2019higher,
+      title={Higher-order additive Runge--Kutta schemes for ordinary
+             differential equations},
+      author={Kennedy, Christopher A and Carpenter, Mark H},
+      journal={Applied Numerical Mathematics},
+      volume={136},
+      pages={183--205},
+      year={2019},
+      publisher={Elsevier}
+    }
+"""
+struct ARK437L2SA1KennedyCarpenter{L} <: AdditiveRungeKutta
+    linsolve::L
+end
+
+function tableau(::ARK437L2SA1KennedyCarpenter, RT)
+    Nstages = 7
+    gamma = RT(1235 // 10000)
+
+    # declared as Arrays for mutability, later these will be converted to static
+    # arrays
+    RKA_explicit = zeros(RT, Nstages, Nstages)
+    RKA_implicit = zeros(RT, Nstages, Nstages)
+    RKB = zeros(RT, Nstages)
+    RKC = zeros(RT, Nstages)
+
+    # the main diagonal
+    for is in 2:Nstages
+        RKA_implicit[is, is] = gamma
+    end
+
+    RKA_implicit[3, 2] = RT(624185399699 // 4186980696204)
+    RKA_implicit[4, 2] = RT(1258591069120 // 10082082980243)
+    RKA_implicit[4, 3] = RT(-322722984531 // 8455138723562)
+    RKA_implicit[5, 2] = RT(-436103496990 // 5971407786587)
+    RKA_implicit[5, 3] = RT(-2689175662187 // 11046760208243)
+    RKA_implicit[5, 4] = RT(4431412449334 // 12995360898505)
+    RKA_implicit[6, 2] = RT(-2207373168298 // 14430576638973)
+    RKA_implicit[6, 3] = RT(242511121179 // 3358618340039)
+    RKA_implicit[6, 4] = RT(3145666661981 // 7780404714551)
+    RKA_implicit[6, 5] = RT(5882073923981 // 14490790706663)
+    RKA_implicit[7, 2] = 0
+    RKA_implicit[7, 3] = RT(9164257142617 // 17756377923965)
+    RKA_implicit[7, 4] = RT(-10812980402763 // 74029279521829)
+    RKA_implicit[7, 5] = RT(1335994250573 // 5691609445217)
+    RKA_implicit[7, 6] = RT(2273837961795 // 8368240463276)
+
+    RKA_explicit[3, 1] = RT(247 // 4000)
+    RKA_explicit[3, 2] = RT(2694949928731 // 7487940209513)
+    RKA_explicit[4, 1] = RT(464650059369 // 8764239774964)
+    RKA_explicit[4, 2] = RT(878889893998 // 2444806327765)
+    RKA_explicit[4, 3] = RT(-952945855348 // 12294611323341)
+    RKA_explicit[5, 1] = RT(476636172619 // 8159180917465)
+    RKA_explicit[5, 2] = RT(-1271469283451 // 7793814740893)
+    RKA_explicit[5, 3] = RT(-859560642026 // 4356155882851)
+    RKA_explicit[5, 4] = RT(1723805262919 // 4571918432560)
+    RKA_explicit[6, 1] = RT(6338158500785 // 11769362343261)
+    RKA_explicit[6, 2] = RT(-4970555480458 // 10924838743837)
+    RKA_explicit[6, 3] = RT(3326578051521 // 2647936831840)
+    RKA_explicit[6, 4] = RT(-880713585975 // 1841400956686)
+    RKA_explicit[6, 5] = RT(-1428733748635 // 8843423958496)
+    RKA_explicit[7, 2] = RT(760814592956 // 3276306540349)
+    RKA_explicit[7, 3] = RT(-47223648122716 // 6934462133451)
+    RKA_explicit[7, 4] = RT(71187472546993 // 9669769126921)
+    RKA_explicit[7, 5] = RT(-13330509492149 // 9695768672337)
+    RKA_explicit[7, 6] = RT(11565764226357 // 8513123442827)
+
+    RKB[2] = 0
+    RKB[3] = RT(9164257142617 // 17756377923965)
+    RKB[4] = RT(-10812980402763 // 74029279521829)
+    RKB[5] = RT(1335994250573 // 5691609445217)
+    RKB[6] = RT(2273837961795 // 8368240463276)
+    RKB[7] = RT(247 // 2000)
+
+    RKC[2] = RT(247 // 1000)
+    RKC[3] = RT(4276536705230 // 10142255878289)
+    RKC[4] = RT(67 // 200)
+    RKC[5] = RT(3 // 40)
+    RKC[6] = RT(7 // 10)
+
+    for is in 2:Nstages
+        RKA_implicit[is, 1] = RKA_implicit[is, 2]
+    end
+
+    for is in 1:(Nstages - 1)
+        RKA_implicit[Nstages, is] = RKB[is]
+    end
+
+    RKB[1] = RKB[2]
+
+    RKA_explicit[2, 1] = RKC[2]
+    RKA_explicit[Nstages, 1] = RKA_explicit[Nstages, 2]
+
+    RKC[1] = 0
+    RKC[Nstages] = 1
+
+    # conversion to static arrays
+    RKA_explicit = SMatrix{Nstages, Nstages}(RKA_explicit)
+    RKA_implicit = SMatrix{Nstages, Nstages}(RKA_implicit)
+    RKB = tuple(RKB)
+    RKC = tuple(RKC)
+
+    return AdditiveRungeKuttaTableau(RKA_explicit, RKA_implicit, RKB, RKC)
+end
+
+#=
 
 export AbstractAdditiveRungeKutta
 export LowStorageVariant, NaiveVariant
@@ -474,17 +1081,17 @@ end
 
         @unroll for js in 1:(is - 1)
             if split_explicit_implicit
-                rkcoeff = RKA_implicit[is, js] / RKA_implicit[is, is]
+                rkcoeff = RKA_implicit[is, js] / RKA_implicit[is, is] # A[i,j] / A[i,i]
             else
                 rkcoeff =
                     (RKA_implicit[is, js] - RKA_explicit[is, js]) /
                     RKA_implicit[is, is]
             end
-            commonterm = rkcoeff * Qstages[js][i]
+            commonterm = rkcoeff * Qstages[js][i] 
             Qhat_i += commonterm + dt * RKA_explicit[is, js] * Rstages[js][i]
             Qstages_is_i -= commonterm
         end
-        Qstages[is][i] = Qstages_is_i
+        Qstages[is][i] = Qstages_is_i   # Qstages[i] = - sum(j -> A[i,j] / A[i,i] * Qstages[j], 1:i-1)
         Qhat[i] = Qhat_i
         Qtt[i] = Qhat_i
     end
@@ -547,514 +1154,4 @@ end
     end
 end
 
-"""
-    ARK1ForwardBackwardEuler(f, l, backward_euler_solver, Q; dt, t0,
-                             split_explicit_implicit, variant)
-
-This function returns an [`AdditiveRungeKutta`](@ref) time stepping object,
-see the documentation of [`AdditiveRungeKutta`](@ref) for arguments definitions.
-This time stepping object is intended to be passed to the `solve!` command.
-
-This uses a first-order-accurate two-stage additive Runge--Kutta scheme
-by combining a forward Euler explicit step with a backward Euler implicit
-correction.
-
-### References
-    @article{Ascher1997,
-      title = {Implicit-explicit Runge-Kutta methods for time-dependent
-               partial differential equations},
-      author = {Uri M. Ascher and Steven J. Ruuth and Raymond J. Spiteri},
-      volume = {25},
-      number = {2-3},
-      pages = {151--167},
-      year = {1997},
-      journal = {Applied Numerical Mathematics},
-      publisher = {Elsevier {BV}}
-    }
-"""
-function ARK1ForwardBackwardEuler(
-    F,
-    L,
-    backward_euler_solver,
-    Q::AT;
-    dt = nothing,
-    t0 = 0,
-    split_explicit_implicit = false,
-    variant = LowStorageVariant(),
-) where {AT <: AbstractArray}
-
-    @assert dt !== nothing
-
-    T = eltype(Q)
-    RT = real(T)
-
-    RKA_explicit = [
-        RT(0) RT(0)
-        RT(1) RT(0)
-    ]
-    RKA_implicit = [
-        RT(0) RT(0)
-        RT(0) RT(1)
-    ]
-
-    RKB = [RT(0), RT(1)]
-    RKC = [RT(0), RT(1)]
-
-    Nstages = length(RKB)
-
-    AdditiveRungeKutta(
-        F,
-        L,
-        backward_euler_solver,
-        RKA_explicit,
-        RKA_implicit,
-        RKB,
-        RKC,
-        split_explicit_implicit,
-        variant,
-        Q;
-        dt = dt,
-        t0 = t0,
-    )
-end
-
-"""
-    ARK2ImplicitExplicitMidpoint(f, l, backward_euler_solver, Q; dt, t0,
-                                 split_explicit_implicit, variant)
-
-This function returns an [`AdditiveRungeKutta`](@ref) time stepping object,
-see the documentation of [`AdditiveRungeKutta`](@ref) for arguments definitions.
-This time stepping object is intended to be passed to the `solve!` command.
-
-This uses a second-order-accurate two-stage additive Runge--Kutta scheme
-by combining the implicit and explicit midpoint methods.
-
-### References
-    @article{Ascher1997,
-      title = {Implicit-explicit Runge-Kutta methods for time-dependent
-               partial differential equations},
-      author = {Uri M. Ascher and Steven J. Ruuth and Raymond J. Spiteri},
-      volume = {25},
-      number = {2-3},
-      pages = {151--167},
-      year = {1997},
-      journal = {Applied Numerical Mathematics},
-      publisher = {Elsevier {BV}}
-    }
-"""
-function ARK2ImplicitExplicitMidpoint(
-    F,
-    L,
-    backward_euler_solver,
-    Q::AT;
-    dt = nothing,
-    t0 = 0,
-    split_explicit_implicit = false,
-    variant = LowStorageVariant(),
-) where {AT <: AbstractArray}
-
-    @assert dt !== nothing
-
-    T = eltype(Q)
-    RT = real(T)
-
-    RKA_explicit = [
-        RT(0) RT(0)
-        RT(1 / 2) RT(0)
-    ]
-    RKA_implicit = [
-        RT(0) RT(0)
-        RT(0) RT(1 / 2)
-    ]
-
-    RKB = [RT(0), RT(1)]
-    RKC = [RT(0), RT(1 / 2)]
-
-    Nstages = length(RKB)
-
-    AdditiveRungeKutta(
-        F,
-        L,
-        backward_euler_solver,
-        RKA_explicit,
-        RKA_implicit,
-        RKB,
-        RKC,
-        split_explicit_implicit,
-        variant,
-        Q;
-        dt = dt,
-        t0 = t0,
-    )
-end
-
-"""
-    ARK2GiraldoKellyConstantinescu(f, l, backward_euler_solver, Q; dt, t0,
-                                   split_explicit_implicit, variant, paperversion)
-
-This function returns an [`AdditiveRungeKutta`](@ref) time stepping object,
-see the documentation of [`AdditiveRungeKutta`](@ref) for arguments definitions.
-This time stepping object is intended to be passed to the `solve!` command.
-
-`paperversion=true` uses the coefficients from the paper, `paperversion=false`
-uses coefficients that make the scheme (much) more stable but less accurate
-
-This uses the second-order-accurate 3-stage additive Runge--Kutta scheme of
-Giraldo, Kelly and Constantinescu (2013).
-
-### References
-    @article{giraldo2013implicit,
-      title={Implicit-explicit formulations of a three-dimensional
-             nonhydrostatic unified model of the atmosphere ({NUMA})},
-      author={Giraldo, Francis X and Kelly, James F and Constantinescu, Emil M},
-      journal={SIAM Journal on Scientific Computing},
-      volume={35},
-      number={5},
-      pages={B1162--B1194},
-      year={2013},
-      publisher={SIAM}
-    }
-"""
-function ARK2GiraldoKellyConstantinescu(
-    F,
-    L,
-    backward_euler_solver,
-    Q::AT;
-    dt = nothing,
-    t0 = 0,
-    split_explicit_implicit = false,
-    variant = LowStorageVariant(),
-    paperversion = false,
-) where {AT <: AbstractArray}
-
-    @assert dt != nothing
-
-    T = eltype(Q)
-    RT = real(T)
-
-    a32 = RT(paperversion ? (3 + 2 * sqrt(2)) / 6 : 1 // 2)
-    RKA_explicit = [
-        RT(0) RT(0) RT(0)
-        RT(2 - sqrt(2)) RT(0) RT(0)
-        RT(1 - a32) RT(a32) RT(0)
-    ]
-
-    RKA_implicit = [
-        RT(0) RT(0) RT(0)
-        RT(1 - 1 / sqrt(2)) RT(1 - 1 / sqrt(2)) RT(0)
-        RT(1 / (2 * sqrt(2))) RT(1 / (2 * sqrt(2))) RT(1 - 1 / sqrt(2))
-    ]
-
-    RKB = [RT(1 / (2 * sqrt(2))), RT(1 / (2 * sqrt(2))), RT(1 - 1 / sqrt(2))]
-    RKC = [RT(0), RT(2 - sqrt(2)), RT(1)]
-
-    Nstages = length(RKB)
-
-    AdditiveRungeKutta(
-        F,
-        L,
-        backward_euler_solver,
-        RKA_explicit,
-        RKA_implicit,
-        RKB,
-        RKC,
-        split_explicit_implicit,
-        variant,
-        Q;
-        dt = dt,
-        t0 = t0,
-    )
-end
-
-"""
-    ARK548L2SA2KennedyCarpenter(f, l, backward_euler_solver, Q; dt, t0,
-                                split_explicit_implicit, variant)
-
-This function returns an [`AdditiveRungeKutta`](@ref) time stepping object,
-see the documentation of [`AdditiveRungeKutta`](@ref) for arguments definitions.
-This time stepping object is intended to be passed to the `solve!` command.
-
-This uses the fifth-order-accurate 8-stage additive Runge--Kutta scheme of
-Kennedy and Carpenter (2013).
-
-### References
-
-    @article{kennedy2019higher,
-      title={Higher-order additive Runge--Kutta schemes for ordinary
-             differential equations},
-      author={Kennedy, Christopher A and Carpenter, Mark H},
-      journal={Applied Numerical Mathematics},
-      volume={136},
-      pages={183--205},
-      year={2019},
-      publisher={Elsevier}
-    }
-"""
-function ARK548L2SA2KennedyCarpenter(
-    F,
-    L,
-    backward_euler_solver,
-    Q::AT;
-    dt = nothing,
-    t0 = 0,
-    split_explicit_implicit = false,
-    variant = LowStorageVariant(),
-) where {AT <: AbstractArray}
-
-    @assert dt != nothing
-
-    T = eltype(Q)
-    RT = real(T)
-
-    Nstages = 8
-    gamma = RT(2 // 9)
-
-    # declared as Arrays for mutability, later these will be converted to static
-    # arrays
-    RKA_explicit = zeros(RT, Nstages, Nstages)
-    RKA_implicit = zeros(RT, Nstages, Nstages)
-    RKB = zeros(RT, Nstages)
-    RKC = zeros(RT, Nstages)
-
-    # the main diagonal
-    for is in 2:Nstages
-        RKA_implicit[is, is] = gamma
-    end
-
-    RKA_implicit[3, 2] = RT(2366667076620 // 8822750406821)
-    RKA_implicit[4, 2] = RT(-257962897183 // 4451812247028)
-    RKA_implicit[4, 3] = RT(128530224461 // 14379561246022)
-    RKA_implicit[5, 2] = RT(-486229321650 // 11227943450093)
-    RKA_implicit[5, 3] = RT(-225633144460 // 6633558740617)
-    RKA_implicit[5, 4] = RT(1741320951451 // 6824444397158)
-    RKA_implicit[6, 2] = RT(621307788657 // 4714163060173)
-    RKA_implicit[6, 3] = RT(-125196015625 // 3866852212004)
-    RKA_implicit[6, 4] = RT(940440206406 // 7593089888465)
-    RKA_implicit[6, 5] = RT(961109811699 // 6734810228204)
-    RKA_implicit[7, 2] = RT(2036305566805 // 6583108094622)
-    RKA_implicit[7, 3] = RT(-3039402635899 // 4450598839912)
-    RKA_implicit[7, 4] = RT(-1829510709469 // 31102090912115)
-    RKA_implicit[7, 5] = RT(-286320471013 // 6931253422520)
-    RKA_implicit[7, 6] = RT(8651533662697 // 9642993110008)
-
-    RKA_explicit[3, 1] = RT(1 // 9)
-    RKA_explicit[3, 2] = RT(1183333538310 // 1827251437969)
-    RKA_explicit[4, 1] = RT(895379019517 // 9750411845327)
-    RKA_explicit[4, 2] = RT(477606656805 // 13473228687314)
-    RKA_explicit[4, 3] = RT(-112564739183 // 9373365219272)
-    RKA_explicit[5, 1] = RT(-4458043123994 // 13015289567637)
-    RKA_explicit[5, 2] = RT(-2500665203865 // 9342069639922)
-    RKA_explicit[5, 3] = RT(983347055801 // 8893519644487)
-    RKA_explicit[5, 4] = RT(2185051477207 // 2551468980502)
-    RKA_explicit[6, 1] = RT(-167316361917 // 17121522574472)
-    RKA_explicit[6, 2] = RT(1605541814917 // 7619724128744)
-    RKA_explicit[6, 3] = RT(991021770328 // 13052792161721)
-    RKA_explicit[6, 4] = RT(2342280609577 // 11279663441611)
-    RKA_explicit[6, 5] = RT(3012424348531 // 12792462456678)
-    RKA_explicit[7, 1] = RT(6680998715867 // 14310383562358)
-    RKA_explicit[7, 2] = RT(5029118570809 // 3897454228471)
-    RKA_explicit[7, 3] = RT(2415062538259 // 6382199904604)
-    RKA_explicit[7, 4] = RT(-3924368632305 // 6964820224454)
-    RKA_explicit[7, 5] = RT(-4331110370267 // 15021686902756)
-    RKA_explicit[7, 6] = RT(-3944303808049 // 11994238218192)
-    RKA_explicit[8, 1] = RT(2193717860234 // 3570523412979)
-    RKA_explicit[8, 2] = RKA_explicit[8, 1]
-    RKA_explicit[8, 3] = RT(5952760925747 // 18750164281544)
-    RKA_explicit[8, 4] = RT(-4412967128996 // 6196664114337)
-    RKA_explicit[8, 5] = RT(4151782504231 // 36106512998704)
-    RKA_explicit[8, 6] = RT(572599549169 // 6265429158920)
-    RKA_explicit[8, 7] = RT(-457874356192 // 11306498036315)
-
-    RKB[2] = 0
-    RKB[3] = RT(3517720773327 // 20256071687669)
-    RKB[4] = RT(4569610470461 // 17934693873752)
-    RKB[5] = RT(2819471173109 // 11655438449929)
-    RKB[6] = RT(3296210113763 // 10722700128969)
-    RKB[7] = RT(-1142099968913 // 5710983926999)
-
-    RKC[2] = RT(4 // 9)
-    RKC[3] = RT(6456083330201 // 8509243623797)
-    RKC[4] = RT(1632083962415 // 14158861528103)
-    RKC[5] = RT(6365430648612 // 17842476412687)
-    RKC[6] = RT(18 // 25)
-    RKC[7] = RT(191 // 200)
-
-    for is in 2:Nstages
-        RKA_implicit[is, 1] = RKA_implicit[is, 2]
-    end
-
-    for is in 1:(Nstages - 1)
-        RKA_implicit[Nstages, is] = RKB[is]
-    end
-
-    RKB[1] = RKB[2]
-    RKB[8] = gamma
-
-    RKA_explicit[2, 1] = RKC[2]
-    RKA_explicit[Nstages, 1] = RKA_explicit[Nstages, 2]
-
-    RKC[1] = 0
-    RKC[Nstages] = 1
-
-    # conversion to static arrays
-    RKA_explicit = SMatrix{Nstages, Nstages}(RKA_explicit)
-    RKA_implicit = SMatrix{Nstages, Nstages}(RKA_implicit)
-    RKB = SVector{Nstages}(RKB)
-    RKC = SVector{Nstages}(RKC)
-
-    ark = AdditiveRungeKutta(
-        F,
-        L,
-        backward_euler_solver,
-        RKA_explicit,
-        RKA_implicit,
-        RKB,
-        RKC,
-        split_explicit_implicit,
-        variant,
-        Q;
-        dt = dt,
-        t0 = t0,
-    )
-end
-
-"""
-    ARK437L2SA1KennedyCarpenter(f, l, backward_euler_solver, Q; dt, t0,
-                                split_explicit_implicit, variant)
-
-This function returns an [`AdditiveRungeKutta`](@ref) time stepping object,
-see the documentation of [`AdditiveRungeKutta`](@ref) for arguments definitions.
-This time stepping object is intended to be passed to the `solve!` command.
-
-This uses the fourth-order-accurate 7-stage additive Runge--Kutta scheme of
-Kennedy and Carpenter (2013).
-
-### References
-    @article{kennedy2019higher,
-      title={Higher-order additive Runge--Kutta schemes for ordinary
-             differential equations},
-      author={Kennedy, Christopher A and Carpenter, Mark H},
-      journal={Applied Numerical Mathematics},
-      volume={136},
-      pages={183--205},
-      year={2019},
-      publisher={Elsevier}
-    }
-"""
-function ARK437L2SA1KennedyCarpenter(
-    F,
-    L,
-    backward_euler_solver,
-    Q::AT;
-    dt = nothing,
-    t0 = 0,
-    split_explicit_implicit = false,
-    variant = LowStorageVariant(),
-) where {AT <: AbstractArray}
-
-    @assert dt != nothing
-
-    T = eltype(Q)
-    RT = real(T)
-
-    Nstages = 7
-    gamma = RT(1235 // 10000)
-
-    # declared as Arrays for mutability, later these will be converted to static
-    # arrays
-    RKA_explicit = zeros(RT, Nstages, Nstages)
-    RKA_implicit = zeros(RT, Nstages, Nstages)
-    RKB = zeros(RT, Nstages)
-    RKC = zeros(RT, Nstages)
-
-    # the main diagonal
-    for is in 2:Nstages
-        RKA_implicit[is, is] = gamma
-    end
-
-    RKA_implicit[3, 2] = RT(624185399699 // 4186980696204)
-    RKA_implicit[4, 2] = RT(1258591069120 // 10082082980243)
-    RKA_implicit[4, 3] = RT(-322722984531 // 8455138723562)
-    RKA_implicit[5, 2] = RT(-436103496990 // 5971407786587)
-    RKA_implicit[5, 3] = RT(-2689175662187 // 11046760208243)
-    RKA_implicit[5, 4] = RT(4431412449334 // 12995360898505)
-    RKA_implicit[6, 2] = RT(-2207373168298 // 14430576638973)
-    RKA_implicit[6, 3] = RT(242511121179 // 3358618340039)
-    RKA_implicit[6, 4] = RT(3145666661981 // 7780404714551)
-    RKA_implicit[6, 5] = RT(5882073923981 // 14490790706663)
-    RKA_implicit[7, 2] = 0
-    RKA_implicit[7, 3] = RT(9164257142617 // 17756377923965)
-    RKA_implicit[7, 4] = RT(-10812980402763 // 74029279521829)
-    RKA_implicit[7, 5] = RT(1335994250573 // 5691609445217)
-    RKA_implicit[7, 6] = RT(2273837961795 // 8368240463276)
-
-    RKA_explicit[3, 1] = RT(247 // 4000)
-    RKA_explicit[3, 2] = RT(2694949928731 // 7487940209513)
-    RKA_explicit[4, 1] = RT(464650059369 // 8764239774964)
-    RKA_explicit[4, 2] = RT(878889893998 // 2444806327765)
-    RKA_explicit[4, 3] = RT(-952945855348 // 12294611323341)
-    RKA_explicit[5, 1] = RT(476636172619 // 8159180917465)
-    RKA_explicit[5, 2] = RT(-1271469283451 // 7793814740893)
-    RKA_explicit[5, 3] = RT(-859560642026 // 4356155882851)
-    RKA_explicit[5, 4] = RT(1723805262919 // 4571918432560)
-    RKA_explicit[6, 1] = RT(6338158500785 // 11769362343261)
-    RKA_explicit[6, 2] = RT(-4970555480458 // 10924838743837)
-    RKA_explicit[6, 3] = RT(3326578051521 // 2647936831840)
-    RKA_explicit[6, 4] = RT(-880713585975 // 1841400956686)
-    RKA_explicit[6, 5] = RT(-1428733748635 // 8843423958496)
-    RKA_explicit[7, 2] = RT(760814592956 // 3276306540349)
-    RKA_explicit[7, 3] = RT(-47223648122716 // 6934462133451)
-    RKA_explicit[7, 4] = RT(71187472546993 // 9669769126921)
-    RKA_explicit[7, 5] = RT(-13330509492149 // 9695768672337)
-    RKA_explicit[7, 6] = RT(11565764226357 // 8513123442827)
-
-    RKB[2] = 0
-    RKB[3] = RT(9164257142617 // 17756377923965)
-    RKB[4] = RT(-10812980402763 // 74029279521829)
-    RKB[5] = RT(1335994250573 // 5691609445217)
-    RKB[6] = RT(2273837961795 // 8368240463276)
-    RKB[7] = RT(247 // 2000)
-
-    RKC[2] = RT(247 // 1000)
-    RKC[3] = RT(4276536705230 // 10142255878289)
-    RKC[4] = RT(67 // 200)
-    RKC[5] = RT(3 // 40)
-    RKC[6] = RT(7 // 10)
-
-    for is in 2:Nstages
-        RKA_implicit[is, 1] = RKA_implicit[is, 2]
-    end
-
-    for is in 1:(Nstages - 1)
-        RKA_implicit[Nstages, is] = RKB[is]
-    end
-
-    RKB[1] = RKB[2]
-
-    RKA_explicit[2, 1] = RKC[2]
-    RKA_explicit[Nstages, 1] = RKA_explicit[Nstages, 2]
-
-    RKC[1] = 0
-    RKC[Nstages] = 1
-
-    # conversion to static arrays
-    RKA_explicit = SMatrix{Nstages, Nstages}(RKA_explicit)
-    RKA_implicit = SMatrix{Nstages, Nstages}(RKA_implicit)
-    RKB = SVector{Nstages}(RKB)
-    RKC = SVector{Nstages}(RKC)
-
-    ark = AdditiveRungeKutta(
-        F,
-        L,
-        backward_euler_solver,
-        RKA_explicit,
-        RKA_implicit,
-        RKB,
-        RKC,
-        split_explicit_implicit,
-        variant,
-        Q;
-        dt = dt,
-        t0 = t0,
-    )
-end
+=#

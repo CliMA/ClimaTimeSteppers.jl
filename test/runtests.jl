@@ -1,6 +1,11 @@
-using TimeMachine, DiffEqBase, Test
+include(joinpath("testhelper.jl"))
 
-include("ode_tests_basic.jl")
+@testset "ODE Tests: Basic" begin
+    runmpi(joinpath(@__DIR__, "ode_tests_basic.jl"))
+end
 
-# include("ode_tests_convergence.jl")
-# include("genericcb_tests.jl")
+# FIXME: Should consolodate all convergence tests into single
+# testset --- this test is slightly redundant
+# @testset "ODE Tests: Convergence" begin
+#     runmpi(joinpath(@__DIR__, "ode_tests_convergence.jl"))
+# end

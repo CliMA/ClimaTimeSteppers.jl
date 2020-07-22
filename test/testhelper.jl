@@ -1,4 +1,4 @@
-using MPI
+using MPI, Test
 
 function runmpi(file; ntasks = 1)
     # by default some mpi runtimes will

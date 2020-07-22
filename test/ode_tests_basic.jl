@@ -1,3 +1,5 @@
+using TimeMachine, DiffEqBase, Test
+
 using LinearAlgebra
 
 include("ode_tests_common.jl")

@@ -1,5 +1,3 @@
-using TimeMachine, DiffEqBase, Test, MPI
-
 include(joinpath("testhelper.jl"))
 
 @testset "ODE Tests: Basic" begin

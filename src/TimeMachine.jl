@@ -2,8 +2,47 @@
     TimeMachine
 
 Ordinary differential equation solvers
+
+JuliaDiffEq terminology:
+
+* _Function_: the right-hand side function df/dt.
+  * by default, a function gets wrapped in an `ODEFunction`
+  * define new `IncrementingODEFunction` to support incrementing function calls.
+
+* _Problem_: Function, initial u, time span, parameters and options
+
+  du/dt = f(u,p,t) = fL(u,p,t)  + fR(u,p,t)
+
+  fR(u,p,t) == f(u.p,t) - fL(u,p,t)
+  fL(u,_,_) == A*u for some `A` (matrix free)
+ 
+  SplitODEProlem(fL, fR)
+
+
+  * `ODEProblem` from OrdinaryDiffEq.jl 
+    - use `jac` option to `ODEFunction` for linear + full IMEX (https://docs.sciml.ai/latest/features/performance_overloads/#ode_explicit_jac-1)
+  * `SplitODEProblem` for linear + remainder IMEX
+  * `MultirateODEProblem` for true multirate
+  
+* _Algorithm_: small objects (often singleton) which indicate what algorithm + options (e.g. linear solver type)
+  * define new abstract `DistributedODEAlgorithm`, algorithms in this pacakge will be subtypes of this
+  * define new `Multirate` for multirate solvers
+  
+* _Integrator_: contains everything necessary to solve. Used as:
+
+  * define new `DistributedODEIntegrator` for solvers in this package
+
+      init(prob, alg, options...) => integrator
+      step!(int) => runs single step
+      solve!(int) => runs it to end
+      solve(prob, alg, options...) => init + solve!
+  
+* _Solution_ (not implemented): contains the "solution" to the ODE.
+
+
 """
 module TimeMachine
+
 
 using KernelAbstractions
 using KernelAbstractions.Extras: @unroll
@@ -11,175 +50,28 @@ using StaticArrays
 using CUDA
 using MPI
 
-export solve!, updatedt!, gettime
 
 array_device(::Union{Array, SArray, MArray}) = CPU()
 array_device(::CuArray) = CUDADevice()
 realview(x::Union{Array, SArray, MArray}) = x
 realview(x::CuArray) = x
 
-"""
-    AbstractODESolver
 
-This is an abstract type representing a generic ODE solver.
-"""
-abstract type AbstractODESolver end
+import DiffEqBase, LinearAlgebra
 
-"""
-    gettime(solver::AbstractODESolver)
 
-Returns the current simulation time of the ODE solver `solver`
-"""
-gettime(solver::AbstractODESolver) = solver.t
+include("functions.jl")
+include("operators.jl")
 
-"""
-    getdt(solver::AbstractODESolver)
-
-Returns the current simulation time step of the ODE solver `solver`
-"""
-getdt(solver::AbstractODESolver) = solver.dt
-
-"""
-    ODESolvers.general_dostep!(Q, solver::AbstractODESolver, p,
-                               timeend::Real, adjustfinalstep::Bool)
-
-Use the solver to step `Q` forward in time from the current time, to the time
-`timeend`. If `adjustfinalstep == true` then `dt` is adjusted so that the step
-does not take the solution beyond the `timeend`.
-"""
-function general_dostep!(
-    Q,
-    solver::AbstractODESolver,
-    p,
-    timeend::Real;
-    adjustfinalstep::Bool,
-)
-    time, dt = solver.t, solver.dt
-    final_step = false
-    if adjustfinalstep && time + dt > timeend
-        orig_dt = dt
-        dt = timeend - time
-        updatedt!(solver, dt)
-        final_step = true
-    end
-    @assert dt > 0
-
-    dostep!(Q, solver, p, time)
-
-    if !final_step
-        solver.t += dt
-    else
-        updatedt!(solver, orig_dt)
-        solver.t = timeend
-    end
+abstract type DistributedODEAlgorithm <: DiffEqBase.AbstractODEAlgorithm
 end
 
-"""
-    updatedt!(solver::AbstractODESolver, dt)
+include("integrators.jl")
 
-Change the time step size to `dt` for the ODE solver `solver`.
-"""
-updatedt!(solver::AbstractODESolver, dt) = (solver.dt = dt)
 
-"""
-    updatetime!(solver::AbstractODESolver, time)
-
-Change the current time to `time` for the ODE solver `solver`.
-"""
-updatetime!(solver::AbstractODESolver, time) = (solver.t = time)
-
-"""
-    isadjustable!(solver::AbstractODESolver)
-
-Can the ODESolver be updated for changing time-step sizes?
-"""
-isadjustable(solver::AbstractODESolver) = true
-
-"""
-    solve!(Q, solver::AbstractODESolver; timeend,
-           stopaftertimeend=true, numberofsteps, callbacks)
-
-Solves an ODE using the `solver` starting from a state `Q`. The state `Q` is
-updated inplace. The final time `timeend` or `numberofsteps` must be specified.
-
-A series of optional callback functions can be specified using the tuple
-`callbacks`; see the `GenericCallbacks` module.
-"""
-function solve!(
-    Q,
-    solver::AbstractODESolver,
-    p = nothing;
-    timeend::Real = Inf,
-    adjustfinalstep = true,
-    numberofsteps::Integer = 0,
-    callbacks = (),
-)
-
-    @assert isfinite(timeend) || numberofsteps > 0
-    if adjustfinalstep && !isadjustable(solver)
-        error("$solver does not support time step adjustments. Can only be used with `adjustfinalstep=false`.")
-    end
-    t0 = gettime(solver)
-
-    # Loop through an initialize callbacks (if they need it)
-    foreach(callbacks) do cb
-        try
-            cb(true)
-        catch
-        end
-    end
-
-    step = 0
-    time = t0
-    while time < timeend
-        step += 1
-
-        time = general_dostep!(Q, solver, p, timeend; adjustfinalstep = adjustfinalstep)
-
-        # FIXME: Determine better way to handle postcallback behavior
-        # Current behavior:
-        #   retval = 1 exit after all callbacks
-        #   retval = 2 exit immediately
-        retval = 0
-        for (i, cb) in enumerate(callbacks)
-            # FIXME: Consider whether callbacks need anything, or if function closure
-            #        can be used for everything
-            thisretval = cb()
-            thisretval = (thisretval == nothing) ? 0 : thisretval
-            !(thisretval in (0, 1, 2)) &&
-            error("callback #$(i) returned invalid value. It should return either:
-                  `nothing` (continue time stepping)
-                  `0`       (continue time stepping)
-                  `1`       (stop time stepping after all callbacks)
-                  `2`       (stop time stepping immediately)")
-            retval = max(thisretval, retval)
-            retval == 2 && return gettime(solver)
-        end
-        retval == 1 && return gettime(solver)
-
-        # Figure out if we should stop
-        if numberofsteps == step
-            return gettime(solver)
-        end
-    end
-    gettime(solver)
-end
-
-# Include concrete implementations and interfaces
-
-# Callbacks
-include("GenericCallbacks.jl")
-
-# Implicit solver interface
-include("ImplicitSolverInterface.jl")
-
-# RK methods
-include("RungeKuttaMethods/MultirateInfinitesimalGARKExplicit.jl")
-include("RungeKuttaMethods/MultirateInfinitesimalGARKDecoupledImplicit.jl")
+# Include concrete implementations
 include("RungeKuttaMethods/LowStorageRungeKuttaMethods.jl")
 include("RungeKuttaMethods/StrongStabilityPreservingRungeKuttaMethods.jl")
 include("RungeKuttaMethods/AdditiveRungeKuttaMethods.jl")
-include("RungeKuttaMethods/MultirateInfinitesimalStepMethods.jl")
-include("RungeKuttaMethods/MultirateRungeKuttaMethods.jl")
 
 end

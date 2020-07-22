@@ -1,5 +1,6 @@
-using TimeMachine, Test
+using TimeMachine, DiffEqBase, Test
 
-# include("ode_tests_basic.jl")
+include("ode_tests_basic.jl")
+
 # include("ode_tests_convergence.jl")
 # include("genericcb_tests.jl")

@@ -1,3 +1,3 @@
-# ODESolvers.jl
+# TimeMachine.jl
 
-Documentation for ODESolvers.jl
+Documentation for TimeMachine.jl

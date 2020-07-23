@@ -62,19 +62,14 @@ end
 """
     LSRK54CarpenterKennedy()
 
-This uses the fourth-order, low-storage, Runge--Kutta scheme of Carpenter
-and Kennedy (1994) (in their notation (5,4) 2N-Storage RK scheme).
+The fourth-order, 5-stage low storage Runge--Kutta scheme from Carpenter and Kennedy
+(1994). The coefficients are those from Solution 3 in the paper.
 
 ### References
 
-    @TECHREPORT{CarpenterKennedy1994,
-      author = {M.~H. Carpenter and C.~A. Kennedy},
-      title = {Fourth-order {2N-storage} {Runge-Kutta} schemes},
-      institution = {National Aeronautics and Space Administration},
-      year = {1994},
-      number = {NASA TM-109112},
-      address = {Langley Research Center, Hampton, VA},
-    }
+* Carpenter, M.H.; Kennedy, C.A. (1994) "Fourth-order ``2N``-storage Runge--Kutta schemes",
+  NASA Technical Memorandum 109112. <http://hdl.handle.net/2060/19940028444>
+
 """
 struct LSRK54CarpenterKennedy <: LowStorageRungeKutta2N end
 
@@ -114,16 +109,10 @@ Niegemann, Diehl, and Busch (2012) with optimized stability region
 
 ### References
 
-    @article{niegemann2012efficient,
-      title={Efficient low-storage Runge--Kutta schemes with optimized stability regions},
-      author={Niegemann, Jens and Diehl, Richard and Busch, Kurt},
-      journal={Journal of Computational Physics},
-      volume={231},
-      number={2},
-      pages={364--372},
-      year={2012},
-      publisher={Elsevier}
-    }
+* Niegemann, J.; Diehl, R.; Busch, K. (2012) 
+  "Efficient low-storage Runge--Kutta schemes with optimized stability regions",
+  _Journal of Computational Physics_ 231(2): 364--372.
+  doi: [10.1016/j.jcp.2011.09.003](https://doi.org/10.1016/j.jcp.2011.09.003)
 """
 struct LSRK144NiegemannDiehlBusch <: LowStorageRungeKutta2N end
 

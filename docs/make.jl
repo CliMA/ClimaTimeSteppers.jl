@@ -9,7 +9,10 @@ makedocs(
     modules = [TimeMachine],
     pages = [
         "index.md",
-        "ARK.md",
+        "algorithms.md",
+        "Background" => [
+            "background/AdditiveRungeKutta.md",
+        ]
     ]
 )
 

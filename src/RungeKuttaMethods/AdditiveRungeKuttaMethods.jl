@@ -229,28 +229,17 @@ end
 
 
 """
-    ARK1ForwardBackwardEuler()
+    ARK1ForwardBackwardEuler(linsolve)
 
-This function returns an [`AdditiveRungeKutta`](@ref) time stepping object,
-see the documentation of [`AdditiveRungeKutta`](@ref) for arguments definitions.
-This time stepping object is intended to be passed to the `solve!` command.
-
-This uses a first-order-accurate two-stage additive Runge--Kutta scheme
-by combining a forward Euler explicit step with a backward Euler implicit
-correction.
+A first-order-accurate two-stage additive Runge--Kutta scheme, combining a forward Euler
+explicit step with a backward Euler implicit correction.
 
 ### References
-    @article{Ascher1997,
-      title = {Implicit-explicit Runge-Kutta methods for time-dependent
-               partial differential equations},
-      author = {Uri M. Ascher and Steven J. Ruuth and Raymond J. Spiteri},
-      volume = {25},
-      number = {2-3},
-      pages = {151--167},
-      year = {1997},
-      journal = {Applied Numerical Mathematics},
-      publisher = {Elsevier {BV}}
-    }
+
+* Ascher, U.M.; Ruuth, S.J. and Spiteri, R.S. (1997)
+  "Implicit-explicit Runge-Kutta methods for time-dependent partial differential equations",
+  _Applied Numerical Mathematics_, 25(2-3): 151--167.
+  doi: [10.1016/S0168-9274(97)00056-1](https://doi.org/10.1016/S0168-9274(97)00056-1)
 """
 struct ARK1ForwardBackwardEuler{L} <: AdditiveRungeKutta
     linsolve::L
@@ -274,27 +263,17 @@ function tableau(::ARK1ForwardBackwardEuler, RT)
 end
 
 """
-    ARK2ImplicitExplicitMidpoint()
+    ARK2ImplicitExplicitMidpoint(linsolve)
 
-This function returns an [`AdditiveRungeKutta`](@ref) time stepping object,
-see the documentation of [`AdditiveRungeKutta`](@ref) for arguments definitions.
-This time stepping object is intended to be passed to the `solve!` command.
-
-This uses a second-order-accurate two-stage additive Runge--Kutta scheme
-by combining the implicit and explicit midpoint methods.
+A second-order, two-stage additive Runge--Kutta scheme, combining the implicit and
+explicit midpoint methods.
 
 ### References
-    @article{Ascher1997,
-      title = {Implicit-explicit Runge-Kutta methods for time-dependent
-               partial differential equations},
-      author = {Uri M. Ascher and Steven J. Ruuth and Raymond J. Spiteri},
-      volume = {25},
-      number = {2-3},
-      pages = {151--167},
-      year = {1997},
-      journal = {Applied Numerical Mathematics},
-      publisher = {Elsevier {BV}}
-    }
+
+* Ascher, U.M.; Ruuth, S.J. and Spiteri, R.S. (1997)
+  "Implicit-explicit Runge-Kutta methods for time-dependent partial differential equations",
+  _Applied Numerical Mathematics_, 25(2-3): 151--167.
+  doi: [10.1016/S0168-9274(97)00056-1](https://doi.org/10.1016/S0168-9274(97)00056-1)
 """
 struct ARK2ImplicitExplicitMidpoint{L} <: AdditiveRungeKutta
     linsolve::L
@@ -318,38 +297,32 @@ function tableau(::ARK2ImplicitExplicitMidpoint, RT)
 end
 
 """
-    ARK2GiraldoKellyConstantinescu()
+    ARK2GiraldoKellyConstantinescu(linsolve; paperversion=false)
 
-This function returns an [`AdditiveRungeKutta`](@ref) time stepping object,
-see the documentation of [`AdditiveRungeKutta`](@ref) for arguments definitions.
-This time stepping object is intended to be passed to the `solve!` command.
+The second-order, 3-stage additive Runge--Kutta scheme of Giraldo, Kelly and
+Constantinescu (2013).
 
-`paperversion=true` uses the coefficients from the paper, `paperversion=false`
-uses coefficients that make the scheme (much) more stable but less accurate
-
-This uses the second-order-accurate 3-stage additive Runge--Kutta scheme of
-Giraldo, Kelly and Constantinescu (2013).
+If the keyword `paperversion=true` is used, the coefficients from the paper are
+used. Otherwise it uses coefficients that make the scheme (much) more stable but less
+accurate
 
 ### References
-    @article{giraldo2013implicit,
-      title={Implicit-explicit formulations of a three-dimensional
-             nonhydrostatic unified model of the atmosphere ({NUMA})},
-      author={Giraldo, Francis X and Kelly, James F and Constantinescu, Emil M},
-      journal={SIAM Journal on Scientific Computing},
-      volume={35},
-      number={5},
-      pages={B1162--B1194},
-      year={2013},
-      publisher={SIAM}
-    }
+
+* Giraldo, F.X.; Kelly, J.F. and Constantinescu, E.M. (2013)
+  "Implicit-explicit formulations of a three-dimensional nonhydrostatic unified model of the atmosphere (NUMA)",
+  _SIAM Journal on Scientific Computing_,
+  35(5): B1162--B1194
+  doi: [10.1137/120876034](https://doi.org/10.1137/120876034)
+
 """
 struct ARK2GiraldoKellyConstantinescu{L} <: AdditiveRungeKutta
     linsolve::L
+    paperversion::Bool
 end
+ARK2GiraldoKellyConstantinescu(linsolve; paperversion=false) = ARK2GiraldoKellyConstantinescu(linsolve, paperversion)
 
-function tableau(::ARK2GiraldoKellyConstantinescu, RT)
-    paperversion = false
-    a32 = RT(paperversion ? (3 + 2 * sqrt(2)) / 6 : 1 // 2)
+function tableau(ark::ARK2GiraldoKellyConstantinescu, RT)
+    a32 = RT(ark.paperversion ? (3 + 2 * sqrt(2)) / 6 : 1 // 2)
     RKA_explicit = @SArray [
         RT(0) RT(0) RT(0)
         RT(2 - sqrt(2)) RT(0) RT(0)
@@ -369,27 +342,16 @@ function tableau(::ARK2GiraldoKellyConstantinescu, RT)
 end
 
 """
-    ARK548L2SA2KennedyCarpenter()
+    ARK548L2SA2KennedyCarpenter(linsolve)
 
-This function returns an [`AdditiveRungeKutta`](@ref) time stepping object,
-see the documentation of [`AdditiveRungeKutta`](@ref) for arguments definitions.
-This time stepping object is intended to be passed to the `solve!` command.
-
-This uses the fifth-order-accurate 8-stage additive Runge--Kutta scheme of
-Kennedy and Carpenter (2013).
+The fifth-order, 8-stage additive Runge--Kutta scheme ARK5(4)8L[2]SA₂ of 
+Kennedy and Carpenter (2019).
 
 ### References
-
-    @article{kennedy2019higher,
-      title={Higher-order additive Runge--Kutta schemes for ordinary
-             differential equations},
-      author={Kennedy, Christopher A and Carpenter, Mark H},
-      journal={Applied Numerical Mathematics},
-      volume={136},
-      pages={183--205},
-      year={2019},
-      publisher={Elsevier}
-    }
+* Kennedy, C.A. and Carpenter, M.H. (2019)
+  "Higher-order additive Runge--Kutta schemes for ordinary differential equations"
+  _Applied Numerical Mathematics_. 136: 183--205.
+  doi: [10.1016/j.apnum.2018.10.007](https://doi.org/10.1016/j.apnum.2018.10.007)
 """
 struct ARK548L2SA2KennedyCarpenter{L} <: AdditiveRungeKutta
     linsolve::L
@@ -496,26 +458,16 @@ function tableau(::ARK548L2SA2KennedyCarpenter, RT)
 end
 
 """
-    ARK437L2SA1KennedyCarpenter()
+    ARK437L2SA1KennedyCarpenter(linsolve)
 
-This function returns an [`AdditiveRungeKutta`](@ref) time stepping object,
-see the documentation of [`AdditiveRungeKutta`](@ref) for arguments definitions.
-This time stepping object is intended to be passed to the `solve!` command.
-
-This uses the fourth-order-accurate 7-stage additive Runge--Kutta scheme of
-Kennedy and Carpenter (2013).
+The fourth-order, 7-stage additive Runge--Kutta scheme ARK4(3)7L[2]SA₁ of 
+Kennedy and Carpenter (2019).
 
 ### References
-    @article{kennedy2019higher,
-      title={Higher-order additive Runge--Kutta schemes for ordinary
-             differential equations},
-      author={Kennedy, Christopher A and Carpenter, Mark H},
-      journal={Applied Numerical Mathematics},
-      volume={136},
-      pages={183--205},
-      year={2019},
-      publisher={Elsevier}
-    }
+* Kennedy, C.A. and Carpenter, M.H. (2019)
+  "Higher-order additive Runge--Kutta schemes for ordinary differential equations"
+  _Applied Numerical Mathematics_. 136: 183--205.
+  doi: [10.1016/j.apnum.2018.10.007](https://doi.org/10.1016/j.apnum.2018.10.007)
 """
 struct ARK437L2SA1KennedyCarpenter{L} <: AdditiveRungeKutta
     linsolve::L

@@ -61,6 +61,7 @@ for (prob, sol) in [
     @test convergence_order(prob, sol, ARK1ForwardBackwardEuler(DirectSolver), dts)       ≈ 1 atol=0.05
     @test convergence_order(prob, sol, ARK2ImplicitExplicitMidpoint(DirectSolver), dts)   ≈ 2 atol=0.05
     @test convergence_order(prob, sol, ARK2GiraldoKellyConstantinescu(DirectSolver), dts) ≈ 2 atol=0.05
+    @test convergence_order(prob, sol, ARK2GiraldoKellyConstantinescu(DirectSolver; paperversion=true), dts) ≈ 2 atol=0.05
     @test convergence_order(prob, sol, ARK437L2SA1KennedyCarpenter(DirectSolver), dts)    ≈ 4 atol=0.05
     @test convergence_order(prob, sol, ARK548L2SA2KennedyCarpenter(DirectSolver), dts)    ≈ 5 atol=0.05
 

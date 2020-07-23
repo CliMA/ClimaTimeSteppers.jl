@@ -1,6 +1,6 @@
 # Additive Runge--Kutta
 
-ARK methods are IMEX (Implicit-Explicit) methods   based on splitting the ODE function ``f(u) = f_L(u) + f_R(t)`` 
+ARK methods are IMEX (Implicit-Explicit) methods based on splitting the ODE function ``f(u) = f_L(u) + f_R(t)`` 
 where ``f_L(u) = L u`` is a linear operator which is treated implicitly, and ``f_R(u)`` is the remainder to be
 treated explicitly. Typically we will be given either the pair ``(f_R, f_L)``, which we will term the _remainder form_,
 or ``(f, f_L)`` which we will term the _full form_. 

@@ -59,8 +59,6 @@ realview(x::CuArray) = x
 
 import DiffEqBase, LinearAlgebra
 
-
-include("functions.jl")
 include("operators.jl")
 
 abstract type DistributedODEAlgorithm <: DiffEqBase.AbstractODEAlgorithm

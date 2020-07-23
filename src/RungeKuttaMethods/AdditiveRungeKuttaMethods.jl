@@ -1,6 +1,7 @@
 using StaticArrays, LinearAlgebra
 
-export ARK2GiraldoKellyConstantinescu
+export ARK1ForwardBackwardEuler, ARK2ImplicitExplicitMidpoint, ARK2GiraldoKellyConstantinescu,
+    ARK437L2SA1KennedyCarpenter, ARK548L2SA2KennedyCarpenter
 
 """
     AdditiveRungeKutta
@@ -488,8 +489,8 @@ function tableau(::ARK548L2SA2KennedyCarpenter, RT)
     # conversion to static arrays
     RKA_explicit = SMatrix{Nstages, Nstages}(RKA_explicit)
     RKA_implicit = SMatrix{Nstages, Nstages}(RKA_implicit)
-    RKB = tuple(RKB)
-    RKC = tuple(RKC)
+    RKB = tuple(RKB...)
+    RKC = tuple(RKC...)
 
     return AdditiveRungeKuttaTableau(RKA_explicit, RKA_implicit, RKB, RKC)
 end
@@ -604,8 +605,8 @@ function tableau(::ARK437L2SA1KennedyCarpenter, RT)
     # conversion to static arrays
     RKA_explicit = SMatrix{Nstages, Nstages}(RKA_explicit)
     RKA_implicit = SMatrix{Nstages, Nstages}(RKA_implicit)
-    RKB = tuple(RKB)
-    RKC = tuple(RKC)
+    RKB = tuple(RKB...)
+    RKC = tuple(RKC...)
 
     return AdditiveRungeKuttaTableau(RKA_explicit, RKA_implicit, RKB, RKC)
 end

@@ -47,7 +47,7 @@ end
 
 function cache(
     prob::DiffEqBase.AbstractODEProblem{uType, tType, true}, 
-    alg::StrongStabilityPreservingRungeKutta) where {uType,tType}
+    alg::StrongStabilityPreservingRungeKutta; kwargs...) where {uType,tType}
 
     tab = tableau(alg, eltype(prob.u0))
     # can't use Vector{T}(undef) as need to ensure no NaNs

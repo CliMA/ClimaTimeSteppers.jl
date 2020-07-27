@@ -59,6 +59,7 @@ realview(x::CuArray) = x
 
 import DiffEqBase, LinearAlgebra
 
+include("functions.jl")
 include("operators.jl")
 
 abstract type DistributedODEAlgorithm <: DiffEqBase.AbstractODEAlgorithm
@@ -71,5 +72,6 @@ include("integrators.jl")
 include("RungeKuttaMethods/LowStorageRungeKuttaMethods.jl")
 include("RungeKuttaMethods/StrongStabilityPreservingRungeKuttaMethods.jl")
 include("RungeKuttaMethods/AdditiveRungeKuttaMethods.jl")
+include("RungeKuttaMethods/MultirateRungeKuttaMethods.jl")
 
 end

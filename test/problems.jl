@@ -1,4 +1,4 @@
-using DiffEqBase, TimeMachine, LinearAlgebra, Test
+using DiffEqBase, TimeMachine, LinearAlgebra, StaticArrays
 
 """
 Single variable linear ODE
@@ -64,3 +64,75 @@ function imex_linconst_sol(u0,p,t)
     (exp(t)  + sin(t) - cos(t)) / 2p .+ exp(t) .* u0
 end
 
+""" 
+Test problem (4.2) from RobertsSarsharSandu2018arxiv
+@article{RobertsSarsharSandu2018arxiv,
+    title={Coupled Multirate Infinitesimal GARK Schemes for Stiff Systems with
+            Multiple Time Scales},
+    author={Roberts, Steven and Sarshar, Arash and Sandu, Adrian},
+    journal={arXiv preprint arXiv:1812.00808},
+    year={2019}
+}
+
+Note: The actual rates are all over the place with this test and passing largely
+        depends on final dt size
+""" 
+kpr_param = (
+    ω = 100,
+    λf = -10,
+    λs = -1,
+    ξ = 0.1,
+    α = 1,
+)
+
+function kpr_rhs(Q,param,t)
+    yf, ys = Q
+    ω, λf, λs, ξ, α = param
+    
+    ηfs = ((1 - ξ) / α) * (λf - λs)
+    ηsf = -ξ * α * (λf - λs)
+    Ω = @SMatrix [
+        λf ηfs
+        ηsf λs
+    ]
+
+    g = @SVector [
+        (-3 + yf^2 - cos(ω * t)) / 2yf,
+        (-2 + ys^2 - cos(t)) / 2ys,
+    ]
+    h = @SVector [
+        ω * sin(ω * t) / 2yf,
+        sin(t) / 2ys,
+    ]
+    return Ω * g - h
+end
+
+function kpr_fast!(dQ, Q, param, t, α=1, β=0)
+    dQf,_ = kpr_rhs(Q,param,t)
+    dQ .= α .* [dQf, 0] .+ β .* dQ
+end
+
+function kpr_slow!(dQ, Q, param, t, α=1, β=0)
+    _,dQs = kpr_rhs(Q,param,t)
+    dQ .= α .* [0, dQs] .+ β .* dQ
+end
+
+function kpr_sol(u0,param,t)
+    #@assert u0 == [sqrt(4) sqrt(3)]
+    ω, λf, λs, ξ, α = param
+    return [
+        sqrt(3 + cos(ω * t))
+        sqrt(2 + cos(t))
+    ]
+end
+
+const kpr_multirate_prob = SplitODEProblem(
+    IncrementingODEFunction(kpr_fast!),
+    IncrementingODEFunction(kpr_slow!),
+    [sqrt(4), sqrt(3)], (0.0, 5π/2), kpr_param,
+)
+
+const kpr_singlerate_prob = IncrementingODEProblem{true}(
+    (dQ,Q,param,t,α=1,β=0) -> (dQ .= α .* kpr_rhs(Q,param,t) .+ β .* dQ),
+    [sqrt(4), sqrt(3)], (0.0, 5π/2), kpr_param,
+)

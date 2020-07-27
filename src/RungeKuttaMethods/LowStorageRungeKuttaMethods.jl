@@ -36,13 +36,15 @@ struct LowStorageRungeKutta2NIncCache{Nstages, RT, A}
 end
 
 function cache(prob::DiffEqBase.ODEProblem, alg::LowStorageRungeKutta2N; kwargs...)
-    @assert prob.problem_type isa DiffEqBase.IncrementingODEProblem
+    # @assert prob.problem_type isa DiffEqBase.IncrementingODEProblem || 
+    #     prob.f isa DiffEqBase.IncrementingODEFunction
     du = zero(prob.u0)
     return LowStorageRungeKutta2NIncCache(tableau(alg, eltype(du)), du)
 end
 
+nstages(::LowStorageRungeKutta2NIncCache{N}) where {N} = N
 
-function step_u!(int, cache::LowStorageRungeKutta2NIncCache{Nstages}) where {Nstages}
+function step_u!(int, cache::LowStorageRungeKutta2NIncCache)
     tab = cache.tableau
     du = cache.du
 
@@ -51,7 +53,7 @@ function step_u!(int, cache::LowStorageRungeKutta2NIncCache{Nstages}) where {Nst
     t = int.t
     dt = int.dt
 
-    for stage in 1:Nstages
+    for stage in 1:nstages(cache)
         #  du .= f(u, p, t + tab.C[stage]*dt) .+ tab.A[stage] .* du
         stage_time = t + tab.C[stage]*dt
         int.prob.f(du, u, p, stage_time, 1, tab.A[stage])

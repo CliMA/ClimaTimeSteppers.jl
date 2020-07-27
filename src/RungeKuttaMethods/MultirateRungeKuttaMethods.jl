@@ -1,164 +1,83 @@
 
 export MultirateRungeKutta
 
-LSRK2N = LowStorageRungeKutta2N
-
 """
-    MultirateRungeKutta(slow_solver, fast_solver; dt, t0 = 0)
+    MultirateRungeKutta(fast, slow)
 
-This is a time stepping object for explicitly time stepping the differential
-equation given by the right-hand-side function `f` with the state `Q`, i.e.,
+A multirate Runge--Kutta scheme, combining `fast` and `slow` algorithms
 
-```math
-  \\dot{Q} = f_fast(Q, t) + f_slow(Q, t)
-```
-
-with the required time step size `dt` and optional initial time `t0`.  This
-time stepping object is intended to be passed to the `solve!` command.
-
-The constructor builds a multirate Runge-Kutta scheme using two different RK
-solvers. This is based on
-
-Currently only the low storage RK methods can be used as slow solvers
-
-### References
-
-    @article{SchlegelKnothArnoldWolke2012,
-      title={Implementation of multirate time integration methods for air
-             pollution modelling},
-      author={Schlegel, M and Knoth, O and Arnold, M and Wolke, R},
-      journal={Geoscientific Model Development},
-      volume={5},
-      number={6},
-      pages={1395--1405},
-      year={2012},
-      publisher={Copernicus GmbH}
-    }
+Currently `slow` must be a LSRK method.
 """
-mutable struct MultirateRungeKutta{SS, FS, RT} <: AbstractODESolver
-    "slow solver"
-    slow_solver::SS
-    "fast solver"
-    fast_solver::FS
-    "time step"
-    dt::RT
-    "time"
-    t::RT
-
-    function MultirateRungeKutta(
-        slow_solver::LSRK2N,
-        fast_solver,
-        Q = nothing;
-        dt = getdt(slow_solver),
-        t0 = slow_solver.t,
-    ) where {AT <: AbstractArray}
-        SS = typeof(slow_solver)
-        FS = typeof(fast_solver)
-        RT = real(eltype(slow_solver.dQ))
-        new{SS, FS, RT}(slow_solver, fast_solver, RT(dt), RT(t0))
-    end
+struct MultirateRungeKutta{F,S} <: DistributedODEAlgorithm
+    fast::F
+    slow::S
 end
 
-function MultirateRungeKutta(
-    solvers::Tuple,
-    Q = nothing;
-    dt = getdt(solvers[1]),
-    t0 = solvers[1].t,
-) where {AT <: AbstractArray}
-    if length(solvers) < 2
-        error("Must specify atleast two solvers")
-    elseif length(solvers) == 2
-        fast_solver = solvers[2]
-    else
-        fast_solver = MultirateRungeKutta(solvers[2:end], Q; dt = dt, t0 = t0)
-    end
 
-    slow_solver = solvers[1]
-
-    MultirateRungeKutta(slow_solver, fast_solver, Q; dt = dt, t0 = t0)
+struct MultirateRungeKuttaCache{OC,II}
+    outercache::OC
+    innerinteg::II
 end
 
-function dostep!(
-    Q,
-    mrrk::MultirateRungeKutta{SS},
-    param,
-    time,
-    in_slow_δ = nothing,
-    in_slow_rv_dQ = nothing,
-    in_slow_scaling = nothing,
-) where {SS <: LSRK2N}
-    dt = mrrk.dt
+function cache(
+    prob::DiffEqBase.AbstractODEProblem, 
+    alg::MultirateRungeKutta; 
+    dt, fast_dt, kwargs...)
 
-    slow = mrrk.slow_solver
-    fast = mrrk.fast_solver
+    @assert prob.f isa DiffEqBase.SplitFunction
 
-    slow_rv_dQ = realview(slow.dQ)
+    # Only supported choice for now
+    # TODO: figure out generic RK interface
+    @assert alg.slow isa LowStorageRungeKutta2N 
 
-    groupsize = 256
+    # subproblems
+    outerprob = DiffEqBase.remake(prob; f=prob.f.f2)
+    outercache = cache(outerprob, alg.slow)
 
-    fast_dt_in = getdt(fast)
-
-    for slow_s in 1:length(slow.RKA)
-        # Currnent slow state time
-        slow_stage_time = time + slow.RKC[slow_s] * dt
-
-        # Evaluate the slow mode
-        slow.rhs!(slow.dQ, Q, param, slow_stage_time, increment = true)
-
-        if in_slow_δ !== nothing
-            slow_scaling = nothing
-            if slow_s == length(slow.RKA)
-                slow_scaling = in_slow_scaling
-            end
-            # update solution and scale RHS
-            event = Event(array_device(Q))
-            event = update!(array_device(Q), groupsize)(
-                slow_rv_dQ,
-                in_slow_rv_dQ,
-                in_slow_δ,
-                slow_scaling;
-                ndrange = length(realview(Q)),
-                dependencies = (event,),
-            )
-            wait(array_device(Q), event)
-        end
-
-        # Fractional time for slow stage
-        if slow_s == length(slow.RKA)
-            γ = 1 - slow.RKC[slow_s]
-        else
-            γ = slow.RKC[slow_s + 1] - slow.RKC[slow_s]
-        end
-
-        # RKB for the slow with fractional time factor remove (since full
-        # integration of fast will result in scaling by γ)
-        slow_δ = slow.RKB[slow_s] / (γ)
-
-        # RKB for the slow with fractional time factor remove (since full
-        # integration of fast will result in scaling by γ)
-        nsubsteps = fast_dt_in > 0 ? ceil(Int, γ * dt / fast_dt_in) : 1
-        fast_dt = γ * dt / nsubsteps
-
-        updatedt!(fast, fast_dt)
-
-        for substep in 1:nsubsteps
-            slow_rka = nothing
-            if substep == nsubsteps
-                slow_rka = slow.RKA[slow_s % length(slow.RKA) + 1]
-            end
-            fast_time = slow_stage_time + (substep - 1) * fast_dt
-            dostep!(Q, fast, param, fast_time, slow_δ, slow_rv_dQ, slow_rka)
-        end
-    end
-    updatedt!(fast, fast_dt_in)
+    innerfun = OffsetODEFunction(prob.f.f1, zero(dt), outercache.du)
+    innerprob = DiffEqBase.remake(prob; f=innerfun)
+    innerinteg = DiffEqBase.init(innerprob, alg.fast; dt=fast_dt, kwargs...)
+    return MultirateRungeKuttaCache(outercache, innerinteg)
 end
 
-@kernel function update!(fast_dQ, slow_dQ, δ, slow_rka = nothing)
-    i = @index(Global, Linear)
-    @inbounds begin
-        fast_dQ[i] += δ * slow_dQ[i]
-        if slow_rka !== nothing
-            slow_dQ[i] *= slow_rka
+
+function step_u!(int, cache::MultirateRungeKuttaCache{OC}) where {OC <: LowStorageRungeKutta2NIncCache}
+    outercache = cache.outercache
+    tab = outercache.tableau
+    du = outercache.du
+
+    u = int.u
+    p = int.prob.p
+    dt = int.dt
+    τ0 = t = int.t
+
+    innerinteg = cache.innerinteg
+    fast_dt = innerinteg.dt
+    
+    N = nstages(outercache)
+    for stage in 1:N
+        # update offset
+        #  du .= f(u, p, t + tab.C[stage]*dt) .+ tab.A[stage] .* du        
+        int.prob.f.f2(du, u, p, τ0, 1, tab.A[stage])
+
+        # solve inner problem
+        #  dv/dτ .= B[s]/(C[s+1] - C[s]) .* du .+ f_fast(v,τ) τ ∈ [τ0,τ1]
+        τ1 = stage == N ? t+dt : t+tab.C[stage+1]*dt        
+        #@show (stage, τ0, τ1)
+
+        Δτ = τ1 - τ0
+        innerinteg.prob.f.γ = tab.B[stage] * (dt / Δτ)
+
+        # approximate number of steps
+        nsubsteps = cld(Δτ, fast_dt)
+        innerinteg.dt = Δτ/nsubsteps
+        for i = 1:nsubsteps
+            # @show (i, innerinteg.t)
+            # don't call step! as we don't want to invoke callbacks
+            step_u!(cache.innerinteg)
+            innerinteg.t += innerinteg.dt
         end
+        τ0 = τ1
     end
+    innerinteg.dt = fast_dt # reset
 end

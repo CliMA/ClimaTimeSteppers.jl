@@ -72,7 +72,7 @@ end
 
 # either called directly, or via solve!
 function DiffEqBase.step!(integrator::DistributedODEIntegrator)
-    step_u!(integrator, integrator.cache) # solvers need to define this interface
+    step_u!(integrator) # solvers need to define this interface
     integrator.t += integrator.dt
     integrator.step += 1
 
@@ -84,6 +84,9 @@ function DiffEqBase.step!(integrator::DistributedODEIntegrator)
         end
     end
 end
+
+# solvers need to define this interface
+step_u!(integrator) = step_u!(integrator, integrator.cache) 
 
 function adjust_dt!(integrator::DistributedODEIntegrator, dt)
     # TODO: figure out interface for recomputing other objects (linear operators, etc)

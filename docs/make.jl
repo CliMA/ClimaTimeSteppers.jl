@@ -11,7 +11,10 @@ makedocs(
         "index.md",
         "algorithms.md",
         "Background" => [
+            "background/LowStorageRungeKutta.md",
+            "background/StrongStabilityPreservingRungeKutta.md",
             "background/AdditiveRungeKutta.md",
+            "background/MultirateRungeKutta.md",
         ]
     ]
 )

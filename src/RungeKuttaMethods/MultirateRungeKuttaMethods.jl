@@ -63,21 +63,15 @@ function step_u!(int, cache::MultirateRungeKuttaCache{OC}) where {OC <: LowStora
         # solve inner problem
         #  dv/dτ .= B[s]/(C[s+1] - C[s]) .* du .+ f_fast(v,τ) τ ∈ [τ0,τ1]
         τ1 = stage == N ? t+dt : t+tab.C[stage+1]*dt        
-        #@show (stage, τ0, τ1)
 
         Δτ = τ1 - τ0
         innerinteg.prob.f.γ = tab.B[stage] * (dt / Δτ)
-
-        # approximate number of steps
-        nsubsteps = cld(Δτ, fast_dt)
-        innerinteg.dt = Δτ/nsubsteps
-        for i = 1:nsubsteps
-            # @show (i, innerinteg.t)
-            # don't call step! as we don't want to invoke callbacks
-            step_u!(cache.innerinteg)
-            innerinteg.t += innerinteg.dt
-        end
+        
+        innerinteg.t = τ0
+        innerinteg.tstop = τ1
+        innerinteg.adjustfinal = true
+        DiffEqBase.solve!(innerinteg)
         τ0 = τ1
+        innerinteg.dt = fast_dt # reset
     end
-    innerinteg.dt = fast_dt # reset
 end

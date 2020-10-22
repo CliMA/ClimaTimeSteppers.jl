@@ -1,6 +1,5 @@
 using DiffEqBase, TimeMachine, LinearAlgebra, Test
 
-include("problems.jl")
 include("utils.jl")
 
 dts = 0.5 .^ (4:7)

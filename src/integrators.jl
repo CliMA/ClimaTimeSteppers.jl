@@ -66,7 +66,11 @@ function DiffEqBase.solve!(integrator::DistributedODEIntegrator)
         if integrator.step == integrator.stepstop
             break
         end
-    end    
+    end
+
+    if isdefined(DiffEqBase, :finalize!)
+        DiffEqBase.finalize!(integrator.callback, integrator.u, integrator.t, integrator)
+    end
 end
 
 

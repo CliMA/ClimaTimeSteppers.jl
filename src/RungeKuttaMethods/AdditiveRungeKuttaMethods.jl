@@ -231,15 +231,8 @@ end
 """
     ARK1ForwardBackwardEuler(linsolve)
 
-A first-order-accurate two-stage additive Runge--Kutta scheme, combining a forward Euler
+A first-order-accurate two-stage additive Runge--Kutta scheme of [ARS1997](@cite), combining a forward Euler
 explicit step with a backward Euler implicit correction.
-
-### References
-
-* Ascher, U.M.; Ruuth, S.J. and Spiteri, R.S. (1997)
-  "Implicit-explicit Runge-Kutta methods for time-dependent partial differential equations",
-  _Applied Numerical Mathematics_, 25(2-3): 151--167.
-  doi: [10.1016/S0168-9274(97)00056-1](https://doi.org/10.1016/S0168-9274(97)00056-1)
 """
 struct ARK1ForwardBackwardEuler{L} <: AdditiveRungeKutta
     linsolve::L

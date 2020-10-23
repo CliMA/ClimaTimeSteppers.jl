@@ -74,4 +74,7 @@ include("RungeKuttaMethods/StrongStabilityPreservingRungeKuttaMethods.jl")
 include("RungeKuttaMethods/AdditiveRungeKuttaMethods.jl")
 include("RungeKuttaMethods/MultirateRungeKuttaMethods.jl")
 
+
+include("callbacks.jl")
+
 end

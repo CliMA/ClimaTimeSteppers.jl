@@ -1,5 +1,7 @@
 include(joinpath("testhelper.jl"))
 
+include("problems.jl")
+
 include("basic.jl")
 
 #=

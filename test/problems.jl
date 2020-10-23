@@ -1,5 +1,17 @@
 using DiffEqBase, TimeMachine, LinearAlgebra, StaticArrays
 
+
+const const_prob = ODEProblem{true}(
+    (du,u,p,t,α=true,β=false) -> (du .= α .* p .+ β .* du),
+    [0.0],(0.0,1.0),2.0)
+
+function const_sol(u0,p,t)
+    u0 + p*t
+end
+
+
+
+
 """
 Single variable linear ODE
 

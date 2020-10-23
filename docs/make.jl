@@ -10,6 +10,7 @@ makedocs(
     pages = [
         "index.md",
         "algorithms.md",
+        "callbacks.md",
         "Background" => [
             "background/LowStorageRungeKutta.md",
             "background/StrongStabilityPreservingRungeKutta.md",

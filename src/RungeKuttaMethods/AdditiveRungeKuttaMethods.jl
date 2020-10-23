@@ -299,21 +299,11 @@ end
 """
     ARK2GiraldoKellyConstantinescu(linsolve; paperversion=false)
 
-The second-order, 3-stage additive Runge--Kutta scheme of Giraldo, Kelly and
-Constantinescu (2013).
+The second-order, 3-stage additive Runge--Kutta scheme of [GKC2013](@ref).
 
 If the keyword `paperversion=true` is used, the coefficients from the paper are
 used. Otherwise it uses coefficients that make the scheme (much) more stable but less
 accurate
-
-### References
-
-* Giraldo, F.X.; Kelly, J.F. and Constantinescu, E.M. (2013)
-  "Implicit-explicit formulations of a three-dimensional nonhydrostatic unified model of the atmosphere (NUMA)",
-  _SIAM Journal on Scientific Computing_,
-  35(5): B1162--B1194
-  doi: [10.1137/120876034](https://doi.org/10.1137/120876034)
-
 """
 struct ARK2GiraldoKellyConstantinescu{L} <: AdditiveRungeKutta
     linsolve::L
@@ -345,13 +335,7 @@ end
     ARK548L2SA2KennedyCarpenter(linsolve)
 
 The fifth-order, 8-stage additive Runge--Kutta scheme ARK5(4)8L[2]SA₂ of 
-Kennedy and Carpenter (2019).
-
-### References
-* Kennedy, C.A. and Carpenter, M.H. (2019)
-  "Higher-order additive Runge--Kutta schemes for ordinary differential equations"
-  _Applied Numerical Mathematics_. 136: 183--205.
-  doi: [10.1016/j.apnum.2018.10.007](https://doi.org/10.1016/j.apnum.2018.10.007)
+[KC2019](@cite).
 """
 struct ARK548L2SA2KennedyCarpenter{L} <: AdditiveRungeKutta
     linsolve::L
@@ -461,13 +445,7 @@ end
     ARK437L2SA1KennedyCarpenter(linsolve)
 
 The fourth-order, 7-stage additive Runge--Kutta scheme ARK4(3)7L[2]SA₁ of 
-Kennedy and Carpenter (2019).
-
-### References
-* Kennedy, C.A. and Carpenter, M.H. (2019)
-  "Higher-order additive Runge--Kutta schemes for ordinary differential equations"
-  _Applied Numerical Mathematics_. 136: 183--205.
-  doi: [10.1016/j.apnum.2018.10.007](https://doi.org/10.1016/j.apnum.2018.10.007)
+[KC2019](@cite).
 """
 struct ARK437L2SA1KennedyCarpenter{L} <: AdditiveRungeKutta
     linsolve::L

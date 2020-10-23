@@ -85,30 +85,10 @@ end
 """
     SSPRK22Heuns()
 
-The second-order, 2-stage, strong-stability-preserving, Runge--Kutta scheme
-of Shu and Osher (1988) (also known as Heun's method.)
-Exact choice of coefficients from wikipedia page for Heun's method :)
+The second-order, 2-stage, strong-stability-preserving, Runge--Kutta scheme of
+[SO1988](@cite), also known as Heun's method ([Heun1900](@ref).
 
-### References
-    @article{shu1988efficient,
-      title={Efficient implementation of essentially non-oscillatory shock-capturing schemes},
-      author={Shu, Chi-Wang and Osher, Stanley},
-      journal={Journal of computational physics},
-      volume={77},
-      number={2},
-      pages={439--471},
-      year={1988},
-      publisher={Elsevier}
-    }
-    @article {Heun1900,
-       title = {Neue Methoden zur approximativen Integration der
-       Differentialgleichungen einer unabh\"{a}ngigen Ver\"{a}nderlichen}
-       author = {Heun, Karl},
-       journal = {Z. Math. Phys},
-       volume = {45},
-       pages = {23--38},
-       year = {1900}
-    }
+Exact choice of coefficients from wikipedia page for Heun's method :)
 """
 struct SSPRK22Heuns <: StrongStabilityPreservingRungeKutta end
 
@@ -124,30 +104,9 @@ end
     SSPRK22Ralstons()
 
 The second-order, 2-stage, strong-stability-preserving, Runge--Kutta scheme
-of Shu and Osher (1988) (also known as Ralstons's method.)
-Exact choice of coefficients from wikipedia page for Heun's method :)
+of [SO1988](@cite), also known as Ralstons's method ([Rals1962](@cite).
 
-### References
-    @article{shu1988efficient,
-      title={Efficient implementation of essentially non-oscillatory shock-capturing schemes},
-      author={Shu, Chi-Wang and Osher, Stanley},
-      journal={Journal of computational physics},
-      volume={77},
-      number={2},
-      pages={439--471},
-      year={1988},
-      publisher={Elsevier}
-    }
-    @article{ralston1962runge,
-      title={Runge-Kutta methods with minimum error bounds},
-      author={Ralston, Anthony},
-      journal={Mathematics of computation},
-      volume={16},
-      number={80},
-      pages={431--437},
-      year={1962},
-      doi={10.1090/S0025-5718-1962-0150954-0}
-    }
+Exact choice of coefficients from wikipedia page for Heun's method :)
 """
 struct SSPRK22Ralstons <: StrongStabilityPreservingRungeKutta end
 
@@ -163,19 +122,7 @@ end
     SSPRK33ShuOsher()
 
 The third-order, 3-stage, strong-stability-preserving, Runge--Kutta scheme
-of Shu and Osher (1988)
-
-### References
-    @article{shu1988efficient,
-      title={Efficient implementation of essentially non-oscillatory shock-capturing schemes},
-      author={Shu, Chi-Wang and Osher, Stanley},
-      journal={Journal of computational physics},
-      volume={77},
-      number={2},
-      pages={439--471},
-      year={1988},
-      publisher={Elsevier}
-    }
+of [SO1988](@cite).
 """
 struct SSPRK33ShuOsher <: StrongStabilityPreservingRungeKutta end
 
@@ -191,19 +138,7 @@ end
     SSPRK34SpiteriRuuth()
 
 The third-order, 4-stage, strong-stability-preserving, Runge--Kutta scheme
-of Spiteri and Ruuth (1988)
-
-### References
-    @article{spiteri2002new,
-      title={A new class of optimal high-order strong-stability-preserving time discretization methods},
-      author={Spiteri, Raymond J and Ruuth, Steven J},
-      journal={SIAM Journal on Numerical Analysis},
-      volume={40},
-      number={2},
-      pages={469--491},
-      year={2002},
-      publisher={SIAM}
-    }
+of [SR2002](@cite).
 """
 struct SSPRK34SpiteriRuuth <: StrongStabilityPreservingRungeKutta end
 

@@ -1,11 +1,17 @@
 push!(LOAD_PATH,"..")
 
-using Documenter
+using Documenter, DocumenterCitations
 using TimeMachine
 
+bib = CitationBibliography(joinpath(@__DIR__, "refs.bib"))
+
+
 makedocs(
+    bib,
     sitename = "TimeMachine",
-    format = Documenter.HTML(),
+    format = Documenter.HTML(
+        prettyurls = get(ENV, "CI", nothing) == "true"
+    ),
     modules = [TimeMachine],
     pages = [
         "index.md",
@@ -16,7 +22,8 @@ makedocs(
             "background/StrongStabilityPreservingRungeKutta.md",
             "background/AdditiveRungeKutta.md",
             "background/MultirateRungeKutta.md",
-        ]
+        ],
+        "references.md",
     ]
 )
 

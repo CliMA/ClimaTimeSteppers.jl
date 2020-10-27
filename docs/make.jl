@@ -18,10 +18,10 @@ makedocs(
         "algorithms.md",
         "callbacks.md",
         "Background" => [
-            "background/LowStorageRungeKutta.md",
-            "background/StrongStabilityPreservingRungeKutta.md",
-            "background/AdditiveRungeKutta.md",
-            "background/MultirateRungeKutta.md",
+            "background/lsrk.md",
+            "background/ssprk.md",
+            "background/ark.md",
+            "background/mrrk.md",
         ],
         "references.md",
     ]

@@ -69,10 +69,10 @@ include("integrators.jl")
 
 
 # Include concrete implementations
-include("RungeKuttaMethods/LowStorageRungeKuttaMethods.jl")
-include("RungeKuttaMethods/StrongStabilityPreservingRungeKuttaMethods.jl")
-include("RungeKuttaMethods/AdditiveRungeKuttaMethods.jl")
-include("RungeKuttaMethods/MultirateRungeKuttaMethods.jl")
+include("solvers/lsrk.jl")
+include("solvers/ssprk.jl")
+include("solvers/ark.jl")
+include("solvers/mrrk.jl")
 
 
 include("callbacks.jl")

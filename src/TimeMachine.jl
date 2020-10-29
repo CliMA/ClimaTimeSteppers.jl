@@ -15,19 +15,19 @@ JuliaDiffEq terminology:
 
   fR(u,p,t) == f(u.p,t) - fL(u,p,t)
   fL(u,_,_) == A*u for some `A` (matrix free)
- 
+
   SplitODEProlem(fL, fR)
 
 
-  * `ODEProblem` from OrdinaryDiffEq.jl 
+  * `ODEProblem` from OrdinaryDiffEq.jl
     - use `jac` option to `ODEFunction` for linear + full IMEX (https://docs.sciml.ai/latest/features/performance_overloads/#ode_explicit_jac-1)
   * `SplitODEProblem` for linear + remainder IMEX
   * `MultirateODEProblem` for true multirate
-  
+
 * _Algorithm_: small objects (often singleton) which indicate what algorithm + options (e.g. linear solver type)
   * define new abstract `DistributedODEAlgorithm`, algorithms in this pacakge will be subtypes of this
   * define new `Multirate` for multirate solvers
-  
+
 * _Integrator_: contains everything necessary to solve. Used as:
 
   * define new `DistributedODEIntegrator` for solvers in this package
@@ -36,7 +36,7 @@ JuliaDiffEq terminology:
       step!(int) => runs single step
       solve!(int) => runs it to end
       solve(prob, alg, options...) => init + solve!
-  
+
 * _Solution_ (not implemented): contains the "solution" to the ODE.
 
 
@@ -73,7 +73,7 @@ include("solvers/lsrk.jl")
 include("solvers/ssprk.jl")
 include("solvers/ark.jl")
 include("solvers/mrrk.jl")
-
+include("solvers/mis.jl")
 
 include("callbacks.jl")
 

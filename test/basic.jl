@@ -42,5 +42,18 @@ for (prob, sol) in [
     # Multirate
     @test convergence_order(prob, sol, MultirateRungeKutta(LSRK54CarpenterKennedy(),LSRK54CarpenterKennedy()), dts;
         fast_dt = 0.5^12, adjustfinal=true) ≈ 4 atol=0.05
+    # MIS
+    @test convergence_order(prob, sol, MultirateRungeKutta(LSRK54CarpenterKennedy(),MIS2()), dts;
+        fast_dt = 0.5^12, adjustfinal=true) ≈ 2 atol=0.05
+    @test convergence_order(prob, sol, MultirateRungeKutta(LSRK54CarpenterKennedy(),MIS3C()), dts;
+        fast_dt = 0.5^12, adjustfinal=true) ≈ 2 atol=0.05
+    @test convergence_order(prob, sol, MultirateRungeKutta(LSRK54CarpenterKennedy(),MIS4()), dts;
+        fast_dt = 0.5^12, adjustfinal=true) ≈ 3 atol=0.05
+    @test convergence_order(prob, sol, MultirateRungeKutta(LSRK54CarpenterKennedy(),MIS4a()), dts;
+        fast_dt = 0.5^12, adjustfinal=true) ≈ 3 atol=0.05
+    @test convergence_order(prob, sol, MultirateRungeKutta(LSRK54CarpenterKennedy(),TVDMISA()), dts;
+        fast_dt = 0.5^12, adjustfinal=true) ≈ 2 atol=0.05
+    @test convergence_order(prob, sol, MultirateRungeKutta(LSRK54CarpenterKennedy(),TVDMISB()), dts;
+        fast_dt = 0.5^12, adjustfinal=true) ≈ 2 atol=0.05
 
-end
+    end

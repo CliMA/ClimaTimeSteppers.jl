@@ -30,13 +30,13 @@ struct LowStorageRungeKutta2NTableau{Nstages, RT}
     C::NTuple{Nstages, RT}
 end
 
-struct LowStorageRungeKutta2NIncCache{Nstages, RT, A}    
+struct LowStorageRungeKutta2NIncCache{Nstages, RT, A}
     tableau::LowStorageRungeKutta2NTableau{Nstages, RT}
     du::A
 end
 
 function cache(prob::DiffEqBase.ODEProblem, alg::LowStorageRungeKutta2N; kwargs...)
-    # @assert prob.problem_type isa DiffEqBase.IncrementingODEProblem || 
+    # @assert prob.problem_type isa DiffEqBase.IncrementingODEProblem ||
     #     prob.f isa DiffEqBase.IncrementingODEFunction
     du = zero(prob.u0)
     return LowStorageRungeKutta2NIncCache(tableau(alg, eltype(du)), du)
@@ -165,10 +165,10 @@ end
 """
     LSRKEulerMethod()
 
-An implementation of explicit Euler method using [`LowStorageRungeKutta2N`](@ref) infrastructure. 
+An implementation of explicit Euler method using [`LowStorageRungeKutta2N`](@ref) infrastructure.
 This is mainly for debugging.
 """
 struct LSRKEulerMethod <: LowStorageRungeKutta2N
 end
-tableau(::LSRKEulerMethod, RT) = 
+tableau(::LSRKEulerMethod, RT) =
     LowStorageRungeKutta2NTableau((RT(0),), (RT(1),), (RT(0),))

@@ -41,3 +41,15 @@ ARK2GiraldoKellyConstantinescu
 ARK437L2SA1KennedyCarpenter
 ARK548L2SA2KennedyCarpenter
 ```
+
+## Multirate Infinitesimal Step
+
+```@docs
+MIS2
+MIS3C
+MIS4
+MIS4a
+TVDMISA
+TVDMISB
+```
+

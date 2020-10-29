@@ -13,12 +13,13 @@ struct MultirateInfinitesimalStepTableau{Nstages, Nstages², RT}
   c̃::SArray{NTuple{1, Nstages}, RT, 1, Nstages}
 end
 function MultirateInfinitesimalStepTableau(α,β,γ)
-  d = SVector(sum(β, dims = 2))
+  d = SVector(sum(β, dims = 2)) # KW2014 (2)
+  # c = (I - α - γ) \ d
   c = similar(d)
   for i in eachindex(c)
       c[i] = d[i]
-      if i > 1
-          c[i] += sum(j -> (α[i, j] + γ[i, j]) * c[j], 1:(i - 1))
+      for j = 1:i-1
+        c[i] += (α[i, j] + γ[i, j]) * c[j]
       end
   end
   c = SArray(c)
@@ -59,7 +60,7 @@ function update_inner!(innerinteg, outercache::MultirateInfinitesimalStepCache,
   F = outercache.F
   ΔU = outercache.ΔU
 
-  # F[i] = f_slow(u,p,t + c[i]*dt)
+  # F[i] = f_slow(U[i-1], p, t + c[i-1]*dt)
   u0 = i == 1 ? u : ΔU[i-1]
   t0 = i == 1 ? t : t + tab.c[i-1]*dt
   f_slow(F[i], u0, p, t0)
@@ -72,6 +73,8 @@ function update_inner!(innerinteg, outercache::MultirateInfinitesimalStepCache,
     if i > 1
       ΔU[i-1] .-= u
     end
+
+    # KW2014 (1a)
     if i < N
       innerinteg.u .= u
     end
@@ -79,6 +82,7 @@ function update_inner!(innerinteg, outercache::MultirateInfinitesimalStepCache,
       innerinteg.u .+= tab.α[i,j] .* ΔU[j]
     end
 
+    # KW2014 (1b) / (9)
     f_offset.x .= tab.β[i,i]/tab.d[i] .* F[i]
     for j = 1:i-1
       f_offset.x .+= (tab.γ[i,j]/(tab.d[i]*dt)) .* ΔU[j] .+ tab.β[i,j]/tab.d[i]  .* F[j]
@@ -86,6 +90,8 @@ function update_inner!(innerinteg, outercache::MultirateInfinitesimalStepCache,
   end
   f_offset.γ = 1
 
+  # KW2014 (9)
+  # evaluate f_fast(z(τ), p, t + c̃[i]*dt + (c[i]-c̃[i])/d[i] * τ)
   f_offset.α = t + tab.c̃[i] * dt
   f_offset.β = (tab.c[i] - tab.c̃[i]) / tab.d[i]
 
@@ -93,6 +99,11 @@ function update_inner!(innerinteg, outercache::MultirateInfinitesimalStepCache,
   innerinteg.tstop = tab.d[i] * dt
 end
 
+"""
+    MIS2()
+
+The MIS2 Multirate Infinitesimal Step (MIS) method of [KW2014](@cite).
+"""
 struct MIS2 <: MultirateInfinitesimalStep
 end
 function tableau(mis::MIS2, RT)
@@ -114,6 +125,11 @@ function tableau(mis::MIS2, RT)
   MultirateInfinitesimalStepTableau(α,β,γ)
 end
 
+"""
+    MIS3C()
+
+The MIS3C Multirate Infinitesimal Step (MIS) method of [KW2014](@cite).
+"""
 struct MIS3C <: MultirateInfinitesimalStep
 end
 function tableau(mis::MIS3C, RT)
@@ -135,6 +151,11 @@ function tableau(mis::MIS3C, RT)
   MultirateInfinitesimalStepTableau(α,β,γ)
 end
 
+"""
+    MIS4()
+
+The MIS4 Multirate Infinitesimal Step (MIS) method of [KW2014](@cite).
+"""
 struct MIS4 <: MultirateInfinitesimalStep
 end
 function tableau(mis::MIS4, RT)
@@ -159,6 +180,11 @@ function tableau(mis::MIS4, RT)
   MultirateInfinitesimalStepTableau(α,β,γ)
 end
 
+"""
+    MIS4a()
+
+The MIS4a Multirate Infinitesimal Step (MIS) method of [KW2014](@cite).
+"""
 struct MIS4a <: MultirateInfinitesimalStep
 end
 function tableau(mis::MIS4a, RT)
@@ -185,6 +211,12 @@ function tableau(mis::MIS4a, RT)
   MultirateInfinitesimalStepTableau(α,β,γ)
 end
 
+"""
+    TVDMISA()
+
+The TVDMISA Total Variation Diminishing (TVD) Multirate Infinitesimal Step (MIS)
+method of [KW2014](@cite).
+"""
 struct TVDMISA <: MultirateInfinitesimalStep
 end
 function tableau(mis::TVDMISA, RT)
@@ -206,6 +238,12 @@ function tableau(mis::TVDMISA, RT)
   MultirateInfinitesimalStepTableau(α,β,γ)
 end
 
+"""
+    TVDMISB()
+
+The TVDMISB Total Variation Diminishing (TVD) Multirate Infinitesimal Step (MIS)
+method of [KW2014](@cite).
+"""
 struct TVDMISB <: MultirateInfinitesimalStep
 end
 function tableau(mis::TVDMISB, RT)

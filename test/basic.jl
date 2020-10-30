@@ -56,4 +56,11 @@ for (prob, sol) in [
     @test convergence_order(prob, sol, MultirateRungeKutta(LSRK54CarpenterKennedy(),TVDMISB()), dts;
         fast_dt = 0.5^12, adjustfinal=true) ≈ 2 atol=0.05
 
+    # Wicker Skamarock
+    @test convergence_order(prob, sol, MultirateRungeKutta(LSRK54CarpenterKennedy(),WSRK2()), dts;
+        fast_dt = 0.5^12, adjustfinal=true) ≈ 2 atol=0.05
+    @test convergence_order(prob, sol, MultirateRungeKutta(LSRK54CarpenterKennedy(),WSRK3()), dts;
+        fast_dt = 0.5^12, adjustfinal=true) ≈ 2 atol=0.05
+
+
     end

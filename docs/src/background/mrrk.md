@@ -39,3 +39,40 @@ dU_S^{(i)} = f_S(U^{(i)}, \tau_i) + A_i dU_S^{(i-1)}
 
 ## Multirate Infinitesimal Step (MIS)
 
+Multirate Infinitesimal Step (MIS) methods ([WKG2009](@cite), [KW2014](@cite))
+
+```math
+\begin{aligned}
+v_i (0)
+  &= u^n + \sum_{j=1}^{i-1} \alpha_{ij} (U^{(j)} - u^n)
+\\
+\frac{dv_i}{d\tau}
+  &= \sum_{j=1}^{i-1} \frac{\gamma_{ij}}{d_i \Delta t} (U^{(j)} - u^n)
+    + \sum_{j=1}^i \frac{\beta_{ij}}{d_i} f_S (U^{(j)}, t + \Delta t c_i)
+    + f_F(v_i, t^n +  \Delta t \tilde c_i + \frac{c_i - \tilde c_i}{d_i} \tau),
+\quad \tau \in [0, \Delta t d_i]
+\\
+U^{(i)} &= v_i(\Delta t d_i)
+\end{aligned}
+```
+The method is defined in terms of the lower-triangular matrices ``\alpha``,
+``\beta`` and ``\gamma``, with ``d_i = \sum_j \beta_{ij}``,
+``c_i = (I - \alpha - \gamma)^{-1} d`` and ``\tilde c = \alpha c``.
+
+
+## Wicker Skamarock
+
+[WS1998](@cite) and [WS2002](@cite) define RK2 and RK3 multirate schemes:
+```math
+\begin{aligned}
+v_i (t) &= u^n
+\\
+\frac{dv_i}{d\tau}
+  &= f_S (U^{(i-1)}, t + \Delta t c_{i-1})
+    + f_F(v_i, \tau),
+\quad \tau \in [t, t+ \Delta t c_i ]
+\\
+U^{(i)} &= v_i(t + \Delta t c_i)
+\end{aligned}
+```
+which corresponds to an MIS method with ``\alpha = \beta = 0`` and ``\beta = \operatorname{diag}(c)``.

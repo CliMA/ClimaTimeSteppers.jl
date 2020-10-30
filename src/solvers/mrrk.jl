@@ -6,7 +6,13 @@ export MultirateRungeKutta
 
 A multirate Runge--Kutta scheme, combining `fast` and `slow` algorithms
 
-Currently `slow` must be a LSRK method.
+`slow` can be any algorithm providing methods for the following functions
+  - `init_inner(prob, outercache, dt)`
+  - `update_inner!(innerinteg, outercache, f_slow, u, p, t, dt, stage)`
+Algorithms which currently support this are:
+ - [`LowStorageRungeKutta2N`](@ref)
+ - [`MultirateInfinitesimalStep`](@ref)
+ - [`WickerSkamarockRungeKutta`](@ref)
 """
 struct MultirateRungeKutta{F,S} <: DistributedODEAlgorithm
     fast::F
@@ -30,7 +36,7 @@ function cache(
     outerprob = DiffEqBase.remake(prob; f=prob.f.f2)
     outercache = cache(outerprob, alg.slow)
 
-    innerfun = OffsetODEFunction(prob.f.f1, zero(dt), one(dt), zero(dt), outercache.du)
+    innerfun = init_inner(prob, outercache, dt)
     innerprob = DiffEqBase.remake(prob; f=innerfun)
     innerinteg = DiffEqBase.init(innerprob, alg.fast; dt=fast_dt, kwargs...)
     return MultirateRungeKuttaCache(outercache, innerinteg)
@@ -40,7 +46,6 @@ end
 function step_u!(int, cache::MultirateRungeKuttaCache)
     outercache = cache.outercache
     tab = outercache.tableau
-    du = outercache.du
 
     u = int.u
     p = int.prob.p
@@ -70,6 +75,10 @@ function step_u!(int, cache::MultirateRungeKuttaCache)
     end
 end
 
+
+function init_inner(prob, outercache::LowStorageRungeKutta2NIncCache, dt)
+    OffsetODEFunction(prob.f.f1, zero(dt), one(dt), zero(dt), outercache.du)
+end
 function update_inner!(innerinteg, outercache::LowStorageRungeKutta2NIncCache,
         f_slow, u, p, t, dt, stage)
 

@@ -1,6 +1,10 @@
 export MIS2, MIS3C, MIS4, MIS4a, TVDMISA, TVDMISB
 
+"""
+    MultirateInfinitesimalStep
 
+Multirate Infinitesimal Step (MIS) methods of [WKG2009](@cite) and [KW2014](@cite).
+"""
 abstract type MultirateInfinitesimalStep <: DistributedODEAlgorithm end
 
 
@@ -29,7 +33,6 @@ end
 
 
 struct MultirateInfinitesimalStepCache{Nstages, A, T<:MultirateInfinitesimalStepTableau}
-  du::A
   "difference between stage and initial value ``U^{(i)} - u``"
   ΔU::NTuple{Nstages,A}
   "evaluated slow part of each stage ``f_slow(U^{(i)})``"
@@ -45,9 +48,18 @@ function cache(
 
   tab = tableau(alg,eltype(prob.u0))
   N = length(tab.d)
-  ΔU = ntuple(n -> similar(prob.u0), N) # TODO: only needs to be N-1
+  ΔU = ntuple(n -> similar(prob.u0), N)
+  # at time i, contains
+  #   ΔU[j] = U[j] - u    j < i
+  #   ΔU[i] = U[i]
+  #   ΔU[N] = offset vec
   F = ntuple(n -> similar(prob.u0), N)
-  return MultirateInfinitesimalStepCache(similar(prob.u0), ΔU, F, tab)
+  return MultirateInfinitesimalStepCache(ΔU, F, tab)
+end
+
+
+function init_inner(prob, outercache::MultirateInfinitesimalStepCache, dt)
+  OffsetODEFunction(prob.f.f1, zero(dt), one(dt), one(dt), outercache.ΔU[end])
 end
 
 function update_inner!(innerinteg, outercache::MultirateInfinitesimalStepCache,
@@ -88,7 +100,6 @@ function update_inner!(innerinteg, outercache::MultirateInfinitesimalStepCache,
       f_offset.x .+= (tab.γ[i,j]/(tab.d[i]*dt)) .* ΔU[j] .+ tab.β[i,j]/tab.d[i]  .* F[j]
     end
   end
-  f_offset.γ = 1
 
   # KW2014 (9)
   # evaluate f_fast(z(τ), p, t + c̃[i]*dt + (c[i]-c̃[i])/d[i] * τ)

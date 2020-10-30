@@ -4,9 +4,8 @@ export LSRK54CarpenterKennedy, LSRK144NiegemannDiehlBusch, LSRKEulerMethod
 """
     abstract type LowStorageRungeKutta2N <: DistributedODEAlgorithm end
 
-A class of low-storage Runge-Kutta algorithms. Subtypes `L` should define a
-`tableau(::L, RT)` method which returns an instance of
-`LowStorageRungeKutta2NTableau`.
+A class of low-storage Runge-Kutta algorithms, which use only one additional
+copy of the state vector ``u`` (often referred to as ``2N`` schemes).
 
 The available concrete implementations are:
  - [`LSRKEulerMethod`](@ref)
@@ -64,8 +63,8 @@ end
 """
     LSRK54CarpenterKennedy()
 
-The fourth-order, 5-stage low storage Runge--Kutta scheme from Solution 3 of
-[CK1994](@cite).
+The 4th-order, 5-stage [`LowStorageRungeKutta2N`])(ref) scheme from Solution
+3 of [CK1994](@cite).
 """
 struct LSRK54CarpenterKennedy <: LowStorageRungeKutta2N end
 
@@ -100,7 +99,7 @@ end
 """
     LSRK144NiegemannDiehlBusch()
 
-The fourth-order, 14-stage, low-storage, Runge--Kutta scheme of
+The 4th-order, 14-stage, [`LowStorageRungeKutta2N`])(ref) scheme of
 [NDB2012](@cite) with optimized stability region
 """
 struct LSRK144NiegemannDiehlBusch <: LowStorageRungeKutta2N end

@@ -75,4 +75,4 @@ v_i (t) &= u^n
 U^{(i)} &= v_i(t + \Delta t c_i)
 \end{aligned}
 ```
-which corresponds to an MIS method with ``\alpha = \beta = 0`` and ``\beta = \operatorname{diag}(c)``.
+which corresponds to an MIS method with ``\alpha = \gamma = 0`` and ``\beta = \operatorname{diag}(c)``.

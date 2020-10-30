@@ -70,10 +70,10 @@ include("integrators.jl")
 
 
 # Include concrete implementations
+include("solvers/multirate.jl")
 include("solvers/lsrk.jl")
 include("solvers/ssprk.jl")
 include("solvers/ark.jl")
-include("solvers/mrrk.jl")
 include("solvers/mis.jl")
 include("solvers/wickerskamarock.jl")
 

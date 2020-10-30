@@ -1,5 +1,9 @@
 # Algorithms
 
+```@meta
+CurrentModule = TimeMachine
+```
+
 ## Low-Storage Runge--Kutta (LSRK) methods
 
 Low-storage Runger--Kutta methods reduce the number stages that need to be stored.
@@ -8,6 +12,7 @@ The methods below require only one additional storage vector.
 An `IncrementingODEProblem` must be used.
 
 ```@docs
+LowStorageRungeKutta2N
 LSRK54CarpenterKennedy
 LSRK144NiegemannDiehlBusch
 LSRKEulerMethod
@@ -15,8 +20,8 @@ LSRKEulerMethod
 
 ## Strong Stability-Preserving Runge--Kutta (SSPRK) methods
 
-
 ```@docs
+StrongStabilityPreservingRungeKutta
 SSPRK22Heuns
 SSPRK22Ralstons
 SSPRK33ShuOsher
@@ -35,6 +40,7 @@ See the [`linsolve` specification](https://diffeq.sciml.ai/latest/features/linea
 Currently ARK methods require a `SplitODEProblem`.
 
 ```@docs
+AdditiveRungeKutta
 ARK1ForwardBackwardEuler
 ARK2ImplicitExplicitMidpoint
 ARK2GiraldoKellyConstantinescu
@@ -42,9 +48,16 @@ ARK437L2SA1KennedyCarpenter
 ARK548L2SA2KennedyCarpenter
 ```
 
-## Multirate Infinitesimal Step
+## Multirate
 
 ```@docs
+Multirate
+```
+
+### Multirate Infinitesimal Step
+
+```@docs
+MultirateInfinitesimalStep
 MIS2
 MIS3C
 MIS4
@@ -53,3 +66,10 @@ TVDMISA
 TVDMISB
 ```
 
+### Wicker--Skamarock
+
+```@docs
+WickerSkamarockRungeKutta
+WSRK2
+WSRK3
+```

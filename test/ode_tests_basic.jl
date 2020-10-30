@@ -217,7 +217,7 @@ Qexact = exactsolution(finaltime, q0, t0)
     #             for nsubsteps in (1, 3)
     #                 for (n, dt) in enumerate(dts)
     #                     Q .= Qinit
-    #                     solver = MultirateRungeKutta(
+    #                     solver = Multirate(
     #                         (
     #                             slow_method(rhs_slow!, Q; dt = dt),
     #                             fast_method(rhs_fast!, Q; dt = dt / nsubsteps),
@@ -248,7 +248,7 @@ Qexact = exactsolution(finaltime, q0, t0)
     #         for (fast_method, fast_expected_order) in imex_methods
     #             for (n, dt) in enumerate(dts)
     #                 Q .= Qinit
-    #                 solver = MultirateRungeKutta(
+    #                 solver = Multirate(
     #                     (
     #                         slow_method(rhs_slow!, Q; dt = dt),
     #                         fast_method(
@@ -289,7 +289,7 @@ Qexact = exactsolution(finaltime, q0, t0)
     #                 for nsubsteps in (1, 2)
     #                     for (n, dt) in enumerate(dts)
     #                         Q .= Qinit
-    #                         solver = MultirateRungeKutta(
+    #                         solver = Multirate(
     #                             (
     #                                 rate3_method(rhs3!, Q, dt = dt),
     #                                 rate2_method(rhs2!, Q, dt = dt / nsubsteps),

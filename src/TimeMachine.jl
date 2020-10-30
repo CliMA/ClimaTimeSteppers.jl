@@ -46,6 +46,7 @@ module TimeMachine
 
 using KernelAbstractions
 using KernelAbstractions.Extras: @unroll
+using LinearAlgebra
 using StaticArrays
 using CUDA
 using MPI

@@ -4,6 +4,15 @@ export MIS2, MIS3C, MIS4, MIS4a, TVDMISA, TVDMISB
     MultirateInfinitesimalStep
 
 Multirate Infinitesimal Step (MIS) methods of [WKG2009](@cite) and [KW2014](@cite).
+
+The available implementations are:
+
+ - [`MIS2`](@ref)
+ - [`MIS3C`](@ref)
+ - [`MIS4`](@ref)
+ - [`MIS4a`](@ref)
+ - [`TVDMISA`](@ref)
+ - [`TVDMISB`](@ref)
 """
 abstract type MultirateInfinitesimalStep <: DistributedODEAlgorithm end
 

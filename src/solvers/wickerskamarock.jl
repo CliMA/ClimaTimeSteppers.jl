@@ -1,13 +1,16 @@
 export WSRK2, WSRK3
 
-
 """
-    WickerSkamarockRungeKutta
+    WickerSkamarockRungeKutta <: DistributedODEAlgorithm
 
 Class of multirate algorithms developed in [WS1998](@cite) and [WS2002](@cite),
-which can be used as slow methods in [`Multirate`]
+which can be used as slow methods in [`Multirate`](@ref).
 
+These require two additional copies of the state vector ``u``.
 
+Available implementations are:
+- [`WSRK2`](@ref)
+- [`WSRK3`](@ref)
 """
 abstract type WickerSkamarockRungeKutta <: DistributedODEAlgorithm end
 

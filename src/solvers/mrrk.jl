@@ -1,8 +1,7 @@
-
-export MultirateRungeKutta
+export Multirate
 
 """
-    MultirateRungeKutta(fast, slow)
+    Multirate(fast, slow)
 
 A multirate Runge--Kutta scheme, combining `fast` and `slow` algorithms
 
@@ -14,20 +13,20 @@ Algorithms which currently support this are:
  - [`MultirateInfinitesimalStep`](@ref)
  - [`WickerSkamarockRungeKutta`](@ref)
 """
-struct MultirateRungeKutta{F,S} <: DistributedODEAlgorithm
+struct Multirate{F,S} <: DistributedODEAlgorithm
     fast::F
     slow::S
 end
 
 
-struct MultirateRungeKuttaCache{OC,II}
+struct MultirateCache{OC,II}
     outercache::OC
     innerinteg::II
 end
 
 function cache(
     prob::DiffEqBase.AbstractODEProblem,
-    alg::MultirateRungeKutta;
+    alg::Multirate;
     dt, fast_dt, kwargs...)
 
     @assert prob.f isa DiffEqBase.SplitFunction
@@ -39,11 +38,11 @@ function cache(
     innerfun = init_inner(prob, outercache, dt)
     innerprob = DiffEqBase.remake(prob; f=innerfun)
     innerinteg = DiffEqBase.init(innerprob, alg.fast; dt=fast_dt, kwargs...)
-    return MultirateRungeKuttaCache(outercache, innerinteg)
+    return MultirateCache(outercache, innerinteg)
 end
 
 
-function step_u!(int, cache::MultirateRungeKuttaCache)
+function step_u!(int, cache::MultirateCache)
     outercache = cache.outercache
     tab = outercache.tableau
 

@@ -1,13 +1,12 @@
-export LowStorageRungeKutta2N
 export LSRK54CarpenterKennedy, LSRK144NiegemannDiehlBusch, LSRKEulerMethod
 
 """
-    abstract type LowStorageRungeKutta2N <: DistributedODEAlgorithm end
+    LowStorageRungeKutta2N <: DistributedODEAlgorithm
 
 A class of low-storage Runge-Kutta algorithms, which use only one additional
 copy of the state vector ``u`` (often referred to as ``2N`` schemes).
 
-The available concrete implementations are:
+The available implementations are:
  - [`LSRKEulerMethod`](@ref)
  - [`LSRK54CarpenterKennedy`](@ref)
  - [`LSRK144NiegemannDiehlBusch`](@ref)

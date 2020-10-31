@@ -1,23 +1,12 @@
-export StrongStabilityPreservingRungeKutta
 export SSPRK22Heuns, SSPRK22Ralstons, SSPRK33ShuOsher, SSPRK34SpiteriRuuth
 
 """
-    StrongStabilityPreservingRungeKutta(f, RKA, RKB, RKC, Q; dt, t0 = 0)
+    StrongStabilityPreservingRungeKutta <: DistributedODEAlgorithm
 
-This is a time stepping object for explicitly time stepping the differential
-equation given by the right-hand-side function `f` with the state `Q`, i.e.,
+A class of Strong Stability Preserving Runge--Kutta methods.
+These require two additional copies of the state vector.
 
-```math
-  \\dot{Q} = f(Q, t)
-```
-
-with the required time step size `dt` and optional initial time `t0`.  This
-time stepping object is intended to be passed to the `solve!` command.
-
-The constructor builds a strong-stability-preserving Runge--Kutta scheme
-based on the provided `RKA`, `RKB` and `RKC` coefficient arrays.
-
-The available concrete implementations are:
+The available implementations are:
 
   - [`SSPRK22Heuns`](@ref)
   - [`SSPRK22Ralstons`](@ref)
@@ -37,7 +26,7 @@ struct StrongStabilityPreservingRungeKuttaTableau{Nstages, RT}
     C::NTuple{Nstages, RT}
 end
 
-struct StrongStabilityPreservingRungeKuttaCache{Nstages, RT, A}    
+struct StrongStabilityPreservingRungeKuttaCache{Nstages, RT, A}
     tableau::StrongStabilityPreservingRungeKuttaTableau{Nstages, RT}
     "Storage for RHS during the `StrongStabilityPreservingRungeKutta` update"
     fU::A
@@ -46,7 +35,7 @@ struct StrongStabilityPreservingRungeKuttaCache{Nstages, RT, A}
 end
 
 function cache(
-    prob::DiffEqBase.AbstractODEProblem{uType, tType, true}, 
+    prob::DiffEqBase.AbstractODEProblem{uType, tType, true},
     alg::StrongStabilityPreservingRungeKutta; kwargs...) where {uType,tType}
 
     tab = tableau(alg, eltype(prob.u0))
@@ -66,7 +55,7 @@ function step_u!(int, cache::StrongStabilityPreservingRungeKuttaCache{Nstages, R
     t = int.t
     dt = int.dt
 
-    
+
     for s in 1:Nstages
         if s == 1
             f!(cache.fU, u, p, t + tab.C[s]*dt)
@@ -111,7 +100,7 @@ Exact choice of coefficients from wikipedia page for Heun's method :)
 struct SSPRK22Ralstons <: StrongStabilityPreservingRungeKutta end
 
 function tableau(::SSPRK22Ralstons, RT)
-    RKA1 = (RT(1), RT(5 // 8)) 
+    RKA1 = (RT(1), RT(5 // 8))
     RKA2 = (RT(0), RT(3 // 8))
     RKB  = (RT(2 // 3), RT(3 // 4))
     RKC  = (RT(0), RT(2 // 3))
@@ -143,7 +132,7 @@ of [SR2002](@cite).
 struct SSPRK34SpiteriRuuth <: StrongStabilityPreservingRungeKutta end
 
 function tableau(::SSPRK34SpiteriRuuth, RT)
-    RKA1 = (RT(1), RT(0), RT(2 // 3), RT(0)) 
+    RKA1 = (RT(1), RT(0), RT(2 // 3), RT(0))
     RKA2 = (RT(0), RT(1), RT(1 // 3), RT(1))
     RKB  = (RT(1 // 2), RT(1 // 2), RT(1 // 6), RT(1 // 2))
     RKC  = (RT(0), RT(1 // 2), RT(1), RT(1 // 2))

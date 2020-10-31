@@ -66,7 +66,7 @@ with initial condition ``u_0 = 1/2``, parameter ``α=4``, and solution
 ```math
 u(t) = \frac{e^t + sin(t) - cos(t)}{2 α} + u_0 e^t
 ```
-"""    
+"""
 const imex_autonomous_prob = SplitODEProblem(
     (du, u, p, t, α=true, β=false) -> (du .= α .* u        .+ β .* du),
     (du, u, p, t, α=true, β=false) -> (du .= α .* cos(t)/p .+ β .* du),
@@ -86,7 +86,7 @@ function imex_nonautonomous_sol(u0,p,t)
 end
 
 
-""" 
+"""
 Test problem (4.2) from RobertsSarsharSandu2018arxiv
 @article{RobertsSarsharSandu2018arxiv,
     title={Coupled Multirate Infinitesimal GARK Schemes for Stiff Systems with
@@ -98,7 +98,7 @@ Test problem (4.2) from RobertsSarsharSandu2018arxiv
 
 Note: The actual rates are all over the place with this test and passing largely
         depends on final dt size
-""" 
+"""
 kpr_param = (
     ω = 100,
     λf = -10,
@@ -110,7 +110,7 @@ kpr_param = (
 function kpr_rhs(Q,param,t)
     yf, ys = Q
     ω, λf, λs, ξ, α = param
-    
+
     ηfs = ((1 - ξ) / α) * (λf - λs)
     ηsf = -ξ * α * (λf - λs)
     Ω = @SMatrix [

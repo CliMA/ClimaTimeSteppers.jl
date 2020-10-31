@@ -40,7 +40,27 @@ for (prob, sol) in [
     # kpr_multirate_prob => kpr_sol,
 ]
     # Multirate
-    @test convergence_order(prob, sol, MultirateRungeKutta(LSRK54CarpenterKennedy(),LSRK54CarpenterKennedy()), dts;
+    @test convergence_order(prob, sol, Multirate(LSRK54CarpenterKennedy(),LSRK54CarpenterKennedy()), dts;
         fast_dt = 0.5^12, adjustfinal=true) ≈ 4 atol=0.05
+    # MIS
+    @test convergence_order(prob, sol, Multirate(LSRK54CarpenterKennedy(),MIS2()), dts;
+        fast_dt = 0.5^12, adjustfinal=true) ≈ 2 atol=0.05
+    @test convergence_order(prob, sol, Multirate(LSRK54CarpenterKennedy(),MIS3C()), dts;
+        fast_dt = 0.5^12, adjustfinal=true) ≈ 2 atol=0.05
+    @test convergence_order(prob, sol, Multirate(LSRK54CarpenterKennedy(),MIS4()), dts;
+        fast_dt = 0.5^12, adjustfinal=true) ≈ 3 atol=0.05
+    @test convergence_order(prob, sol, Multirate(LSRK54CarpenterKennedy(),MIS4a()), dts;
+        fast_dt = 0.5^12, adjustfinal=true) ≈ 3 atol=0.05
+    @test convergence_order(prob, sol, Multirate(LSRK54CarpenterKennedy(),TVDMISA()), dts;
+        fast_dt = 0.5^12, adjustfinal=true) ≈ 2 atol=0.05
+    @test convergence_order(prob, sol, Multirate(LSRK54CarpenterKennedy(),TVDMISB()), dts;
+        fast_dt = 0.5^12, adjustfinal=true) ≈ 2 atol=0.05
 
-end
+    # Wicker Skamarock
+    @test convergence_order(prob, sol, Multirate(LSRK54CarpenterKennedy(),WSRK2()), dts;
+        fast_dt = 0.5^12, adjustfinal=true) ≈ 2 atol=0.05
+    @test convergence_order(prob, sol, Multirate(LSRK54CarpenterKennedy(),WSRK3()), dts;
+        fast_dt = 0.5^12, adjustfinal=true) ≈ 2 atol=0.05
+
+
+    end

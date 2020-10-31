@@ -1,14 +1,12 @@
-export LowStorageRungeKutta2N
 export LSRK54CarpenterKennedy, LSRK144NiegemannDiehlBusch, LSRKEulerMethod
 
 """
-    abstract type LowStorageRungeKutta2N <: DistributedODEAlgorithm end
+    LowStorageRungeKutta2N <: DistributedODEAlgorithm
 
-A class of low-storage Runge-Kutta algorithms. Subtypes `L` should define a
-`tableau(::L, RT)` method which returns an instance of
-`LowStorageRungeKutta2NTableau`.
+A class of low-storage Runge-Kutta algorithms, which use only one additional
+copy of the state vector ``u`` (often referred to as ``2N`` schemes).
 
-The available concrete implementations are:
+The available implementations are:
  - [`LSRKEulerMethod`](@ref)
  - [`LSRK54CarpenterKennedy`](@ref)
  - [`LSRK144NiegemannDiehlBusch`](@ref)
@@ -30,13 +28,13 @@ struct LowStorageRungeKutta2NTableau{Nstages, RT}
     C::NTuple{Nstages, RT}
 end
 
-struct LowStorageRungeKutta2NIncCache{Nstages, RT, A}    
+struct LowStorageRungeKutta2NIncCache{Nstages, RT, A}
     tableau::LowStorageRungeKutta2NTableau{Nstages, RT}
     du::A
 end
 
 function cache(prob::DiffEqBase.ODEProblem, alg::LowStorageRungeKutta2N; kwargs...)
-    # @assert prob.problem_type isa DiffEqBase.IncrementingODEProblem || 
+    # @assert prob.problem_type isa DiffEqBase.IncrementingODEProblem ||
     #     prob.f isa DiffEqBase.IncrementingODEFunction
     du = zero(prob.u0)
     return LowStorageRungeKutta2NIncCache(tableau(alg, eltype(du)), du)
@@ -61,11 +59,38 @@ function step_u!(int, cache::LowStorageRungeKutta2NIncCache)
     end
 end
 
+# for Multirate
+function init_inner(prob, outercache::LowStorageRungeKutta2NIncCache, dt)
+    OffsetODEFunction(prob.f.f1, zero(dt), one(dt), zero(dt), outercache.du)
+end
+function update_inner!(innerinteg, outercache::LowStorageRungeKutta2NIncCache,
+        f_slow, u, p, t, dt, stage)
+
+    f_offset = innerinteg.prob.f
+    tab = outercache.tableau
+    N = nstages(outercache)
+
+    τ0 = t+tab.C[stage]*dt
+    τ1 = stage == N ? t+dt : t+tab.C[stage+1]*dt
+    f_offset.α = τ0
+    innerinteg.t = zero(τ0)
+    innerinteg.tstop = τ1-τ0
+
+    #  du .= f(u, p, t + tab.C[stage]*dt) .+ tab.A[stage] .* du
+    f_slow(f_offset.x, u, p, τ0, 1, tab.A[stage])
+
+    C0 = tab.C[stage]
+    C1 = stage == N ? one(tab.C[stage]) : tab.C[stage+1]
+    f_offset.γ = tab.B[stage] / (C1-C0)
+end
+
+
+
 """
     LSRK54CarpenterKennedy()
 
-The fourth-order, 5-stage low storage Runge--Kutta scheme from Solution 3 of
-[CK1994](@cite).
+The 4th-order, 5-stage [`LowStorageRungeKutta2N`])(ref) scheme from Solution
+3 of [CK1994](@cite).
 """
 struct LSRK54CarpenterKennedy <: LowStorageRungeKutta2N end
 
@@ -100,7 +125,7 @@ end
 """
     LSRK144NiegemannDiehlBusch()
 
-The fourth-order, 14-stage, low-storage, Runge--Kutta scheme of
+The 4th-order, 14-stage, [`LowStorageRungeKutta2N`])(ref) scheme of
 [NDB2012](@cite) with optimized stability region
 """
 struct LSRK144NiegemannDiehlBusch <: LowStorageRungeKutta2N end
@@ -165,10 +190,10 @@ end
 """
     LSRKEulerMethod()
 
-An implementation of explicit Euler method using [`LowStorageRungeKutta2N`](@ref) infrastructure. 
+An implementation of explicit Euler method using [`LowStorageRungeKutta2N`](@ref) infrastructure.
 This is mainly for debugging.
 """
 struct LSRKEulerMethod <: LowStorageRungeKutta2N
 end
-tableau(::LSRKEulerMethod, RT) = 
+tableau(::LSRKEulerMethod, RT) =
     LowStorageRungeKutta2NTableau((RT(0),), (RT(1),), (RT(0),))

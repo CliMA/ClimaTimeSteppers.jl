@@ -46,5 +46,5 @@ DirectSolver(args...) = DirectSolver()
 function (::DirectSolver)(x,A,b,matrix_updated; kwargs...)
   n = length(x)
   M = mapslices(y -> mul!(similar(y), A, y), Matrix{eltype(x)}(I,n,n), dims=1)
-  x .= M \ b 
+  x .= M \ b
 end

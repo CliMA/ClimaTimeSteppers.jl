@@ -1,12 +1,17 @@
-using StaticArrays, LinearAlgebra
-
 export ARK1ForwardBackwardEuler, ARK2ImplicitExplicitMidpoint, ARK2GiraldoKellyConstantinescu,
     ARK437L2SA1KennedyCarpenter, ARK548L2SA2KennedyCarpenter
 
 """
     AdditiveRungeKutta
 
-IMEX (IMplicit-EXplicit) algorithms using ARK (Additively-partitioned Runge-Kutta) methods. 
+IMEX (IMplicit-EXplicit) algorithms using ARK (Additively-partitioned Runge-Kutta) methods.
+
+The available implementations are:
+ - [`ARK1ForwardBackwardEuler`](@ref)
+ - [`ARK2ImplicitExplicitMidpoint`](@ref)
+ - [`ARK2GiraldoKellyConstantinescu`](@ref)
+ - [`ARK437L2SA1KennedyCarpenter`](@ref)
+ - [`ARK548L2SA2KennedyCarpenter`](@ref)
 """
 abstract type AdditiveRungeKutta <: DistributedODEAlgorithm end
 
@@ -35,7 +40,7 @@ end
 
 
 function cache(
-    prob::DiffEqBase.AbstractODEProblem{uType, tType, true}, 
+    prob::DiffEqBase.AbstractODEProblem{uType, tType, true},
     alg::AdditiveRungeKutta; dt, kwargs...) where {uType,tType}
 
     tab = tableau(alg, eltype(prob.u0))
@@ -50,7 +55,7 @@ function cache(
         W = EulerOperator(prob.f.f1, -dt*tab.Aimpl[2,2], prob.p, prob.tspan[1])
     end
     linsolve! = alg.linsolve(Val{:init}, W, prob.u0; kwargs...)
-    
+
     AdditiveRungeKuttaFullCache(U, L, R, tab, W, linsolve!)
 end
 
@@ -87,7 +92,7 @@ solve(prob, Rosenbrock23(linsolve=ColumnGMRES))
 
 =#
 
-#  
+#
 #
 # W = M - gamma*J <=> our EulerOperator
 # https://github.com/SciML/OrdinaryDiffEq.jl/blob/f93630317658b0c5460044a5d349f99391bc2f9c/src/derivative_utils.jl#L126
@@ -123,7 +128,7 @@ function step_u!(int, cache::AdditiveRungeKuttaFullCache{Nstages}, f::DiffEqBase
         # solve for W * U = Uhat
         # set U to initial guess based on fully explicit
         # TODO: we don't need this for direct solves
-        U .= Uhat .= u        
+        U .= Uhat .= u
         for j = 1:i-1
             Uhat .+= (dt * tab.Aimpl[i,j]) .* cache.L[j] .+ (dt * tab.Aexpl[i,j]) .* cache.R[j]
             # initial value: we only need to do this if using an iterative method:
@@ -131,7 +136,7 @@ function step_u!(int, cache::AdditiveRungeKuttaFullCache{Nstages}, f::DiffEqBase
         end
 
         #  W = I - dt * Aimpl[i,i] * L
-        # currently only use SDIRK methods where 
+        # currently only use SDIRK methods where
         #    Aimpl[i,i] = i == 1 ? 0 : const
         # TODO: handle changing dt & Aimpl[i,i] coeffs
         if !(DiffEqBase.isconstant(cache.W))
@@ -146,7 +151,7 @@ function step_u!(int, cache::AdditiveRungeKuttaFullCache{Nstages}, f::DiffEqBase
         cache.linsolve!(U, cache.W, Uhat, W_updated)
 
         τ = t + tab.C[i] * dt
-        fL!(cache.L[i], U, p, τ) 
+        fL!(cache.L[i], U, p, τ)
         # or use cache.L[i] .= (U .- Uhat) ./ (dt * tab.Aimpl[i,i]) ?
         fR!(cache.R[i], U, p, τ)
     end
@@ -181,7 +186,7 @@ function step_u!(int, cache::AdditiveRungeKuttaFullCache{Nstages}, f::DiffEqBase
         # solve for W * U = Uhat
         # set U to initial guess based on fully explicit
         # TODO: we don't need this for direct solves
-        U .= Uhat .= u        
+        U .= Uhat .= u
         for j = 1:i-1
             Uhat .+= (dt * tab.Aimpl[i,j]) .* cache.L[j] .+ (dt * tab.Aexpl[i,j]) .* (cache.R[j] .- cache.L[j])
             # initial value: we only need to do this if using an iterative method:
@@ -200,7 +205,7 @@ function step_u!(int, cache::AdditiveRungeKuttaFullCache{Nstages}, f::DiffEqBase
         Vhat .= V .+ Ω
 =#
         #  W = I - dt * Aimpl[i,i] * L
-        # currently only use SDIRK methods where 
+        # currently only use SDIRK methods where
         #    Aimpl[i,i] = i == 1 ? 0 : const
         # TODO: handle changing dt & Aimpl[i,i] coeffs
         if !(DiffEqBase.isconstant(cache.W))
@@ -321,7 +326,7 @@ end
 """
     ARK548L2SA2KennedyCarpenter(linsolve)
 
-The fifth-order, 8-stage additive Runge--Kutta scheme ARK5(4)8L[2]SA₂ of 
+The fifth-order, 8-stage additive Runge--Kutta scheme ARK5(4)8L[2]SA₂ of
 [KC2019](@cite).
 """
 struct ARK548L2SA2KennedyCarpenter{L} <: AdditiveRungeKutta
@@ -431,7 +436,7 @@ end
 """
     ARK437L2SA1KennedyCarpenter(linsolve)
 
-The fourth-order, 7-stage additive Runge--Kutta scheme ARK4(3)7L[2]SA₁ of 
+The fourth-order, 7-stage additive Runge--Kutta scheme ARK4(3)7L[2]SA₁ of
 [KC2019](@cite).
 """
 struct ARK437L2SA1KennedyCarpenter{L} <: AdditiveRungeKutta
@@ -1005,7 +1010,7 @@ end
                     (RKA_implicit[is, js] - RKA_explicit[is, js]) /
                     RKA_implicit[is, is]
             end
-            commonterm = rkcoeff * Qstages[js][i] 
+            commonterm = rkcoeff * Qstages[js][i]
             Qhat_i += commonterm + dt * RKA_explicit[is, js] * Rstages[js][i]
             Qstages_is_i -= commonterm
         end

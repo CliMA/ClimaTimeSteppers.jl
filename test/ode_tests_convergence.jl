@@ -132,7 +132,7 @@ const ArrayType = CuArray
                             range(-1.0, 1.0, length = 303)
                         for (n, dt) in enumerate(dts)
                             Q = ArrayType{ComplexF64}(q0)
-                            solver = MultirateRungeKutta(
+                            solver = Multirate(
                                 (
                                     slow_method(rhs_slow!, Q),
                                     fast_method(rhs_fast!, Q),
@@ -172,7 +172,7 @@ const ArrayType = CuArray
                         for (n, fast_dt) in enumerate(dts)
                             slow_dt = c * fast_dt
                             Q = ArrayType{ComplexF64}(q0)
-                            solver = MultirateRungeKutta((
+                            solver = Multirate((
                                 slow_method(rhs_slow!, Q; dt = slow_dt),
                                 fast_method(rhs_fast!, Q; dt = fast_dt),
                             ))
@@ -291,7 +291,7 @@ const ArrayType = CuArray
                     for (fast_method, fast_expected_order) in fast_mrrk_methods
                         for (n, dt) in enumerate(dts)
                             Q = exactsolution(0)
-                            solver = MultirateRungeKutta(
+                            solver = Multirate(
                                 (
                                     slow_method(rhs_slow!, Q),
                                     fast_method(rhs_fast!, Q),
@@ -326,7 +326,7 @@ const ArrayType = CuArray
                         for (n, fast_dt) in enumerate(dts)
                             Q = exactsolution(0)
                             slow_dt = ω * fast_dt
-                            solver = MultirateRungeKutta((
+                            solver = Multirate((
                                 slow_method(rhs_slow!, Q; dt = slow_dt),
                                 fast_method(rhs_fast!, Q; dt = fast_dt),
                             ))
@@ -363,7 +363,7 @@ const ArrayType = CuArray
                         for (n, fast_dt) in enumerate(dts)
                             Q = exactsolution(0)
                             slow_dt = ω * fast_dt
-                            solver = MultirateRungeKutta((
+                            solver = Multirate((
                                 slow_method(rhs_slow!, Q; dt = slow_dt),
                                 fast_method(
                                     rhs_fast!,
@@ -516,7 +516,7 @@ const ArrayType = CuArray
                         for (rate1_method, rate1_order) in fast_mrrk_methods
                             for (n, dt) in enumerate(dts)
                                 Q = exactsolution(0)
-                                solver = MultirateRungeKutta(
+                                solver = Multirate(
                                     (
                                         rate3_method(rhs3!, Q),
                                         rate2_method(rhs2!, Q),
@@ -551,7 +551,7 @@ const ArrayType = CuArray
                                 Q = exactsolution(0)
                                 dt2 = (ω1 / ω2) * dt1
                                 dt3 = (ω2 / ω3) * dt2
-                                solver = MultirateRungeKutta((
+                                solver = Multirate((
                                     rate3_method(rhs3!, Q; dt = dt3),
                                     rate2_method(rhs2!, Q; dt = dt2),
                                     rate1_method(rhs1!, Q; dt = dt1),

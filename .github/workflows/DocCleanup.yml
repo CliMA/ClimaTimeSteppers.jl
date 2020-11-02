@@ -15,6 +15,8 @@ jobs:
 
       - name: Delete preview and history
         run: |
+            git config user.name "Documenter.jl"
+            git config user.email "documenter@juliadocs.github.io"
             git rm -rf "previews/PR$PRNUM"
             git commit -m "delete preview"
             git branch gh-pages-new $(echo "delete history" | git commit-tree HEAD^{tree})

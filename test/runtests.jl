@@ -1,3 +1,10 @@
+if get(ARGS,1,"Array") == "CuArray"
+    using CUDA
+    const ArrayType = CUDA.CuArray
+else
+    const ArrayType = Array
+end
+
 include(joinpath("testhelper.jl"))
 
 include("problems.jl")

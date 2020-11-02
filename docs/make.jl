@@ -33,4 +33,5 @@ makedocs(
 deploydocs(
     repo = "github.com/CliMA/TimeMachine.jl.git",
     push_preview = true,
+    forcepush = true,
 )

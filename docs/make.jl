@@ -7,7 +7,7 @@ bib = CitationBibliography(joinpath(@__DIR__, "refs.bib"))
 
 
 makedocs(
-    bib,
+    xbib,
     sitename = "TimeMachine",
     format = Documenter.HTML(
         prettyurls = get(ENV, "CI", nothing) == "true"

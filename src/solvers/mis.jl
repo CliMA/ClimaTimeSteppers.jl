@@ -89,26 +89,22 @@ function update_inner!(innerinteg, outercache::MultirateInfinitesimalStepCache,
   # the (i+1)th stage of the paper
   innerinteg.u = i == N ? u : ΔU[i]
 
-  # TODO: write a kernel for this
-  begin
-    if i > 1
-      ΔU[i-1] .-= u
-    end
-
-    # KW2014 (1a)
-    if i < N
-      innerinteg.u .= u
-    end
-    for j = 1:i-1
-      innerinteg.u .+= tab.α[i,j] .* ΔU[j]
-    end
-
-    # KW2014 (1b) / (9)
-    f_offset.x .= tab.β[i,i]/tab.d[i] .* F[i]
-    for j = 1:i-1
-      f_offset.x .+= (tab.γ[i,j]/(tab.d[i]*dt)) .* ΔU[j] .+ tab.β[i,j]/tab.d[i]  .* F[j]
-    end
-  end
+  groupsize = 256
+  event = Event(array_device(u))
+  event = mis_update!(array_device(u), groupsize)(
+    u,
+    ΔU,
+    F,
+    innerinteg.u,
+    f_offset.x,
+    tab,
+    i,
+    N,
+    dt;
+    ndrange = length(u),
+    dependencies = (event,),
+  )
+  wait(array_device(u), event)
 
   # KW2014 (9)
   # evaluate f_fast(z(τ), p, t + c̃[i]*dt + (c[i]-c̃[i])/d[i] * τ)
@@ -118,6 +114,40 @@ function update_inner!(innerinteg, outercache::MultirateInfinitesimalStepCache,
   innerinteg.t = zero(t)
   innerinteg.tstop = tab.d[i] * dt
 end
+
+@kernel function mis_update!(
+  u,
+  ΔU,
+  F,
+  innerinteg_u,
+  f_offset_x,
+  tab,
+  i,
+  N,
+  dt,
+)
+  e = @index(Global, Linear)
+  @inbounds begin
+    if i > 1
+      ΔU[i-1][e] -= u[e]
+    end
+
+    # KW2014 (1a)
+    if i < N
+      innerinteg_u[e] = u[e]
+    end
+    for j = 1:i-1
+      innerinteg_u[e] += tab.α[i,j] * ΔU[j][e]
+    end
+
+    # KW2014 (1b) / (9)
+    f_offset_x[e] = tab.β[i,i]/tab.d[i] .* F[i][e]
+    for j = 1:i-1
+      f_offset_x[e] += (tab.γ[i,j]/(tab.d[i]*dt)) * ΔU[j][e] + tab.β[i,j]/tab.d[i]  * F[j][e]
+    end
+  end
+end
+
 
 """
     MIS2()

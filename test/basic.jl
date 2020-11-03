@@ -20,7 +20,7 @@ for (prob, sol, tscale) in [
 
 end
 
-
+if ArrayType == Array
 for (prob, sol) in [
     imex_autonomous_prob => imex_autonomous_sol,
     #imex_nonautonomous_prob => imex_nonautonomous_sol,
@@ -33,7 +33,7 @@ for (prob, sol) in [
     @test convergence_order(prob, sol, ARK437L2SA1KennedyCarpenter(DirectSolver), dts)    ≈ 4 atol=0.05
     @test convergence_order(prob, sol, ARK548L2SA2KennedyCarpenter(DirectSolver), dts)    ≈ 5 atol=0.05
 end
-
+end
 for (prob, sol) in [
     imex_autonomous_prob => imex_autonomous_sol,
     imex_nonautonomous_prob => imex_nonautonomous_sol,

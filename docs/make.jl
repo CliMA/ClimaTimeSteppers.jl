@@ -1,4 +1,4 @@
-push!(LOAD_PATH,"..")
+push!(LOAD_PATH, joinpath(@__DIR__, ".."))
 
 using Documenter, DocumenterCitations
 using TimeMachine

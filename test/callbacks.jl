@@ -4,7 +4,6 @@ using TimeMachine, MPI, DiffEqBase
 using TimeMachine.Callbacks
 
 MPI.Initialized() || MPI.Init()
-include("problems.jl")
 
 
 mutable struct MyCallback
@@ -51,7 +50,7 @@ solve(const_prob, LSRKEulerMethod(), dt=1/32, callback=cbs)
 @test cb2.calls == 3
 @test cb3.calls == 32
 @test cb4.calls == 9
-@test cb5.calls == 2
+@test cb5.calls >= 2
 
 if isdefined(DiffEqBase, :finalize!)
 

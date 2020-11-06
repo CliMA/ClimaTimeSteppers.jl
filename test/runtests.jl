@@ -10,6 +10,7 @@ include(joinpath("testhelper.jl"))
 include("problems.jl")
 
 include("basic.jl")
+include("callbacks.jl")
 
 #=
 @testset "ODE Tests: Basic" begin

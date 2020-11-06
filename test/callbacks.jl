@@ -4,7 +4,6 @@ using TimeMachine, MPI, DiffEqBase
 using TimeMachine.Callbacks
 
 MPI.Initialized() || MPI.Init()
-include("problems.jl")
 
 
 mutable struct MyCallback

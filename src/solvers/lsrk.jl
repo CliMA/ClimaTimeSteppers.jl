@@ -61,7 +61,10 @@ end
 
 # for Multirate
 function init_inner(prob, outercache::LowStorageRungeKutta2NIncCache, dt)
-    OffsetODEFunction(prob.f.f1, zero(dt), one(dt), zero(dt), outercache.du)
+    OffsetODEFunction(prob.f.f1, zero(dt), one(dt),
+        (Polynomial(zero(dt)),),
+        (outercache.du,),
+    )
 end
 function update_inner!(innerinteg, outercache::LowStorageRungeKutta2NIncCache,
         f_slow, u, p, t, dt, stage)
@@ -77,11 +80,13 @@ function update_inner!(innerinteg, outercache::LowStorageRungeKutta2NIncCache,
     innerinteg.tstop = τ1-τ0
 
     #  du .= f(u, p, t + tab.C[stage]*dt) .+ tab.A[stage] .* du
-    f_slow(f_offset.x, u, p, τ0, 1, tab.A[stage])
+    f_slow(f_offset.x[1], u, p, τ0, 1, tab.A[stage])
 
+    # solve inner problem
+    #  dv/dτ .= B[s]/(C[s+1] - C[s]) .* du .+ f_fast(v,τ) τ ∈ [τ0,τ1]
     C0 = tab.C[stage]
     C1 = stage == N ? one(tab.C[stage]) : tab.C[stage+1]
-    f_offset.γ = tab.B[stage] / (C1-C0)
+    f_offset.γ = (Polynomial((tab.B[stage] / (C1-C0),)),)
 end
 
 

@@ -68,7 +68,10 @@ end
 
 
 function init_inner(prob, outercache::MultirateInfinitesimalStepCache, dt)
-  OffsetODEFunction(prob.f.f1, zero(dt), one(dt), one(dt), outercache.ΔU[end])
+  OffsetODEFunction(prob.f.f1, zero(dt), one(dt),
+    (Polynomial(one(dt)),),
+    (outercache.ΔU[end],),
+    )
 end
 
 function update_inner!(innerinteg, outercache::MultirateInfinitesimalStepCache,
@@ -96,7 +99,7 @@ function update_inner!(innerinteg, outercache::MultirateInfinitesimalStepCache,
     ΔU,
     F,
     innerinteg.u,
-    f_offset.x,
+    f_offset.x[1],
     tab,
     i,
     N,

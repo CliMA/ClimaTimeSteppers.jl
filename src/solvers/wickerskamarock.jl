@@ -34,7 +34,9 @@ nstages(::WickerSkamarockRungeKuttaCache{Nstages}) where {Nstages} = Nstages
 
 
 function init_inner(prob, outercache::WickerSkamarockRungeKuttaCache, dt)
-  OffsetODEFunction(prob.f.f1, zero(dt), one(dt), one(dt), outercache.F)
+  OffsetODEFunction(prob.f.f1, zero(dt), one(dt),
+    (Polynomial(one(dt)),),
+    (outercache.F,),)
 end
 function update_inner!(innerinteg, outercache::WickerSkamarockRungeKuttaCache,
   f_slow, u, p, t, dt, i)
@@ -44,7 +46,7 @@ function update_inner!(innerinteg, outercache::WickerSkamarockRungeKuttaCache,
   U = outercache.U
   N = nstages(outercache)
 
-  f_slow(f_offset.x, i == 1 ? u : U, p, t + tab.c[i]*dt)
+  f_slow(f_offset.x[1], i == 1 ? u : U, p, t + tab.c[i]*dt)
 
   if i < N
     U .= u

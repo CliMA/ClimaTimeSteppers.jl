@@ -60,6 +60,15 @@ function step_u!(int, cache::LowStorageRungeKutta2NIncCache)
 end
 
 # for Multirate
+function inner_dts(outercache::LowStorageRungeKutta2NIncCache, dt, fast_dt)
+    N = nstages(outercache)
+    tab = outercache.tableau
+    ntuple(N) do i
+      Δt = (i == N ? 1-tab.C[i] : tab.C[i+1] - tab.C[i]) * dt
+      Δt / round(Δt / fast_dt)
+    end
+end
+
 function init_inner(prob, outercache::LowStorageRungeKutta2NIncCache, dt)
     OffsetODEFunction(prob.f.f1, zero(dt), one(dt), zero(dt), outercache.du)
 end

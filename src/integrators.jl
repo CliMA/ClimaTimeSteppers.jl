@@ -21,15 +21,15 @@ end
 
 # called by DiffEqBase.init and solve (see below)
 function DiffEqBase.__init(
-    prob::DiffEqBase.AbstractODEProblem, 
-    alg::DistributedODEAlgorithm, 
-    args...; 
+    prob::DiffEqBase.AbstractODEProblem,
+    alg::DistributedODEAlgorithm,
+    args...;
     dt,  # required
-    stepstop=-1, 
+    stepstop=-1,
     adjustfinal=false,
     callback=nothing,
-    kwargs...)    
-    
+    kwargs...)
+
     u = prob.u0
     t = prob.tspan[1]
     tstop = prob.tspan[2]
@@ -46,10 +46,10 @@ end
 # called by DiffEqBase.solve
 function DiffEqBase.__solve(
     prob::DiffEqBase.AbstractODEProblem,
-    alg::DistributedODEAlgorithm, 
+    alg::DistributedODEAlgorithm,
     args...;
     kwargs...)
-   
+
     integrator = DiffEqBase.__init(prob, alg, args...; kwargs...)
     DiffEqBase.solve!(integrator)
     return integrator.u # ODEProblem returns a Solution objec
@@ -90,14 +90,53 @@ function DiffEqBase.step!(integrator::DistributedODEIntegrator)
 end
 
 # solvers need to define this interface
-step_u!(integrator) = step_u!(integrator, integrator.cache) 
+step_u!(integrator) = step_u!(integrator, integrator.cache)
 
 function adjust_dt!(integrator::DistributedODEIntegrator, dt)
     # TODO: figure out interface for recomputing other objects (linear operators, etc)
     integrator.dt = dt
+    adjust_dt!()
 end
 
 
 # not sure what this should do?
 # defined as default initialize: https://github.com/SciML/DiffEqBase.jl/blob/master/src/callbacks.jl#L3
 DiffEqBase.u_modified!(i::DistributedODEIntegrator,bool) = nothing
+
+#=
+cache
+dt_cache
+
+
+multirate => need a way to compute fast dts
+ - WS => round to dt/2 (WSRK2) or dt/6 (WSRK3)
+    dt/6 / round(dt/6 / fast_dt)
+ - MIS => round to tab.d[i]*dt for each i
+    tab.d[i]*dt / round(tab.d[i]*dt / fast_dt)
+ - LSRK => round to dt * (c[i+1] - c[i])
+
+
+sub_dts() = ()
+
+
+
+
+
+init_alg_cache(prob, alg, dt)
+
+will call
+
+init_cache_dt(prob, alg, dt)
+
+
+MultirateCache will have a dtcache field
+
+A multirate scheme will init the necessary dts:
+
+init_cache_dt(prob, alg::Multirate, dt)
+
+which will call
+dtcache = (i -> init_cache(innerprob, inneralg, dt*c[i]), Nstages)
+
+
+=#

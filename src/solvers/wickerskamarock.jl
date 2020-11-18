@@ -32,6 +32,15 @@ end
 
 nstages(::WickerSkamarockRungeKuttaCache{Nstages}) where {Nstages} = Nstages
 
+function inner_dts(outercache::WickerSkamarockRungeKuttaCache, dt, fast_dt)
+  tab = outercache.tableau
+  if length(tab.c) == 2 # WSRK2
+    Δt = dt/2
+  else # WSRK3
+    Δt = dt/6
+  end
+  return (Δt / round(Δt / fast_dt),)
+end
 
 function init_inner(prob, outercache::WickerSkamarockRungeKuttaCache, dt)
   OffsetODEFunction(prob.f.f1, zero(dt), one(dt), one(dt), outercache.F)

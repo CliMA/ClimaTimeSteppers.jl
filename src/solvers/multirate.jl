@@ -19,9 +19,10 @@ struct Multirate{F,S} <: DistributedODEAlgorithm
 end
 
 
-struct MultirateCache{OC,II}
+struct MultirateCache{OC,II,SD}
     outercache::OC
     innerinteg::II
+    subdtcache::SD
 end
 
 function cache(
@@ -35,9 +36,15 @@ function cache(
     outerprob = DiffEqBase.remake(prob; f=prob.f.f2)
     outercache = cache(outerprob, alg.slow)
 
+    sub_dts = inner_dts(outercache, dt, fast_dt)
+
     innerfun = init_inner(prob, outercache, dt)
     innerprob = DiffEqBase.remake(prob; f=innerfun)
-    innerinteg = DiffEqBase.init(innerprob, alg.fast; dt=fast_dt, kwargs...)
+    innerinteg = DiffEqBase.init(innerprob, alg.fast; dt=sub_dts[1], kwargs...)
+
+    init_cache_dt(innerinteg.cache)
+
+
     return MultirateCache(outercache, innerinteg)
 end
 

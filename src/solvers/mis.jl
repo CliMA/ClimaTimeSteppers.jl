@@ -66,6 +66,13 @@ function cache(
   return MultirateInfinitesimalStepCache(ΔU, F, tab)
 end
 
+function inner_dts(outercache::MultirateInfinitesimalStepCache, dt, fast_dt)
+    tab = outercache.tableau
+    map(tab.d) do d_i
+      Δt = d_i*dt
+      Δt / round(Δt / fast_dt)
+    end
+end
 
 function init_inner(prob, outercache::MultirateInfinitesimalStepCache, dt)
   OffsetODEFunction(prob.f.f1, zero(dt), one(dt), one(dt), outercache.ΔU[end])

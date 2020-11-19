@@ -39,7 +39,7 @@ struct AdditiveRungeKuttaFullCache{Nstages, RT, A, O, L}
 end
 
 
-function cache(
+function init_cache(
     prob::DiffEqBase.AbstractODEProblem{uType, tType, true},
     alg::AdditiveRungeKutta; dt, kwargs...) where {uType,tType}
 

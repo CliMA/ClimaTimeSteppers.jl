@@ -51,7 +51,7 @@ end
 
 nstages(::MultirateInfinitesimalStepCache{Nstages}) where {Nstages} = Nstages
 
-function cache(
+function init_cache(
   prob::DiffEqBase.AbstractODEProblem{uType, tType, true},
   alg::MultirateInfinitesimalStep; kwargs...) where {uType,tType}
 
@@ -74,7 +74,7 @@ function inner_dts(outercache::MultirateInfinitesimalStepCache, dt, fast_dt)
     end
 end
 
-function init_inner(prob, outercache::MultirateInfinitesimalStepCache, dt)
+function init_inner_fun(prob, outercache::MultirateInfinitesimalStepCache, dt)
   OffsetODEFunction(prob.f.f1, zero(dt), one(dt), one(dt), outercache.ΔU[end])
 end
 

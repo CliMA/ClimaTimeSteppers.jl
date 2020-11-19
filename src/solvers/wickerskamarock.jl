@@ -24,7 +24,7 @@ struct WickerSkamarockRungeKuttaCache{Nstages, RT, A}
   U::A
   F::A
 end
-function cache(prob::DiffEqBase.ODEProblem, alg::WickerSkamarockRungeKutta; kwargs...)
+function init_cache(prob::DiffEqBase.ODEProblem, alg::WickerSkamarockRungeKutta; kwargs...)
   U = similar(prob.u0)
   F = similar(prob.u0)
   return WickerSkamarockRungeKuttaCache(tableau(alg, eltype(F)), U, F)
@@ -39,10 +39,11 @@ function inner_dts(outercache::WickerSkamarockRungeKuttaCache, dt, fast_dt)
   else # WSRK3
     Δt = dt/6
   end
-  return (Δt / round(Δt / fast_dt),)
+  sub_dt = Δt / round(Δt / fast_dt)
+  return map(c -> sub_dt, tab.c)
 end
 
-function init_inner(prob, outercache::WickerSkamarockRungeKuttaCache, dt)
+function init_inner_fun(prob, outercache::WickerSkamarockRungeKuttaCache, dt)
   OffsetODEFunction(prob.f.f1, zero(dt), one(dt), one(dt), outercache.F)
 end
 function update_inner!(innerinteg, outercache::WickerSkamarockRungeKuttaCache,

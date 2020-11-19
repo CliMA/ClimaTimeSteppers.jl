@@ -34,7 +34,7 @@ struct StrongStabilityPreservingRungeKuttaCache{Nstages, RT, A}
     U::A
 end
 
-function cache(
+function init_cache(
     prob::DiffEqBase.AbstractODEProblem{uType, tType, true},
     alg::StrongStabilityPreservingRungeKutta; kwargs...) where {uType,tType}
 
@@ -44,7 +44,7 @@ function cache(
     U = zero(prob.u0)
     return StrongStabilityPreservingRungeKuttaCache(tab, fU, U)
 end
-
+adjust_dt!(cache::StrongStabilityPreservingRungeKutta, dt, ::Nothing) = nothing
 
 function step_u!(int, cache::StrongStabilityPreservingRungeKuttaCache{Nstages, RT, A}) where {Nstages, RT, A}
     tab = cache.tableau

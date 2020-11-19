@@ -26,7 +26,8 @@ struct AdditiveRungeKuttaTableau{Nstages, Nstages², RT}
     C::NTuple{Nstages, RT}
 end
 
-struct AdditiveRungeKuttaFullCache{Nstages, RT, A, O, L}
+struct AdditiveRungeKuttaFullCache{Nstages,RT, A, G, O, L}
+    alg::G
     "stage value of the state variable"
     U::A #Qstages
     "evaluated linear part of each stage ``f_L(U^{(i)})``"
@@ -38,6 +39,30 @@ struct AdditiveRungeKuttaFullCache{Nstages, RT, A, O, L}
     linsolve!::L
 end
 
+function implicit_part(f::DiffEqBase.ODEFunction)
+    f.jvp === nothing && error("IMEX solvers require a `SplitODEFunction` or an `ODEFunction` with a `jvp` component.")
+    return f.jvp
+end
+implicit_part(f::DiffEqBase.SplitFunction) = f.f1
+implicit_part(f::OffsetODEFunction) = implicit_part(f.f)
+
+function init_dt_cache(cache::AdditiveRungeKuttaFullCache, prob, dt)
+    _init_dt_cache(cache.alg, cache.tableau, prob, dt)
+end
+function _init_dt_cache(alg::AdditiveRungeKutta, tab, prob, dt)
+    f_impl = implicit_part(prob.f)
+    W = EulerOperator(f_impl , -dt*tab.Aimpl[2,2], prob.p, prob.tspan[1])
+    linsolve! = alg.linsolve(Val{:init}, W, prob.u0)
+    return (W, linsolve!)
+end
+
+function get_dt_cache(cache::AdditiveRungeKuttaFullCache)
+    return (cache.W, cache.linsolve!)
+end
+function adjust_dt!(cache::AdditiveRungeKuttaFullCache, dt, (W, linsolve!)::Tuple)
+    cache.W = W
+    cache.linsolve! = linsolve!
+end
 
 function init_cache(
     prob::DiffEqBase.AbstractODEProblem{uType, tType, true},
@@ -49,14 +74,8 @@ function init_cache(
     L = ntuple(i -> zero(prob.u0), Nstages)
     R = ntuple(i -> zero(prob.u0), Nstages)
 
-    if prob.f isa DiffEqBase.ODEFunction
-        W = EulerOperator(prob.f.jvp, -dt*tab.Aimpl[2,2], prob.p, prob.tspan[1])
-    elseif prob.f isa DiffEqBase.SplitFunction
-        W = EulerOperator(prob.f.f1, -dt*tab.Aimpl[2,2], prob.p, prob.tspan[1])
-    end
-    linsolve! = alg.linsolve(Val{:init}, W, prob.u0; kwargs...)
-
-    AdditiveRungeKuttaFullCache(U, L, R, tab, W, linsolve!)
+    W, linsolve! = _init_dt_cache(alg, tab, prob, dt)
+    AdditiveRungeKuttaFullCache(alg, U, L, R, tab, W, linsolve!)
 end
 
 

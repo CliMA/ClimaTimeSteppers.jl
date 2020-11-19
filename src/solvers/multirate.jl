@@ -45,7 +45,7 @@ function init_cache(
 
     # build dt_cache
     unique_dt_caches = [
-        i == 1 ? get_dt_cache(innerinteg.cache) : init_dt_cache(innerinteg.cache, unique_sub_dts[i])
+        i == 1 ? get_dt_cache(innerinteg.cache) : init_dt_cache(innerinteg.cache, innerinteg.prob, unique_sub_dts[i])
         for i = 1:length(unique_sub_dts)]
 
     dt_cache = map(sub_dts) do sub_dt
@@ -57,7 +57,7 @@ function init_cache(
 end
 
 get_dt_cache(cache::Multirate) = cache.dt_cache
-function init_dt_cache(cache::Multirate, dt)
+function init_dt_cache(cache::Multirate, prob, dt)
     outercache = cache.outercache
     innerinteg = cache.innerinteg
 
@@ -67,7 +67,7 @@ function init_dt_cache(cache::Multirate, dt)
     unique_sub_dts = unique(sub_dts)
 
     unique_dt_caches = [
-        init_dt_cache(innerinteg.cache, unique_sub_dts[i])
+        init_dt_cache(innerinteg.cache, innerinteg.prob, unique_sub_dts[i])
         for i = 1:length(unique_sub_dts)]
 
     dt_cache = map(sub_dts) do sub_dt

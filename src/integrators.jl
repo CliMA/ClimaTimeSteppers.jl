@@ -134,11 +134,11 @@ directly or as an inner timestepper. For outer timesteppers,
 step_u!(integrator, cache)
 
 """
-    init_dt_cache(cache::AC, dt)
+    init_dt_cache(cache::AC, prob, dt)
 
-Construct a `dt`-dependent subcache of `cache`. This should _not_ modify `cache`
-itself, but return an object that can be passed as the `dt_cache` argument to
-[`adjust_dt!`](@ref).
+Construct a `dt`-dependent subcache of `cache` for the ODE problem `prob`. This
+should _not_ modify `cache` itself, but return an object that can be passed as
+the `dt_cache` argument to [`adjust_dt!`](@ref).
 
 By default this returns `nothing`. This should be defined for any algorithm
 cache type `AC` which has `dt`-dependent components.
@@ -150,7 +150,7 @@ This initialization will typically be done as part of [`init_cache`](@ref)
 itself: this interface is provided for multirate schemes which need to modify
 the `dt` of the inner solver at each outer stage.
 """
-function init_dt_cache(cache, dt)
+function init_dt_cache(cache, prob, dt)
     return nothing
 end
 

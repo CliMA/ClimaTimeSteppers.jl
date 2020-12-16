@@ -19,10 +19,10 @@ mutable struct SpringRHS{T}
   v::T
 end
 
-function (f!::SpringRHS)(du::ArrayPartition,u::ArrayPartition,p,args...)
+function (f!::SpringRHS)(du::ArrayPartition,u::ArrayPartition,p,t,a=1.,b=0.,args...)
   f!.v .= u.x[1]
-  du.x[1] .= u.x[2]
-  du.x[2] .= -p.ω .* f!.v
+  du.x[1] .= a .* u.x[2] .+ b .* du.x[1]
+  du.x[2] .= a .* -p.ω .* f!.v .+ b .* du.x[2]
 end
 
 # function (f!::SpringRHS)(du,u,p,args...)
@@ -49,19 +49,20 @@ v0 = [1.0] # initial velocity
 AT = typeof(x0)
 dims = size(x0)
 tspan = (0.0,2.0π)
-dt = 0.0001
+dt = 0.001
 using Plots
-plot(tspan[1]:dt:tspan[2], exactsolution(tspan[1]:dt:tspan[2], x0, v0), lw=3, ls=:dash, label=["exact"])
+plot(tspan[1]:dt:tspan[2], exactsolution(tspan[1]:dt:tspan[2], x0, v0), lw=3, label=["exact"])
 
-# for (method, order) in explicit_methods
-  method = LSRK54CarpenterKennedy() #LSRK144NiegemannDiehlBusch()
+# LSRK & SSPRK
+for (method, order) in explicit_methods
+  # method = LSRK54CarpenterKennedy()
   u0 = ArrayPartition(copy(x0), copy(v0))
   @info method, u0
   prob = ODEProblem(SpringRHS(AT(undef, dims)), u0, tspan, p)
   rs = RecordState()
   sol = solve(prob, method; dt=dt, callback=EveryXSimulationSteps(rs, 1; atinit=true))
-  plot!(rs.t, [u[1] for u in rs.u], lw=3, label=["$method"])
-# end
+  plot!(rs.t, [u[1] for u in rs.u], lw=3, ls=:dash, label=["$method"])
+end
 current()
 
 # for (method, order) in imex_methods

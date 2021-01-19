@@ -4,6 +4,7 @@ include("utils.jl")
 
 dts = 0.5 .^ (4:7)
 
+@testset begin
 for (prob, sol, tscale) in [
     (linear_prob, linear_sol, 1)
     (sincos_prob, sincos_sol, 1)
@@ -64,3 +65,4 @@ for (prob, sol) in [
 
 
     end
+end

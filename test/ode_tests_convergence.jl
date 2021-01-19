@@ -8,7 +8,7 @@ using CUDA
 
 include("ode_tests_common.jl")
 
-const ArrayType = CuArray
+# const ArrayType = CuArray
 
 @testset "ODE Solvers" begin
     @testset "Convergence/extensive" begin

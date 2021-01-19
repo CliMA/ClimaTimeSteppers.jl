@@ -50,9 +50,10 @@ using LinearAlgebra
 using StaticArrays
 using CUDA
 using MPI
+using RecursiveArrayTools
 
 
-array_device(::Union{Array, SArray, MArray}) = CPU()
+array_device(::Union{Array, SArray, MArray, ArrayPartition}) = CPU()
 array_device(::CuArray) = CUDADevice()
 realview(x::Union{Array, SArray, MArray}) = x
 realview(x::CuArray) = x

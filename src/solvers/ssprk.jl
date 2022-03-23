@@ -55,17 +55,35 @@ function step_u!(int, cache::StrongStabilityPreservingRungeKuttaCache{Nstages, R
     t = int.t
     dt = int.dt
 
+    if f! isa ForwardEulerODEFunction
+        for s in 1:Nstages
+            # U[s] = A1[s] * u + A2[s] * U[s-1] + B[s] * dt * f(U[s-1],p, t + C[s] * dt)
+            #      = A1[s] * u + A2[s] * (U[s-1] + B[s]/A2[s] * dt * f(U[s-1],p, t + C[s] * dt))
+            Un = s < Nstages ? cache.U : u
 
-    for s in 1:Nstages
-        if s == 1
-            f!(cache.fU, u, p, t + tab.C[s]*dt)
-        else
-            f!(cache.fU, cache.U, p, t + tab.C[s]*dt)
+            # IncrementingODEFunction f!(ux, u, p, t, α, β) = ux .= α .* ux .+ β .* f(u,p,t)
+            # We need                     un .= u .+ β .* f(u,p,t)
+            if s == 1
+                @assert tab.A1[s] == 1 && tab.A2[s] == 0
+                f!(Un, u, p, t + tab.C[s]*dt, tab.B[s] * dt)
+            else
+                f!(cache.fU, cache.U, p, t + tab.C[s]*dt, tab.B[s] / tab.A2[s] * dt)
+                Un .= tab.A1[s] .* u .+ tab.A2[s] .* cache.fU
+            end
+            #@show Un
         end
-        if s < Nstages
-            cache.U .= tab.A1[s] .* u  .+  tab.A2[s] .* cache.U .+ (dt * tab.B[s]) .* cache.fU
-        else
-            u .= tab.A1[s] .* u  .+  tab.A2[s] .* cache.U .+ (dt * tab.B[s]) .* cache.fU
+    else
+        for s in 1:Nstages
+            if s == 1
+                f!(cache.fU, u, p, t + tab.C[s]*dt)
+            else
+                f!(cache.fU, cache.U, p, t + tab.C[s]*dt)
+            end
+            if s < Nstages
+                cache.U .= tab.A1[s] .* u  .+  tab.A2[s] .* cache.U .+ (dt * tab.B[s]) .* cache.fU
+            else
+                u .= tab.A1[s] .* u  .+  tab.A2[s] .* cache.U .+ (dt * tab.B[s]) .* cache.fU
+            end
         end
     end
 end

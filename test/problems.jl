@@ -4,7 +4,9 @@ using DiffEqBase, TimeMachine, LinearAlgebra, StaticArrays
 const const_prob = ODEProblem{true}(
     (du,u,p,t,α=true,β=false) -> (du .= α .* p .+ β .* du),
     [0.0],(0.0,1.0),2.0)
-
+const const_prob_fe = ODEProblem(
+        ForwardEulerODEFunction((un,u,p,t,dt) -> (un .= u .+ dt.* p)),
+        [0.0],(0.0,1.0),2.0)
 function const_sol(u0,p,t)
     u0 .+ p*t
 end
@@ -28,6 +30,9 @@ This is an in-place variant of the one from DiffEqProblemLibrary.jl.
 const linear_prob = IncrementingODEProblem{true}(
     (du,u,p,t,α=true,β=false) -> (du .= α .* p .* u .+ β .* du),
     [1/2],(0.0,1.0),1.01)
+const linear_prob_fe = ODEProblem(
+    ForwardEulerODEFunction((un,u,p,t,dt) -> (un .= u .+ dt .* p .* u)),
+    [1/2],(0.0,1.0),1.01)
 
 # DiffEqProblemLibrary.jl uses the `analytic` argument to ODEFunction to store the exact solution
 # IncrementingODEFunction doesn't have that
@@ -49,6 +54,9 @@ u(t) = [cos(αt) sin(αt); -sin(αt) cos(αt) ] u_0
 """
 const sincos_prob = IncrementingODEProblem{true}(
     (du,u,p,t,α=true,β=false) -> (du[1] = α*p*u[2]+β*du[1]; du[2] = -α*p*u[1]+β*du[2]),
+    [0.0,1.0], (0.0,1.0), 2.0)
+const sincos_prob_fe = ODEProblem(
+    ForwardEulerODEFunction((un,u,p,t,dt) -> (un[1] = u[1] + dt*p*u[2]; un[2] = u[2]-dt*p*u[1])),
     [0.0,1.0], (0.0,1.0), 2.0)
 
 function sincos_sol(u0,p,t)

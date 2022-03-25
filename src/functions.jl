@@ -1,3 +1,19 @@
+export ForwardEulerODEFunction
+
+"""
+    ForwardEulerODEFunction(f)
+
+An ODE function wrapper where `f(un, u, p, t, dt)` provides a forward Euler update
+```
+un .= u .+ dt * f(u, p, t)
+```
+
+"""
+struct ForwardEulerODEFunction{F} <: DiffEqBase.AbstractODEFunction{true}
+    f::F
+end
+(f::ForwardEulerODEFunction{F})(un, u, p, t, dt) where {F} = f.f(un, u, p, t, dt)
+
 """
     OffsetODEFunction(f,α,β,γ,x)
 

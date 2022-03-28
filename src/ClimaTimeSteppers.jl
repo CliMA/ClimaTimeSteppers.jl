@@ -41,7 +41,7 @@ JuliaDiffEq terminology:
 
 
 """
-module TimeMachine
+module ClimaTimeSteppers
 
 
 using KernelAbstractions

@@ -1,7 +1,7 @@
 using Test
-using TimeMachine, MPI, DiffEqBase
+using ClimaTimeSteppers, MPI, DiffEqBase
 
-using TimeMachine.Callbacks
+using ClimaTimeSteppers.Callbacks
 
 MPI.Initialized() || MPI.Init()
 

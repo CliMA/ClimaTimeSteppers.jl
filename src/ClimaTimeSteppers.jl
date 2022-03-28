@@ -1,5 +1,5 @@
 """
-    TimeMachine
+    ClimaTimeSteppers
 
 Ordinary differential equation solvers
 

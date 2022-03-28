@@ -1,14 +1,14 @@
 """
-    TimeMachine.Callbacks
+    ClimaTimeSteppers.Callbacks
 
-A suite of callback functions to be used with the TimeMachine.jl ODE solvers.
+A suite of callback functions to be used with the ClimaTimeSteppers.jl ODE solvers.
 """
 module Callbacks
 
 import MPI, DiffEqBase
 
 """
-    TimeMachine.Callbacks.initialize!(f!::F, integrator)
+    ClimaTimeSteppers.Callbacks.initialize!(f!::F, integrator)
 
 Initialize a callback event for callbacks of type `F`. By default this does nothing, but
 can be extended for new callback events.
@@ -17,7 +17,7 @@ function initialize!(f!, integrator)
 end
 
 """
-    TimeMachine.Callbacks.finalize!(f!::F, integrator)
+    ClimaTimeSteppers.Callbacks.finalize!(f!::F, integrator)
 
 Finalize a callback event for callbacks of type `F`. By default this does nothing, but
 can be extended for new callback events.

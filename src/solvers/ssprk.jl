@@ -72,6 +72,24 @@ function step_u!(int, cache::StrongStabilityPreservingRungeKuttaCache{Nstages, R
             end
             #@show Un
         end
+    elseif f! isa DiffEqBase.IncrementingODEFunction
+        for s in 1:Nstages
+            # U[s] = A1[s] * u + A2[s] * U[s-1] + B[s] * dt * f(U[s-1],p, t + C[s] * dt)
+            #      = (A1[s] * u + A2[s] * U[s-1]) + (B[s] * dt) * f(U[s-1],p, t + C[s] * dt))
+            Un = s < Nstages ? cache.U : u
+
+            # IncrementingODEFunction f!(ux, u, p, t, α, β) = ux .= α .* ux .+ β .* f(u,p,t)
+            # We need                     un .= u .+ β .* f(u,p,t)
+            if s == 1
+                @assert tab.A1[s] == 1 && tab.A2[s] == 0
+                Un .= u
+                f!(Un, u, p, t + tab.C[s]*dt, tab.B[s] * dt, 1)
+            else
+                cache.fU .= tab.A1[s] .* u .+ tab.A2[s] .* cache.U
+                f!(cache.fU, cache.U, p, t + tab.C[s]*dt, tab.B[s] * dt, 1)
+                Un .= cache.fU
+            end
+        end
     else
         for s in 1:Nstages
             if s == 1

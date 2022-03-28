@@ -1,4 +1,4 @@
-using DiffEqBase, TimeMachine, LinearAlgebra, Test
+using DiffEqBase, ClimaTimeSteppers, LinearAlgebra, Test
 
 include("utils.jl")
 

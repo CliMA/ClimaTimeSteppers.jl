@@ -301,7 +301,7 @@ struct ARK2GiraldoKellyConstantinescu{L} <: AdditiveRungeKutta
     linsolve::L
     paperversion::Bool
 end
-ARK2GiraldoKellyConstantinescu(linsolve; paperversion=false) = ARK2GiraldoKellyConstantinescu(linsolve, paperversion)
+ARK2GiraldoKellyConstantinescu(; linsolve, paperversion=false) = ARK2GiraldoKellyConstantinescu(linsolve, paperversion)
 
 function tableau(ark::ARK2GiraldoKellyConstantinescu, RT)
     a32 = RT(ark.paperversion ? (3 + 2 * sqrt(2)) / 6 : 1 // 2)

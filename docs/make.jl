@@ -1,16 +1,16 @@
 using Documenter, DocumenterCitations
-using TimeMachine
+using ClimaTimeSteppers
 
 bib = CitationBibliography(joinpath(@__DIR__, "refs.bib"))
 
 
 makedocs(
     bib,
-    sitename = "TimeMachine",
+    sitename = "ClimaTimeSteppers",
     format = Documenter.HTML(
         prettyurls = get(ENV, "CI", nothing) == "true"
     ),
-    modules = [TimeMachine],
+    modules = [ClimaTimeSteppers],
     pages = [
         "index.md",
         "algorithms.md",
@@ -29,7 +29,7 @@ makedocs(
 # See "Hosting Documentation" and deploydocs() in the Documenter manual
 # for more information.
 deploydocs(
-    repo = "github.com/CliMA/TimeMachine.jl.git",
+    repo = "github.com/CliMA/ClimaTimeSteppers.jl.git",
     push_preview = true,
     forcepush = true,
 )

@@ -1,7 +1,7 @@
 # Algorithms
 
 ```@meta
-CurrentModule = TimeMachine
+CurrentModule = ClimaTimeSteppers
 ```
 
 ## Low-Storage Runge--Kutta (LSRK) methods

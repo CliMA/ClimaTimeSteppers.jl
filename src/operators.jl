@@ -8,7 +8,7 @@ A wrapper around a function `f` that acts as a linear operator.
 struct DiffEqLinearOperator{T,F,isconstant} <: DiffEqBase.AbstractDiffEqLinearOperator{T}
   f::F
 end
-DiffEqLinearOperator{T}(f; isconstant=false) where {T} = DiffEqLinearOperator{T,typeof(f), isconst}(f)
+DiffEqLinearOperator{T}(f; isconstant=false) where {T} = DiffEqLinearOperator{T,typeof(f), isconstant}(f)
 
 DiffEqBase.isconstant(::DiffEqLinearOperator{F,isconstant}) where {F,isconstant} = isconstant
 (op::DiffEqLinearOperator)(args...) = op.f(args...)

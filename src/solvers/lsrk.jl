@@ -33,7 +33,7 @@ struct LowStorageRungeKutta2NIncCache{Nstages, RT, A}
     du::A
 end
 
-function cache(prob::DiffEqBase.ODEProblem, alg::LowStorageRungeKutta2N; kwargs...)
+function init_cache(prob::DiffEqBase.ODEProblem, alg::LowStorageRungeKutta2N; kwargs...)
     # @assert prob.problem_type isa DiffEqBase.IncrementingODEProblem ||
     #     prob.f isa DiffEqBase.IncrementingODEFunction
     du = zero(prob.u0)
@@ -59,8 +59,19 @@ function step_u!(int, cache::LowStorageRungeKutta2NIncCache)
     end
 end
 
+adjust_dt!(cache::LowStorageRungeKutta2NIncCache, dt, ::Nothing) = nothing
+
 # for Multirate
-function init_inner(prob, outercache::LowStorageRungeKutta2NIncCache, dt)
+function inner_dts(outercache::LowStorageRungeKutta2NIncCache, dt, fast_dt)
+    N = nstages(outercache)
+    tab = outercache.tableau
+    ntuple(N) do i
+      Δt = (i == N ? 1-tab.C[i] : tab.C[i+1] - tab.C[i]) * dt
+      Δt / round(Δt / fast_dt)
+    end
+end
+
+function init_inner_fun(prob, outercache::LowStorageRungeKutta2NIncCache, dt)
     OffsetODEFunction(prob.f.f1, zero(dt), one(dt), zero(dt), outercache.du)
 end
 function update_inner!(innerinteg, outercache::LowStorageRungeKutta2NIncCache,

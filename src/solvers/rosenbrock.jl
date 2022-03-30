@@ -1,45 +1,58 @@
+export SSPKnoth
+
 abstract type RosenbrockAlgorithm <: DistributedODEAlgorithm end
 
 struct RosenbrockTableau{N, RT, N²}
     A::SMatrix{N, N, RT, N²}
     C::SMatrix{N, N, RT, N²}
     Γ::SMatrix{N, N, RT, N²}
-    m::SVector{N, RT}
+    m::SMatrix{N, 1, RT, N}
 end
 
 struct RosenbrockCache{Nstages, RT, N², A}
     tableau::RosenbrockTableau{Nstages, RT, N²}
+    U::A
     fU::A
     k::NTuple{Nstages, A}
+    W
+    linsolve!
 end
 
 function cache(
-    prob::DiffEqBase.AbstractODEProblem{uType, tType, true},
-    alg::RosenbrockAlgorithm; kwargs...) where {uType,tType}
+    prob::DiffEqBase.AbstractODEProblem,
+    alg::RosenbrockAlgorithm; kwargs...)
 
     tab = tableau(alg, eltype(prob.u0))
     Nstages = length(tab.m)
+    U = zero(prob.u0)
     fU = zero(prob.u0)
     k = ntuple(n -> similar(prob.u0), Nstages)
-    return RosenbrockCache(tab, fU, k)
+    W = prob.f.jac_prototype
+    linsolve! = alg.linsolve(Val{:init}, W, prob.u0; kwargs...)
+
+    return RosenbrockCache(tab, U, fU, k, W, linsolve!)
 end
 
 
-function step_u!(int, cache::StrongStabilityPreservingRungeKuttaCache{Nstages, RT, A}) where {Nstages, RT, A}
+function step_u!(int, cache::RosenbrockCache{Nstages, RT}) where {Nstages, RT}
     tab = cache.tableau
 
     f! = int.prob.f
-    Wfact! = int.prob.f.Wfact
+    Wfact_t! = int.prob.f.Wfact_t
 
     u = int.u
     p = int.prob.p
     t = int.t
     dt = int.dt
+    W = cache.W
+    U = cache.U
+    fU = cache.fU
+    k = cache.k
+    linsolve! = cache.linsolve!
 
     # 1) compute jacobian factorization
     γ = dt * tab.Γ[1,1]
-    Wfact!(W, u, p, γ, t)
-
+    Wfact_t!(W, u, p, γ, t)
     for i in 1:Nstages
         U .= u
         for j = 1:i-1
@@ -51,25 +64,30 @@ function step_u!(int, cache::StrongStabilityPreservingRungeKuttaCache{Nstages, R
         for j = 1:i-1
             fU .+= (tab.C[i,j] / dt) .* k[j]
         end
-        linsolve!(k[j], W, fU)
+        linsolve!(k[i], W, fU)
     end
     for i = 1:Nstages
         u .+= tab.m[i] .* k[i]
     end
 end
 
-struct SSPKnoth <: RosenbrockAlgorithm end
+struct SSPKnoth{L} <: RosenbrockAlgorithm
+    linsolve::L
+end
+SSPKnoth(;linsolve)=SSPKnoth(linsolve)
+
 
 function tableau(::SSPKnoth, RT)
   # ROS.transformed=true;
     N = 3
+    N² = N*N
     α = @SMatrix RT[
       0 0 0;
       1 0 0;
       1/4 1/4 0]
     # ROS.d=ROS.alpha*ones(ROS.nStage,1);
-    b = @SVector RT[1/6 1/6 2/3]
-    Γ = @SVector RT[
+    b = @SMatrix RT[1/6 1/6 2/3]
+    Γ = @SMatrix RT[
         1 0 0;
         0 1 0;
         -3/4 -3/4 1]

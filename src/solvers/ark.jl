@@ -239,7 +239,7 @@ end
 A first-order-accurate two-stage additive Runge--Kutta scheme of [ARS1997](@cite), combining a forward Euler
 explicit step with a backward Euler implicit correction.
 """
-struct ARK1ForwardBackwardEuler{L} <: AdditiveRungeKutta
+Base.@kwdef struct ARK1ForwardBackwardEuler{L} <: AdditiveRungeKutta
     linsolve::L
 end
 
@@ -267,7 +267,7 @@ A second-order, two-stage additive Runge--Kutta scheme [ARS1997](@cite), combini
 explicit midpoint methods.
 
 """
-struct ARK2ImplicitExplicitMidpoint{L} <: AdditiveRungeKutta
+Base.@kwdef struct ARK2ImplicitExplicitMidpoint{L} <: AdditiveRungeKutta
     linsolve::L
 end
 
@@ -297,11 +297,10 @@ If the keyword `paperversion=true` is used, the coefficients from the paper are
 used. Otherwise it uses coefficients that make the scheme (much) more stable but less
 accurate
 """
-struct ARK2GiraldoKellyConstantinescu{L} <: AdditiveRungeKutta
+Base.@kwdef struct ARK2GiraldoKellyConstantinescu{L} <: AdditiveRungeKutta
     linsolve::L
-    paperversion::Bool
+    paperversion::Bool = false
 end
-ARK2GiraldoKellyConstantinescu(linsolve; paperversion=false) = ARK2GiraldoKellyConstantinescu(linsolve, paperversion)
 
 function tableau(ark::ARK2GiraldoKellyConstantinescu, RT)
     a32 = RT(ark.paperversion ? (3 + 2 * sqrt(2)) / 6 : 1 // 2)
@@ -329,7 +328,7 @@ end
 The fifth-order, 8-stage additive Runge--Kutta scheme ARK5(4)8L[2]SA₂ of
 [KC2019](@cite).
 """
-struct ARK548L2SA2KennedyCarpenter{L} <: AdditiveRungeKutta
+Base.@kwdef struct ARK548L2SA2KennedyCarpenter{L} <: AdditiveRungeKutta
     linsolve::L
 end
 
@@ -439,7 +438,7 @@ end
 The fourth-order, 7-stage additive Runge--Kutta scheme ARK4(3)7L[2]SA₁ of
 [KC2019](@cite).
 """
-struct ARK437L2SA1KennedyCarpenter{L} <: AdditiveRungeKutta
+Base.@kwdef struct ARK437L2SA1KennedyCarpenter{L} <: AdditiveRungeKutta
     linsolve::L
 end
 

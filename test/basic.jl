@@ -19,6 +19,14 @@ for (prob, sol, tscale) in [
     @test convergence_order(prob, sol, SSPRK34SpiteriRuuth(), dts.*tscale)          ≈ 3 atol=0.05
 end
 
+for (prob, sol, tscale) in [
+    (linear_prob_wfactt, linear_sol, 1)
+]
+    @test convergence_order(prob, sol, SSPKnoth(linsolve=linsolve_direct), dts.*tscale) ≈ 2 atol=0.05
+
+end
+
+
 # ForwardEulerODEFunction
 for (prob, sol, tscale) in [
     (linear_prob_fe, linear_sol, 1)
@@ -37,12 +45,12 @@ for (prob, sol) in [
     #imex_nonautonomous_prob => imex_nonautonomous_sol,
 ]
     # IMEX
-    @test convergence_order(prob, sol, ARK1ForwardBackwardEuler(DirectSolver), dts)       ≈ 1 atol=0.1
-    @test convergence_order(prob, sol, ARK2ImplicitExplicitMidpoint(DirectSolver), dts)   ≈ 2 atol=0.05
-    @test convergence_order(prob, sol, ARK2GiraldoKellyConstantinescu(DirectSolver), dts) ≈ 2 atol=0.05
-    @test convergence_order(prob, sol, ARK2GiraldoKellyConstantinescu(DirectSolver; paperversion=true), dts) ≈ 2 atol=0.05
-    @test convergence_order(prob, sol, ARK437L2SA1KennedyCarpenter(DirectSolver), dts)    ≈ 4 atol=0.05
-    @test convergence_order(prob, sol, ARK548L2SA2KennedyCarpenter(DirectSolver), dts)    ≈ 5 atol=0.05
+    @test convergence_order(prob, sol, ARK1ForwardBackwardEuler(linsolve=DirectSolver), dts)       ≈ 1 atol=0.1
+    @test convergence_order(prob, sol, ARK2ImplicitExplicitMidpoint(linsolve=DirectSolver), dts)   ≈ 2 atol=0.05
+    @test convergence_order(prob, sol, ARK2GiraldoKellyConstantinescu(linsolve=DirectSolver), dts) ≈ 2 atol=0.05
+    @test convergence_order(prob, sol, ARK2GiraldoKellyConstantinescu(linsolve=DirectSolver; paperversion=true), dts) ≈ 2 atol=0.05
+    @test convergence_order(prob, sol, ARK437L2SA1KennedyCarpenter(linsolve=DirectSolver), dts)    ≈ 4 atol=0.05
+    @test convergence_order(prob, sol, ARK548L2SA2KennedyCarpenter(linsolve=DirectSolver), dts)    ≈ 5 atol=0.05
 end
 end
 for (prob, sol) in [

@@ -76,6 +76,7 @@ include("solvers/ssprk.jl")
 include("solvers/ark.jl")
 include("solvers/mis.jl")
 include("solvers/wickerskamarock.jl")
+include("solvers/rosenbrock.jl")
 
 include("callbacks.jl")
 

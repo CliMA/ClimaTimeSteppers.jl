@@ -32,7 +32,16 @@ const linear_prob = IncrementingODEProblem{true}(
     [1/2],(0.0,1.0),1.01)
 const linear_prob_fe = ODEProblem(
     ForwardEulerODEFunction((un,u,p,t,dt) -> (un .= u .+ dt .* p .* u)),
-    [1/2],(0.0,1.0),1.01)
+    [1.0],(0.0,1.0),-0.2)
+
+const linear_prob_wfactt = ODEProblem(
+        ODEFunction(
+          (du,u,p,t,α=true,β=false) -> (du .= α .* p .* u .+ β .* du);
+          jac_prototype=zeros(1,1),
+          Wfact_t = (W,u,p,γ,t) -> (W[1,1]=1/γ-p),
+        ),
+        [1/2],(0.0,1.0),-0.2)
+
 
 # DiffEqProblemLibrary.jl uses the `analytic` argument to ODEFunction to store the exact solution
 # IncrementingODEFunction doesn't have that
@@ -79,6 +88,20 @@ const imex_autonomous_prob = SplitODEProblem(
     (du, u, p, t, α=true, β=false) -> (du .= α .* u        .+ β .* du),
     (du, u, p, t, α=true, β=false) -> (du .= α .* cos(t)/p .+ β .* du),
     ArrayType([0.5]), (0.0,1.0), 4.0)
+
+function linsolve_direct(::Type{Val{:init}}, f, u0; kwargs...)
+    function _linsolve!(x, A, b, update_matrix = false; kwargs...)
+        x .= A \ b
+    end
+end
+
+const imex_autonomous_prob_jac = ODEProblem(
+        ODEFunction(
+            (du, u, p, t, α=true, β=false) -> (du .= α .* (u .+ cos(t)/p) .+ β .* du),
+            jac_prototype = zeros(1,1),
+            Wfact = (W,u,p,γ,t) -> W[1,1] = 1-γ,
+        ),
+        ArrayType([0.5]), (0.0,1.0), 4.0)
 
 function imex_autonomous_sol(u0,p,t)
     (exp(t)  + sin(t) - cos(t)) / 2p .+ exp(t) .* u0

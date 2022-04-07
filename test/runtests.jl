@@ -5,11 +5,11 @@ else
     const ArrayType = Array
 end
 
-include(joinpath("testhelper.jl"))
-
+include("testhelper.jl")
 include("problems.jl")
 
-include("basic.jl")
+include("integrator.jl")
+include("convergence.jl")
 include("callbacks.jl")
 
 #=

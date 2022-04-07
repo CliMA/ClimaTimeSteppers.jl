@@ -29,7 +29,7 @@ end
 export EveryXWallTimeSeconds, EveryXSimulationTime, EveryXSimulationSteps
 
 """
-    EveryXWallTimeSeconds(f!, Δwt, comm::MPI.Comm; 
+    EveryXWallTimeSeconds(f!, Δwt, comm::MPI.Comm;
                           atinit=false)
 
 Trigger `f!(integrator)` every `Δwt` wallclock seconds.
@@ -44,7 +44,7 @@ otherwise the first trigger will be after `Δwt` seconds.
 function EveryXWallTimeSeconds(f!, Δwt, comm::MPI.Comm;
                                atinit=false)
     wt_next = 0.0
-    
+
     function _initialize(c, u, t, integrator)
         wt = MPI.Allreduce(time(), max, comm)
         wt_next = wt + Δwt
@@ -57,7 +57,7 @@ function EveryXWallTimeSeconds(f!, Δwt, comm::MPI.Comm;
     function _finalize(c, u, t, integrator)
         finalize!(c.affect!, integrator)
     end
-    
+
     function condition(u, t, integrator)
         wt = MPI.Allreduce(time(), max, comm)
         if wt >= wt_next
@@ -91,7 +91,7 @@ the first trigger will be after `Δt` simulation time.
 function EveryXSimulationTime(f!, Δt;
                               atinit=false)
     t_next = zero(Δt)
-    
+
     function _initialize(c, u, t, integrator)
         t_next = Δt
         initialize!(c.affect!, integrator)
@@ -104,7 +104,7 @@ function EveryXSimulationTime(f!, Δt;
         finalize!(c.affect!, integrator)
     end
 
-        
+
     function condition(u, t, integrator)
         if t >= t_next
             while t >= t_next
@@ -137,7 +137,7 @@ function EveryXSimulationSteps(f!, Δsteps;
                                atinit=false)
     steps = 0
     steps_next = 0
-    
+
     function _initialize(c, u, t, integrator)
         steps = 0
         steps_next = Δsteps

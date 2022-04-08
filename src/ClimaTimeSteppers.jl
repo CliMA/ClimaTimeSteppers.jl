@@ -58,7 +58,7 @@ realview(x::Union{Array, SArray, MArray}) = x
 realview(x::CuArray) = x
 
 
-import DiffEqBase, LinearAlgebra
+import DiffEqBase, SciMLBase, LinearAlgebra, DiffEqCallbacks
 
 include("functions.jl")
 include("operators.jl")

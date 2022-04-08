@@ -16,6 +16,7 @@ StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 [compat]
 CUDA = "3"
 DiffEqBase = "6"
+DiffEqCallbacks = "2"
 KernelAbstractions = "0.7, 0.8"
 MPI = "0.19"
 SciMLBase = "1"

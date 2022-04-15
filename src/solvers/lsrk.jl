@@ -47,7 +47,7 @@ function step_u!(int, cache::LowStorageRungeKutta2NIncCache)
     du = cache.du
 
     u = int.u
-    p = int.prob.p
+    p = int.p
     t = int.t
     dt = int.dt
 

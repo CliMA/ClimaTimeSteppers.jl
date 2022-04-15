@@ -51,7 +51,7 @@ function step_u!(int, cache::StrongStabilityPreservingRungeKuttaCache{Nstages, R
 
     f! = int.prob.f
     u = int.u
-    p = int.prob.p
+    p = int.p
     t = int.t
     dt = int.dt
 

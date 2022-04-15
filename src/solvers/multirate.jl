@@ -47,7 +47,7 @@ function step_u!(int, cache::MultirateCache)
     tab = outercache.tableau
 
     u = int.u
-    p = int.prob.p
+    p = int.p
     dt = int.dt
     t = int.t
 

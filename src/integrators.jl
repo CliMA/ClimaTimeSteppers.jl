@@ -4,10 +4,11 @@
 A simplified variant of [`ODEIntegrator`](https://github.com/SciML/OrdinaryDiffEq.jl/blob/6ec5a55bda26efae596bf99bea1a1d729636f412/src/integrators/type.jl#L77-L123).
 
 """
-mutable struct DistributedODEIntegrator{algType,uType,tType} <: DiffEqBase.AbstractODEIntegrator{algType,true,uType,tType}
+mutable struct DistributedODEIntegrator{algType,uType,tType,pType} <: DiffEqBase.AbstractODEIntegrator{algType,true,uType,tType}
     prob
     alg::algType
     u::uType
+    p::pType
     dt::tType
     t::tType
     tstop::tType
@@ -36,6 +37,7 @@ function DiffEqBase.__init(
     kwargs...)
 
     u = prob.u0
+    p = prob.p
     t = prob.tspan[1]
     tstop = prob.tspan[2]
     tdir = sign(tstop - t)
@@ -49,7 +51,7 @@ function DiffEqBase.__init(
     saving_callback = NonInterpolatingSavingCallback(save_func, DiffEqCallbacks.SavedValues(sol.t, sol.u); saveat, save_everystep)
     callbackset = DiffEqBase.CallbackSet(callback, saving_callback)
     isempty(callbackset.continuous_callbacks) || error("Continuous callbacks are not supported")
-    integrator = DistributedODEIntegrator(prob, alg, u, dt, t, tstop, tdir, 0, stepstop, adjustfinal, callbackset, false, cache(prob, alg; dt=dt, kwargs...), sol)
+    integrator = DistributedODEIntegrator(prob, alg, u, p, dt, t, tstop, tdir, 0, stepstop, adjustfinal, callbackset, false, cache(prob, alg; dt=dt, kwargs...), sol)
     DiffEqBase.initialize!(callbackset,u,t,integrator)
     return integrator
 end

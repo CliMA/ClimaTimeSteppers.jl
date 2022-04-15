@@ -41,7 +41,7 @@ function step_u!(int, cache::RosenbrockCache{Nstages, RT}) where {Nstages, RT}
     Wfact_t! = int.prob.f.Wfact_t
 
     u = int.u
-    p = int.prob.p
+    p = int.p
     t = int.t
     dt = int.dt
     W = cache.W

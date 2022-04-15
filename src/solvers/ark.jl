@@ -108,7 +108,7 @@ function step_u!(int, cache::AdditiveRungeKuttaFullCache{Nstages}, f::DiffEqBase
 
 
     u = int.u
-    p = int.prob.p
+    p = int.p
     t = int.t
     dt = int.dt
 
@@ -170,7 +170,7 @@ function step_u!(int, cache::AdditiveRungeKuttaFullCache{Nstages}, f::DiffEqBase
 
 
     u = int.u
-    p = int.prob.p
+    p = int.p
     t = int.t
     dt = int.dt
 

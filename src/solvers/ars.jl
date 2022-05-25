@@ -19,7 +19,7 @@ struct ARSTableau{RT}
     Qhat::Matrix{RT}
     γ::RT
 end
-function ARSTableau(a, ahat)
+function ARSTableau(a::AbstractMatrix{RT}, ahat::AbstractMatrix{RT}) where {RT}
     #=
     utilde[i] = u0 +
     dt * sum(j -> ahat[i+1,j] * g(U[j-1]), 1:i-1) +
@@ -51,9 +51,9 @@ function ARSTableau(a, ahat)
     c = vec(sum(a, dims=2))
     chat = vec(sum(ahat, dims=2))
 
-    Q = zeros(N+1,N)
-    Q0 = zeros(N+1)
-    Qhat = zeros(N+1,N)
+    Q = zeros(RT, N+1,N)
+    Q0 = zeros(RT,N+1)
+    Qhat = zeros(RT, N+1,N)
 
     for i = 1:N+1
       Q0[i] = 1 - sum(j -> ahat[i+1,j] / ahat[j+1,j] * Q0[j], 1:i-1;init=0.0)
@@ -94,7 +94,7 @@ function tableau(::ARS343, RT)
     b1 = -3/2 * γ^2 + 4 * γ - 1/4
     b2 =  3/2 * γ^2 - 5 * γ + 5/4
     # implicit tableau
-    a = [γ 0 0;
+    a = RT[γ 0 0;
         (1-γ)/2 γ 0;
         b1 b2 γ;
         b1 b2 γ]
@@ -111,7 +111,7 @@ function tableau(::ARS343, RT)
           + 4.0 - 12.5 * γ + 4.5 * γ * γ)
     dA41 = 1.0 - dA42 - dA43;
     # explicit tableau
-    ahat = [
+    ahat = RT[
       0 0 0 0;
       γ 0 0 0;
       dA31 dA32 0 0;

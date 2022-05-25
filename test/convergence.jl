@@ -39,12 +39,14 @@ for (prob, sol, tscale) in [
 
 end
 
+@test convergence_order(split_linear_prob_wfact_split, linear_sol, ARS343(linsolve=linsolve_direct), dts) ≈ 3 atol=0.05
+
 if ArrayType == Array
 for (prob, sol) in [
     imex_autonomous_prob => imex_autonomous_sol,
     #imex_nonautonomous_prob => imex_nonautonomous_sol,
 ]
-    # IMEX
+# IMEX
     @test convergence_order(prob, sol, ARK1ForwardBackwardEuler(linsolve=DirectSolver), dts)       ≈ 1 atol=0.1
     @test convergence_order(prob, sol, ARK2ImplicitExplicitMidpoint(linsolve=DirectSolver), dts)   ≈ 2 atol=0.05
     @test convergence_order(prob, sol, ARK2GiraldoKellyConstantinescu(linsolve=DirectSolver), dts) ≈ 2 atol=0.05

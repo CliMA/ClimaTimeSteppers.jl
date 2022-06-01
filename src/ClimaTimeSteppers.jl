@@ -66,6 +66,7 @@ include("operators.jl")
 abstract type DistributedODEAlgorithm <: DiffEqBase.AbstractODEAlgorithm
 end
 
+SciMLBase.allowscomplex(alg::DistributedODEAlgorithm) = true
 include("integrators.jl")
 
 

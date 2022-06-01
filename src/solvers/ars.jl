@@ -1,4 +1,4 @@
-export ARS111, ARS121, ARS343
+export ARS111, ARS121, ARS232, ARS343
 
 struct ARSAlgorithm{name,L} <: DistributedODEAlgorithm
     linsolve::L
@@ -118,15 +118,17 @@ The Forward-Backward (2,3,2) implicit-explicit (IMEX) Runge-Kutta scheme of
 """
 const ARS232 = ARSAlgorithm{:ARS232}
 function tableau(::ARS232, RT)
-    γ = (2 - sqrt(2))
+    γ = (2 - sqrt(2))/2
     δ = -2*sqrt(2)/3
     # implicit
     a = RT[γ 0;
+        1-γ γ;
         1-γ γ];
     # explicit
     ahat = RT[ 0 0 0;
             γ 0 0;
-            δ 1-δ 0]
+            δ 1-δ 0;
+            0 1-γ γ];
     return ARSTableau(a, ahat)
 end
 
@@ -184,7 +186,7 @@ function cache(
     alg::ARSAlgorithm; kwargs...)
 
     tab = tableau(alg, eltype(prob.u0))
-    @show Nstages = length(tab.c) - 1
+    Nstages = length(tab.c) - 1
     U = ntuple(i -> similar(prob.u0), Nstages)
     Uhat = ntuple(i -> similar(prob.u0), Nstages)
     idu = similar(prob.u0)
@@ -214,9 +216,8 @@ function step_u!(int, cache::ARSCache{Nstages}) where {Nstages}
     linsolve! = cache.linsolve!
 
     # Update W
-    # @show tab.γ dt
-    Wfact!(W, u, p, dt*tab.γ, t)
-    # @show W
+    # Wfact!(W, u, p, dt*tab.γ, t)
+
 
     # implicit eqn:
     #   ux = u + dt * f(ux, p, t)
@@ -226,7 +227,7 @@ function step_u!(int, cache::ARSCache{Nstages}) where {Nstages}
     #   ux <- u + dt (I - dt J) \ f(u, p, t)
 
     function implicit_step!(ux, u, p, t, dt)
-
+        Wfact!(W, u, p, dt, t)
         # currently this does just a single Newton iteration
         # and assumes we compute f(u, p, t) directly
         # need to figure out how we would do multiple iterations
@@ -243,46 +244,51 @@ function step_u!(int, cache::ARSCache{Nstages}) where {Nstages}
 
     #### stage 1
     # explicit
-    if tab.ahat[2,1] != 0
-        f2!(Uhat[1], u, p, t+dt*tab.chat[1], dt*tab.ahat[2,1])
-    end
+    Uhat[1] .= u # utilde[i],  Q0[1] == 1
+    f2!(Uhat[1], u, p, t+dt*tab.chat[1], dt*tab.ahat[2,1])
+
     # implicit
     implicit_step!(U[1], Uhat[1], p, t+dt*tab.c[1], dt*tab.a[1,1])
+    if Nstages == 1
+        u .= tab.Q0[2] .* u .+
+            tab.Qhat[2,1] .* Uhat[1] .+ tab.Q[2,1] .* U[1] # utilde[2]
+        f2!(u, U[1], p, t+dt*tab.chat[2], dt*tab.ahat[3,2])
+        return
+    end
 
     #### stage 2
-    uhat = Nstages == 1 ? u : Uhat[2]
-    uhat .= tab.Q0[2] .* u .+
+    Uhat[2] .= tab.Q0[2] .* u .+
             tab.Qhat[2,1] .* Uhat[1] .+ tab.Q[2,1] .* U[1] # utilde[2]
-    if tab.ahat[3,2] != 0
-        f2!(uhat, U[1], p, t+dt*tab.chat[2], dt*tab.ahat[3,2])
-    end
-    Nstages == 1 && return
+    f2!(Uhat[2], U[1], p, t+dt*tab.chat[2], dt*tab.ahat[3,2])
 
     implicit_step!(U[2], Uhat[2], p, t+dt*tab.c[2], dt*tab.a[2,2])
 
-    #### stage 3
-    uhat = Nstages == 2 ? u : Uhat[3]
-    uhat .= tab.Q0[3] .* u .+
+    if Nstages == 2
+        u .= tab.Q0[3] .* u .+
             tab.Qhat[3,1] .* Uhat[1] .+ tab.Q[3,1] .* U[1] .+
             tab.Qhat[3,2] .* Uhat[2] .+ tab.Q[3,2] .* U[2] # utilde[3]
-    if tab.ahat[4,3] != 0
-        f2!(uhat, U[2], p, t+dt*tab.chat[3], dt*tab.ahat[4,3])
+        f2!(u, U[2], p, t+dt*tab.chat[3], dt*tab.ahat[4,3])
+        return
     end
-    Nstages == 2 && return
+
+    #### stage 3
+    Uhat[3] .= tab.Q0[3] .* u .+
+            tab.Qhat[3,1] .* Uhat[1] .+ tab.Q[3,1] .* U[1] .+
+            tab.Qhat[3,2] .* Uhat[2] .+ tab.Q[3,2] .* U[2] # utilde[3]
+    f2!(Uhat[3], U[2], p, t+dt*tab.chat[3], dt*tab.ahat[4,3])
+    # @show Uhat[3] t+dt*tab.chat[3]
 
     implicit_step!(U[3], Uhat[3], p, t+dt*tab.c[3], dt*tab.a[3,3])
     # @show U[3] t+dt*tab.c[3]
 
     ### final update
-    @assert Nstages == 3
-    uhat = u
-    uhat .= tab.Q0[4] .* u .+
+    u .= tab.Q0[4] .* u .+
     tab.Qhat[4,1] .* Uhat[1] .+ tab.Q[4,1] .* U[1] .+
     tab.Qhat[4,2] .* Uhat[2] .+ tab.Q[4,2] .* U[2] .+
     tab.Qhat[4,3] .* Uhat[3] .+ tab.Q[4,3] .* U[3]
 
-    if tab.ahat[5,4] != 0
-        f2!(uhat, U[3], p, t+dt*tab.chat[4], dt*tab.ahat[5,4])
-    end
+    # @show u
+    f2!(u, U[3], p, t+dt*tab.chat[4], dt*tab.ahat[5,4])
+    # @show u t+dt*tab.chat[4]
     return
 end

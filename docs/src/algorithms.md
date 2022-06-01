@@ -48,6 +48,15 @@ ARK437L2SA1KennedyCarpenter
 ARK548L2SA2KennedyCarpenter
 ```
 
+### ARS
+
+```@docs
+ARS111
+ARS121
+ARS343
+```
+
+
 ## Multirate
 
 ```@docs

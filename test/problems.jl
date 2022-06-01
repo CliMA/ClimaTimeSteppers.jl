@@ -46,6 +46,18 @@ linear_prob_wfactt = ODEProblem(
         [1/2],(0.0,1.0),-0.2)
 
 
+split_linear_prob_wfact_split = ODEProblem(
+    SplitFunction(
+        ODEFunction(
+            (du,u,p,t) -> (du .= real(p) .* u);
+            jac_prototype=zeros(ComplexF64,1,1),
+            Wfact = (W,u,p,γ,t) -> (W[1,1]=1-γ*real(p)),
+        ),
+        (ux, u, p, t, dt) -> (ux .= ux .+ dt .* imag(p) * im .* u),
+    ),
+    [1/2 + 0.0*im],(0.0,1.0),-0.2+0.1*im)
+
+
 # DiffEqProblemLibrary.jl uses the `analytic` argument to ODEFunction to store the exact solution
 # IncrementingODEFunction doesn't have that
 function linear_sol(u0,p,t)

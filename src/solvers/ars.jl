@@ -1,11 +1,9 @@
 export ARS343
 
-abstract type ARSAlgorithm <: DistributedODEAlgorithm end
-
-struct ARS343{L} <: ARSAlgorithm
-  linsolve::L
+struct ARS{name,L} <: DistributedODEAlgorithm
+    linsolve::L
 end
-ARS343(;linsolve)=ARS343(linsolve)
+ARS{name}(;linsolve) where {name} = ARS343{name,typeof(linsolve)}(linsolve)
 
 
 
@@ -88,6 +86,31 @@ ahat = [ 0 0 0;
 
 =#
 
+const ARSIMEXEuler = ARS{:IMEXEuler}
+function tableau(::ARSIMEXEuler, RT)
+    # this is the same as used in OrdinaryDiffEq
+    # https://github.com/SciML/OrdinaryDiffEq.jl/issues/1590
+    #  Ascher, Ruuth, and Wetton (1995)
+    a = RT[1;
+           1;;]
+    ahat = RT[0 0;
+              1 0;
+              1 0]
+    return ARSTableau(a, ahat)
+
+
+    # the method of  Araújo, Murua, Sanz-Serna (1997).
+    # would be
+    #=
+    a = RT[1;
+           1;;]
+    ahat = RT[0 0;
+              0 0;
+              1 0]
+    =#
+end
+
+const ARS343 = ARS{:ARS343}
 function tableau(::ARS343, RT)
     N = 3
     γ = 0.4358665215084590
@@ -135,7 +158,7 @@ function cache(
     alg::ARSAlgorithm; kwargs...)
 
     tab = tableau(alg, eltype(prob.u0))
-    Nstages = length(tab.c)
+    Nstages = length(tab.c) - 1
     U = ntuple(i -> similar(prob.u0), Nstages)
     Uhat = ntuple(i -> similar(prob.u0), Nstages)
     idu = similar(prob.u0)
@@ -164,6 +187,7 @@ function step_u!(int, cache::ARSCache)
     idu = cache.idu
     linsolve! = cache.linsolve!
 
+    Nstages = length(tab.c) - 1
 
     # Update W
     # @show tab.γ dt
@@ -195,40 +219,46 @@ function step_u!(int, cache::ARSCache)
 
     #### stage 1
     # explicit
-    Uhat[1] .= u # utilde[i],  Q0[1] == 1
-    f2!(Uhat[1], u, p, t+dt*tab.chat[1], dt*tab.ahat[2,1])
-    # @show Uhat[1] t+dt*tab.chat[1]
-
+    if tab.ahat[2,1] != 0
+        f2!(Uhat[1], u, p, t+dt*tab.chat[1], dt*tab.ahat[2,1])
+    end
     # implicit
     implicit_step!(U[1], Uhat[1], p, t+dt*tab.c[1], dt*tab.a[1,1])
-    # @show U[1] t+dt*tab.c[1]
 
     #### stage 2
-    Uhat[2] .= tab.Q0[2] .* u .+
+    uhat = Nstages == 1 ? u : Uhat[2]
+    uhat .= tab.Q0[2] .* u .+
             tab.Qhat[2,1] .* Uhat[1] .+ tab.Q[2,1] .* U[1] # utilde[2]
-    f2!(Uhat[2], U[1], p, t+dt*tab.chat[2], dt*tab.ahat[3,2])
-    # @show Uhat[2] t+dt*tab.chat[2]
+    if tab.ahat[3,2] != 0
+        f2!(uhat, U[1], p, t+dt*tab.chat[2], dt*tab.ahat[3,2])
+    end
+    Nstages == 1 && return
 
     implicit_step!(U[2], Uhat[2], p, t+dt*tab.c[2], dt*tab.a[2,2])
-    # @show U[2] t+dt*tab.c[2]
 
     #### stage 3
-    Uhat[3] .= tab.Q0[3] .* u .+
+    uhat = Nstages == 2 ? u : Uhat[3]
+    uhat .= tab.Q0[3] .* u .+
             tab.Qhat[3,1] .* Uhat[1] .+ tab.Q[3,1] .* U[1] .+
             tab.Qhat[3,2] .* Uhat[2] .+ tab.Q[3,2] .* U[2] # utilde[3]
-    f2!(Uhat[3], U[2], p, t+dt*tab.chat[3], dt*tab.ahat[4,3])
-    # @show Uhat[3] t+dt*tab.chat[3]
+    if tab.ahat[4,3] != 0
+        f2!(uhat, U[2], p, t+dt*tab.chat[3], dt*tab.ahat[4,3])
+    end
+    Nstages == 2 && return
 
     implicit_step!(U[3], Uhat[3], p, t+dt*tab.c[3], dt*tab.a[3,3])
     # @show U[3] t+dt*tab.c[3]
 
     ### final update
-    u .= tab.Q0[4] .* u .+
+    @assert Nstages == 3
+    uhat = u
+    uhat .= tab.Q0[4] .* u .+
     tab.Qhat[4,1] .* Uhat[1] .+ tab.Q[4,1] .* U[1] .+
     tab.Qhat[4,2] .* Uhat[2] .+ tab.Q[4,2] .* U[2] .+
     tab.Qhat[4,3] .* Uhat[3] .+ tab.Q[4,3] .* U[3]
 
-    # @show u
-    f2!(u, U[3], p, t+dt*tab.chat[4], dt*tab.ahat[5,4])
-    # @show u t+dt*tab.chat[4]
+    if tab.ahat[5,4] != 0
+        f2!(uhat, U[3], p, t+dt*tab.chat[4], dt*tab.ahat[5,4])
+    end
+    return
 end

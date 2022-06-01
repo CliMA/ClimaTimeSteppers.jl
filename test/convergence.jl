@@ -40,6 +40,9 @@ for (prob, sol, tscale) in [
 end
 
 @test convergence_order(split_linear_prob_wfact_split, linear_sol, ARS343(linsolve=linsolve_direct), dts) ≈ 3 atol=0.05
+@show convergence_order(split_linear_prob_wfact_split, linear_sol, ARS111(linsolve=linsolve_direct), dts)
+@show convergence_order(split_linear_prob_wfact_split, linear_sol, ARS121(linsolve=linsolve_direct), dts)
+@show convergence_order(split_linear_prob_wfact_split, linear_sol, ARS232(linsolve=linsolve_direct), dts)
 
 if ArrayType == Array
 for (prob, sol) in [

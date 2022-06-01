@@ -1,9 +1,9 @@
-export ARS343
+export ARS111, ARS121, ARS343
 
-struct ARS{name,L} <: DistributedODEAlgorithm
+struct ARSAlgorithm{name,L} <: DistributedODEAlgorithm
     linsolve::L
 end
-ARS{name}(;linsolve) where {name} = ARS343{name,typeof(linsolve)}(linsolve)
+ARSAlgorithm{name}(;linsolve) where {name} = ARSAlgorithm{name,typeof(linsolve)}(linsolve)
 
 
 
@@ -72,45 +72,71 @@ function ARSTableau(a::AbstractMatrix{RT}, ahat::AbstractMatrix{RT}) where {RT}
     ARSTableau(a, ahat, c, chat, Q0, Q, Qhat, γ)
 end
 
-#=
-# 232
-γ = (2 - sqrt(2))
-δ = -2*sqrt(2)/3
-# implicit
-a = [γ 0;
-     1-γ γ];
-# explicit
-ahat = [ 0 0 0;
-         γ 0 0;
-        δ 1-δ 0]
 
-=#
+"""
+    ARS111
 
-const ARSIMEXEuler = ARS{:IMEXEuler}
-function tableau(::ARSIMEXEuler, RT)
-    # this is the same as used in OrdinaryDiffEq
+The Forward-Backward (1,1,1) implicit-explicit (IMEX) Runge-Kutta scheme of
+[ARS1997](@cite), section 2.1.
+
+This is equivalent to the `OrdinaryDiffEq.IMEXEuler` algorithm.
+"""
+const ARS111 = ARSAlgorithm{:ARS111}
+function tableau(::ARS111, RT)
     # https://github.com/SciML/OrdinaryDiffEq.jl/issues/1590
-    #  Ascher, Ruuth, and Wetton (1995)
     a = RT[1;
            1;;]
     ahat = RT[0 0;
               1 0;
               1 0]
     return ARSTableau(a, ahat)
+end
 
+"""
+    ARS121
 
-    # the method of  Araújo, Murua, Sanz-Serna (1997).
-    # would be
-    #=
+The Forward-Backward (1,2,1) implicit-explicit (IMEX) Runge-Kutta scheme of
+[ARS1997](@cite), section 2.2.
+
+This is equivalent to the `OrdinaryDiffEq.IMEXEulerARK` algorithm.
+"""
+const ARS121 = ARSAlgorithm{:ARS121}
+function tableau(::ARS121, RT)
     a = RT[1;
            1;;]
     ahat = RT[0 0;
-              0 0;
-              1 0]
-    =#
+              1 0;
+              0 1]
+    return ARSTableau(a, ahat)
 end
 
-const ARS343 = ARS{:ARS343}
+"""
+    ARS232
+
+The Forward-Backward (2,3,2) implicit-explicit (IMEX) Runge-Kutta scheme of
+[ARS1997](@cite), section 2.5.
+"""
+const ARS232 = ARSAlgorithm{:ARS232}
+function tableau(::ARS232, RT)
+    γ = (2 - sqrt(2))
+    δ = -2*sqrt(2)/3
+    # implicit
+    a = RT[γ 0;
+        1-γ γ];
+    # explicit
+    ahat = RT[ 0 0 0;
+            γ 0 0;
+            δ 1-δ 0]
+    return ARSTableau(a, ahat)
+end
+
+"""
+    ARS343
+
+The L-stable, third-order (3,4,3) implicit-explicit (IMEX) Runge-Kutta scheme of
+[ARS1997](@cite), section 2.7.
+"""
+const ARS343 = ARSAlgorithm{:ARS343}
 function tableau(::ARS343, RT)
     N = 3
     γ = 0.4358665215084590
@@ -158,7 +184,7 @@ function cache(
     alg::ARSAlgorithm; kwargs...)
 
     tab = tableau(alg, eltype(prob.u0))
-    Nstages = length(tab.c) - 1
+    @show Nstages = length(tab.c) - 1
     U = ntuple(i -> similar(prob.u0), Nstages)
     Uhat = ntuple(i -> similar(prob.u0), Nstages)
     idu = similar(prob.u0)
@@ -168,7 +194,7 @@ function cache(
     return ARSCache(tab, U, Uhat, idu, W, linsolve!)
 end
 
-function step_u!(int, cache::ARSCache)
+function step_u!(int, cache::ARSCache{Nstages}) where {Nstages}
 
     f = int.prob.f
     f1! = f.f1
@@ -186,8 +212,6 @@ function step_u!(int, cache::ARSCache)
     Uhat = cache.Uhat
     idu = cache.idu
     linsolve! = cache.linsolve!
-
-    Nstages = length(tab.c) - 1
 
     # Update W
     # @show tab.γ dt

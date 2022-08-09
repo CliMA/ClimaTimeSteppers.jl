@@ -5,7 +5,9 @@ on:
 
   push:
     branches:
-      - master
+      - main
+      - trying
+      - staging
 
 jobs:
   test-os:

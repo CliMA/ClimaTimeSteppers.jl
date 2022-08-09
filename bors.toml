@@ -1,0 +1,11 @@
+status = [
+  "test-os (1.7, ubuntu-latest)",
+  "test-os (1.7, windows-latest)",
+  "test-os (1.7, macos-latest)",
+  "buildkite/climatimesteppers-ci",
+  "docbuild"
+]
+delete_merged_branches = true
+timeout_sec = 12600
+block_labels = [ "do-not-merge-yet" ]
+cut_body_after = "<!--"

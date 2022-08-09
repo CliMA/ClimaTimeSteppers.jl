@@ -14,6 +14,10 @@ struct ForwardEulerODEFunction{F} <: DiffEqBase.AbstractODEFunction{true}
 end
 (f::ForwardEulerODEFunction{F})(un, u, p, t, dt) where {F} = f.f(un, u, p, t, dt)
 
+# Don't wrap a ForwardEulerODEFunction in an ODEFunction.
+DiffEqBase.ODEFunction{iip}(f::ForwardEulerODEFunction) where {iip} = f
+DiffEqBase.ODEFunction(f::ForwardEulerODEFunction) = f
+
 """
     OffsetODEFunction(f,α,β,γ,x)
 

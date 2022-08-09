@@ -11,6 +11,7 @@ include("problems.jl")
 include("integrator.jl")
 include("convergence.jl")
 include("callbacks.jl")
+include("test_convergence_checker.jl")
 
 #=
 @testset "ODE Tests: Basic" begin

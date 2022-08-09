@@ -39,10 +39,31 @@ for (prob, sol, tscale) in [
 
 end
 
-@test convergence_order(split_linear_prob_wfact_split, linear_sol, ARS111(linsolve=linsolve_direct), dts) ≈ 1 atol=0.05
-@test convergence_order(split_linear_prob_wfact_split, linear_sol, ARS121(linsolve=linsolve_direct), dts) ≈ 1 atol=0.05
-@test convergence_order(split_linear_prob_wfact_split, linear_sol, ARS232(linsolve=linsolve_direct), dts) ≈ 2 atol=0.05
-@test convergence_order(split_linear_prob_wfact_split, linear_sol, ARS343(linsolve=linsolve_direct), dts) ≈ 3 atol=0.05
+@testset "IMEX ARK Algorithms" begin
+    algs1 = (ARS111, ARS121)
+    algs2 = (ARS122, ARS232, ARS222, IMKG232a, IMKG232b, IMKG242a, IMKG242b)
+    algs2 = (algs2..., IMKG252a, IMKG252b, IMKG253a, IMKG253b, IMKG254a)
+    algs2 = (algs2..., IMKG254b, IMKG254c)
+    algs3 = (ARS233, ARS343, ARS443, IMKG342a, IMKG343a, DBM453)
+    for (algorithm_names, order) in ((algs1, 1), (algs2, 2), (algs3, 3))
+        for algorithm_name in algorithm_names
+            for (problem, solution) in (
+                (split_linear_prob_wfact_split, linear_sol),
+                (split_linear_prob_wfact_split_fe, linear_sol),
+            )
+                algorithm = algorithm_name(
+                    NewtonsMethod(; linsolve = linsolve_direct, max_iters = 2),
+                ) # setting max_iters = 1 gives incorrect convergence orders
+                @test isapprox(
+                    convergence_order(problem, solution, algorithm, dts),
+                    order;
+                    atol = 0.02,
+                )
+            end
+        end
+    end
+end
+
 #=
 if ArrayType == Array
 for (prob, sol) in [

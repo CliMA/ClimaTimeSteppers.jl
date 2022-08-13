@@ -160,7 +160,8 @@ function make_IMEXARKAlgorithm(;
 end
 
 # General helper functions
-is_increment(f_type) = f_type <: ForwardEulerODEFunction
+is_increment(::Type{T}) where {T <: ForwardEulerODEFunction} = true
+is_increment(::Type{T}) where {T} = false
 i_range(a) = Tuple(1:size(a, 1))
 j_range(a) = Tuple(1:size(a, 2))
 u_alias_is(a_exp, a_imp) = filter(
@@ -178,8 +179,7 @@ js_to_save(i, a) = filter(
 
 # Helper functions for tendencies
 has_implicit_step(i, a) = i <= size(a, 2) && a[i, i] != 0
-save_tendency(i, a) = 
-    !isnothing(findlast(i′ -> a[i′, i] != 0, (i + 1):size(a, 1)))
+save_tendency(i, a) = !isnothing(findlast(i′ -> a[i′, i] != 0, (i + 1):size(a, 1)))
 
 # Helper functions for increments and tendencies
 old_js(i, a, f_type) = filter(
@@ -312,15 +312,15 @@ function step_u_expr(
                         if j == i
                             Ûik_expr = :(
                                 $(Ûik_expr.args...);
-                                _cache.U_temp .= $Ui;
+                                arr_cache.U_temp .= $Ui;
                                 run!(
                                     newtons_method,
                                     newtons_method_cache,
-                                    _cache.U_temp,
+                                    arr_cache.U_temp,
                                     ImplicitError($f, $Ui, p, t′, Δt′),
                                     ImplicitErrorJacobian($f.Wfact, p, t′, Δt′),
                                 );
-                                $Ui .= _cache.U_temp
+                                $Ui .= arr_cache.U_temp
                             )
                         else # this is why we store Uj
                             Uj = j in u_alias_is(as[1], as[2]) ? :u :
@@ -344,7 +344,7 @@ function step_u_expr(
                     if save_tendency(i, a)
                         fi = :(_cache.$(Symbol(:f, χ, :_, i)))
                         save_tendency_expr =
-                            :($fi .= (_cache.U_temp .- $Ui) ./ Δt′)
+                            :($fi .= (arr_cache.U_temp .- $Ui) ./ Δt′)
                     else
                         save_tendency_expr = :()
                     end
@@ -352,16 +352,16 @@ function step_u_expr(
                         $(expr.args...);
                         t′ = t + dt * $(FT(c[i]));
                         Δt′ = dt * $(FT(a[i, i]));
-                        _cache.U_temp .= $Ui;
+                        arr_cache.U_temp .= $Ui;
                         run!(
                             newtons_method,
                             newtons_method_cache,
-                            _cache.U_temp,
+                            arr_cache.U_temp,
                             ImplicitError($f, $Ui, p, t′, Δt′),
                             ImplicitErrorJacobian($f.Wfact, p, t′, Δt′),
                         );
                         $save_tendency_expr;
-                        $Ui .= _cache.U_temp
+                        $Ui .= arr_cache.U_temp
                     )
                 end
             end
@@ -400,38 +400,63 @@ step_u!(integrator, cache::IMEXARKCache) =
 
 ################################################################################
 
+struct IMEXARKArrayCache{UTEMP, UT, E, I}
+    U_temp::UTEMP
+    U::UT
+    _exp::E
+    _imp::I
+end
+
+import DispatchedTuples: DispatchedSet
+
+#= DispatchedSet helper=#
+dset(vals, ft) = DispatchedSet(map(j->(Val{Tuple{vals[j], ft}}(), j), 1:length(vals))...)
+dset(vals) = DispatchedSet(map(j->(Val{vals[j]}(), j), 1:length(vals))...)
+
+# To avoid specializing on ForwardEulerODEFunction, as this could dynamically
+# change and generate many methods, let's define singletons to dispatch.
+abstract type AbstractODEFunctionType end
+struct ODEFunType <: AbstractODEFunctionType end
+struct ForwardEulerODEFunType <: AbstractODEFunctionType end
+
+is_increment(::Type{ForwardEulerODEFunType}) = true
+is_increment(::Type{ODEFunType}) = false
+get_ode_fun_type(::Type{T}) where {T <: ForwardEulerODEFunction} = ForwardEulerODEFunType
+get_ode_fun_type(::Type{T}) where {T} = ODEFunType
+
 function not_generated_cache(
     prob::DiffEqBase.AbstractODEProblem,
     alg::IMEXARKAlgorithm{as, cs};
     kwargs...
 ) where {as, cs}
-    f_cache(χ, a, f_type) = is_increment(f_type) ?
-        map(
-            j -> Symbol(:ΔÛ, χ, :_, j) => similar(u),
-            Iterators.flatten(map(i -> js_to_save(i, a), i_range(a))),
-        ) :
-        map(
-            i -> Symbol(:f, χ, :_, i) => similar(u),
-            filter(i -> save_tendency(i, a), i_range(a)),
-        )
+    f_vals_inc(a) = Tuple(Iterators.flatten(map(i -> js_to_save(i, a), i_range(a))))
+    f_vals_non_incr(a) = filter(i -> save_tendency(i, a), i_range(a))
+    f_types = get_ode_fun_type.((typeof(prob.f.f2), typeof(prob.f.f1)))
+
+    f_vals_exp = is_increment(f_types[1]) ? f_vals_inc(as[1]) : f_vals_non_incr(as[1])
+    f_vals_imp = is_increment(f_types[2]) ? f_vals_inc(as[2]) : f_vals_non_incr(as[2])
+    u_index_vals = filter(i -> !(i in u_alias_is(as[1], as[2])), i_range(as[1])[1:end - 1])
 
     u = prob.u0
-    Uis = map(
-        i -> Symbol(:U, i) => similar(u),
-        filter(i -> !(i in u_alias_is(as[1], as[2])), i_range(as[1])[1:end - 1])
+    arr_cache = IMEXARKArrayCache(
+        similar(u),
+        map(i -> similar(u), u_index_vals),
+        map(i -> similar(u), f_vals_exp),
+        map(i -> similar(u), f_vals_imp),
     )
-    _cache = NamedTuple((
-        :U_temp => similar(u),
-        Uis...,
-        f_cache(:exp, as[1], typeof(prob.f.f2))...,
-        f_cache(:imp, as[2], typeof(prob.f.f1))...,
-    ))
+    u_index_map = dset(u_index_vals)
+    f_map_exp = dset(f_vals_exp, f_types[1])
+    f_map_imp = dset(f_vals_imp, f_types[2])
+
     newtons_method_cache =
         allocate_cache(alg.newtons_method, u, prob.f.f1.jac_prototype)
-    
-    f_types = (typeof(prob.f.f2), typeof(prob.f.f1))
-    @inbounds _cache = (;
-        _cache..., 
+
+    _cache = (;
+        arr_cache,
+        u_index_map,
+        f_map_imp,
+        f_map_exp,
+        f_types,
         u_alias_is_ = u_alias_is(as[1], as[2]),
         first_i_s = map(χ -> map(j -> first_i(j, as[χ]), j_range(as[χ])), Tuple(1:2)),
         new_js_s = map(χ -> map(i -> new_js(i, as[χ]), i_range(as[χ])), Tuple(1:2)),
@@ -446,45 +471,54 @@ function not_generated_cache(
         newtons_method_cache,
     )
 end
+
+function Δu_broadcast(i, j, χ, a, ::Type{T}, first_i_, _cache, f_map, dt, ::Type{FT}) where {T <: ForwardEulerODEFunType, FT}
+    ΔÛj = getproperty(_cache, χ)
+    ΔÛj = ΔÛj[f_map[Val{Tuple{j ,T}}()]]
+    return broadcasted(*, FT(a[i, j] / a[first_i_[j], j]), ΔÛj)
+end
+function Δu_broadcast(i, j, χ, a, ::Type{T}, first_i_, _cache, f_map, dt, ::Type{FT}) where {T <: AbstractODEFunctionType, FT}
+    fj = getproperty(_cache, χ)
+    fj = fj[f_map[Val{Tuple{j ,T}}()]]
+    return broadcasted(*, dt * FT(a[i, j]), fj)
+end
+
 function not_generated_step_u!(integrator, cache::IMEXARKCache{as, cs}) where {as, cs}
-    @inbounds begin
+    # @inbounds begin
         (; u, p, t, dt, prob, alg) = integrator
         (; f) = prob
         (; f1, f2) = f
         (; newtons_method) = alg
         (; _cache, newtons_method_cache) = cache
+        (; arr_cache, u_index_map, f_map_imp, f_map_exp, f_types) = _cache
 
         FT = typeof(integrator.dt)
-        χs = (:exp, :imp)
+        χs = (:_exp, :_imp)
         fs = (f2, f1)
-        f_types = (typeof(f2), typeof(f1))
-        (; u_alias_is_, first_i_s, new_js_s, js_to_save_s, has_implicit_step_s, save_tendency_s, old_js_s) = _cache
 
-        function Δu_broadcast(i, j, χ, a, f_type, first_i_)
-            if is_increment(f_type)
-                ΔÛj = getproperty(_cache, Symbol(:ΔÛ, χ, :_, j))
-                return broadcasted(*, FT(a[i, j] / a[first_i_[j], j]), ΔÛj)
-            else
-                fj = getproperty(_cache, Symbol(:f, χ, :_, j))
-                return broadcasted(*, dt * FT(a[i, j]), fj)
-            end
-        end
-        Δu_broadcasts(i, χ, a, f_type, first_i_, old_js_) =
-            map(j -> Δu_broadcast(i, j, χ, a, f_type, first_i_), old_js_[i])
+        (; u_alias_is_, first_i_s, new_js_s, js_to_save_s,
+            has_implicit_step_s, save_tendency_s, old_js_s) = _cache
 
-        is = i_range(as[1])
-        for i in is
+        as1 = size(as[1], 1)
+        for i in 1:as1
             if i in u_alias_is_
                 Ui = u
             else
-                Ui = i == is[end] ? u : getproperty(_cache, Symbol(:U, i))
-                all_Δu_broadcasts = (
-                    Δu_broadcasts(i, χs[1], as[1], f_types[1], first_i_s[1], old_js_s[1])...,
-                    Δu_broadcasts(i, χs[2], as[2], f_types[2], first_i_s[2], old_js_s[2])...,
-                )
-                ũi_broadcast = length(all_Δu_broadcasts) == 0 ? u :
-                    broadcasted(+, u, all_Δu_broadcasts...)
-                materialize!(Ui, ũi_broadcast)
+                Ui = i == as1 ? u : arr_cache.U[u_index_map[Val(i)]]
+                if length(old_js_s[1][i])+length(old_js_s[2][i]) == 0
+                    materialize!(Ui, u)
+                else
+                    all_Δu_broadcasts = (
+                        map(old_js_s[1][i]) do j
+                            Δu_broadcast(i, j, χs[1], as[1], f_types[1], first_i_s[1], arr_cache, f_map_exp, dt, FT)
+                        end...,
+                        map(old_js_s[2][i]) do j
+                            Δu_broadcast(i, j, χs[2], as[2], f_types[2], first_i_s[2], arr_cache, f_map_imp, dt, FT)
+                        end...,
+                    )
+                    materialize!(Ui, broadcasted(+, u, all_Δu_broadcasts...))
+                end
+
                 for index in 1:2
                     (χ, a, c, f, f_type, new_js_, js_to_save_, has_implicit_step_, save_tendency_) =
                         (χs[index], as[index], cs[index], fs[index], f_types[index], new_js_s[index], js_to_save_s[index], has_implicit_step_s[index], save_tendency_s[index])
@@ -493,22 +527,26 @@ function not_generated_step_u!(integrator, cache::IMEXARKCache{as, cs}) where {a
                             t′ = t + dt * FT(c[j])
                             Δt′ = dt * FT(a[i, j])
                             if j in js_to_save_[i]
-                                ΔÛj = getproperty(_cache, Symbol(:ΔÛ, χ, :_, j))
+                                ΔÛj = if χ == :_exp
+                                    getproperty(arr_cache, χ)[f_map_exp[Val{Tuple{j, f_type}}()]]
+                                else
+                                    getproperty(arr_cache, χ)[f_map_imp[Val{Tuple{j, f_type}}()]]
+                                end
                                 ΔÛj .= Ui
                             end
                             if j == i
-                                _cache.U_temp .= Ui
+                                arr_cache.U_temp .= Ui
                                 run!(
                                     newtons_method,
                                     newtons_method_cache,
-                                    _cache.U_temp,
+                                    arr_cache.U_temp,
                                     ImplicitError(f, Ui, p, t′, Δt′),
                                     ImplicitErrorJacobian(f.Wfact, p, t′, Δt′),
                                 );
-                                Ui .= _cache.U_temp
+                                Ui .= arr_cache.U_temp
                             else # this is why we store Uj
                                 Uj = j in u_alias_is_ ? u :
-                                    getproperty(_cache, Symbol(:U, j))
+                                    arr_cache.U[u_index_map[Val(j)]]
                                 f(Ui, Uj, p, t′, Δt′)
                             end
                             if j in js_to_save_[i]
@@ -518,33 +556,39 @@ function not_generated_step_u!(integrator, cache::IMEXARKCache{as, cs}) where {a
                     elseif has_implicit_step_[i]
                         t′ = t + dt * FT(c[i])
                         Δt′ = dt * FT(a[i, i])
-                        _cache.U_temp .= Ui
+                        arr_cache.U_temp .= Ui
                         run!(
                             newtons_method,
                             newtons_method_cache,
-                            _cache.U_temp,
+                            arr_cache.U_temp,
                             ImplicitError(f, Ui, p, t′, Δt′),
                             ImplicitErrorJacobian(f.Wfact, p, t′, Δt′),
                         )
                         if save_tendency_[i]
-                            fi = getproperty(_cache, Symbol(:f, χ, :_, i))
-                            fi .= (_cache.U_temp .- Ui) ./ Δt′
+                            fi = if χ == :_exp
+                                getproperty(arr_cache, χ)[f_map_exp[Val{Tuple{i, f_type}}()]]
+                            else
+                                getproperty(arr_cache, χ)[f_map_imp[Val{Tuple{i, f_type}}()]]
+                            end
+                            fi .= (arr_cache.U_temp .- Ui) ./ Δt′
                         end
-                        Ui .= _cache.U_temp
+                        Ui .= arr_cache.U_temp
                     end
                 end
             end
-            for index in 1:2
-                (χ, c, f, f_type, has_implicit_step_, save_tendency_) =
-                    (χs[index], cs[index], fs[index], f_types[index], has_implicit_step_s[index], save_tendency_s[index])
-                if !is_increment(f_type) && !has_implicit_step_[i] &&
-                    save_tendency_[i]
-                    fi = getproperty(_cache, Symbol(:f, χ, :_, i))
-                    t′ = t + dt * FT(c[i])
-                    f(fi, Ui, p, t′)
-                end
+
+            if !is_increment(f_types[1]) && !has_implicit_step_s[1][i] && save_tendency_s[1][i]
+                fi = getproperty(arr_cache, :_exp)[f_map_exp[Val{Tuple{i, f_types[2]}}()]]
+                t′ = t + dt * FT(cs[1][i])
+                fs[1](fi, Ui, p, t′)
             end
+            if !is_increment(f_types[1]) && !has_implicit_step_s[2][i] && save_tendency_s[2][i]
+                fi = getproperty(arr_cache, :_imp)[f_map_imp[Val{Tuple{i, f_types[2]}}()]]
+                t′ = t + dt * FT(cs[2][i])
+                fs[2](fi, Ui, p, t′)
+            end
+
         end
         return u
-    end
+    # end
 end

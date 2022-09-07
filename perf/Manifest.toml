@@ -124,17 +124,11 @@ git-tree-sha1 = "38f7a08f19d8810338d4f5085211c7dfa5d5bdd8"
 uuid = "9e997f8a-9a97-42d5-a9f1-ce6bfc15e2c0"
 version = "0.1.4"
 
-[[deps.ChromeProfileFormat]]
-deps = ["JSON", "Profile"]
-git-tree-sha1 = "4a2676a5bbaf31da41738fbcdf015ecd126d959d"
-uuid = "b19f0eae-10f4-4ff0-9df2-b48cd85f6b2e"
-version = "1.0.0"
-
 [[deps.ClimaTimeSteppers]]
-deps = ["BenchmarkTools", "CUDA", "DiffEqBase", "DiffEqCallbacks", "KernelAbstractions", "LinearAlgebra", "MPI", "SciMLBase", "StaticArrays"]
+deps = ["CUDA", "DiffEqBase", "DiffEqCallbacks", "KernelAbstractions", "LinearAlgebra", "MPI", "SciMLBase", "StaticArrays"]
 path = ".."
 uuid = "595c0a79-7f3d-439a-bc5a-b232dc3bde79"
-version = "0.2.2"
+version = "0.2.3"
 
 [[deps.CloseOpenIntervals]]
 deps = ["ArrayInterface", "Static"]
@@ -678,6 +672,12 @@ uuid = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 [[deps.Profile]]
 deps = ["Printf"]
 uuid = "9abbd945-dff8-562f-b5e8-e1ebf5ef1b79"
+
+[[deps.ProfileCanvas]]
+deps = ["Base64", "JSON", "Pkg", "Profile", "REPL"]
+git-tree-sha1 = "8fc50fe9b7a9a7425986c5709b2064775196bca7"
+uuid = "efd6af41-a80b-495e-886c-e51b0c7d77a3"
+version = "0.1.4"
 
 [[deps.ProgressMeter]]
 deps = ["Distributed", "Printf"]

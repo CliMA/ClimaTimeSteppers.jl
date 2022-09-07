@@ -4,8 +4,8 @@ if !@isdefined(ArrayType)
     ArrayType = Array
 end
 
-const_prob = ODEProblem{true}(
-    (du,u,p,t,α=true,β=false) -> (du .= α .* p .+ β .* du),
+const_prob = ODEProblem(
+    IncrementingODEFunction{true}((du,u,p,t,α=true,β=false) -> (du .= α .* p .+ β .* du)),
     [0.0],(0.0,1.0),2.0)
 const_prob_fe = ODEProblem(
         ForwardEulerODEFunction((un,u,p,t,dt) -> (un .= u .+ dt.* p)),
@@ -30,8 +30,8 @@ u(t) = u_0 e^{αt}
 
 This is an in-place variant of the one from DiffEqProblemLibrary.jl.
 """
-linear_prob = IncrementingODEProblem{true}(
-    (du,u,p,t,α=true,β=false) -> (du .= α .* p .* u .+ β .* du),
+linear_prob = ODEProblem(
+    IncrementingODEFunction{true}((du,u,p,t,α=true,β=false) -> (du .= α .* p .* u .+ β .* du)),
     [1/2],(0.0,1.0),1.01)
 linear_prob_fe = ODEProblem(
     ForwardEulerODEFunction((un,u,p,t,dt) -> (un .= u .+ dt .* p .* u)),
@@ -39,7 +39,7 @@ linear_prob_fe = ODEProblem(
 
 linear_prob_wfactt = ODEProblem(
         ODEFunction(
-          (du,u,p,t,α=true,β=false) -> (du .= α .* p .* u .+ β .* du);
+          (du,u,p,t) -> (du .= p .* u);
           jac_prototype=zeros(1,1),
           Wfact_t = (W,u,p,γ,t) -> (W[1,1]=1/γ-p),
         ),
@@ -88,8 +88,8 @@ with initial condition ``u_0=[0,1]``, parameter ``α=2``, and solution
 u(t) = [cos(αt) sin(αt); -sin(αt) cos(αt) ] u_0
 ```
 """
-sincos_prob = IncrementingODEProblem{true}(
-    (du,u,p,t,α=true,β=false) -> (du[1] = α*p*u[2]+β*du[1]; du[2] = -α*p*u[1]+β*du[2]),
+sincos_prob = ODEProblem(
+    IncrementingODEFunction{true}((du,u,p,t,α=true,β=false) -> (du[1] = α*p*u[2]+β*du[1]; du[2] = -α*p*u[1]+β*du[2])),
     [0.0,1.0], (0.0,1.0), 2.0)
 sincos_prob_fe = ODEProblem(
     ForwardEulerODEFunction((un,u,p,t,dt) -> (un[1] = u[1] + dt*p*u[2]; un[2] = u[2]-dt*p*u[1])),
@@ -112,8 +112,8 @@ u(t) = \frac{e^t + sin(t) - cos(t)}{2 α} + u_0 e^t
 ```
 """
 imex_autonomous_prob = SplitODEProblem(
-    (du, u, p, t, α=true, β=false) -> (du .= α .* u        .+ β .* du),
-    (du, u, p, t, α=true, β=false) -> (du .= α .* cos(t)/p .+ β .* du),
+    IncrementingODEFunction{true}((du, u, p, t, α=true, β=false) -> (du .= α .* u        .+ β .* du)),
+    IncrementingODEFunction{true}((du, u, p, t, α=true, β=false) -> (du .= α .* cos(t)/p .+ β .* du)),
     ArrayType([0.5]), (0.0,1.0), 4.0)
 
 function linsolve_direct(::Type{Val{:init}}, f, u0; kwargs...)
@@ -124,7 +124,7 @@ end
 
 imex_autonomous_prob_jac = ODEProblem(
         ODEFunction(
-            (du, u, p, t, α=true, β=false) -> (du .= α .* (u .+ cos(t)/p) .+ β .* du),
+            IncrementingODEFunction{true}((du, u, p, t, α=true, β=false) -> (du .= α .* (u .+ cos(t)/p) .+ β .* du)),
             jac_prototype = zeros(1,1),
             Wfact = (W,u,p,γ,t) -> W[1,1] = 1-γ,
         ),
@@ -135,8 +135,8 @@ function imex_autonomous_sol(u0,p,t)
 end
 
 imex_nonautonomous_prob = SplitODEProblem(
-    (du, u, p, t, α=true, β=false) -> (du .= α .* cos(t) * u .+ β .* du),
-    (du, u, p, t, α=true, β=false) -> (du .= α .* cos(t)/p   .+ β .* du),
+    IncrementingODEFunction{true}((du, u, p, t, α=true, β=false) -> (du .= α .* cos(t) * u .+ β .* du)),
+    IncrementingODEFunction{true}((du, u, p, t, α=true, β=false) -> (du .= α .* cos(t)/p   .+ β .* du)),
     ArrayType([0.5]), (0.0,2.0), 4.0)
 
 function imex_nonautonomous_sol(u0,p,t)
@@ -214,7 +214,7 @@ kpr_multirate_prob = SplitODEProblem(
     [sqrt(4), sqrt(3)], (0.0, 5π/2), kpr_param,
 )
 
-kpr_singlerate_prob = IncrementingODEProblem{true}(
-    (dQ,Q,param,t,α=1,β=0) -> (dQ .= α .* kpr_rhs(Q,param,t) .+ β .* dQ),
+kpr_singlerate_prob = ODEProblem(
+    IncrementingODEFunction{true}((dQ,Q,param,t,α=1,β=0) -> (dQ .= α .* kpr_rhs(Q,param,t) .+ β .* dQ)),
     [sqrt(4), sqrt(3)], (0.0, 5π/2), kpr_param,
 )

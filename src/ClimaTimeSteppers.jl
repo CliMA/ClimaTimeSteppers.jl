@@ -51,7 +51,6 @@ using StaticArrays
 using CUDA
 using MPI
 
-
 array_device(::Union{Array, SArray, MArray}) = CPU()
 array_device(::CuArray) = CUDADevice()
 realview(x::Union{Array, SArray, MArray}) = x

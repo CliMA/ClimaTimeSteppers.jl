@@ -3,7 +3,8 @@ export Rosenbrock23, SSPKnoth, ROS3, RODAS3
 using StaticArrays: @SArray
 
 #=
-Rosenbrock23 in OrdinaryDiffEq and ode23s in MATLAB (2 stages, 3rd order convergence)
+Rosenbrock23 in OrdinaryDiffEq and ode23s in MATLAB (2 stages, 3rd order
+convergence)
 
 From Section 4.1 of "The MATLAB ODE Suite" by L. F. Shampine and M. W. Reichelt
 
@@ -58,7 +59,7 @@ const ROS3 = begin
     b₂  =  1.94100407061964420292840123379419
     b₃  = -0.18642994676560104463021124732829
     RosenbrockAlgorithm{
-        @SArrray([
+        @SArray([
             γᵢᵢ 0   0;
             γ₂₁ γᵢᵢ 0;
             0   γ₃₂ γᵢᵢ;
@@ -78,7 +79,7 @@ end
 From Section 4 of "Benchmarking Stiff ODE Solvers" by A. Sandu et. al.
 =#
 const RODAS3 = RosenbrockAlgorithm{
-    @SArrray([
+    @SArray([
         1/2  0    0    0;
         1    1/2  0    0;
         -1/4 -1/4 1/2  0;

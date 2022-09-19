@@ -112,8 +112,8 @@ Now, we will formally define the vectors and matrices
     F ∈ ℝᴺ×ℝˢ  | Fₙᵢ := Fᵢ[n],
     F̂ ∈ ℝᴺ×ℝˢ  | F̂ₙᵢ := f(Ûᵢ, T̂ᵢ)[n],
     J ∈ ℝᴺ×ℝᴺ  | Jₙₘ := J[n,m].
-If J and ḟ are different for each stage, they may be replaced with tensors in
-the following manipulations.
+(If J and ḟ are different for each stage, they may be replaced with tensors in
+all of the following manipulations.)
 We then have that
     Û⁺ₙᵢ = uₙ * 𝟙ᵢ + Δt * ∑_{j=1}^i Fₙⱼ * âᵢⱼ and
     Fₙᵢ = F̂ₙᵢ + Δt * ∑_{m=1}^N Jₙₘ * ∑_{j=1}^i Fₘⱼ * γᵢⱼ +
@@ -143,7 +143,7 @@ We will now use these matrix equations to define two reformulations: one that
 optimizes performance by eliminating the subtraction after the linear solve, and
 one that enables limiters by appropriately modifying the value being subtracted.
 
-## Eliminating the Subtraction
+## Optimizing Performance
 
 Let us define a new N×s matrix
     K := F * γᵀ.
@@ -240,7 +240,7 @@ In order to apply limiters on an unscaled state, we would then require that the
 coefficient of u on the right-hand side of this equation be 𝟙ᵀ; i.e., that
     (diag(γ) * β⁻¹ * â * γ⁻¹ * â⁻¹ - β⁻¹) * 𝟙 = 𝟙.
 In general, this equation does not have a solution β; e.g., if γ = â = d * I for
-some scalar constant d, then it simplifies to
+some scalar constant d, then the equation simplifies to
     (β⁻¹ - β⁻¹) * 𝟙 = 𝟙.
 Even if we were to use more complex transformations, it would still be
 impossible to eliminate multiplications by J while preserving an unscaled state
@@ -292,20 +292,107 @@ Rewriting the last definition of Vᵢ in terms of g instead of f gives us
               T̂ᵢ
               Δt * âᵢᵢ,
           ).
-=#
 
-struct RosenbrockAlgorithm{γ, a, b, L, M}
-    linsolve:::L
+## Negating Wfact
+
+For some reason, OrdinaryDiffEq defines Wfact as Δt * γᵢᵢ * J - I, so we must
+negate all of our temporary variables.
+
+For the original formulation, we have that
+    Ûᵢ := u - Δt * ∑_{j=1}^{i-1} aᵢⱼ * Fⱼ, where
+    Fᵢ := (Δt * γᵢᵢ * J - I)⁻¹ * (
+              f(Ûᵢ, T̂ᵢ) + γᵢᵢ⁻¹ * ∑_{j=1}^{i-1} γᵢⱼ * Fⱼ +
+              Δt * ḟ * ∑_{j=1}^i γᵢⱼ
+          ) - γᵢᵢ⁻¹ * ∑_{j=1}^{i-1} γᵢⱼ * Fⱼ.
+For the performance formulation, we have that
+    Û⁺ᵢ := u - Δt * ∑_{j=1}^i (â * γ⁻¹)ᵢⱼ * Kⱼ, where
+    Kᵢ := (Δt * γᵢᵢ * J - I)⁻¹ * γᵢᵢ * (
+              f(Ûᵢ, T̂ᵢ) - ∑_{j=1}^{i-1} (γ⁻¹)ᵢⱼ * Kⱼ + Δt * ḟ * ∑_{j=1}^i γᵢⱼ
+          ).
+For the limiters formulation, we have that
+    Û⁺ᵢ := -∑_{j=1}^i βᵢⱼ * Vᵢ, where
+    Vᵢ := (Δt * γᵢᵢ * J - I)⁻¹ * g(
+              u - Δt * γᵢᵢ * J * u * ∑_{j=1}^i (β⁻¹)ᵢⱼ +
+              Δt * ∑_{j=1}^{i-1} âᵢⱼ * f(Ûⱼ, T̂ⱼ) +
+              Δt² * ḟ * ∑_{j=1}^i (â * γ)ᵢⱼ - ∑_{j=1}^{i-1} βᵢⱼ * Vⱼ,
+              Ûᵢ,
+              T̂ᵢ
+              Δt * âᵢᵢ,
+          ).
+=#
+import LinearAlgebra
+import StaticArrays: SUnitRange, SOneTo
+
+struct RosenbrockAlgorithm{γ, a, b, L, M} <: DistributedODEAlgorithm
+    linsolve::L
     multiply::M
 end
-RosenbrockAlgorithm{γ, a, b}(
+RosenbrockAlgorithm{γ, a, b}(;
     linsolve::L,
     multiply::M = nothing,
 ) where {γ, a, b, L, M} = RosenbrockAlgorithm{γ, a, b, L, M}(linsolve, multiply)
 
-function check_valid_parameters(::RosenbrockAlgorithm{γ, a, b}) where {γ, a, b}
-    
+lower_plus_diag(matrix::T) where {T} = T(LinearAlgebra.LowerTriangular(matrix))
+diag(matrix::T) where {T} = T(LinearAlgebra.Diagonal(matrix))
+lower(matrix) = lower_plus_diag(matrix) - diag(matrix)
+to_enumerated_rows(v::AbstractVector) = v
+function to_enumerated_rows(m::AbstractMatrix)
+    rows = tuple(1:size(m, 1)...)
+    nonzero_indices = map(i -> findall(m[i, :] .!= 0), rows)
+    enumerated_rows = map(
+        i -> tuple(zip(nonzero_indices[i], m[i, nonzero_indices[i]])...),
+        rows,
+    )
+    return enumerated_rows
 end
+linear_combination_terms(enumerated_row, vectors) =
+    map(((j, val),) -> Base.broadcasted(*, val, vectors[j]), enumerated_row)
+function set_scaled_linear_combination!(output, enumerated_row, vectors, scale = nothing)
+    terms = linear_combination_terms(enumerated_row, vectors)
+    length(terms) > 0 || error("set_linear_combination! needs at least 1 term")
+    sum = Base.broadcasted(+, terms...)
+    if isnothing(scale)
+        Base.materialize!(output, sum)
+    else
+        Base.materialize!(output, Base.broadcasted(*, scale, sum))
+    end
+    return nothing
+end
+function add_scaled_linear_combination!(output, enumerated_row, vectors, scale = nothing)
+    terms = linear_combination_terms(enumerated_row, vectors)
+    if length(terms) > 0
+        if isnothing(scale)
+            Base.materialize!(output, Base.broadcasted(+, output, terms...))
+        else
+            scaled_sum =
+                Base.broadcasted(*, scale, Base.broadcasted(+, terms...))
+            Base.materialize!(output, Base.broadcasted(+, output, scaled_sum))
+        end
+    end
+    return nothing
+end
+
+function check_valid_parameters(
+    ::Type{<:RosenbrockAlgorithm{γ, a, b}},
+) where {γ, a, b}
+    γ === lower_plus_diag(γ) ||
+        error("γ must be a lower triangular matrix")
+    a === lower(a) ||
+        error("a must be a strictly lower triangular matrix")
+    LinearAlgebra.det(γ) != 0 ||
+        error("non-invertible matrices γ are not yet supported")
+end
+function check_valid_parameters(
+    alg_type::Type{<:RosenbrockAlgorithm{γ, a, b}},
+    ::Type{<:ForwardEulerODEFunction},
+) where {γ, a, b}
+    check_valid_parameters(alg_type)
+    â = vcat(a[SUnitRange(2, length(b)), SOneTo(length(b))], transpose(b))
+    LinearAlgebra.det(â) != 0 ||
+        error("non-invertible matrices â are not yet supported when using \
+               ForwardEulerODEFunction")
+end
+check_valid_parameters(alg_type, _) = check_valid_parameters(alg_type)
 
 struct RosenbrockCache{C, L, M}
     _cache::C
@@ -317,15 +404,15 @@ end
 # longer needed.
 function cache(
     prob::DiffEqBase.AbstractODEProblem,
-    alg::RosenbrockAlgorithm;
+    alg::RosenbrockAlgorithm{γ};
     kwargs...
-)
-    check_valid_parameters(alg)
-    s = length(b)
+) where {γ}
+    check_valid_parameters(typeof(alg), typeof(prob.f))
+    s = size(γ, 1)
     increment_mode = prob.f isa ForwardEulerODEFunction
     u_prototype = prob.u0
-    j_prototype = prob.f.jac_prototype
-    linsolve! = alg.linsolve(Val{:init}, j_prototype, u_prototype)
+    W_prototype = prob.f.jac_prototype
+    linsolve! = alg.linsolve(Val{:init}, W_prototype, u_prototype)
     if isnothing(alg.multiply)
         if increment_mode
             error("RosenbrockAlgorithm.multiply must be specified when using a \
@@ -333,12 +420,14 @@ function cache(
         end
         multiply! = nothing
     else
-        multiply! = alg.multiply(Val{:init}, j_prototype, u_prototype)
+        multiply! = alg.multiply(Val{:init}, W_prototype, u_prototype)
     end
     _cache = NamedTuple((
-        :Û => similar(u_prototype),
+        :Û⁺ => similar(u_prototype),
         (increment_mode ? (F̂s => map(i -> similar(u_prototype), 1:s),) : ())...,
         (increment_mode ? :Vs : :Ks) => map(i -> similar(u_prototype), 1:s),
+        :W => similar(W_prototype),
+        :ḟ => similar(u_prototype),
     ))
     C = typeof(_cache)
     L = typeof(linsolve!)
@@ -350,14 +439,77 @@ step_u!(integrator, cache::RosenbrockCache) =
     rosenbrock_step_u!(integrator, cache, integrator.prob.f)
 
 function precomputed_values(
-    ::RosenbrockAlgorithm{γ, a, b},
-    ::ForwardEulerODEFunction
+    ::Type{<:RosenbrockAlgorithm{γ, a, b}},
+    _,
 ) where {γ, a, b}
+    â = vcat(a[SUnitRange(2, length(b)), SOneTo(length(b))], transpose(b))
+    lowerγ⁻¹ = lower(inv(γ))
+    âγ⁻¹ = â * inv(γ)
+    â𝟙 = vec(sum(â, dims = 2))
+    γ𝟙 = vec(sum(γ, dims = 2))
+    diagγ𝟙 = vec(sum(diag(γ), dims = 2))
+    return map(to_enumerated_rows, (; lowerγ⁻¹, âγ⁻¹, â𝟙, γ𝟙, diagγ𝟙))
+end
 
+function precomputed_values(
+    ::Type{<:RosenbrockAlgorithm{γ, a, b}},
+    ::Type{<:ForwardEulerODEFunction},
+) where {γ, a, b}
+    â = vcat(a[SUnitRange(2, length(b)), SOneTo(length(b))], transpose(b))
+    âγ = â * γ
+    β = â * inv(âγ) * diag(γ)
+    β⁻¹𝟙 = vec(sum(inv(β), dims = 2))
+    â𝟙 = vec(sum(â, dims = 2))
+    return map(to_enumerated_rows, (; â, âγ, β, β⁻¹𝟙, â𝟙))
 end
 
 function rosenbrock_step_u!(integrator, cache, f::ForwardEulerODEFunction)
     (; u, p, t, dt, alg) = integrator
     (; linsolve!, multiply!) = cache
-    (; Û, F̂s, Vs) = cache._cache
+    (; Û, Û₊, F̂s, Vs) = cache._cache
+    (; â, âγ, β, β⁻¹𝟙, â𝟙) = precomputed_values(typeof(alg), typeof(f))
+    s = size(â, 1)
+    for i in 1:s
+        Û_prev = i == 1 ? u : Û
+        T̂_prev = i == 1 ? t : t + Δt * â𝟙[i]
+
+        set_scaled_linear_combination!(Û, β[i], Vs, -1)
+
+
+    # Vᵢ := (I - Δt * γᵢᵢ * J)⁻¹ * g(
+    #     u - Δt * γᵢᵢ * J * u * ∑_{j=1}^i (β⁻¹)ᵢⱼ +
+    #     Δt * ∑_{j=1}^{i-1} âᵢⱼ * f(Ûⱼ, T̂ⱼ) +
+    #     Δt² * ḟ * ∑_{j=1}^i (â * γ)ᵢⱼ - ∑_{j=1}^{i-1} βᵢⱼ * Vⱼ,
+    #     Ûᵢ,
+    #     T̂ᵢ
+    #     Δt * âᵢᵢ,
+    # )
+    end
+end
+
+function rosenbrock_step_u!(integrator, cache, f)
+    (; u, p, t, dt, alg) = integrator
+    (; linsolve!) = cache
+    (; Û⁺, Ks, W, ḟ) = cache._cache
+    (; lowerγ⁻¹, âγ⁻¹, â𝟙, γ𝟙, diagγ𝟙) = precomputed_values(typeof(alg), typeof(f))
+    @assert all(diagγ𝟙 .== diagγ𝟙[1])
+    f.Wfact(W, u, p, t, diagγ𝟙[1])
+    !isnothing(f.tgrad) && f.tgrad(ḟ, u, p, t)
+    for i in 1:length(Ks)
+        Û = i == 1 ? u : Û⁺
+        T̂ = i == 1 ? t : t + dt * â𝟙[i]
+
+        # Kᵢ = (Δt * γᵢᵢ * J - I)⁻¹ * γᵢᵢ *
+        #     (f(Ûᵢ, T̂ᵢ) - ∑_{j=1}^{i-1} (γ⁻¹)ᵢⱼ * Kⱼ + Δt * ḟ * ∑_{j=1}^i γᵢⱼ)
+        f(Ks[i], Û, p, T̂)
+        add_scaled_linear_combination!(Ks[i], lowerγ⁻¹[i], Ks, -1)
+        !isnothing(f.tgrad) && (Ks[i] .+= dt .* ḟ .* γ𝟙[i])
+        Ks[i] .*= diagγ𝟙[i]
+        linsolve!(Ks[i], W, Ks[i]) # assume linsolve! can handle aliasing
+
+        # Û⁺ᵢ = u - Δt * ∑_{j=1}^i (â * γ⁻¹)ᵢⱼ * Kⱼ
+        Û⁺ .= u
+        add_scaled_linear_combination!(Û⁺, âγ⁻¹[i], Ks, -dt)
+    end
+    u .= Û⁺
 end

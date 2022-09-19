@@ -64,6 +64,25 @@ end
     end
 end
 
+@testset "Rosenbrock Algorithms" begin
+    algs3 = (Rosenbrock23, SSPKnoth, ROS3, RODAS3)
+    for (algorithm_names, order) in ((algs3, 3),)
+        for algorithm_name in algorithm_names
+            for (problem, solution) in (
+                (linear_prob_approximate_wfact, linear_sol),
+                # (split_linear_prob_wfact_split_fe, linear_sol),
+            )
+                algorithm = algorithm_name(; linsolve = linsolve_direct)
+                @test isapprox(
+                    convergence_order(problem, solution, algorithm, dts),
+                    order;
+                    atol = 0.02,
+                )
+            end
+        end
+    end
+end
+
 #=
 if ArrayType == Array
 for (prob, sol) in [

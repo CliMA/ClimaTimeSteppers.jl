@@ -238,14 +238,6 @@ struct ImplicitError{F, U, P, T}
     t::T
     Δt::T
 end
-struct ImplicitErrorSaveTendency{F, U, P, T}
-    ode_f!::F
-    ode_f::U
-    û::U
-    p::P
-    t::T
-    Δt::T
-end
 struct ImplicitErrorJacobian{W, P, T}
     Wfact!::W
     p::P
@@ -263,10 +255,6 @@ end
 function ((; û, p, t, Δt)::ImplicitError)(f, u, ode_f!)
     ode_f!(f, u, p, t)
     f .= û .+ Δt .* f .- u
-end
-function ((; ode_f!, ode_f, û, p, t, Δt)::ImplicitErrorSaveTendency)(f, u)
-    ode_f!(ode_f, u, p, t)
-    f .= û .+ Δt .* ode_f .- u
 end
 ((; Wfact!, p, t, Δt)::ImplicitErrorJacobian)(j, u) = Wfact!(j, u, p, Δt, t)
 
@@ -353,10 +341,13 @@ function step_u_expr(
                         expr = :($(expr.args...); $(Ûik_expr.args...))
                     end
                 elseif has_implicit_step(i, a)
-                    fi = :(_cache.$(Symbol(:f, χ, :_, i)))
-                    implicit_error_expr = save_tendency(i, a) ?
-                        :(ImplicitErrorSaveTendency($f, $fi, $Ui, p, t′, Δt′)) :
-                        :(ImplicitError($f, $Ui, p, t′, Δt′))
+                    if save_tendency(i, a)
+                        fi = :(_cache.$(Symbol(:f, χ, :_, i)))
+                        save_tendency_expr =
+                            :($fi .= (_cache.U_temp .- $Ui) ./ Δt′)
+                    else
+                        save_tendency_expr = :()
+                    end
                     expr = :(
                         $(expr.args...);
                         t′ = t + dt * $(FT(c[i]));
@@ -366,9 +357,10 @@ function step_u_expr(
                             newtons_method,
                             newtons_method_cache,
                             _cache.U_temp,
-                            $implicit_error_expr,
+                            ImplicitError($f, $Ui, p, t′, Δt′),
                             ImplicitErrorJacobian($f.Wfact, p, t′, Δt′),
                         );
+                        $save_tendency_expr;
                         $Ui .= _cache.U_temp
                     )
                 end
@@ -526,21 +518,18 @@ function not_generated_step_u!(integrator, cache::IMEXARKCache{as, cs}) where {a
                     elseif has_implicit_step_[i]
                         t′ = t + dt * FT(c[i])
                         Δt′ = dt * FT(a[i, i])
-                        if save_tendency_[i]
-                            fi = getproperty(_cache, Symbol(:f, χ, :_, i))
-                            implicit_error =
-                                ImplicitErrorSaveTendency(f, fi, Ui, p, t′, Δt′)
-                        else
-                            implicit_error = ImplicitError(f, Ui, p, t′, Δt′)
-                        end
                         _cache.U_temp .= Ui
                         run!(
                             newtons_method,
                             newtons_method_cache,
                             _cache.U_temp,
-                            implicit_error,
+                            ImplicitError(f, Ui, p, t′, Δt′),
                             ImplicitErrorJacobian(f.Wfact, p, t′, Δt′),
                         )
+                        if save_tendency_[i]
+                            fi = getproperty(_cache, Symbol(:f, χ, :_, i))
+                            fi .= (_cache.U_temp .- Ui) ./ Δt′
+                        end
                         Ui .= _cache.U_temp
                     end
                 end

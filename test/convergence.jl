@@ -43,7 +43,7 @@ end
     algs1 = (ARS111, ARS121)
     algs2 = (ARS122, ARS232, ARS222, IMKG232a, IMKG232b, IMKG242a, IMKG242b)
     algs2 = (algs2..., IMKG252a, IMKG252b, IMKG253a, IMKG253b, IMKG254a)
-    algs2 = (algs2..., IMKG254b, IMKG254c)
+    algs2 = (algs2..., IMKG254b, IMKG254c, HOMMEM1)
     algs3 = (ARS233, ARS343, ARS443, IMKG342a, IMKG343a, DBM453)
     for (algorithm_names, order) in ((algs1, 1), (algs2, 2), (algs3, 3))
         for algorithm_name in algorithm_names
@@ -52,12 +52,12 @@ end
                 (split_linear_prob_wfact_split_fe, linear_sol),
             )
                 algorithm = algorithm_name(
-                    NewtonsMethod(; linsolve = linsolve_direct, max_iters = 2),
-                ) # setting max_iters = 1 gives incorrect convergence orders
+                    NewtonsMethod(; linsolve = linsolve_direct, max_iters = 1),
+                ) # the problem is linear, so more iters have no effect
                 @test isapprox(
                     convergence_order(problem, solution, algorithm, dts),
                     order;
-                    atol = 0.02,
+                    rtol = 0.01,
                 )
             end
         end

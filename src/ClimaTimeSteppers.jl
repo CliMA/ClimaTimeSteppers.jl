@@ -74,9 +74,11 @@ include("solvers/convergence_condition.jl")
 include("solvers/convergence_checker.jl")
 include("solvers/newtons_method.jl")
 include("solvers/imex_ark.jl")
+include("solvers/rosenbrock.jl")
 
 # Include concrete implementations
 include("solvers/imex_ark_tableaus.jl")
+include("solvers/rosenbrock_tableaus.jl")
 include("solvers/multirate.jl")
 include("solvers/lsrk.jl")
 include("solvers/ssprk.jl")
@@ -84,7 +86,6 @@ include("solvers/ark.jl")
 # include("solvers/ars.jl") # previous implementations of ARS schemes
 include("solvers/mis.jl")
 include("solvers/wickerskamarock.jl")
-include("solvers/rosenbrock.jl")
 
 include("callbacks.jl")
 

@@ -1,7 +1,7 @@
 export ARS111, ARS121, ARS122, ARS233, ARS232, ARS222, ARS343, ARS443
 export IMKG232a, IMKG232b, IMKG242a, IMKG242b, IMKG252a, IMKG252b
 export IMKG253a, IMKG253b, IMKG254a, IMKG254b, IMKG254c, IMKG342a, IMKG343a
-export DBM453, HOMMEM1
+export DBM453
 
 using StaticArrays: @SArray, SMatrix, sacollect
 
@@ -150,13 +150,6 @@ const ARS443 = make_IMEXARKAlgorithm(;
 # appear to be wrong, so they are not included here. Eventually, we should get
 # the official implementations from the paper's authors.
 
-# a_exp:                                   a_imp:
-# 0      0      ⋯      0      0      0     0      0      ⋯      0      0      0
-# α[1]   0      ⋱      ⋮      ⋮      ⋮     α̂[1]   δ̂[1]   ⋱      ⋮      ⋮       0
-# β[1]   α[2]   ⋱      0      0      0    β[1]   α̂[2]   ⋱      0      0      0
-# ⋮      0      ⋱      0      0      0     ⋮      0      ⋱      δ̂[s-3] 0      0
-# ⋮      ⋮       ⋱     α[s-2] 0      0     ⋮      ⋮       ⋱      α̂[s-2] δ̂[s-2] 0
-# β[s-2] 0      ⋯      0      α[s-1] 0     β[s-2] 0      ⋯       0      α̂[s-1] 0
 imkg_exp(i, j, α, β) = i == j + 1 ? α[j] : (i > 2 && j == 1 ? β[i - 2] : 0)
 imkg_imp(i, j, α̂, β, δ̂) = i == j + 1 ? α̂[j] :
     (i > 2 && j == 1 ? β[i - 2] : (1 < i <= length(α̂) && i == j ? δ̂[i - 1] : 0))
@@ -324,31 +317,3 @@ const DBM453 = let
         ]),
     )
 end
-
-################################################################################
-
-# HOMMEM1 algorithm
-
-# From Section 4.1 of "A framework to evaluate IMEX schemes for atmospheric
-# models" by Guba et al.
-
-# The algorithm has 5 implicit stages, 6 overall stages, and 2rd order accuracy.
-
-const HOMMEM1 = make_IMEXARKAlgorithm(;
-    a_exp = @SArray([
-        0   0   0   0   0   0;
-        1/5 0   0   0   0   0;
-        0   1/5 0   0   0   0;
-        0   0   1/3 0   0   0;
-        0   0   0   1/2 0   0;
-        0   0   0   0   1   0;
-    ]),
-    a_imp = @SArray([
-        0    0    0    0    0    0;
-        0    1/5  0    0    0    0;
-        0    0    1/5  0    0    0;
-        0    0    0    1/3  0    0;
-        0    0    0    0    1/2  0;
-        5/18 5/18 0    0    0    8/18;
-    ]),
-)

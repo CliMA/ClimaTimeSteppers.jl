@@ -39,6 +39,10 @@ for (prob, sol, tscale) in [
 
 end
 
+using Revise, ClimaTimeSteppers, Test
+include("test/problems.jl")
+include("test/utils.jl")
+dts = 0.5 .^ (2:5)
 @testset "IMEX ARK Methods" begin
     algs1 = (ARS111, ARS121)
     algs2 = (ARS122, ARS232, ARS222, IMKG232a, IMKG232b, IMKG242a, IMKG242b)
@@ -48,9 +52,11 @@ end
     for (algorithm_names, order) in ((algs1, 1), (algs2, 2), (algs3, 3))
         for algorithm_name in algorithm_names
             for (problem, solution) in (
-                (split_linear_prob_wfact_split, linear_sol),
-                (split_linear_prob_wfact_split_fe, linear_sol),
+                # (split_linear_prob_wfact_split, linear_sol),
+                # (split_linear_prob_wfact_split_fe, linear_sol),
+                (ark_analytic_split, ark_analytic_sol),
             )
+                @show algorithm_name
                 algorithm = algorithm_name(
                     NewtonsMethod(; linsolve = linsolve_direct, max_iters = 1),
                 ) # the problem is linear, so more iters have no effect
@@ -64,6 +70,10 @@ end
     end
 end
 
+using Revise, ClimaTimeSteppers, Test
+include("test/problems.jl")
+include("test/utils.jl")
+dts = 0.5 .^ (4:7)
 @testset "Rosenbrock-W Methods" begin
     algs2 = (Rosenbrock23, SSPKnoth, RODASP2, ROS3w, ROS3Pw)
     algs3 = (ROS34PW1a, ROS34PW1b, ROS34PW2, ROS34PW3)
@@ -71,6 +81,8 @@ end
         for algorithm_name in algorithm_names
             for (problem, solution) in (
                 (linear_prob_inexact_wfact, linear_sol),
+                (ark_analytic_sys, ark_analytic_sys_sol),
+                # (ark_analytic_sys_increment, ark_analytic_sys_sol),
             )
                 algorithm = algorithm_name(; linsolve = linsolve_direct)
                 @test isapprox(
@@ -83,15 +95,19 @@ end
     end
 end
 
+using Revise, ClimaTimeSteppers, Test
+include("test/problems.jl")
+include("test/utils.jl")
+dts = 0.5 .^ (4:7)
 @testset "Rosenbrock-W Methods Limiters Formulation" begin
-    algs2 = (Rosenbrock23, SSPKnoth, RODASP2, ROS3w, ROS3Pw)
-    algs3 = (ROS34PW1a, ROS34PW1b, ROS34PW2, ROS34PW3)
+    # only methods with invertible matrices â can be tested here
+    algs2 = (Rosenbrock23, SSPKnoth, RODASP2)
+    algs3 = (ROS34PW2, ROS34PW3)
     for (algorithm_names, order) in ((algs2, 2), (algs3, 3))
         for algorithm_name in algorithm_names
             for (problem, solution) in (
                 (linear_prob_inexact_wfact_fe, linear_sol),
             )
-                @info algorithm_name
                 algorithm = algorithm_name(;
                     linsolve = linsolve_direct,
                     multiply! = multiply_direct!,

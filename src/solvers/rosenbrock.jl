@@ -129,15 +129,15 @@ Dropping the indices then tells us that
     Û⁺ = u ⊗ 𝟙ᵀ + Δt * F * âᵀ and
     F = F̂ + Δt * J * F * γᵀ + Δt * ḟ ⊗ (γ * 𝟙)ᵀ.
 To rewrite this in a way that more directly corresponds to our last formulation,
-we will define the functions diag() and lower(), such that, for any lower
+we will define the functions diagonal() and lower(), such that, for any lower
 triangular matrix M,
-    M = diag(M) + lower(M), where
-    diag(M)ᵢⱼ := i == j ? Mᵢⱼ : 0 and
+    M = diagonal(M) + lower(M), where
+    diagonal(M)ᵢⱼ := i == j ? Mᵢⱼ : 0 and
     lower(M)ᵢⱼ := i > j ? Mᵢⱼ : 0.
 This lets us rewrite the equation for F as
-    F * (I + diag(γ)⁻¹ * lower(γ))ᵀ -
-    Δt * J * F * (I + diag(γ)⁻¹ * lower(γ))ᵀ * diag(γ)ᵀ =
-        = F̂ + F * (diag(γ)⁻¹ * lower(γ))ᵀ + Δt * ḟ ⊗ (γ * 𝟙)ᵀ.
+    F * (I + diagonal(γ)⁻¹ * lower(γ))ᵀ -
+    Δt * J * F * (I + diagonal(γ)⁻¹ * lower(γ))ᵀ * diagonal(γ)ᵀ =
+        = F̂ + F * (diagonal(γ)⁻¹ * lower(γ))ᵀ + Δt * ḟ ⊗ (γ * 𝟙)ᵀ.
 
 We will now use these matrix equations to define two reformulations: one that
 optimizes performance by eliminating the subtraction after the linear solve, and
@@ -146,28 +146,28 @@ one that enables limiters by appropriately modifying the value being subtracted.
 ## Optimizing Performance
 
 Let us define a new N×s matrix
-    K := F * γᵀ.
+    K := Δt * F * γᵀ.
 We then have that
-    F = K * (γ⁻¹)ᵀ.
+    F = Δt⁻¹ * K * (γ⁻¹)ᵀ.
 This allows us to rewrite the matrix equations as
-    Û⁺ = u ⊗ 𝟙ᵀ + Δt * K * (â * γ⁻¹)ᵀ and
-    K * (γ⁻¹)ᵀ = F̂ + Δt * J * K + Δt * ḟ ⊗ (γ * 𝟙)ᵀ.
+    Û⁺ = u ⊗ 𝟙ᵀ + K * (â * γ⁻¹)ᵀ and
+    Δt⁻¹ * K * (γ⁻¹)ᵀ = F̂ + J * K + Δt * ḟ ⊗ (γ * 𝟙)ᵀ.
 Since γ is lower triangular,
-    γ⁻¹ = diag(γ⁻¹) + lower(γ⁻¹) = diag(γ)⁻¹ + lower(γ⁻¹).
+    γ⁻¹ = diagonal(γ⁻¹) + lower(γ⁻¹) = diagonal(γ)⁻¹ + lower(γ⁻¹).
 This lets us rewrite the equation for K as
-    K * (diag(γ)⁻¹ + lower(γ⁻¹))ᵀ = F̂ + Δt * J * K + Δt * ḟ ⊗ (γ * 𝟙)ᵀ.
-Multiplying through on the right by diag(γ)ᵀ and rearranging gives us
-    K - Δt * J * K * diag(γ)ᵀ =
-        (F̂ - K * lower(γ⁻¹)ᵀ + Δt * ḟ ⊗ (γ * 𝟙)ᵀ) * diag(γ)ᵀ.
+    Δt⁻¹ * K * (diagonal(γ)⁻¹ + lower(γ⁻¹))ᵀ = F̂ + J * K + Δt * ḟ ⊗ (γ * 𝟙)ᵀ.
+Multiplying through on the right by Δt * diagonal(γ)ᵀ and rearranging gives us
+    K - Δt * J * K * diagonal(γ)ᵀ =
+        Δt * (F̂ - Δt⁻¹ * K * lower(γ⁻¹)ᵀ + Δt * ḟ ⊗ (γ * 𝟙)ᵀ) * diagonal(γ)ᵀ.
 Taking this and the equation for Û⁺ back out of matrix form gives us
-    Û⁺ᵢ = u + Δt * ∑_{j=1}^i (â * γ⁻¹)ᵢⱼ * Kⱼ and
+    Û⁺ᵢ = u + ∑_{j=1}^i (â * γ⁻¹)ᵢⱼ * Kⱼ and
     Kᵢ - Δt * γᵢᵢ * J * Kᵢ =
-        = γᵢᵢ *
-          (f(Ûᵢ, T̂ᵢ) - ∑_{j=1}^{i-1} (γ⁻¹)ᵢⱼ * Kⱼ + Δt * ḟ * ∑_{j=1}^i γᵢⱼ).
+        = Δt * γᵢᵢ *
+          (f(Ûᵢ, T̂ᵢ) - ∑_{j=1}^{i-1} (γ⁻¹)ᵢⱼ/Δt * Kⱼ + Δt * ḟ * ∑_{j=1}^i γᵢⱼ).
 Thus, to optimize performance, we can redefine
-    Û⁺ᵢ := u + Δt * ∑_{j=1}^i (â * γ⁻¹)ᵢⱼ * Kⱼ, where
-    Kᵢ := (I - Δt * γᵢᵢ * J)⁻¹ * γᵢᵢ * (
-              f(Ûᵢ, T̂ᵢ) - ∑_{j=1}^{i-1} (γ⁻¹)ᵢⱼ * Kⱼ + Δt * ḟ * ∑_{j=1}^i γᵢⱼ
+    Û⁺ᵢ := u + ∑_{j=1}^i (â * γ⁻¹)ᵢⱼ * Kⱼ, where
+    Kᵢ := (I - Δt * γᵢᵢ * J)⁻¹ * Δt * γᵢᵢ * (
+              f(Ûᵢ, T̂ᵢ) - ∑_{j=1}^{i-1} (γ⁻¹)ᵢⱼ/Δt * Kⱼ + Δt * ḟ * ∑_{j=1}^i γᵢⱼ
           ).
 
 ## Enabling Limiters
@@ -199,46 +199,48 @@ results in
 Since γ, â, and β are all lower triangular, β⁻¹ * â * γ⁻¹ * â⁻¹ * β is also
 lower triangular, which means that
     β⁻¹ * â * γ⁻¹ * â⁻¹ * β =
-        diag(β⁻¹ * â * γ⁻¹ * â⁻¹ * β) + lower(β⁻¹ * â * γ⁻¹ * â⁻¹ * β).
+        diagonal(β⁻¹ * â * γ⁻¹ * â⁻¹ * β) + lower(β⁻¹ * â * γ⁻¹ * â⁻¹ * β).
 In addition, we have that
-    diag(β⁻¹ * â * γ⁻¹ * â⁻¹ * β) =
-        = diag(β⁻¹) * diag(â) * diag(γ⁻¹) * diag(â⁻¹) * diag(β) =
-        = diag(β)⁻¹ * diag(â) * diag(γ)⁻¹ * diag(â)⁻¹ * diag(β) =
-        = diag(γ)⁻¹.
+    diagonal(β⁻¹ * â * γ⁻¹ * â⁻¹ * β) =
+        = diagonal(β⁻¹) * diagonal(â) * diagonal(γ⁻¹) * diagonal(â⁻¹) *
+          diagonal(β) =
+        = diagonal(β)⁻¹ * diagonal(â) * diagonal(γ)⁻¹ * diagonal(â)⁻¹ *
+          diagonal(β) =
+        = diagonal(γ)⁻¹.
 Combining the last two expressions gives us
-    β⁻¹ * â * γ⁻¹ * â⁻¹ * β = diag(γ)⁻¹ + lower(β⁻¹ * â * γ⁻¹ * â⁻¹ * β).
+    β⁻¹ * â * γ⁻¹ * â⁻¹ * β = diagonal(γ)⁻¹ + lower(β⁻¹ * â * γ⁻¹ * â⁻¹ * β).
 Substituting this into the last equation for V gives us
-    V * (diag(γ)⁻¹)ᵀ + V * lower(β⁻¹ * â * γ⁻¹ * â⁻¹ * β)ᵀ - Δt * J * V =
+    V * (diagonal(γ)⁻¹)ᵀ + V * lower(β⁻¹ * â * γ⁻¹ * â⁻¹ * β)ᵀ - Δt * J * V =
         = u ⊗ (β⁻¹ * â * γ⁻¹ * â⁻¹ * 𝟙)ᵀ - Δt * J * u ⊗ (β⁻¹ * 𝟙)ᵀ +
           Δt * F̂ * (β⁻¹ * â * γ⁻¹)ᵀ + Δt² * ḟ ⊗ (β⁻¹ * â * 𝟙)ᵀ.
-Multiplying through on the right by diag(γ)ᵀ and rearranging tells us that
-    V - Δt * J * V * diag(γ)ᵀ =
-        = u ⊗ (diag(γ) * β⁻¹ * â * γ⁻¹ * â⁻¹ * 𝟙)ᵀ -
-          Δt * J * u ⊗ (β⁻¹ * 𝟙)ᵀ * diag(γ)ᵀ +
-          Δt * F̂ * (diag(γ) * β⁻¹ * â * γ⁻¹)ᵀ +
-          Δt² * ḟ ⊗ (diag(γ) * β⁻¹ * â * 𝟙)ᵀ -
-          V * (diag(γ) * lower(β⁻¹ * â * γ⁻¹ * â⁻¹ * β))ᵀ.
+Multiplying through on the right by diagonal(γ)ᵀ and rearranging tells us that
+    V - Δt * J * V * diagonal(γ)ᵀ =
+        = u ⊗ (diagonal(γ) * β⁻¹ * â * γ⁻¹ * â⁻¹ * 𝟙)ᵀ -
+          Δt * J * u ⊗ (β⁻¹ * 𝟙)ᵀ * diagonal(γ)ᵀ +
+          Δt * F̂ * (diagonal(γ) * β⁻¹ * â * γ⁻¹)ᵀ +
+          Δt² * ḟ ⊗ (diagonal(γ) * β⁻¹ * â * 𝟙)ᵀ -
+          V * (diagonal(γ) * lower(β⁻¹ * â * γ⁻¹ * â⁻¹ * β))ᵀ.
 Since lower() preserves multiplication by a diagonal matrix, we can rewrite
 this as
-    V - Δt * J * V * diag(γ)ᵀ =
-        = u ⊗ (diag(γ) * β⁻¹ * â * γ⁻¹ * â⁻¹ * 𝟙)ᵀ -
-          Δt * J * u ⊗ (β⁻¹ * 𝟙)ᵀ * diag(γ)ᵀ +
-          Δt * F̂ * (diag(γ) * β⁻¹ * â * γ⁻¹)ᵀ +
-          Δt² * ḟ ⊗ (diag(γ) * β⁻¹ * â * 𝟙)ᵀ -
-          V * lower(diag(γ) * β⁻¹ * â * γ⁻¹ * â⁻¹ * β)ᵀ.
+    V - Δt * J * V * diagonal(γ)ᵀ =
+        = u ⊗ (diagonal(γ) * β⁻¹ * â * γ⁻¹ * â⁻¹ * 𝟙)ᵀ -
+          Δt * J * u ⊗ (β⁻¹ * 𝟙)ᵀ * diagonal(γ)ᵀ +
+          Δt * F̂ * (diagonal(γ) * β⁻¹ * â * γ⁻¹)ᵀ +
+          Δt² * ḟ ⊗ (diagonal(γ) * β⁻¹ * â * 𝟙)ᵀ -
+          V * lower(diagonal(γ) * β⁻¹ * â * γ⁻¹ * â⁻¹ * β)ᵀ.
 
 We will now show that this reformulation will not allow us to eliminate
 multiplications by J, as the previous ones did.
 If we wanted to factor out all multiplications by J when we convert back out of
 matrix form, we would rearrange the last equation to get
-    (V - u ⊗ (β⁻¹ * 𝟙)ᵀ) - Δt * J * (V - u ⊗ (β⁻¹ * 𝟙)ᵀ) * diag(γ)ᵀ =
-        = u ⊗ ((diag(γ) * β⁻¹ * â * γ⁻¹ * â⁻¹ - β⁻¹) * 𝟙)ᵀ +
-          Δt * F̂ * (diag(γ) * β⁻¹ * â * γ⁻¹)ᵀ +
-          Δt² * ḟ ⊗ (diag(γ) * β⁻¹ * â * 𝟙)ᵀ -
-          V * lower(diag(γ) * β⁻¹ * â * γ⁻¹ * â⁻¹ * β)ᵀ.
+    (V - u ⊗ (β⁻¹ * 𝟙)ᵀ) - Δt * J * (V - u ⊗ (β⁻¹ * 𝟙)ᵀ) * diagonal(γ)ᵀ =
+        = u ⊗ ((diagonal(γ) * β⁻¹ * â * γ⁻¹ * â⁻¹ - β⁻¹) * 𝟙)ᵀ +
+          Δt * F̂ * (diagonal(γ) * β⁻¹ * â * γ⁻¹)ᵀ +
+          Δt² * ḟ ⊗ (diagonal(γ) * β⁻¹ * â * 𝟙)ᵀ -
+          V * lower(diagonal(γ) * β⁻¹ * â * γ⁻¹ * â⁻¹ * β)ᵀ.
 In order to apply limiters on an unscaled state, we would then require that the
 coefficient of u on the right-hand side of this equation be 𝟙ᵀ; i.e., that
-    (diag(γ) * β⁻¹ * â * γ⁻¹ * â⁻¹ - β⁻¹) * 𝟙 = 𝟙.
+    (diagonal(γ) * β⁻¹ * â * γ⁻¹ * â⁻¹ - β⁻¹) * 𝟙 = 𝟙.
 In general, this equation does not have a solution β; e.g., if γ = â = d * I for
 some scalar constant d, then the equation simplifies to
     (β⁻¹ - β⁻¹) * 𝟙 = 𝟙.
@@ -247,13 +249,13 @@ impossible to eliminate multiplications by J while preserving an unscaled state
 on the right-hand side.
 For example, if we were to instead set Û⁺ = u ⊗ δᵀ + V * βᵀ for some vector δ of
 length s, the above equation would become
-    (diag(γ) * β⁻¹ * â * γ⁻¹ * â⁻¹ - β⁻¹) * (δ - 𝟙) = 𝟙.
+    (diagonal(γ) * β⁻¹ * â * γ⁻¹ * â⁻¹ - β⁻¹) * (δ - 𝟙) = 𝟙.
 This also does not have a general solution.
 
 So, we must proceed without rearranging the last equation for V.
 In order to apply limiters on an unscaled state, we must require that the
 coefficient of u in that equation be 𝟙ᵀ, which implies that
-    diag(γ) * β⁻¹ * â * γ⁻¹ * â⁻¹ * 𝟙 = 𝟙.
+    diagonal(γ) * β⁻¹ * â * γ⁻¹ * â⁻¹ * 𝟙 = 𝟙.
 
 We will now show that we cannot also make the coefficient of the J term on the
 right-hand side be the same as the one on the left-hand side.
@@ -267,16 +269,16 @@ Unless d * â * γ⁻¹ * â⁻¹ * 𝟙 = 𝟙 (which will not be the case in
 system of equations cannot be satisfied.
 
 So, we will only require that β satisfies the equation
-    diag(γ) * β⁻¹ * â * γ⁻¹ * â⁻¹ * 𝟙 = 𝟙.
+    diagonal(γ) * β⁻¹ * â * γ⁻¹ * â⁻¹ * 𝟙 = 𝟙.
 This equation has infinitely many solutions; the easiest way to obtain a
 solution is to set
-    diag(γ) * β⁻¹ * â * γ⁻¹ * â⁻¹ = I.
+    diagonal(γ) * β⁻¹ * â * γ⁻¹ * â⁻¹ = I.
 This implies that
-    β⁻¹ = diag(γ)⁻¹ * â * γ * â⁻¹ and
-    β = â * γ⁻¹ * â⁻¹ * diag(γ).
+    β⁻¹ = diagonal(γ)⁻¹ * â * γ * â⁻¹ and
+    β = â * γ⁻¹ * â⁻¹ * diagonal(γ).
 Substituting this into the last equation for V gives us
-    V - Δt * J * V * diag(γ)ᵀ =
-        = u ⊗ 𝟙ᵀ - Δt * J * u ⊗ (β⁻¹ * 𝟙)ᵀ * diag(γ)ᵀ + Δt * F̂ * âᵀ +
+    V - Δt * J * V * diagonal(γ)ᵀ =
+        = u ⊗ 𝟙ᵀ - Δt * J * u ⊗ (β⁻¹ * 𝟙)ᵀ * diagonal(γ)ᵀ + Δt * F̂ * âᵀ +
           Δt² * ḟ ⊗ (â * γ * 𝟙)ᵀ - V * lower(β)ᵀ.
 Taking this and the equation Û⁺ = V * βᵀ back out of matrix form gives us
     Û⁺ᵢ = ∑_{j=1}^i βᵢⱼ * Vᵢ and
@@ -320,9 +322,9 @@ For the original formulation, this means that
               Δt * ḟ * ∑_{j=1}^i γᵢⱼ
           ) + γᵢᵢ⁻¹ * ∑_{j=1}^{i-1} γᵢⱼ * Fⱼ.
 For the performance formulation, this means that
-    Û⁺ᵢ := u - Δt * ∑_{j=1}^i (â * γ⁻¹)ᵢⱼ * Kⱼ, where
-    Kᵢ := (Δt * γᵢᵢ * J - I)⁻¹ * γᵢᵢ * (
-              f(Ûᵢ, T̂ᵢ) + ∑_{j=1}^{i-1} (γ⁻¹)ᵢⱼ * Kⱼ + Δt * ḟ * ∑_{j=1}^i γᵢⱼ
+    Û⁺ᵢ := u - ∑_{j=1}^i (â * γ⁻¹)ᵢⱼ * Kⱼ, where
+    Kᵢ := (Δt * γᵢᵢ * J - I)⁻¹ * Δt * γᵢᵢ * (
+              f(Ûᵢ, T̂ᵢ) + ∑_{j=1}^{i-1} (γ⁻¹)ᵢⱼ/Δt * Kⱼ + Δt * ḟ * ∑_{j=1}^i γᵢⱼ
           ).
 For the limiters formulation, this means that
     Û⁺ᵢ := -∑_{j=1}^i βᵢⱼ * Vᵢ, where
@@ -345,45 +347,49 @@ struct RosenbrockAlgorithm{γ, a, b, U, L, M, S} <: DistributedODEAlgorithm
     multiply!::M
     set_Δtγ!::S
 end
-RosenbrockAlgorithm{γ, a, b}(;
+function RosenbrockAlgorithm{γ, a, b}(;
     update_jac::U = UpdateEvery(NewStep()),
     linsolve::L,
     multiply!::M = nothing,
     set_Δtγ!::S = nothing,
-) where {γ, a, b, U, L, M, S} =
-    RosenbrockAlgorithm{γ, a, b, U, L, M, S}(
+) where {γ, a, b, U, L, M, S}
+    check_valid_parameters(RosenbrockAlgorithm{γ, a, b, U})
+    return RosenbrockAlgorithm{γ, a, b, U, L, M, S}(
         update_jac,
         linsolve,
         multiply!,
         set_Δtγ!,
     )
+end
 
 @generated foreachval(f::F, ::Val{N}) where {F, N} =
     quote
         Base.@nexprs $N i -> f(Val(i))
         return nothing
     end
-triangular_inv(matrix::T) where {T} =
+lower_triangular_inv(matrix::T) where {T} =
     T(inv(LinearAlgebra.LowerTriangular(matrix)))
-lower_plus_diag(matrix::T) where {T} = T(LinearAlgebra.LowerTriangular(matrix))
-diag(matrix::T) where {T} = T(LinearAlgebra.Diagonal(matrix))
-lower(matrix) = lower_plus_diag(matrix) - diag(matrix)
-to_enumerated_rows(v::AbstractVector) = v
-function to_enumerated_rows(m::AbstractMatrix)
-    rows = tuple(1:size(m, 1)...)
-    nonzero_indices = map(i -> findall(m[i, :] .!= 0), rows)
+lower_plus_diagonal(matrix::T) where {T} =
+    T(LinearAlgebra.LowerTriangular(matrix))
+diagonal(matrix::T) where {T} = T(LinearAlgebra.Diagonal(matrix))
+lower(matrix) = lower_plus_diagonal(matrix) - diagonal(matrix)
+to_enumerated_rows(x) = x
+function to_enumerated_rows(matrix::AbstractMatrix)
+    rows = tuple(1:size(matrix, 1)...)
+    nonzero_indices = map(i -> findall(matrix[i, :] .!= 0), rows)
     enumerated_rows = map(
-        i -> tuple(zip(nonzero_indices[i], m[i, nonzero_indices[i]])...),
+        i -> tuple(zip(nonzero_indices[i], matrix[i, nonzero_indices[i]])...),
         rows,
     )
     return enumerated_rows
 end
-linear_combination(enumerated_row, vectors) =
+linear_combination_terms(enumerated_row, vectors) =
     map(((j, val),) -> broadcasted(*, val, vectors[j]), enumerated_row)
-function scaled_linear_combination(enumerated_row, vectors, scale)
-    unscaled_terms = linear_combination(enumerated_row, vectors)
-    length(unscaled_terms) == 0 && return ()
-    return (broadcasted(*, scale, broadcasted(+, unscaled_terms...)),)
+function linear_combination(enumerated_row, vectors)
+    length(enumerated_row) == 0 && return nothing
+    terms = linear_combination_terms(enumerated_row, vectors)
+    length(enumerated_row) == 1 && return terms[1]
+    return broadcasted(+, terms...)
 end
 
 num_stages(::Type{<:RosenbrockAlgorithm{γ}}) where {γ} = size(γ, 1)
@@ -391,14 +397,14 @@ num_stages(::Type{<:RosenbrockAlgorithm{γ}}) where {γ} = size(γ, 1)
 function check_valid_parameters(
     ::Type{<:RosenbrockAlgorithm{γ, a, b, U}},
 ) where {γ, a, b, U}
-    γ === lower_plus_diag(γ) ||
+    γ === lower_plus_diagonal(γ) ||
         error("γ must be a lower triangular matrix")
     a === lower(a) ||
         error("a must be a strictly lower triangular matrix")
     LinearAlgebra.det(γ) != 0 ||
         error("non-invertible matrices γ are not currently supported")
     if U != UpdateEvery{NewStage}
-        diag(γ) === typeof(γ)(γ[1, 1] * I) ||
+        diagonal(γ) === typeof(γ)(γ[1, 1] * I) ||
             error("γ must have a uniform diagonal when \
                    update_jac != UpdateEvery(NewStage())")
     end
@@ -406,10 +412,9 @@ function check_valid_parameters(
         error("update_jac must be able to handle NewStep() or NewStage()")
 end
 function check_valid_parameters(
-    alg_type::Type{<:RosenbrockAlgorithm{γ, a, b, U, L, M, S}},
+    ::Type{<:RosenbrockAlgorithm{γ, a, b, U, L, M, S}},
     ::Type{<:ForwardEulerODEFunction},
 ) where {γ, a, b, U, L, M, S}
-    check_valid_parameters(alg_type)
     â = vcat(a[SUnitRange(2, length(b)), SOneTo(length(b))], transpose(b))
     LinearAlgebra.det(â) != 0 ||
         error("non-invertible matrices â are not currently supported when \
@@ -419,7 +424,7 @@ function check_valid_parameters(
     S != Nothing ||
         error("set_Δtγ! must be specified when using ForwardEulerODEFunction")
 end
-check_valid_parameters(alg_type, _) = check_valid_parameters(alg_type)
+check_valid_parameters(_, _) = true
 
 struct RosenbrockCache{C, U, L}
     _cache::C
@@ -466,13 +471,12 @@ step_u!(integrator, cache::RosenbrockCache) =
     _,
 ) where {γ, a, b}
     â = vcat(a[2:end, :], transpose(b))
-    γ⁻¹ = triangular_inv(γ)
-    lowerγ⁻¹ = lower(γ⁻¹)
-    âγ⁻¹ = â * γ⁻¹
-    diagγ𝟙 = vec(sum(diag(γ), dims = 2))
+    γ⁻¹ = lower_triangular_inv(γ)
     γ𝟙 = vec(sum(γ, dims = 2))
     â𝟙 = vec(sum(â, dims = 2))
-    values = map(to_enumerated_rows, (; lowerγ⁻¹, âγ⁻¹, diagγ𝟙, γ𝟙, â𝟙))
+    matrices =
+        map(to_enumerated_rows, (; lowerγ⁻¹ = lower(γ⁻¹), âγ⁻¹ = â * γ⁻¹))
+    values = (; matrices..., diagγ = diag(γ), γ𝟙, â𝟙)
     return :($values)
 end
 @generated function precomputed_values(
@@ -481,18 +485,13 @@ end
 ) where {γ, a, b}
     â = vcat(a[2:end, :], transpose(b))
     âγ = â * γ
-    β = â * triangular_inv(âγ) * diag(γ)
-    lowerâ = lower(â)
-    lowerβ = lower(β)
-    diagγ𝟙 = vec(sum(diag(γ), dims = 2))
+    β = â * lower_triangular_inv(âγ) * diagonal(γ)
     â𝟙 = vec(sum(â, dims = 2))
-    β⁻¹𝟙 = vec(sum(triangular_inv(β), dims = 2))
     âγ𝟙 = vec(sum(âγ, dims = 2))
-    diagâ𝟙 = vec(sum(diag(â), dims = 2))
-    values = map(
-        to_enumerated_rows,
-        (; lowerâ, lowerβ, β, diagγ𝟙, â𝟙, β⁻¹𝟙, âγ𝟙, diagâ𝟙),
-    )
+    β⁻¹𝟙 = vec(sum(lower_triangular_inv(β), dims = 2))
+    matrices =
+        map(to_enumerated_rows, (; lowerâ = lower(â), lowerβ = lower(β), β))
+    values = (; matrices..., diagγ = diag(γ), diagâ = diag(â), â𝟙, âγ𝟙, β⁻¹𝟙)
     return :($values)
 end
 
@@ -501,18 +500,19 @@ function rosenbrock_step_u!(integrator, cache, g::ForwardEulerODEFunction)
     (; update_jac, multiply!, set_Δtγ!) = alg
     (; update_jac_cache, linsolve!) = cache
     (; Û⁺ᵢ, Vs, Fs, W, ḟ) = cache._cache
-    (; lowerâ, lowerβ, β, diagγ𝟙, â𝟙, β⁻¹𝟙, âγ𝟙, diagâ𝟙) =
+    (; lowerâ, lowerβ, β, diagγ, diagâ, â𝟙, âγ𝟙, β⁻¹𝟙) =
         precomputed_values(typeof(alg), typeof(g))
-    function jac_func(Ûᵢ, T̂ᵢ, γᵢᵢ)
-        g.Wfact(W, Ûᵢ, p, dt * γᵢᵢ, T̂ᵢ)
+    function jac_func(Ûᵢ, T̂ᵢ, Δtγᵢᵢ)
+        g.Wfact(W, Ûᵢ, p, Δtγᵢᵢ, T̂ᵢ)
         !isnothing(g.tgrad) && g.tgrad(ḟ, Ûᵢ, p, T̂ᵢ)
     end
     function stage_func(::Val{i}) where {i}
-        γᵢᵢ = diagγ𝟙[i]
+        Δtγᵢᵢ = dt * diagγ[i]
+        Δtâᵢᵢ = dt * diagâ[i]
         Ûᵢ = i == 1 ? u : Û⁺ᵢ
         T̂ᵢ = i == 1 ? t : t + dt * â𝟙[i]
 
-        run!(update_jac, update_jac_cache, NewStage(), jac_func, Ûᵢ, T̂ᵢ, γᵢᵢ)
+        run!(update_jac, update_jac_cache, NewStage(), jac_func, Ûᵢ, T̂ᵢ, Δtγᵢᵢ)
 
         # Vᵢ = (Δt * γᵢᵢ * J - I)⁻¹ * g(
         #     u - Δt * γᵢᵢ * J * u * ∑_{j=1}^i (β⁻¹)ᵢⱼ +
@@ -522,26 +522,27 @@ function rosenbrock_step_u!(integrator, cache, g::ForwardEulerODEFunction)
         #     T̂ᵢ
         #     Δt * âᵢᵢ,
         # )
-        set_Δtγ!(W, dt * γᵢᵢ * β⁻¹𝟙[i], dt * γᵢᵢ)
+        set_Δtγ!(W, Δtγᵢᵢ * β⁻¹𝟙[i], Δtγᵢᵢ)
         multiply!(Vs[i], W, u)
-        set_Δtγ!(W, dt * γᵢᵢ, dt * γᵢᵢ * β⁻¹𝟙[i])
+        set_Δtγ!(W, Δtγᵢᵢ, Δtγᵢᵢ * β⁻¹𝟙[i])
+        LâᵢⱼFⱼ = linear_combination(lowerâ[i], Fs)
         Vs[i] .= broadcasted(
             +,
             broadcasted(-, Vs[i]),
-            scaled_linear_combination(lowerâ[i], Fs, dt)...,
+            (isnothing(LâᵢⱼFⱼ) ? () : (broadcasted(*, dt, LâᵢⱼFⱼ),))...,
             (isnothing(g.tgrad) ? () : (broadcasted(*, dt^2 * âγ𝟙[i], ḟ),))...,
-            linear_combination(lowerβ[i], Vs)...,
+            linear_combination_terms(lowerβ[i], Vs)...,
         )
         Fs[i] .= Vs[i]
-        g(Vs[i], Ûᵢ, p, T̂ᵢ, dt * diagâ𝟙[i])
-        Fs[i] .= (Fs[i] .- Vs[i]) ./ (dt * diagâ𝟙[i])
+        g(Vs[i], Ûᵢ, p, T̂ᵢ, Δtâᵢᵢ)
+        Fs[i] .= (Vs[i] .- Fs[i]) ./ Δtâᵢᵢ
         linsolve!(Vs[i], W, Vs[i]) # assume that linsolve! can handle aliasing
 
         # Û⁺ᵢ = -∑_{j=1}^i βᵢⱼ * Vᵢ
-        Û⁺ᵢ .= scaled_linear_combination(β[i], Vs, -1)[1]
+        Û⁺ᵢ .= broadcasted(-, linear_combination(β[i], Vs))
     end
 
-    run!(update_jac, update_jac_cache, NewStep(), jac_func, u, t, diagγ𝟙[1])
+    run!(update_jac, update_jac_cache, NewStep(), jac_func, u, t, dt * diagγ[1])
     foreachval(stage_func, Val(num_stages(typeof(alg))))
     u .= Û⁺ᵢ
 end
@@ -551,35 +552,38 @@ function rosenbrock_step_u!(integrator, cache, f)
     (; update_jac) = alg
     (; update_jac_cache, linsolve!) = cache
     (; Û⁺ᵢ, Ks, W, ḟ) = cache._cache
-    (; lowerγ⁻¹, âγ⁻¹, diagγ𝟙, γ𝟙, â𝟙) =
+    (; lowerγ⁻¹, âγ⁻¹, diagγ, γ𝟙, â𝟙) =
         precomputed_values(typeof(alg), typeof(f))
-    function jac_func(Ûᵢ, T̂ᵢ, γᵢᵢ)
-        f.Wfact(W, Ûᵢ, p, dt * γᵢᵢ, T̂ᵢ)
+    function jac_func(Ûᵢ, T̂ᵢ, Δtγᵢᵢ)
+        f.Wfact(W, Ûᵢ, p, Δtγᵢᵢ, T̂ᵢ)
         !isnothing(f.tgrad) && f.tgrad(ḟ, Ûᵢ, p, T̂ᵢ)
     end
     function stage_func(::Val{i}) where {i}
-        γᵢᵢ = diagγ𝟙[i]
+        Δtγᵢᵢ = dt * diagγ[i]
         Ûᵢ = i == 1 ? u : Û⁺ᵢ
         T̂ᵢ = i == 1 ? t : t + dt * â𝟙[i]
 
-        run!(update_jac, update_jac_cache, NewStage(), jac_func, Ûᵢ, T̂ᵢ, γᵢᵢ)
+        run!(update_jac, update_jac_cache, NewStage(), jac_func, Ûᵢ, T̂ᵢ, Δtγᵢᵢ)
 
-        # Kᵢ = (Δt * γᵢᵢ * J - I)⁻¹ * γᵢᵢ *
-        #      (f(Ûᵢ, T̂ᵢ) + ∑_{j=1}^{i-1} (γ⁻¹)ᵢⱼ * Kⱼ + Δt * ḟ * ∑_{j=1}^i γᵢⱼ)
+        # Kᵢ = (Δt * γᵢᵢ * J - I)⁻¹ * Δt * γᵢᵢ * (
+        #     f(Ûᵢ, T̂ᵢ) + ∑_{j=1}^{i-1} (γ⁻¹)ᵢⱼ/Δt * Kⱼ + Δt * ḟ * ∑_{j=1}^i γᵢⱼ
+        # )
         f(Ks[i], Ûᵢ, p, T̂ᵢ)
-        Ks[i] .= γᵢᵢ .* broadcasted(
+        Lγ⁻¹ᵢⱼKⱼ = linear_combination(lowerγ⁻¹[i], Ks)
+        Ks[i] .= Δtγᵢᵢ .* broadcasted(
             +,
             Ks[i],
-            linear_combination(lowerγ⁻¹[i], Ks)...,
+            (isnothing(Lγ⁻¹ᵢⱼKⱼ) ? () : (broadcasted(/, Lγ⁻¹ᵢⱼKⱼ, dt),))...,
             (isnothing(f.tgrad) ? () : (broadcasted(*, dt * γ𝟙[i], ḟ),))...,
         )
         linsolve!(Ks[i], W, Ks[i]) # assume that linsolve! can handle aliasing
 
-        # Û⁺ᵢ = u - Δt * ∑_{j=1}^i (â * γ⁻¹)ᵢⱼ * Kⱼ
-        Û⁺ᵢ .= broadcasted(+, u, scaled_linear_combination(âγ⁻¹[i], Ks, -dt)...)
+        # Û⁺ᵢ = u - ∑_{j=1}^i (â * γ⁻¹)ᵢⱼ * Kⱼ
+        âγ⁻¹ᵢⱼKⱼ = linear_combination(âγ⁻¹[i], Ks)
+        Û⁺ᵢ .= isnothing(âγ⁻¹ᵢⱼKⱼ) ? u : broadcasted(-, u, âγ⁻¹ᵢⱼKⱼ)
     end
 
-    run!(update_jac, update_jac_cache, NewStep(), jac_func, u, t, diagγ𝟙[1])
+    run!(update_jac, update_jac_cache, NewStep(), jac_func, u, t, dt * diagγ[1])
     foreachval(stage_func, Val(num_stages(typeof(alg))))
     u .= Û⁺ᵢ
 end

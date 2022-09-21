@@ -92,8 +92,8 @@ Algebraic Equations of Index 1" by J Rang and L. Angermann
 Each method is named ROS3[4][P][w/W][...], where "ROS3" indicates a Rosenbrock
 method of order 3, "4" indicates that the method has 4 stages (otherwise, it has
 3 stages), "P" indicates that the method is suited for parabolic problems, "w"
-or "W" indicates that the method can handle an approximate Jacobian, and some of
-the names end with additional identifying numbers and symbols.
+or "W" indicates that the method can handle an inexact Jacobian, and there is an
+identifying string of numbers and symbols at the ends of some names.
 
 ROS3w and ROS3Pw both reduce to order 2 for inexact Jacobians.
 ROS34PW3 is actually of order 4 but reduces to order 3 for inexact Jacobians.

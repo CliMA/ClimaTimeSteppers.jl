@@ -7,15 +7,12 @@ on the set of `dt` values in `dts`. Extra `kwargs` are passed to `solve`
 `solution` should be a function with a method `solution(u0, p, t)`.
 """
 function convergence_errors(prob, sol, method, dts; kwargs...)
-  @show sol(prob.u0, prob.p, prob.tspan[end])
   errs = map(dts) do dt
        # copy the problem so we don't mutate u0
       prob_copy = deepcopy(prob)
       u = solve(prob_copy, method; dt=dt, kwargs...)
-      @show u.u[end]
       norm(u .- sol(prob.u0, prob.p, prob.tspan[end]))
   end
-  @show errs
   return errs
 end
 

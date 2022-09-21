@@ -19,12 +19,12 @@ for (prob, sol, tscale) in [
     @test convergence_order(prob, sol, SSPRK34SpiteriRuuth(), dts.*tscale)          ≈ 3 atol=0.05
 end
 
-for (prob, sol, tscale) in [
-    (linear_prob_wfactt, linear_sol, 1)
-]
-    @test convergence_order(prob, sol, SSPKnoth(linsolve=linsolve_direct), dts.*tscale) ≈ 2 atol=0.05
+# for (prob, sol, tscale) in [
+#     (linear_prob_wfactt, linear_sol, 1)
+# ]
+#     @test convergence_order(prob, sol, SSPKnoth(linsolve=linsolve_direct), dts.*tscale) ≈ 2 atol=0.05
 
-end
+# end
 
 
 # ForwardEulerODEFunction

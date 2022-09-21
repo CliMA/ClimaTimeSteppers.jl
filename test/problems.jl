@@ -45,13 +45,22 @@ linear_prob_wfactt = ODEProblem(
         ),
         [1/2],(0.0,1.0),-0.2)
 
-linear_prob_approximate_wfact = ODEProblem(
+linear_prob_inexact_wfact = ODEProblem(
     ODEFunction(
         (du,u,p,t) -> (du .= p .* u);
         jac_prototype=zeros(ComplexF64,1,1),
         Wfact = (W,u,p,γ,t) -> (W[1,1]=γ*real(p)-1),
     ),
     [1/2 + 0.0*im],(0.0,1.0),-0.2+0.1*im)
+linear_prob_inexact_wfact_fe = ODEProblem(
+    ForwardEulerODEFunction(
+        (ux,u,p,t,dt) -> (ux .+= dt .* p .* u);
+        jac_prototype=zeros(ComplexF64,1,1),
+        Wfact = (W,u,p,γ,t) -> (W[1,1]=γ*real(p)-1),
+    ),
+    [1/2 + 0.0*im],(0.0,1.0),-0.2+0.1*im)
+multiply_direct!(b, A, x) = b .= A * x
+set_Δtγ_direct!(A, Δtγ_new, Δtγ_old) = A .= (A + I) * Δtγ_new / Δtγ_old - I
 
 split_linear_prob_wfact_split = ODEProblem(
     SplitFunction(

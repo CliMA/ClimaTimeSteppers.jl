@@ -39,7 +39,7 @@ for (prob, sol, tscale) in [
 
 end
 
-@testset "IMEX ARK Algorithms" begin
+@testset "IMEX ARK Methods" begin
     algs1 = (ARS111, ARS121)
     algs2 = (ARS122, ARS232, ARS222, IMKG232a, IMKG232b, IMKG242a, IMKG242b)
     algs2 = (algs2..., IMKG252a, IMKG252b, IMKG253a, IMKG253b, IMKG254a)
@@ -64,19 +64,43 @@ end
     end
 end
 
-@testset "Rosenbrock Algorithms" begin
-    algs3 = (Rosenbrock23, SSPKnoth, ROS3, RODAS3)
-    for (algorithm_names, order) in ((algs3, 3),)
+@testset "Rosenbrock-W Methods" begin
+    algs2 = (Rosenbrock23, SSPKnoth, RODASP2, ROS3w, ROS3Pw)
+    algs3 = (ROS34PW1a, ROS34PW1b, ROS34PW2, ROS34PW3)
+    for (algorithm_names, order) in ((algs2, 2), (algs3, 3))
         for algorithm_name in algorithm_names
             for (problem, solution) in (
-                (linear_prob_approximate_wfact, linear_sol),
-                # (split_linear_prob_wfact_split_fe, linear_sol),
+                (linear_prob_inexact_wfact, linear_sol),
             )
                 algorithm = algorithm_name(; linsolve = linsolve_direct)
                 @test isapprox(
                     convergence_order(problem, solution, algorithm, dts),
                     order;
-                    atol = 0.02,
+                    rtol = 0.01,
+                )
+            end
+        end
+    end
+end
+
+@testset "Rosenbrock-W Methods Limiters Formulation" begin
+    algs2 = (Rosenbrock23, SSPKnoth, RODASP2, ROS3w, ROS3Pw)
+    algs3 = (ROS34PW1a, ROS34PW1b, ROS34PW2, ROS34PW3)
+    for (algorithm_names, order) in ((algs2, 2), (algs3, 3))
+        for algorithm_name in algorithm_names
+            for (problem, solution) in (
+                (linear_prob_inexact_wfact_fe, linear_sol),
+            )
+                @info algorithm_name
+                algorithm = algorithm_name(;
+                    linsolve = linsolve_direct,
+                    multiply! = multiply_direct!,
+                    set_Δtγ! = set_Δtγ_direct!,
+                )
+                @test isapprox(
+                    convergence_order(problem, solution, algorithm, dts),
+                    order;
+                    rtol = 0.01,
                 )
             end
         end

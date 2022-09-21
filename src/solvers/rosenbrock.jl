@@ -182,7 +182,7 @@ temporary variable, rather than an affine transformation, absorbing u into the
 temporary variable.
 So, consider a lower triangular s×s matrix β and an N×s matrix V such that
     Û⁺ = V * βᵀ.
-This allows us to rewrite the matrix equations as
+We can then rewrite the matrix equations as
     V * βᵀ = u ⊗ 𝟙ᵀ + Δt * F * âᵀ and
     F = F̂ + Δt * J * F * γᵀ + Δt * ḟ ⊗ (γ * 𝟙)ᵀ.
 Solving the first equation for F tells us that
@@ -250,8 +250,23 @@ length s, the above equation would become
     (diag(γ) * β⁻¹ * â * γ⁻¹ * â⁻¹ - β⁻¹) * (δ - 𝟙) = 𝟙.
 This also does not have a general solution.
 
-So, we will proceed without rearranging the last equation for V, and we will
-require that the coefficient of u in it be 𝟙ᵀ; i.e., that
+So, we must proceed without rearranging the last equation for V.
+In order to apply limiters on an unscaled state, we must require that the
+coefficient of u in that equation be 𝟙ᵀ, which implies that
+    diag(γ) * β⁻¹ * â * γ⁻¹ * â⁻¹ * 𝟙 = 𝟙.
+
+We will now show that we cannot also make the coefficient of the J term on the
+right-hand side be the same as the one on the left-hand side.
+If we wanted this to be the case, we would also have to satisfy the equation
+    β⁻¹ * 𝟙 = 𝟙.
+In general, we cannot simultaneously satisfy both of the last two equations;
+e.g., if γ = d * I for some scalar constant d, we can rearrange the equations to
+get that
+    β * 𝟙 = d * â * γ⁻¹ * â⁻¹ * 𝟙 and β * 𝟙 = 𝟙.
+Unless d * â * γ⁻¹ * â⁻¹ * 𝟙 = 𝟙 (which will not be the case in general), this
+system of equations cannot be satisfied.
+
+So, we will only require that β satisfies the equation
     diag(γ) * β⁻¹ * â * γ⁻¹ * â⁻¹ * 𝟙 = 𝟙.
 This equation has infinitely many solutions; the easiest way to obtain a
 solution is to set
@@ -298,23 +313,23 @@ Rewriting the last definition of Vᵢ in terms of g instead of f gives us
 For some reason, OrdinaryDiffEq defines Wfact as Δt * γᵢᵢ * J - I, so we must
 negate all of our temporary variables.
 
-For the original formulation, we have that
+For the original formulation, this means that
     Ûᵢ := u - Δt * ∑_{j=1}^{i-1} aᵢⱼ * Fⱼ, where
     Fᵢ := (Δt * γᵢᵢ * J - I)⁻¹ * (
-              f(Ûᵢ, T̂ᵢ) + γᵢᵢ⁻¹ * ∑_{j=1}^{i-1} γᵢⱼ * Fⱼ +
+              f(Ûᵢ, T̂ᵢ) - γᵢᵢ⁻¹ * ∑_{j=1}^{i-1} γᵢⱼ * Fⱼ +
               Δt * ḟ * ∑_{j=1}^i γᵢⱼ
-          ) - γᵢᵢ⁻¹ * ∑_{j=1}^{i-1} γᵢⱼ * Fⱼ.
-For the performance formulation, we have that
+          ) + γᵢᵢ⁻¹ * ∑_{j=1}^{i-1} γᵢⱼ * Fⱼ.
+For the performance formulation, this means that
     Û⁺ᵢ := u - Δt * ∑_{j=1}^i (â * γ⁻¹)ᵢⱼ * Kⱼ, where
     Kᵢ := (Δt * γᵢᵢ * J - I)⁻¹ * γᵢᵢ * (
-              f(Ûᵢ, T̂ᵢ) - ∑_{j=1}^{i-1} (γ⁻¹)ᵢⱼ * Kⱼ + Δt * ḟ * ∑_{j=1}^i γᵢⱼ
+              f(Ûᵢ, T̂ᵢ) + ∑_{j=1}^{i-1} (γ⁻¹)ᵢⱼ * Kⱼ + Δt * ḟ * ∑_{j=1}^i γᵢⱼ
           ).
-For the limiters formulation, we have that
+For the limiters formulation, this means that
     Û⁺ᵢ := -∑_{j=1}^i βᵢⱼ * Vᵢ, where
     Vᵢ := (Δt * γᵢᵢ * J - I)⁻¹ * g(
               u - Δt * γᵢᵢ * J * u * ∑_{j=1}^i (β⁻¹)ᵢⱼ +
               Δt * ∑_{j=1}^{i-1} âᵢⱼ * f(Ûⱼ, T̂ⱼ) +
-              Δt² * ḟ * ∑_{j=1}^i (â * γ)ᵢⱼ - ∑_{j=1}^{i-1} βᵢⱼ * Vⱼ,
+              Δt² * ḟ * ∑_{j=1}^i (â * γ)ᵢⱼ + ∑_{j=1}^{i-1} βᵢⱼ * Vⱼ,
               Ûᵢ,
               T̂ᵢ
               Δt * âᵢᵢ,
@@ -322,16 +337,34 @@ For the limiters formulation, we have that
 =#
 import LinearAlgebra
 import StaticArrays: SUnitRange, SOneTo
+import Base: broadcasted, materialize!
 
-struct RosenbrockAlgorithm{γ, a, b, L, M} <: DistributedODEAlgorithm
+struct RosenbrockAlgorithm{γ, a, b, U, L, M, S} <: DistributedODEAlgorithm
+    update_jac::U
     linsolve::L
-    multiply::M
+    multiply!::M
+    set_Δtγ!::S
 end
 RosenbrockAlgorithm{γ, a, b}(;
+    update_jac::U = UpdateEvery(NewStep()),
     linsolve::L,
-    multiply::M = nothing,
-) where {γ, a, b, L, M} = RosenbrockAlgorithm{γ, a, b, L, M}(linsolve, multiply)
+    multiply!::M = nothing,
+    set_Δtγ!::S = nothing,
+) where {γ, a, b, U, L, M, S} =
+    RosenbrockAlgorithm{γ, a, b, U, L, M, S}(
+        update_jac,
+        linsolve,
+        multiply!,
+        set_Δtγ!,
+    )
 
+@generated foreachval(f::F, ::Val{N}) where {F, N} =
+    quote
+        Base.@nexprs $N i -> f(Val(i))
+        return nothing
+    end
+triangular_inv(matrix::T) where {T} =
+    T(inv(LinearAlgebra.LowerTriangular(matrix)))
 lower_plus_diag(matrix::T) where {T} = T(LinearAlgebra.LowerTriangular(matrix))
 diag(matrix::T) where {T} = T(LinearAlgebra.Diagonal(matrix))
 lower(matrix) = lower_plus_diag(matrix) - diag(matrix)
@@ -345,171 +378,208 @@ function to_enumerated_rows(m::AbstractMatrix)
     )
     return enumerated_rows
 end
-linear_combination_terms(enumerated_row, vectors) =
-    map(((j, val),) -> Base.broadcasted(*, val, vectors[j]), enumerated_row)
-function set_scaled_linear_combination!(output, enumerated_row, vectors, scale = nothing)
-    terms = linear_combination_terms(enumerated_row, vectors)
-    length(terms) > 0 || error("set_linear_combination! needs at least 1 term")
-    sum = Base.broadcasted(+, terms...)
-    if isnothing(scale)
-        Base.materialize!(output, sum)
-    else
-        Base.materialize!(output, Base.broadcasted(*, scale, sum))
-    end
-    return nothing
-end
-function add_scaled_linear_combination!(output, enumerated_row, vectors, scale = nothing)
-    terms = linear_combination_terms(enumerated_row, vectors)
-    if length(terms) > 0
-        if isnothing(scale)
-            Base.materialize!(output, Base.broadcasted(+, output, terms...))
-        else
-            scaled_sum =
-                Base.broadcasted(*, scale, Base.broadcasted(+, terms...))
-            Base.materialize!(output, Base.broadcasted(+, output, scaled_sum))
-        end
-    end
-    return nothing
+linear_combination(enumerated_row, vectors) =
+    map(((j, val),) -> broadcasted(*, val, vectors[j]), enumerated_row)
+function scaled_linear_combination(enumerated_row, vectors, scale)
+    unscaled_terms = linear_combination(enumerated_row, vectors)
+    length(unscaled_terms) == 0 && return ()
+    return (broadcasted(*, scale, broadcasted(+, unscaled_terms...)),)
 end
 
+num_stages(::Type{<:RosenbrockAlgorithm{γ}}) where {γ} = size(γ, 1)
+
 function check_valid_parameters(
-    ::Type{<:RosenbrockAlgorithm{γ, a, b}},
-) where {γ, a, b}
+    ::Type{<:RosenbrockAlgorithm{γ, a, b, U}},
+) where {γ, a, b, U}
     γ === lower_plus_diag(γ) ||
         error("γ must be a lower triangular matrix")
     a === lower(a) ||
         error("a must be a strictly lower triangular matrix")
     LinearAlgebra.det(γ) != 0 ||
-        error("non-invertible matrices γ are not yet supported")
+        error("non-invertible matrices γ are not currently supported")
+    if U != UpdateEvery{NewStage}
+        diag(γ) === typeof(γ)(γ[1, 1] * I) ||
+            error("γ must have a uniform diagonal when \
+                   update_jac != UpdateEvery(NewStage())")
+    end
+    can_handle(U, NewStep()) || can_handle(U, NewStage()) ||
+        error("update_jac must be able to handle NewStep() or NewStage()")
 end
 function check_valid_parameters(
-    alg_type::Type{<:RosenbrockAlgorithm{γ, a, b}},
+    alg_type::Type{<:RosenbrockAlgorithm{γ, a, b, U, L, M, S}},
     ::Type{<:ForwardEulerODEFunction},
-) where {γ, a, b}
+) where {γ, a, b, U, L, M, S}
     check_valid_parameters(alg_type)
     â = vcat(a[SUnitRange(2, length(b)), SOneTo(length(b))], transpose(b))
     LinearAlgebra.det(â) != 0 ||
-        error("non-invertible matrices â are not yet supported when using \
-               ForwardEulerODEFunction")
+        error("non-invertible matrices â are not currently supported when \
+               using ForwardEulerODEFunction")
+    M != Nothing ||
+        error("multiply! must be specified when using ForwardEulerODEFunction")
+    S != Nothing ||
+        error("set_Δtγ! must be specified when using ForwardEulerODEFunction")
 end
 check_valid_parameters(alg_type, _) = check_valid_parameters(alg_type)
 
-struct RosenbrockCache{C, L, M}
+struct RosenbrockCache{C, U, L}
     _cache::C
+    update_jac_cache::U
     linsolve!::L
-    multiply!::M
 end
 
 # TODO: Minimize allocations by reusing temporary variables after they are no
 # longer needed.
 function cache(
     prob::DiffEqBase.AbstractODEProblem,
-    alg::RosenbrockAlgorithm{γ};
+    alg::RosenbrockAlgorithm;
     kwargs...
-) where {γ}
+)
     check_valid_parameters(typeof(alg), typeof(prob.f))
-    s = size(γ, 1)
-    increment_mode = prob.f isa ForwardEulerODEFunction
+
+    s = num_stages(typeof(alg))
     u_prototype = prob.u0
     W_prototype = prob.f.jac_prototype
-    linsolve! = alg.linsolve(Val{:init}, W_prototype, u_prototype)
-    if isnothing(alg.multiply)
-        if increment_mode
-            error("RosenbrockAlgorithm.multiply must be specified when using a \
-                   ForwardEulerODEFunction")
-        end
-        multiply! = nothing
-    else
-        multiply! = alg.multiply(Val{:init}, W_prototype, u_prototype)
-    end
+    increment_mode = prob.f isa ForwardEulerODEFunction
+
     _cache = NamedTuple((
-        :Û⁺ => similar(u_prototype),
-        (increment_mode ? (F̂s => map(i -> similar(u_prototype), 1:s),) : ())...,
+        :Û⁺ᵢ => similar(u_prototype),
+        (increment_mode ? (:Fs => map(i -> similar(u_prototype), 1:s),) : ())...,
         (increment_mode ? :Vs : :Ks) => map(i -> similar(u_prototype), 1:s),
         :W => similar(W_prototype),
         :ḟ => similar(u_prototype),
     ))
-    C = typeof(_cache)
-    L = typeof(linsolve!)
-    M = typeof(multiply!)
-    return RosenbrockCache{C, L, M}(_cache, linsolve!, multiply!)
+
+    update_jac_cache = allocate_cache(alg.update_jac)
+
+    linsolve! = alg.linsolve(Val{:init}, W_prototype, u_prototype)
+
+    return RosenbrockCache(_cache, update_jac_cache, linsolve!)
 end
 
 step_u!(integrator, cache::RosenbrockCache) =
     rosenbrock_step_u!(integrator, cache, integrator.prob.f)
 
-function precomputed_values(
+# The precomputed values are too complicated for constant propagation, so we use
+# @generated to force the values to be compile-time constants.
+@generated function precomputed_values(
     ::Type{<:RosenbrockAlgorithm{γ, a, b}},
     _,
 ) where {γ, a, b}
-    â = vcat(a[SUnitRange(2, length(b)), SOneTo(length(b))], transpose(b))
-    lowerγ⁻¹ = lower(inv(γ))
-    âγ⁻¹ = â * inv(γ)
-    â𝟙 = vec(sum(â, dims = 2))
-    γ𝟙 = vec(sum(γ, dims = 2))
+    â = vcat(a[2:end, :], transpose(b))
+    γ⁻¹ = triangular_inv(γ)
+    lowerγ⁻¹ = lower(γ⁻¹)
+    âγ⁻¹ = â * γ⁻¹
     diagγ𝟙 = vec(sum(diag(γ), dims = 2))
-    return map(to_enumerated_rows, (; lowerγ⁻¹, âγ⁻¹, â𝟙, γ𝟙, diagγ𝟙))
+    γ𝟙 = vec(sum(γ, dims = 2))
+    â𝟙 = vec(sum(â, dims = 2))
+    values = map(to_enumerated_rows, (; lowerγ⁻¹, âγ⁻¹, diagγ𝟙, γ𝟙, â𝟙))
+    return :($values)
 end
-
-function precomputed_values(
+@generated function precomputed_values(
     ::Type{<:RosenbrockAlgorithm{γ, a, b}},
     ::Type{<:ForwardEulerODEFunction},
 ) where {γ, a, b}
-    â = vcat(a[SUnitRange(2, length(b)), SOneTo(length(b))], transpose(b))
+    â = vcat(a[2:end, :], transpose(b))
     âγ = â * γ
-    β = â * inv(âγ) * diag(γ)
-    β⁻¹𝟙 = vec(sum(inv(β), dims = 2))
+    β = â * triangular_inv(âγ) * diag(γ)
+    lowerâ = lower(â)
+    lowerβ = lower(β)
+    diagγ𝟙 = vec(sum(diag(γ), dims = 2))
     â𝟙 = vec(sum(â, dims = 2))
-    return map(to_enumerated_rows, (; â, âγ, β, β⁻¹𝟙, â𝟙))
+    β⁻¹𝟙 = vec(sum(triangular_inv(β), dims = 2))
+    âγ𝟙 = vec(sum(âγ, dims = 2))
+    diagâ𝟙 = vec(sum(diag(â), dims = 2))
+    values = map(
+        to_enumerated_rows,
+        (; lowerâ, lowerβ, β, diagγ𝟙, â𝟙, β⁻¹𝟙, âγ𝟙, diagâ𝟙),
+    )
+    return :($values)
 end
 
-function rosenbrock_step_u!(integrator, cache, f::ForwardEulerODEFunction)
+function rosenbrock_step_u!(integrator, cache, g::ForwardEulerODEFunction)
     (; u, p, t, dt, alg) = integrator
-    (; linsolve!, multiply!) = cache
-    (; Û, Û₊, F̂s, Vs) = cache._cache
-    (; â, âγ, β, β⁻¹𝟙, â𝟙) = precomputed_values(typeof(alg), typeof(f))
-    s = size(â, 1)
-    for i in 1:s
-        Û_prev = i == 1 ? u : Û
-        T̂_prev = i == 1 ? t : t + Δt * â𝟙[i]
-
-        set_scaled_linear_combination!(Û, β[i], Vs, -1)
-
-
-    # Vᵢ := (I - Δt * γᵢᵢ * J)⁻¹ * g(
-    #     u - Δt * γᵢᵢ * J * u * ∑_{j=1}^i (β⁻¹)ᵢⱼ +
-    #     Δt * ∑_{j=1}^{i-1} âᵢⱼ * f(Ûⱼ, T̂ⱼ) +
-    #     Δt² * ḟ * ∑_{j=1}^i (â * γ)ᵢⱼ - ∑_{j=1}^{i-1} βᵢⱼ * Vⱼ,
-    #     Ûᵢ,
-    #     T̂ᵢ
-    #     Δt * âᵢᵢ,
-    # )
+    (; update_jac, multiply!, set_Δtγ!) = alg
+    (; update_jac_cache, linsolve!) = cache
+    (; Û⁺ᵢ, Vs, Fs, W, ḟ) = cache._cache
+    (; lowerâ, lowerβ, β, diagγ𝟙, â𝟙, β⁻¹𝟙, âγ𝟙, diagâ𝟙) =
+        precomputed_values(typeof(alg), typeof(g))
+    function jac_func(Ûᵢ, T̂ᵢ, γᵢᵢ)
+        g.Wfact(W, Ûᵢ, p, dt * γᵢᵢ, T̂ᵢ)
+        !isnothing(g.tgrad) && g.tgrad(ḟ, Ûᵢ, p, T̂ᵢ)
     end
+    function stage_func(::Val{i}) where {i}
+        γᵢᵢ = diagγ𝟙[i]
+        Ûᵢ = i == 1 ? u : Û⁺ᵢ
+        T̂ᵢ = i == 1 ? t : t + dt * â𝟙[i]
+
+        run!(update_jac, update_jac_cache, NewStage(), jac_func, Ûᵢ, T̂ᵢ, γᵢᵢ)
+
+        # Vᵢ = (Δt * γᵢᵢ * J - I)⁻¹ * g(
+        #     u - Δt * γᵢᵢ * J * u * ∑_{j=1}^i (β⁻¹)ᵢⱼ +
+        #     Δt * ∑_{j=1}^{i-1} âᵢⱼ * f(Ûⱼ, T̂ⱼ) +
+        #     Δt² * ḟ * ∑_{j=1}^i (â * γ)ᵢⱼ + ∑_{j=1}^{i-1} βᵢⱼ * Vⱼ,
+        #     Ûᵢ,
+        #     T̂ᵢ
+        #     Δt * âᵢᵢ,
+        # )
+        set_Δtγ!(W, dt * γᵢᵢ * β⁻¹𝟙[i], dt * γᵢᵢ)
+        multiply!(Vs[i], W, u)
+        set_Δtγ!(W, dt * γᵢᵢ, dt * γᵢᵢ * β⁻¹𝟙[i])
+        Vs[i] .= broadcasted(
+            +,
+            broadcasted(-, Vs[i]),
+            scaled_linear_combination(lowerâ[i], Fs, dt)...,
+            (isnothing(g.tgrad) ? () : (broadcasted(*, dt^2 * âγ𝟙[i], ḟ),))...,
+            linear_combination(lowerβ[i], Vs)...,
+        )
+        Fs[i] .= Vs[i]
+        g(Vs[i], Ûᵢ, p, T̂ᵢ, dt * diagâ𝟙[i])
+        Fs[i] .= (Fs[i] .- Vs[i]) ./ (dt * diagâ𝟙[i])
+        linsolve!(Vs[i], W, Vs[i]) # assume that linsolve! can handle aliasing
+
+        # Û⁺ᵢ = -∑_{j=1}^i βᵢⱼ * Vᵢ
+        Û⁺ᵢ .= scaled_linear_combination(β[i], Vs, -1)[1]
+    end
+
+    run!(update_jac, update_jac_cache, NewStep(), jac_func, u, t, diagγ𝟙[1])
+    foreachval(stage_func, Val(num_stages(typeof(alg))))
+    u .= Û⁺ᵢ
 end
 
 function rosenbrock_step_u!(integrator, cache, f)
     (; u, p, t, dt, alg) = integrator
-    (; linsolve!) = cache
-    (; Û⁺, Ks, W, ḟ) = cache._cache
-    (; lowerγ⁻¹, âγ⁻¹, â𝟙, γ𝟙, diagγ𝟙) = precomputed_values(typeof(alg), typeof(f))
-    @assert all(diagγ𝟙 .== diagγ𝟙[1])
-    f.Wfact(W, u, p, t, diagγ𝟙[1])
-    !isnothing(f.tgrad) && f.tgrad(ḟ, u, p, t)
-    for i in 1:length(Ks)
-        Û = i == 1 ? u : Û⁺
-        T̂ = i == 1 ? t : t + dt * â𝟙[i]
+    (; update_jac) = alg
+    (; update_jac_cache, linsolve!) = cache
+    (; Û⁺ᵢ, Ks, W, ḟ) = cache._cache
+    (; lowerγ⁻¹, âγ⁻¹, diagγ𝟙, γ𝟙, â𝟙) =
+        precomputed_values(typeof(alg), typeof(f))
+    function jac_func(Ûᵢ, T̂ᵢ, γᵢᵢ)
+        f.Wfact(W, Ûᵢ, p, dt * γᵢᵢ, T̂ᵢ)
+        !isnothing(f.tgrad) && f.tgrad(ḟ, Ûᵢ, p, T̂ᵢ)
+    end
+    function stage_func(::Val{i}) where {i}
+        γᵢᵢ = diagγ𝟙[i]
+        Ûᵢ = i == 1 ? u : Û⁺ᵢ
+        T̂ᵢ = i == 1 ? t : t + dt * â𝟙[i]
+
+        run!(update_jac, update_jac_cache, NewStage(), jac_func, Ûᵢ, T̂ᵢ, γᵢᵢ)
 
         # Kᵢ = (Δt * γᵢᵢ * J - I)⁻¹ * γᵢᵢ *
-        #     (f(Ûᵢ, T̂ᵢ) - ∑_{j=1}^{i-1} (γ⁻¹)ᵢⱼ * Kⱼ + Δt * ḟ * ∑_{j=1}^i γᵢⱼ)
-        f(Ks[i], Û, p, T̂)
-        add_scaled_linear_combination!(Ks[i], lowerγ⁻¹[i], Ks, -1)
-        !isnothing(f.tgrad) && (Ks[i] .+= dt .* ḟ .* γ𝟙[i])
-        Ks[i] .*= diagγ𝟙[i]
-        linsolve!(Ks[i], W, Ks[i]) # assume linsolve! can handle aliasing
+        #      (f(Ûᵢ, T̂ᵢ) + ∑_{j=1}^{i-1} (γ⁻¹)ᵢⱼ * Kⱼ + Δt * ḟ * ∑_{j=1}^i γᵢⱼ)
+        f(Ks[i], Ûᵢ, p, T̂ᵢ)
+        Ks[i] .= γᵢᵢ .* broadcasted(
+            +,
+            Ks[i],
+            linear_combination(lowerγ⁻¹[i], Ks)...,
+            (isnothing(f.tgrad) ? () : (broadcasted(*, dt * γ𝟙[i], ḟ),))...,
+        )
+        linsolve!(Ks[i], W, Ks[i]) # assume that linsolve! can handle aliasing
 
         # Û⁺ᵢ = u - Δt * ∑_{j=1}^i (â * γ⁻¹)ᵢⱼ * Kⱼ
-        Û⁺ .= u
-        add_scaled_linear_combination!(Û⁺, âγ⁻¹[i], Ks, -dt)
+        Û⁺ᵢ .= broadcasted(+, u, scaled_linear_combination(âγ⁻¹[i], Ks, -dt)...)
     end
-    u .= Û⁺
+
+    run!(update_jac, update_jac_cache, NewStep(), jac_func, u, t, diagγ𝟙[1])
+    foreachval(stage_func, Val(num_stages(typeof(alg))))
+    u .= Û⁺ᵢ
 end

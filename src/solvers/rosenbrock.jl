@@ -495,6 +495,47 @@ end
     return :($values)
 end
 
+function rosenbrock_step_u!(integrator, cache, f)
+    (; u, p, t, dt, alg) = integrator
+    (; update_jac) = alg
+    (; update_jac_cache, linsolve!) = cache
+    (; Û⁺ᵢ, Ks, W, ḟ) = cache._cache
+    (; lowerγ⁻¹, âγ⁻¹, diagγ, γ𝟙, â𝟙) =
+        precomputed_values(typeof(alg), typeof(f))
+    function jac_func(Ûᵢ, T̂ᵢ, Δtγᵢᵢ)
+        f.Wfact(W, Ûᵢ, p, Δtγᵢᵢ, T̂ᵢ)
+        !isnothing(f.tgrad) && f.tgrad(ḟ, Ûᵢ, p, T̂ᵢ)
+    end
+    function stage_func(::Val{i}) where {i}
+        Δtγᵢᵢ = dt * diagγ[i]
+        Ûᵢ = i == 1 ? u : Û⁺ᵢ
+        T̂ᵢ = i == 1 ? t : t + dt * â𝟙[i]
+
+        run!(update_jac, update_jac_cache, NewStage(), jac_func, Ûᵢ, T̂ᵢ, Δtγᵢᵢ)
+
+        # Kᵢ = (Δt * γᵢᵢ * J - I)⁻¹ * Δt * γᵢᵢ * (
+        #     f(Ûᵢ, T̂ᵢ) + ∑_{j=1}^{i-1} (γ⁻¹)ᵢⱼ/Δt * Kⱼ + Δt * ḟ * ∑_{j=1}^i γᵢⱼ
+        # )
+        f(Ks[i], Ûᵢ, p, T̂ᵢ)
+        Lγ⁻¹ᵢⱼKⱼ = linear_combination(lowerγ⁻¹[i], Ks)
+        Ks[i] .= Δtγᵢᵢ .* broadcasted(
+            +,
+            Ks[i],
+            (isnothing(Lγ⁻¹ᵢⱼKⱼ) ? () : (broadcasted(/, Lγ⁻¹ᵢⱼKⱼ, dt),))...,
+            (isnothing(f.tgrad) ? () : (broadcasted(*, dt * γ𝟙[i], ḟ),))...,
+        )
+        linsolve!(Ks[i], W, Ks[i]) # assume that linsolve! can handle aliasing
+
+        # Û⁺ᵢ = u - ∑_{j=1}^i (â * γ⁻¹)ᵢⱼ * Kⱼ
+        âγ⁻¹ᵢⱼKⱼ = linear_combination(âγ⁻¹[i], Ks)
+        Û⁺ᵢ .= isnothing(âγ⁻¹ᵢⱼKⱼ) ? u : broadcasted(-, u, âγ⁻¹ᵢⱼKⱼ)
+    end
+
+    run!(update_jac, update_jac_cache, NewStep(), jac_func, u, t, dt * diagγ[1])
+    foreachval(stage_func, Val(num_stages(typeof(alg))))
+    u .= Û⁺ᵢ
+end
+
 function rosenbrock_step_u!(integrator, cache, g::ForwardEulerODEFunction)
     (; u, p, t, dt, alg) = integrator
     (; update_jac, multiply!, set_Δtγ!) = alg
@@ -540,47 +581,6 @@ function rosenbrock_step_u!(integrator, cache, g::ForwardEulerODEFunction)
 
         # Û⁺ᵢ = -∑_{j=1}^i βᵢⱼ * Vᵢ
         Û⁺ᵢ .= broadcasted(-, linear_combination(β[i], Vs))
-    end
-
-    run!(update_jac, update_jac_cache, NewStep(), jac_func, u, t, dt * diagγ[1])
-    foreachval(stage_func, Val(num_stages(typeof(alg))))
-    u .= Û⁺ᵢ
-end
-
-function rosenbrock_step_u!(integrator, cache, f)
-    (; u, p, t, dt, alg) = integrator
-    (; update_jac) = alg
-    (; update_jac_cache, linsolve!) = cache
-    (; Û⁺ᵢ, Ks, W, ḟ) = cache._cache
-    (; lowerγ⁻¹, âγ⁻¹, diagγ, γ𝟙, â𝟙) =
-        precomputed_values(typeof(alg), typeof(f))
-    function jac_func(Ûᵢ, T̂ᵢ, Δtγᵢᵢ)
-        f.Wfact(W, Ûᵢ, p, Δtγᵢᵢ, T̂ᵢ)
-        !isnothing(f.tgrad) && f.tgrad(ḟ, Ûᵢ, p, T̂ᵢ)
-    end
-    function stage_func(::Val{i}) where {i}
-        Δtγᵢᵢ = dt * diagγ[i]
-        Ûᵢ = i == 1 ? u : Û⁺ᵢ
-        T̂ᵢ = i == 1 ? t : t + dt * â𝟙[i]
-
-        run!(update_jac, update_jac_cache, NewStage(), jac_func, Ûᵢ, T̂ᵢ, Δtγᵢᵢ)
-
-        # Kᵢ = (Δt * γᵢᵢ * J - I)⁻¹ * Δt * γᵢᵢ * (
-        #     f(Ûᵢ, T̂ᵢ) + ∑_{j=1}^{i-1} (γ⁻¹)ᵢⱼ/Δt * Kⱼ + Δt * ḟ * ∑_{j=1}^i γᵢⱼ
-        # )
-        f(Ks[i], Ûᵢ, p, T̂ᵢ)
-        Lγ⁻¹ᵢⱼKⱼ = linear_combination(lowerγ⁻¹[i], Ks)
-        Ks[i] .= Δtγᵢᵢ .* broadcasted(
-            +,
-            Ks[i],
-            (isnothing(Lγ⁻¹ᵢⱼKⱼ) ? () : (broadcasted(/, Lγ⁻¹ᵢⱼKⱼ, dt),))...,
-            (isnothing(f.tgrad) ? () : (broadcasted(*, dt * γ𝟙[i], ḟ),))...,
-        )
-        linsolve!(Ks[i], W, Ks[i]) # assume that linsolve! can handle aliasing
-
-        # Û⁺ᵢ = u - ∑_{j=1}^i (â * γ⁻¹)ᵢⱼ * Kⱼ
-        âγ⁻¹ᵢⱼKⱼ = linear_combination(âγ⁻¹[i], Ks)
-        Û⁺ᵢ .= isnothing(âγ⁻¹ᵢⱼKⱼ) ? u : broadcasted(-, u, âγ⁻¹ᵢⱼKⱼ)
     end
 
     run!(update_jac, update_jac_cache, NewStep(), jac_func, u, t, dt * diagγ[1])

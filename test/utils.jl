@@ -48,3 +48,110 @@ function (::DirectSolver)(x,A,b,matrix_updated; kwargs...)
   M = mapslices(y -> mul!(similar(y), A, y), Matrix{eltype(x)}(I,n,n), dims=1)
   x .= M \ b
 end
+
+using Printf
+function test_algs(
+    algs_name,
+    algs_to_order,
+    test_case,
+    num_dt_splits;
+    num_saveat_splits = min(num_dt_splits, 8),
+    no_increment_algs = (),
+)
+    (; test_name, linear_implicit, t_end, probs, split_probs, analytic_sol) =
+        test_case
+    FT = typeof(t_end)
+    linestyles = (:solid, :dash, :dot, :dashdot, :dashdotdot)
+    
+    plot1_dt = t_end / 2^num_dt_splits
+    plot1_saveat = [FT(0), t_end / 2^num_saveat_splits]
+    while plot1_saveat[end] < t_end
+        push!(plot1_saveat, min(plot1_saveat[end] + plot1_saveat[2], t_end))
+    end
+    plot1_ylim = ()
+    plot1 = plot(
+        title = "Solution Errors of $algs_name Methods for `$test_name` \
+                 (with dt = 10^$(@sprintf "%.1f" log10(plot1_dt)))",
+        xlabel = "t",
+        ylabel = "Error Norm: ||Y_computed - Y_analytic||",
+        yscale = :log10,
+        legend_position = :outerright,
+        palette = :glasbey_bw_minc_20_maxl_70_n256,
+        size = (1000, 600),
+        margin = 3Plots.mm,
+        titlelocation = :left,
+    )
+
+    t_end_string = t_end % 1 == 0 ? string(Int(t_end)) : @sprintf("%.2f", t_end)
+    plot2_dts = t_end ./ 2 .^ ((num_dt_splits - 3):3:(num_dt_splits + 3))
+    plot2 = plot(
+        title = "Convergence Orders of $algs_name Methods for `$test_name` \
+                 (at t = $t_end_string)",
+        xlabel = "dt",
+        ylabel = "Error Norm: ||Y_computed - Y_analytic||",
+        xscale = :log10,
+        yscale = :log10,
+        legend_position = :outerright,
+        palette = :glasbey_bw_minc_20_maxl_70_n256,
+        size = (1000, 600),
+        margin = 3Plots.mm,
+        titlelocation = :left,
+    )
+    
+    analytic_sols = map(analytic_sol, plot1_saveat)
+    analytic_end_sol = [analytic_sols[end]]
+    sorted_algs_to_order = sort(collect(algs_to_order); by = x -> string(x[1]))
+
+    for (alg_name, predicted_order) in sorted_algs_to_order
+        @show alg_name
+        if alg_name <: IMEXARKAlgorithm
+            max_iters = linear_implicit ? 1 : 2
+            alg =
+                alg_name(NewtonsMethod(; linsolve = linsolve_direct, max_iters))
+            (tendency_prob, increment_prob) = split_probs
+        elseif alg_name <: RosenbrockAlgorithm
+            alg = alg_name(;
+                linsolve = linsolve_direct,
+                multiply! = multiply_direct!,
+                set_Δtγ! = set_Δtγ_direct!,
+            )
+            (tendency_prob, increment_prob) = probs
+        end
+        linestyle = linestyles[(predicted_order - 1) % length(linestyles) + 1]
+
+        solve_args = (; dt = plot1_dt, saveat = plot1_saveat)
+        tendency_sols =
+            solve(deepcopy(tendency_prob), alg; solve_args...).u
+        tendency_errors = @. norm(tendency_sols - analytic_sols)
+        plot1_ylim =
+            extrema((plot1_ylim..., filter(x -> x != 0, tendency_errors)...))
+        tendency_errors .= max.(tendency_errors, eps(FT(0)))
+        label = alg_name
+        plot!(plot1, plot1_saveat, tendency_errors; label, linestyle)
+        if !(alg_name in no_increment_algs)
+            increment_sols =
+                solve(deepcopy(increment_prob), alg; solve_args...).u
+            increment_errors = @. norm(increment_sols - tendency_sols)
+            @test maximum(increment_errors) < 10000 * eps(FT) broken =
+                alg_name == HOMMEM1 # TODO
+        end
+
+        tendency_end_sols = map(
+            dt -> solve(deepcopy(tendency_prob), alg; dt).u[end],
+            plot2_dts,
+        )
+        tendency_end_errors = @. norm(tendency_end_sols - analytic_end_sol)
+        _, computed_order = hcat(ones(length(plot2_dts)), log10.(plot2_dts)) \
+            log10.(tendency_end_errors)
+        @test computed_order ≈ predicted_order rtol = 0.1
+        label = "$alg_name ($(@sprintf "%.3f" computed_order))"
+        plot!(plot2, plot2_dts, tendency_end_errors; label, linestyle)
+    end
+
+    plot!(plot1; ylim = (plot1_ylim[1] / 2, plot1_ylim[2] * 2))
+    new_algs_name = lowercase(replace(algs_name, " " => "_"))
+    mkdir("output")
+    savefig(plot1, "output/errors_$(new_algs_name)_$(test_name).png")
+    savefig(plot2, "output/orders_$(new_algs_name)_$(test_name).png")
+end
+

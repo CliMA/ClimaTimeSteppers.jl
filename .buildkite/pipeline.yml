@@ -18,6 +18,18 @@ steps:
       queue: central
       slurm_ntasks: 1
 
+  - label: "init test env"
+    key: "init_test_env"
+    command:
+      - "echo $JULIA_DEPOT_PATH"
+      - "julia --project=test -e 'using Pkg; Pkg.instantiate(;verbose=true)'"
+      - "julia --project=test -e 'using Pkg; Pkg.precompile()'"
+      - "julia --project=test -e 'using Pkg; Pkg.status()'"
+    agents:
+      config: cpu
+      queue: central
+      slurm_ntasks: 1
+
   - label: "init gpu env"
     key: "init_gpu_env"
     command:
@@ -34,6 +46,15 @@ steps:
       slurm_gres: "gpu:1"
 
   - wait
+
+  - label: "Unit tests and plots"
+    command:
+      - "julia --project=test test/runtests.jl"
+    artifact_paths: "test/output/*"
+    agents:
+      config: cpu
+      queue: central
+      slurm_ntasks: 1
 
   - label: "GPU tests"
     command:

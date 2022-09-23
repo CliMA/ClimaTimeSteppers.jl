@@ -29,7 +29,7 @@ function DiffEqBase.__init(
     args...;
     dt,  # required
     stepstop=-1,
-    adjustfinal=false,
+    adjustfinal=true,
     callback=nothing,
     save_func=(u,t,integrator)->copy(u),
     saveat=nothing,

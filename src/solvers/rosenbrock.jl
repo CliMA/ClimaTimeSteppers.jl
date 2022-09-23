@@ -70,31 +70,32 @@ than subtracting it from another value, we will rewrite this as
               Δt * ḟ * ∑_{j=1}^i γᵢⱼ
           ) - γᵢᵢ⁻¹ * ∑_{j=1}^{i-1} γᵢⱼ * Fⱼ.
 
-So, in summary, a Rosenbrock method is defined by some lower triangular s×s
-matrix γ, some strictly lower triangular s×s matrix a, some vector b of length
-s, and some approximations J and ḟ of ∂f/∂u(Ûᵢ, T̂ᵢ) and ∂f/∂t(Ûᵢ, T̂ᵢ), which
-are all used to compute
-    u_next := u + Δt * ∑_{i=1}^s bᵢ * Fᵢ, where
-    Ûᵢ := u + Δt * ∑_{j=1}^{i-1} aᵢⱼ * Fⱼ,
-    T̂ᵢ := t + Δt * ∑_{j=1}^{i-1} aᵢⱼ, and
-    Fᵢ := (I - Δt * γᵢᵢ * J)⁻¹ * (
-              f(Ûᵢ, T̂ᵢ) + γᵢᵢ⁻¹ * ∑_{j=1}^{i-1} γᵢⱼ * Fⱼ +
-              Δt * ḟ * ∑_{j=1}^i γᵢⱼ
-          ) - γᵢᵢ⁻¹ * ∑_{j=1}^{i-1} γᵢⱼ * Fⱼ.
-
-## Converting to Matrix Form
-
 To simplify our further reformulations, we will convert our definitions to
 matrix form.
-
-First, we will reduce the number of matrix equations we need to analyze by
-defining
+First, though, we will reduce the number of matrix equations we need to analyze
+by defining
     âᵢⱼ := i < s ? a₍ᵢ₊₁₎ⱼ : bⱼ and
     Û⁺ᵢ := i < s ? Ûᵢ₊₁ : u_next.
 We can then redefine
     u_next := Û⁺ₛ and
     Ûᵢ := i == 1 ? u : Û⁺ᵢ₋₁, where
     Û⁺ᵢ := u + Δt * ∑_{j=1}^i âᵢⱼ * Fⱼ.
+
+So, in summary, a Rosenbrock method is defined by some lower triangular s×s
+matrix γ, some strictly lower triangular s×s matrix a, some vector b of length
+s, and some approximations J and ḟ of ∂f/∂u(Ûᵢ, T̂ᵢ) and ∂f/∂t(Ûᵢ, T̂ᵢ), which
+are all used to compute
+    u_next := Û⁺ₛ, where
+    âᵢⱼ := i < s ? a₍ᵢ₊₁₎ⱼ : bⱼ,
+    Ûᵢ := i == 1 ? u : Û⁺ᵢ₋₁,
+    T̂ᵢ := t + Δt * ∑_{j=1}^{i-1} aᵢⱼ,
+    Û⁺ᵢ := u + Δt * ∑_{j=1}^i âᵢⱼ * Fⱼ, and
+    Fᵢ := (I - Δt * γᵢᵢ * J)⁻¹ * (
+              f(Ûᵢ, T̂ᵢ) + γᵢᵢ⁻¹ * ∑_{j=1}^{i-1} γᵢⱼ * Fⱼ +
+              Δt * ḟ * ∑_{j=1}^i γᵢⱼ
+          ) - γᵢᵢ⁻¹ * ∑_{j=1}^{i-1} γᵢⱼ * Fⱼ.
+
+## Converting to Matrix Form
 
 The equations we will convert to matrix form are
     Û⁺ᵢ = u + Δt * ∑_{j=1}^i âᵢⱼ * Fⱼ and
@@ -337,6 +338,8 @@ For the limiters formulation, this means that
               Δt * âᵢᵢ,
           ).
 =#
+export RosenbrockAlgorithm
+
 import LinearAlgebra
 import StaticArrays: SUnitRange, SOneTo
 import Base: broadcasted, materialize!
@@ -360,36 +363,6 @@ function RosenbrockAlgorithm{γ, a, b}(;
         multiply!,
         set_Δtγ!,
     )
-end
-
-@generated foreachval(f::F, ::Val{N}) where {F, N} =
-    quote
-        Base.@nexprs $N i -> f(Val(i))
-        return nothing
-    end
-lower_triangular_inv(matrix::T) where {T} =
-    T(inv(LinearAlgebra.LowerTriangular(matrix)))
-lower_plus_diagonal(matrix::T) where {T} =
-    T(LinearAlgebra.LowerTriangular(matrix))
-diagonal(matrix::T) where {T} = T(LinearAlgebra.Diagonal(matrix))
-lower(matrix) = lower_plus_diagonal(matrix) - diagonal(matrix)
-to_enumerated_rows(x) = x
-function to_enumerated_rows(matrix::AbstractMatrix)
-    rows = tuple(1:size(matrix, 1)...)
-    nonzero_indices = map(i -> findall(matrix[i, :] .!= 0), rows)
-    enumerated_rows = map(
-        i -> tuple(zip(nonzero_indices[i], matrix[i, nonzero_indices[i]])...),
-        rows,
-    )
-    return enumerated_rows
-end
-linear_combination_terms(enumerated_row, vectors) =
-    map(((j, val),) -> broadcasted(*, val, vectors[j]), enumerated_row)
-function linear_combination(enumerated_row, vectors)
-    length(enumerated_row) == 0 && return nothing
-    terms = linear_combination_terms(enumerated_row, vectors)
-    length(enumerated_row) == 1 && return terms[1]
-    return broadcasted(+, terms...)
 end
 
 num_stages(::Type{<:RosenbrockAlgorithm{γ}}) where {γ} = size(γ, 1)
@@ -473,10 +446,10 @@ step_u!(integrator, cache::RosenbrockCache) =
     â = vcat(a[2:end, :], transpose(b))
     γ⁻¹ = lower_triangular_inv(γ)
     γ𝟙 = vec(sum(γ, dims = 2))
-    â𝟙 = vec(sum(â, dims = 2))
+    a𝟙 = vec(sum(a, dims = 2))
     matrices =
         map(to_enumerated_rows, (; lowerγ⁻¹ = lower(γ⁻¹), âγ⁻¹ = â * γ⁻¹))
-    values = (; matrices..., diagγ = diag(γ), γ𝟙, â𝟙)
+    values = (; matrices..., diagγ = diag(γ), γ𝟙, a𝟙)
     return :($values)
 end
 @generated function precomputed_values(
@@ -486,12 +459,12 @@ end
     â = vcat(a[2:end, :], transpose(b))
     âγ = â * γ
     β = â * lower_triangular_inv(âγ) * diagonal(γ)
-    â𝟙 = vec(sum(â, dims = 2))
+    a𝟙 = vec(sum(a, dims = 2))
     âγ𝟙 = vec(sum(âγ, dims = 2))
     β⁻¹𝟙 = vec(sum(lower_triangular_inv(β), dims = 2))
     matrices =
         map(to_enumerated_rows, (; lowerâ = lower(â), lowerβ = lower(β), β))
-    values = (; matrices..., diagγ = diag(γ), diagâ = diag(â), â𝟙, âγ𝟙, β⁻¹𝟙)
+    values = (; matrices..., diagγ = diag(γ), diagâ = diag(â), a𝟙, âγ𝟙, β⁻¹𝟙)
     return :($values)
 end
 
@@ -500,7 +473,7 @@ function rosenbrock_step_u!(integrator, cache, f)
     (; update_jac) = alg
     (; update_jac_cache, linsolve!) = cache
     (; Û⁺ᵢ, Ks, W, ḟ) = cache._cache
-    (; lowerγ⁻¹, âγ⁻¹, diagγ, γ𝟙, â𝟙) =
+    (; lowerγ⁻¹, âγ⁻¹, diagγ, γ𝟙, a𝟙) =
         precomputed_values(typeof(alg), typeof(f))
     function jac_func(Ûᵢ, T̂ᵢ, Δtγᵢᵢ)
         f.Wfact(W, Ûᵢ, p, Δtγᵢᵢ, T̂ᵢ)
@@ -508,32 +481,33 @@ function rosenbrock_step_u!(integrator, cache, f)
     end
     function stage_func(::Val{i}) where {i}
         Δtγᵢᵢ = dt * diagγ[i]
-        Ûᵢ = i == 1 ? u : Û⁺ᵢ
-        T̂ᵢ = i == 1 ? t : t + dt * â𝟙[i]
+        
+        Ûᵢ = i == 1 ? u : Û⁺ᵢ # Ûᵢ := i == 1 ? u : Û⁺ᵢ₋₁
+        T̂ᵢ = i == 1 ? t : t + dt * a𝟙[i] # T̂ᵢ := t + Δt * ∑_{j=1}^{i-1} aᵢⱼ
 
         run!(update_jac, update_jac_cache, NewStage(), jac_func, Ûᵢ, T̂ᵢ, Δtγᵢᵢ)
 
-        # Kᵢ = (Δt * γᵢᵢ * J - I)⁻¹ * Δt * γᵢᵢ * (
+        # Kᵢ := (Δt * γᵢᵢ * J - I)⁻¹ * Δt * γᵢᵢ * (
         #     f(Ûᵢ, T̂ᵢ) + ∑_{j=1}^{i-1} (γ⁻¹)ᵢⱼ/Δt * Kⱼ + Δt * ḟ * ∑_{j=1}^i γᵢⱼ
         # )
         f(Ks[i], Ûᵢ, p, T̂ᵢ)
-        Lγ⁻¹ᵢⱼKⱼ = linear_combination(lowerγ⁻¹[i], Ks)
+        lγ⁻¹ᵢⱼKⱼ = linear_combination(lowerγ⁻¹[i], Ks)
         Ks[i] .= Δtγᵢᵢ .* broadcasted(
             +,
             Ks[i],
-            (isnothing(Lγ⁻¹ᵢⱼKⱼ) ? () : (broadcasted(/, Lγ⁻¹ᵢⱼKⱼ, dt),))...,
+            (isnothing(lγ⁻¹ᵢⱼKⱼ) ? () : (broadcasted(/, lγ⁻¹ᵢⱼKⱼ, dt),))...,
             (isnothing(f.tgrad) ? () : (broadcasted(*, dt * γ𝟙[i], ḟ),))...,
         )
         linsolve!(Ks[i], W, Ks[i]) # assume that linsolve! can handle aliasing
 
-        # Û⁺ᵢ = u - ∑_{j=1}^i (â * γ⁻¹)ᵢⱼ * Kⱼ
+        # Û⁺ᵢ := u - ∑_{j=1}^i (â * γ⁻¹)ᵢⱼ * Kⱼ
         âγ⁻¹ᵢⱼKⱼ = linear_combination(âγ⁻¹[i], Ks)
         Û⁺ᵢ .= isnothing(âγ⁻¹ᵢⱼKⱼ) ? u : broadcasted(-, u, âγ⁻¹ᵢⱼKⱼ)
     end
 
     run!(update_jac, update_jac_cache, NewStep(), jac_func, u, t, dt * diagγ[1])
     foreachval(stage_func, Val(num_stages(typeof(alg))))
-    u .= Û⁺ᵢ
+    u .= Û⁺ᵢ # u_next := Û⁺ₛ
 end
 
 function rosenbrock_step_u!(integrator, cache, g::ForwardEulerODEFunction)
@@ -541,7 +515,7 @@ function rosenbrock_step_u!(integrator, cache, g::ForwardEulerODEFunction)
     (; update_jac, multiply!, set_Δtγ!) = alg
     (; update_jac_cache, linsolve!) = cache
     (; Û⁺ᵢ, Vs, Fs, W, ḟ) = cache._cache
-    (; lowerâ, lowerβ, β, diagγ, diagâ, â𝟙, âγ𝟙, β⁻¹𝟙) =
+    (; lowerâ, lowerβ, β, diagγ, diagâ, a𝟙, âγ𝟙, β⁻¹𝟙) =
         precomputed_values(typeof(alg), typeof(g))
     function jac_func(Ûᵢ, T̂ᵢ, Δtγᵢᵢ)
         g.Wfact(W, Ûᵢ, p, Δtγᵢᵢ, T̂ᵢ)
@@ -550,12 +524,13 @@ function rosenbrock_step_u!(integrator, cache, g::ForwardEulerODEFunction)
     function stage_func(::Val{i}) where {i}
         Δtγᵢᵢ = dt * diagγ[i]
         Δtâᵢᵢ = dt * diagâ[i]
-        Ûᵢ = i == 1 ? u : Û⁺ᵢ
-        T̂ᵢ = i == 1 ? t : t + dt * â𝟙[i]
+        
+        Ûᵢ = i == 1 ? u : Û⁺ᵢ # Ûᵢ := i == 1 ? u : Û⁺ᵢ₋₁
+        T̂ᵢ = i == 1 ? t : t + dt * a𝟙[i] # T̂ᵢ := t + Δt * ∑_{j=1}^{i-1} aᵢⱼ
 
         run!(update_jac, update_jac_cache, NewStage(), jac_func, Ûᵢ, T̂ᵢ, Δtγᵢᵢ)
 
-        # Vᵢ = (Δt * γᵢᵢ * J - I)⁻¹ * g(
+        # Vᵢ := (Δt * γᵢᵢ * J - I)⁻¹ * g(
         #     u - Δt * γᵢᵢ * J * u * ∑_{j=1}^i (β⁻¹)ᵢⱼ +
         #     Δt * ∑_{j=1}^{i-1} âᵢⱼ * f(Ûⱼ, T̂ⱼ) +
         #     Δt² * ḟ * ∑_{j=1}^i (â * γ)ᵢⱼ + ∑_{j=1}^{i-1} βᵢⱼ * Vⱼ,
@@ -566,11 +541,11 @@ function rosenbrock_step_u!(integrator, cache, g::ForwardEulerODEFunction)
         set_Δtγ!(W, Δtγᵢᵢ * β⁻¹𝟙[i], Δtγᵢᵢ)
         multiply!(Vs[i], W, u)
         set_Δtγ!(W, Δtγᵢᵢ, Δtγᵢᵢ * β⁻¹𝟙[i])
-        LâᵢⱼFⱼ = linear_combination(lowerâ[i], Fs)
+        lâᵢⱼFⱼ = linear_combination(lowerâ[i], Fs)
         Vs[i] .= broadcasted(
             +,
             broadcasted(-, Vs[i]),
-            (isnothing(LâᵢⱼFⱼ) ? () : (broadcasted(*, dt, LâᵢⱼFⱼ),))...,
+            (isnothing(lâᵢⱼFⱼ) ? () : (broadcasted(*, dt, lâᵢⱼFⱼ),))...,
             (isnothing(g.tgrad) ? () : (broadcasted(*, dt^2 * âγ𝟙[i], ḟ),))...,
             linear_combination_terms(lowerβ[i], Vs)...,
         )
@@ -579,11 +554,11 @@ function rosenbrock_step_u!(integrator, cache, g::ForwardEulerODEFunction)
         Fs[i] .= (Vs[i] .- Fs[i]) ./ Δtâᵢᵢ
         linsolve!(Vs[i], W, Vs[i]) # assume that linsolve! can handle aliasing
 
-        # Û⁺ᵢ = -∑_{j=1}^i βᵢⱼ * Vᵢ
+        # Û⁺ᵢ := -∑_{j=1}^i βᵢⱼ * Vᵢ
         Û⁺ᵢ .= broadcasted(-, linear_combination(β[i], Vs))
     end
 
     run!(update_jac, update_jac_cache, NewStep(), jac_func, u, t, dt * diagγ[1])
     foreachval(stage_func, Val(num_stages(typeof(alg))))
-    u .= Û⁺ᵢ
+    u .= Û⁺ᵢ # u_next := Û⁺ₛ
 end

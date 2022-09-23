@@ -70,6 +70,7 @@ end
 SciMLBase.allowscomplex(alg::DistributedODEAlgorithm) = true
 include("integrators.jl")
 
+include("solvers/matrix_utilities.jl")
 include("solvers/update_signal_handler.jl")
 include("solvers/convergence_condition.jl")
 include("solvers/convergence_checker.jl")

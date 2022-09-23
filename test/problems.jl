@@ -45,21 +45,6 @@ linear_prob_wfactt = ODEProblem(
         ),
         [1/2],(0.0,1.0),-0.2)
 
-linear_prob_inexact_wfact = ODEProblem(
-    ODEFunction(
-        (du,u,p,t) -> (du .= p .* u);
-        jac_prototype=zeros(ComplexF64,1,1),
-        Wfact = (W,u,p,γ,t) -> (W[1,1]=γ*real(p)-1),
-    ),
-    [1/2 + 0.0*im],(0.0,1.0),-0.2+0.1*im)
-linear_prob_inexact_wfact_fe = ODEProblem(
-    ForwardEulerODEFunction(
-        (ux,u,p,t,dt) -> (ux .+= dt .* p .* u);
-        jac_prototype=zeros(ComplexF64,1,1),
-        Wfact = (W,u,p,γ,t) -> (W[1,1]=γ*real(p)-1),
-    ),
-    [1/2 + 0.0*im],(0.0,1.0),-0.2+0.1*im)
-
 split_linear_prob_wfact_split = ODEProblem(
     SplitFunction(
         ODEFunction(
@@ -132,12 +117,11 @@ imex_autonomous_prob = SplitODEProblem(
     ArrayType([0.5]), (0.0,1.0), 4.0)
 
 function linsolve_direct(::Type{Val{:init}}, f, u0; kwargs...)
-    function _linsolve!(x, A, b, update_matrix = false; kwargs...)
-        x .= A \ b
-    end
+    _linsolve!(x, A, b, update_matrix = false; kwargs...) = x .= A \ b
 end
-multiply_direct!(b, A, x) = b .= A * x
-set_Δtγ_direct!(A, Δtγ_new, Δtγ_old) = A .= (A + I) * Δtγ_new / Δtγ_old - I
+multiply_direct!(b, A, x) = mul!(b, A, x)
+set_Δtγ_direct!(A, Δtγ_new, Δtγ_old) =
+    A .= (A .+ I(size(A, 1))) .* (Δtγ_new / Δtγ_old) .- I(size(A, 1))
 
 imex_autonomous_prob_jac = ODEProblem(
         ODEFunction(
@@ -236,29 +220,34 @@ kpr_singlerate_prob = IncrementingODEProblem{true}(
     [sqrt(4), sqrt(3)], (0.0, 5π/2), kpr_param,
 )
 
+struct IntegratorTestCase{FT, P, S, A}
+    test_name::String
+    linear_implicit::Bool
+    t_end::FT
+    probs::P
+    split_probs::S
+    analytic_sol::A
+end
+
 # From Section 1.1 of "Example Programs for ARKode v4.4.0" by D. R. Reynolds
-(
-    ark_analytic,
-    ark_analytic_increment,
-    ark_analytic_split,
-    ark_analytic_split_increment,
-    ark_analytic_sol,
-) = let
+ark_analytic = let
     FT = Float64
     λ = FT(-100) # increase magnitude for more stiffness
     Y₀ = FT[0]
-    tspan = (0, 10)
-    tendency!(Yₜ, Y, λ, t) = Yₜ .= λ .* Y .+ (1 / (1 + t^2) - λ * atan(t))
-    increment!(Y⁺, Y, λ, t, Δt) =
-        Y⁺ .+= Δt .* (λ .* Y .+ (1 / (1 + t^2) - λ * atan(t)))
-    implicit_tendency!(Yₜ, Y, λ, t) = Yₜ .= λ .* Y
-    explicit_tendency!(Yₜ, Y, λ, t) = Yₜ .= 1 / (1 + t^2) - λ * atan(t)
-    implicit_increment!(Y⁺, Y, λ, t, Δt) = Y⁺ .+= (Δt * λ) .* Y
-    explicit_increment!(Y⁺, Y, λ, t, Δt) =
-        Y⁺ .+= Δt * (1 / (1 + t^2) - λ * atan(t))
-    Wfact!(W, Y, λ, Δt, t) = W .= Δt * λ - 1
-    tgrad!(∂Y∂t, Y, λ, t) = ∂Y∂t .= -(λ * t^2 + 2 * t + λ) / (1 + t^2)^2
-    analytic_sol(u₀, λ, t) = atan(t)
+    t_end = FT(10)
+
+    source(t) = 1 / (1 + t^2) - λ * atan(t)
+    tendency!(Yₜ, Y, _, t) = Yₜ .= λ .* Y .+ source(t)
+    increment!(Y⁺, Y, _, t, Δt) = Y⁺ .+= Δt .* (λ .* Y .+ source(t))
+    implicit_tendency!(Yₜ, Y, _, t) = Yₜ .= λ .* Y
+    explicit_tendency!(Yₜ, Y, _, t) = Yₜ .= source(t)
+    implicit_increment!(Y⁺, Y, _, t, Δt) = Y⁺ .+= (Δt * λ) .* Y
+    explicit_increment!(Y⁺, Y, _, t, Δt) = Y⁺ .+= Δt * source(t)
+
+    Wfact!(W, Y, _, Δt, t) = W .= Δt * λ - 1
+    tgrad!(∂Y∂t, Y, _, t) = ∂Y∂t .= -(λ + 2 * t + λ * t^2) / (1 + t^2)^2
+    analytic_sol(t) = [atan(t)]
+
     func_args = (; jac_prototype = Y₀, Wfact = Wfact!, tgrad = tgrad!)
     tendency_func = ODEFunction(tendency!; func_args...)
     increment_func = ForwardEulerODEFunction(increment!; func_args...)
@@ -270,23 +259,53 @@ kpr_singlerate_prob = IncrementingODEProblem{true}(
         ForwardEulerODEFunction(implicit_increment!; func_args...),
         ForwardEulerODEFunction(explicit_increment!),
     )
-    prob_args = (Y₀, tspan, λ)
-    (
-        ODEProblem(tendency_func, prob_args...),
-        ODEProblem(increment_func, prob_args...),
-        ODEProblem(split_tendency_func, prob_args...),
-        ODEProblem(split_increment_func, prob_args...),
+
+    make_prob(func) = ODEProblem(func, Y₀, (FT(0), t_end), nothing)
+    IntegratorTestCase(
+        "ark_analytic",
+        true,
+        t_end,
+        (make_prob(tendency_func), make_prob(increment_func)),
+        (make_prob(split_tendency_func), make_prob(split_increment_func)),
+        analytic_sol,
+    )
+end
+
+# From Section 1.2 of "Example Programs for ARKode v4.4.0" by D. R. Reynolds
+ark_analytic_nonlin = let
+    FT = Float64
+    Y₀ = FT[0]
+    t_end = FT(10)
+
+    tendency!(Yₜ, Y, _, t) = Yₜ .= (t + 1) .* exp.(.-Y)
+    increment!(Y⁺, Y, _, t, Δt) = Y⁺ .+= Δt .* ((t + 1) .* exp.(.-Y))
+    no_tendency!(Yₜ, Y, _, t) = Yₜ .= zero(FT)
+    no_increment!(Y⁺, Y, _, t, Δt) = Y⁺
+
+    Wfact!(W, Y, _, Δt, t) = W .= (-Δt * (t + 1) .* exp.(.-Y) .- 1)
+    tgrad!(∂Y∂t, Y, _, t) = ∂Y∂t .= exp.(.-Y)
+    analytic_sol(t) = [log(t^2 / 2 + t + 1)]
+
+    func_args = (; jac_prototype = Y₀, Wfact = Wfact!, tgrad = tgrad!)
+    tendency_func = ODEFunction(tendency!; func_args...)
+    split_tendency_func = SplitFunction(tendency_func, no_tendency!)
+    increment_func = ForwardEulerODEFunction(increment!; func_args...)
+    split_increment_func =
+        SplitFunction(increment_func, ForwardEulerODEFunction(no_increment!))
+
+    make_prob(func) = ODEProblem(func, Y₀, (FT(0), t_end), nothing)
+    IntegratorTestCase(
+        "ark_analytic_nonlin",
+        false,
+        t_end,
+        (make_prob(tendency_func), make_prob(increment_func)),
+        (make_prob(split_tendency_func), make_prob(split_increment_func)),
         analytic_sol,
     )
 end
 
 # From Section 5.1 of "Example Programs for ARKode v4.4.0" by D. R. Reynolds
-(
-    ark_analytic_sys,
-    ark_analytic_sys_increment,
-    ark_analytic_sys_split,
-    ark_analytic_sys_sol,
-) = let
+ark_analytic_sys = let
     FT = Float64
     λ = FT(-100) # increase magnitude for more stiffness
     V = FT[1 -1 1; -1 2 1; 0 -1 2]
@@ -295,22 +314,30 @@ end
     A = V * D * V⁻¹
     I = LinearAlgebra.I(3)
     Y₀ = FT[1, 1, 1]
-    tspan = (0, 1/20)
-    do_nothing!(Yₜ, Y, A, t) = Yₜ .= zero(eltype(Yₜ))
-    tendency!(Yₜ, Y, A, t) = mul!(Yₜ, A, Y)
-    increment!(Y⁺, Y, A, t, Δt) = mul!(Y⁺, A, Y, Δt, 1)
-    Wfact!(W, Y, A, Δt, t) = W .= Δt .* A .- I
-    analytic_sol(u₀, A, t) = V * exp(D * t) * V⁻¹ * Y₀
-    func_args = (; jac_prototype = similar(A), Wfact = Wfact!)
+    t_end = FT(1 / 20)
+
+    tendency!(Yₜ, Y, _, t) = mul!(Yₜ, A, Y)
+    increment!(Y⁺, Y, _, t, Δt) = mul!(Y⁺, A, Y, Δt, 1)
+    no_tendency!(Yₜ, Y, _, t) = Yₜ .= zero(FT)
+    no_increment!(Y⁺, Y, _, t, Δt) = Y⁺
+
+    Wfact!(W, Y, _, Δt, t) = W .= Δt .* A .- I
+    analytic_sol(t) = V * exp(D * t) * V⁻¹ * Y₀
+
+    func_args = (; jac_prototype = A, Wfact = Wfact!)
     tendency_func = ODEFunction(tendency!; func_args...)
+    split_tendency_func = SplitFunction(tendency_func, no_tendency!)
     increment_func = ForwardEulerODEFunction(increment!; func_args...)
-    split_tendency_func = SplitFunction(ODEFunction(tendency!; func_args...), do_nothing!)
-    increment_func = ForwardEulerODEFunction(increment!; func_args...)
-    prob_args = (Y₀, tspan, A)
-    (
-        ODEProblem(tendency_func, prob_args...),
-        ODEProblem(increment_func, prob_args...),
-        ODEProblem(split_tendency_func, prob_args...),
+    split_increment_func =
+        SplitFunction(increment_func, ForwardEulerODEFunction(no_increment!))
+
+    make_prob(func) = ODEProblem(func, Y₀, (FT(0), t_end), nothing)
+    IntegratorTestCase(
+        "ark_analytic_sys",
+        true,
+        t_end,
+        (make_prob(tendency_func), make_prob(increment_func)),
+        (make_prob(split_tendency_func), make_prob(split_increment_func)),
         analytic_sol,
     )
 end

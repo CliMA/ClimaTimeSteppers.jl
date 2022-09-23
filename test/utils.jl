@@ -49,7 +49,6 @@ function (::DirectSolver)(x,A,b,matrix_updated; kwargs...)
   x .= M \ b
 end
 
-using Printf
 function test_algs(
     algs_name,
     algs_to_order,
@@ -103,7 +102,6 @@ function test_algs(
     sorted_algs_to_order = sort(collect(algs_to_order); by = x -> string(x[1]))
 
     for (alg_name, predicted_order) in sorted_algs_to_order
-        @show alg_name
         if alg_name <: IMEXARKAlgorithm
             max_iters = linear_implicit ? 1 : 2
             alg =
@@ -149,9 +147,9 @@ function test_algs(
     end
 
     plot!(plot1; ylim = (plot1_ylim[1] / 2, plot1_ylim[2] * 2))
-    new_algs_name = lowercase(replace(algs_name, " " => "_"))
-    mkdir("output")
-    savefig(plot1, "output/errors_$(new_algs_name)_$(test_name).png")
-    savefig(plot2, "output/orders_$(new_algs_name)_$(test_name).png")
+    file_name = "$(lowercase(replace(algs_name, " " => "_")))_$(test_name)"
+    mkpath("output")
+    savefig(plot1, joinpath("output", "errors_$(file_name).png"))
+    savefig(plot2, joinpath("output", "orders_$(file_name).png"))
 end
 

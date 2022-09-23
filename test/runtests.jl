@@ -10,6 +10,7 @@ include("problems.jl")
 
 include("integrator.jl")
 include("convergence.jl")
+include("comparison.jl")
 include("callbacks.jl")
 include("test_convergence_checker.jl")
 include("single_column_ARS_test.jl")

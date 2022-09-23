@@ -1,5 +1,4 @@
-using ClimaTimeSteppers
-using OrdinaryDiffEq, LinearAlgebra, BenchmarkTools, Printf, Plots, Test
+using ClimaTimeSteppers, LinearAlgebra, Printf, Plots, Test
 
 include("utils.jl")
 
@@ -65,7 +64,7 @@ end
         dict = Dict{Type, Int}()
         algs2 = (Rosenbrock23, SSPKnoth)
         algs3 = (ROS3w, ROS3Pw, ROS34PW1a, ROS34PW1b, ROS34PW2)
-        algs4 = (ROS34PW3,)
+        algs4 = (RODASP2, ROS34PW3)
         for (algs, order) in ((algs2, 2), (algs3, 3), (algs4, 4))
             for alg in algs
                 dict[alg] = order
@@ -105,37 +104,6 @@ end
     rosenbrock3_dict =
         Dict((ROS3w, ROS3Pw, ROS34PW1a, ROS34PW1b, ROS34PW2) .=> 3)
     test_algs(algs_name, rosenbrock3_dict, ark_analytic, 12; no_increment_algs)
-end
-
-using OrdinaryDiffEq, BenchmarkTools
-@testset "Compare with OrdinaryDiffEq" begin
-    (; t_end, probs, analytic_sol) = ark_analytic_sys
-    FT = typeof(t_end)
-    tendency_prob = probs[1]
-    dt = t_end / 2^7
-
-    cts_alg = Rosenbrock23(; linsolve = linsolve_direct)
-    ode_alg = OrdinaryDiffEq.Rosenbrock23(; linsolve = linsolve_direct)
-
-    cts_tendency_end_sol = solve(deepcopy(tendency_prob), cts_alg; dt).u[end]
-    ode_tendency_end_sol =
-        solve(deepcopy(tendency_prob), ode_alg; dt, adaptive = false).u[end]
-    @test norm(cts_tendency_end_sol .- ode_tendency_end_sol) < eps(FT)
-
-    @info "Benchmark Results for ClimaTimeSteppers.Rosenbrock23:"
-    cts_trial = @benchmark solve($(deepcopy(tendency_prob)), $cts_alg, dt = $dt)
-    display(cts_trial)
-
-    @info "Benchmark Results for OrdinaryDiffEq.Rosenbrock23:"
-    ode_trial = @benchmark solve(
-        $(deepcopy(tendency_prob)),
-        $ode_alg,
-        dt = $dt,
-        adaptive = false,
-    )
-    display(cts_trial)
-
-    @test median(cts_trial).time ≈ median(ode_trial).time rtol = 0.03
 end
 
 #=

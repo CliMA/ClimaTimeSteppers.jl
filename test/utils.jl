@@ -61,28 +61,39 @@ function test_algs(
         test_case
     FT = typeof(t_end)
     linestyles = (:solid, :dash, :dot, :dashdot, :dashdotdot)
+    plot_kwargs = (;
+        size = (1000, 600),
+        margin = 3Plots.mm,
+        titlelocation = :left,
+        legend_position = :outerright,
+        palette = :glasbey_bw_minc_20_maxl_70_n256,
+    )
     
     plot1_dt = t_end / 2^num_dt_splits
     plot1_saveat = [FT(0), t_end / 2^num_saveat_splits]
     while plot1_saveat[end] < t_end
         push!(plot1_saveat, min(plot1_saveat[end] + plot1_saveat[2], t_end))
-    end
-    plot1_ylim = ()
-    plot1 = plot(
+    end # ensure that the saveat times are EXACTLY equal to the integrator times
+    plot1a = plot(
+        title = "Solution Norms of $algs_name Methods for `$test_name` \
+                 (with dt = 10^$(@sprintf "%.1f" log10(plot1_dt)))",
+        xlabel = "t",
+        ylabel = "Solution Norm: ||Y_computed||",
+        plot_kwargs...,
+    )
+    plot1b = plot(
         title = "Solution Errors of $algs_name Methods for `$test_name` \
                  (with dt = 10^$(@sprintf "%.1f" log10(plot1_dt)))",
         xlabel = "t",
         ylabel = "Error Norm: ||Y_computed - Y_analytic||",
         yscale = :log10,
-        legend_position = :outerright,
-        palette = :glasbey_bw_minc_20_maxl_70_n256,
-        size = (1000, 600),
-        margin = 3Plots.mm,
-        titlelocation = :left,
+        plot_kwargs...,
     )
+    plot1b_ymin = typemax(FT) # dynamically set ylim because some errors are 0
+    plot1b_ymax = typemin(FT)
 
     t_end_string = t_end % 1 == 0 ? string(Int(t_end)) : @sprintf("%.2f", t_end)
-    plot2_dts = t_end ./ 2 .^ ((num_dt_splits - 3):3:(num_dt_splits + 3))
+    plot2_dts = (plot1_dt / 10, plot1_dt, plot1_dt * 10)
     plot2 = plot(
         title = "Convergence Orders of $algs_name Methods for `$test_name` \
                  (at t = $t_end_string)",
@@ -90,17 +101,12 @@ function test_algs(
         ylabel = "Error Norm: ||Y_computed - Y_analytic||",
         xscale = :log10,
         yscale = :log10,
-        legend_position = :outerright,
-        palette = :glasbey_bw_minc_20_maxl_70_n256,
-        size = (1000, 600),
-        margin = 3Plots.mm,
-        titlelocation = :left,
+        plot_kwargs...,
     )
     
     analytic_sols = map(analytic_sol, plot1_saveat)
     analytic_end_sol = [analytic_sols[end]]
     sorted_algs_to_order = sort(collect(algs_to_order); by = x -> string(x[1]))
-
     for (alg_name, predicted_order) in sorted_algs_to_order
         if alg_name <: IMEXARKAlgorithm
             max_iters = linear_implicit ? 1 : 2
@@ -120,18 +126,22 @@ function test_algs(
         solve_args = (; dt = plot1_dt, saveat = plot1_saveat)
         tendency_sols =
             solve(deepcopy(tendency_prob), alg; solve_args...).u
+        tendency_norms = @. norm(tendency_sols)
         tendency_errors = @. norm(tendency_sols - analytic_sols)
-        plot1_ylim =
-            extrema((plot1_ylim..., filter(x -> x != 0, tendency_errors)...))
-        tendency_errors .= max.(tendency_errors, eps(FT(0)))
+        min_error = minimum(x -> x == 0 ? typemax(FT) : x, tendency_errors)
+        plot1b_ymin = min(plot1b_ymin, min_error)
+        plot1b_ymax = max(plot1b_ymax, maximum(tendency_errors))
+        tendency_errors .=
+            max.(tendency_errors, eps(FT(0))) # plotting 0 breaks the log scale
         label = alg_name
-        plot!(plot1, plot1_saveat, tendency_errors; label, linestyle)
+        plot!(plot1a, plot1_saveat, tendency_norms; label, linestyle)
+        plot!(plot1b, plot1_saveat, tendency_errors; label, linestyle)
         if !(alg_name in no_increment_algs)
             increment_sols =
                 solve(deepcopy(increment_prob), alg; solve_args...).u
             increment_errors = @. norm(increment_sols - tendency_sols)
             @test maximum(increment_errors) < 10000 * eps(FT) broken =
-                alg_name == HOMMEM1 # TODO
+                alg_name == HOMMEM1 # TODO: why is this broken???
         end
 
         tendency_end_sols = map(
@@ -145,11 +155,12 @@ function test_algs(
         label = "$alg_name ($(@sprintf "%.3f" computed_order))"
         plot!(plot2, plot2_dts, tendency_end_errors; label, linestyle)
     end
+    plot!(plot1b; ylim = (plot1b_ymin / 2, plot1b_ymax * 2))
 
-    plot!(plot1; ylim = (plot1_ylim[1] / 2, plot1_ylim[2] * 2))
-    file_name = "$(lowercase(replace(algs_name, " " => "_")))_$(test_name)"
     mkpath("output")
-    savefig(plot1, joinpath("output", "errors_$(file_name).png"))
-    savefig(plot2, joinpath("output", "orders_$(file_name).png"))
+    file_suffix = "$(lowercase(replace(algs_name, " " => "_")))_$(test_name)"
+    savefig(plot1a, joinpath("output", "solutions_$(file_suffix).png"))
+    savefig(plot1b, joinpath("output", "errors_$(file_suffix).png"))
+    savefig(plot2, joinpath("output", "orders_$(file_suffix).png"))
 end
 

@@ -1,5 +1,5 @@
 using ClimaTimeSteppers
-using OrdinaryDiffEq, LinearAlgebra, Test, Plots, BenchmarkTools
+using OrdinaryDiffEq, LinearAlgebra, BenchmarkTools, Printf, Plots, Test
 
 include("utils.jl")
 
@@ -124,6 +124,7 @@ using OrdinaryDiffEq, BenchmarkTools
 
     @info "Benchmark Results for ClimaTimeSteppers.Rosenbrock23:"
     cts_trial = @benchmark solve($(deepcopy(tendency_prob)), $cts_alg, dt = $dt)
+    display(cts_trial)
 
     @info "Benchmark Results for OrdinaryDiffEq.Rosenbrock23:"
     ode_trial = @benchmark solve(
@@ -132,6 +133,7 @@ using OrdinaryDiffEq, BenchmarkTools
         dt = $dt,
         adaptive = false,
     )
+    display(cts_trial)
 
     @test median(cts_trial).time ≈ median(ode_trial).time rtol = 0.03
 end

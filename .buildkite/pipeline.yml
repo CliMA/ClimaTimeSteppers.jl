@@ -6,10 +6,18 @@ env:
   CLIMATEMACHINE_SETTINGS_FIX_RNG_SEED: "true"
 
 steps:
-  - label: "init perf env"
-    key: "init_perf_env"
+  - label: "init cpu env"
+    key: "init_cpu_env"
     command:
       - "echo $JULIA_DEPOT_PATH"
+
+      - echo "--- Instantiate test"
+      - "julia --project=test -e 'using Pkg; Pkg.develop(path=\".\")'"
+      - "julia --project=test -e 'using Pkg; Pkg.instantiate(;verbose=true)'"
+      - "julia --project=test -e 'using Pkg; Pkg.precompile(;strict=true)'"
+      - "julia --project=perf -e 'using Pkg; Pkg.status()'"
+
+      - echo "--- Instantiate perf"
       - "julia --project=perf -e 'using Pkg; Pkg.instantiate(;verbose=true)'"
       - "julia --project=perf -e 'using Pkg; Pkg.precompile()'"
       - "julia --project=perf -e 'using Pkg; Pkg.status()'"
@@ -49,7 +57,7 @@ steps:
 
   - label: "Unit tests and plots"
     command:
-      - "julia --project=test test/runtests.jl"
+      - "julia --project -e 'using Pkg; Pkg.test()'"
     artifact_paths: "test/output/*"
     agents:
       config: cpu

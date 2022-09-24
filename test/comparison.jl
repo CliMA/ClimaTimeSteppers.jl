@@ -28,5 +28,5 @@ import OrdinaryDiffEq # use import avoid namespace conflicts
     )
     display(cts_trial)
 
-    @test median(cts_trial).time ≈ median(ode_trial).time rtol = 0.03
+    @test median(cts_trial).time ≈ median(ode_trial).time rtol = 0.04
 end

@@ -71,17 +71,18 @@ function test_algs(
     
     plot1_dt = t_end / 2^num_dt_splits
     plot1_saveat = [FT(0), t_end / 2^num_saveat_splits]
+    # Ensure that the saveat times are an EXACT subset of the integrator times.
     while plot1_saveat[end] < t_end
         push!(plot1_saveat, min(plot1_saveat[end] + plot1_saveat[2], t_end))
-    end # ensure that the saveat times are EXACTLY equal to the integrator times
-    plot1a = plot(
+    end
+    plot1a = plot(;
         title = "Solution Norms of $algs_name Methods for `$test_name` \
                  (with dt = 10^$(@sprintf "%.1f" log10(plot1_dt)))",
         xlabel = "t",
         ylabel = "Solution Norm: ||Y_computed||",
         plot_kwargs...,
     )
-    plot1b = plot(
+    plot1b = plot(;
         title = "Solution Errors of $algs_name Methods for `$test_name` \
                  (with dt = 10^$(@sprintf "%.1f" log10(plot1_dt)))",
         xlabel = "t",
@@ -93,8 +94,8 @@ function test_algs(
     plot1b_ymax = typemin(FT)
 
     t_end_string = t_end % 1 == 0 ? string(Int(t_end)) : @sprintf("%.2f", t_end)
-    plot2_dts = (plot1_dt / 10, plot1_dt, plot1_dt * 10)
-    plot2 = plot(
+    plot2_dts = [plot1_dt / 4, plot1_dt, plot1_dt * 4]
+    plot2 = plot(;
         title = "Convergence Orders of $algs_name Methods for `$test_name` \
                  (at t = $t_end_string)",
         xlabel = "dt",
@@ -158,7 +159,7 @@ function test_algs(
     plot!(plot1b; ylim = (plot1b_ymin / 2, plot1b_ymax * 2))
 
     mkpath("output")
-    file_suffix = "$(lowercase(replace(algs_name, " " => "_")))_$(test_name)"
+    file_suffix = "$(test_name)_$(lowercase(replace(algs_name, " " => "_")))"
     savefig(plot1a, joinpath("output", "solutions_$(file_suffix).png"))
     savefig(plot1b, joinpath("output", "errors_$(file_suffix).png"))
     savefig(plot2, joinpath("output", "orders_$(file_suffix).png"))

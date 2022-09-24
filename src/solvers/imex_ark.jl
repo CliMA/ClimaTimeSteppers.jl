@@ -15,7 +15,7 @@ The abscissae are often defined as c_χ[i] := ∑_{j=1}^s a_χ[i,j] for the expl
 and implicit methods to be "internally consistent", with c_exp[i] = c_imp[i] for
 the overall IMEX method to be "internally consistent", but this is not required.
 If the weights are defined as b_χ[j] := a_χ[s,j], then u_next = U[s]; i.e., the
-method is FSAL (first same as last).
+method is FSAL (first same as last), which means that it is "stiffly accurate".
 
 To simplify our notation, let
     a_χ[s+1,j] := b_χ[j] ∀ j ∈ 1:s,

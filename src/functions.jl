@@ -9,9 +9,19 @@ un .= u .+ dt * f(u, p, t)
 ```
 
 """
-struct ForwardEulerODEFunction{F} <: DiffEqBase.AbstractODEFunction{true}
+struct ForwardEulerODEFunction{F, J, W, T} <:
+    DiffEqBase.AbstractODEFunction{true}
     f::F
+    jac_prototype::J
+    Wfact::W
+    tgrad::T
 end
+ForwardEulerODEFunction(
+    f;
+    jac_prototype = nothing,
+    Wfact = nothing,
+    tgrad = nothing,
+) = ForwardEulerODEFunction(f, jac_prototype, Wfact, tgrad)
 (f::ForwardEulerODEFunction{F})(un, u, p, t, dt) where {F} = f.f(un, u, p, t, dt)
 
 # Don't wrap a ForwardEulerODEFunction in an ODEFunction.

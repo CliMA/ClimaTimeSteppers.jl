@@ -4,15 +4,14 @@ import OrdinaryDiffEq
 include("problems.jl")
 
 @testset "integrator save times" begin
+    test_case = constant_tendency_test
+    (; prob, analytic_sol) = test_case
     for alg in (SSPRK33ShuOsher(), OrdinaryDiffEq.SSPRK33()),
         reverse_prob in (false, true),
         n_dt_steps in (10, 10000)
 
-        prob = const_prob
-        analytic_sol = const_sol
         if reverse_prob
-            (; f, tspan, p) = prob
-            prob = ODEProblem(f, analytic_sol(tspan[end]), reverse(tspan), p)
+            prob = reverse_problem(prob, analytic_sol)
         end
 
         t0, tf = prob.tspan
@@ -119,16 +118,14 @@ include("problems.jl")
 end
 
 @testset "integrator save times with reinit!" begin
+    # OrdinaryDiffEq does not save at t0′ after reinit! unless erase_sol is
+    # true, so this test does not include a comparison with OrdinaryDiffEq.
+    alg = SSPRK33ShuOsher()
+    test_case = constant_tendency_test
+    (; prob, analytic_sol) = test_case
     for reverse_prob in (false, true)
-        # OrdinaryDiffEq does not save at t0′ after reinit! unless erase_sol is
-        # true, so this test does not include a comparison with OrdinaryDiffEq.
-
-        alg = SSPRK33ShuOsher()
-        prob = const_prob
-        analytic_sol = const_sol
         if reverse_prob
-            (; f, tspan, p) = prob
-            prob = ODEProblem(f, analytic_sol(tspan[end]), reverse(tspan), p)
+            prob = reverse_problem(prob, analytic_sol)
         end
 
         t0, tf = prob.tspan
@@ -164,8 +161,8 @@ end
 
 @testset "integrator step past end time" begin
     alg = SSPRK33ShuOsher()
-    prob = const_prob
-    analytic_sol = const_sol
+    test_case = constant_tendency_test
+    (; prob, analytic_sol) = test_case
     t0, tf = prob.tspan
     dt = tf - t0
     integrator = init(deepcopy(prob), alg; dt, save_everystep = true)

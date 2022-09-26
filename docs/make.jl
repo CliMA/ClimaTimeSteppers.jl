@@ -30,6 +30,8 @@ makedocs(
 # for more information.
 deploydocs(
     repo = "github.com/CliMA/ClimaTimeSteppers.jl.git",
+    target = "build",
     push_preview = true,
+    devbranch = "main",
     forcepush = true,
 )

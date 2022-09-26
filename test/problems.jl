@@ -216,3 +216,145 @@ kpr_singlerate_prob = ODEProblem(
     IncrementingODEFunction{true}((dQ,Q,param,t,α=1,β=0) -> (dQ .= α .* kpr_rhs(Q,param,t) .+ β .* dQ)),
     [sqrt(4), sqrt(3)], (0.0, 5π/2), kpr_param,
 )
+
+reverse_problem(prob, analytic_sol) =
+    ODEProblem(prob.f, analytic_sol(prob.tspan[2]), reverse(prob.tspan), prob.p)
+
+struct IntegratorTestCase{FT, A, P, IP, SP, SIP}
+    test_name::String
+    linear_implicit::Bool
+    t_end::FT
+    analytic_sol::A
+    prob::P
+    increment_prob::IP
+    split_prob::SP
+    split_increment_prob::SIP
+end
+
+function IntegratorTestCase(;
+    test_name,
+    linear_implicit,
+    t_end,
+    Y₀,
+    analytic_sol,
+    tendency!,
+    increment!,
+    implicit_tendency! = nothing,
+    explicit_tendency! = nothing,
+    implicit_increment! = nothing,
+    explicit_increment! = nothing,
+    Wfact!,
+    tgrad! = nothing,
+)
+    FT = typeof(t_end)
+    jac_prototype = Matrix{FT}(undef, length(Y₀), length(Y₀))
+    func_args = (; jac_prototype, Wfact = Wfact!, tgrad = tgrad!)
+    tendency_func = ODEFunction(tendency!; func_args...)
+    increment_func = ForwardEulerODEFunction(increment!; func_args...)
+    if isnothing(implicit_tendency!) # assume that related args are also nothing
+        no_tendency!(Yₜ, Y, _, t) = Yₜ .= FT(0)
+        no_increment!(Y⁺, Y, _, t, Δt) = Y⁺
+        split_tendency_func = SplitFunction(tendency_func, no_tendency!)
+        split_increment_func = SplitFunction(
+            increment_func,
+            ForwardEulerODEFunction(no_increment!),
+        )
+    else
+        split_tendency_func = SplitFunction(
+            ODEFunction(implicit_tendency!; func_args...),
+            explicit_tendency!,
+        )
+        split_increment_func = SplitFunction(
+            ForwardEulerODEFunction(implicit_increment!; func_args...),
+            ForwardEulerODEFunction(explicit_increment!),
+        )
+    end
+    make_prob(func) = ODEProblem(func, Y₀, (FT(0), t_end), nothing)
+    IntegratorTestCase(
+        test_name,
+        linear_implicit,
+        t_end,
+        analytic_sol,
+        make_prob(tendency_func),
+        make_prob(increment_func),
+        make_prob(split_tendency_func),
+        make_prob(split_increment_func),
+    )
+end
+
+# A trivial test case for which any value of dt will work
+constant_tendency_test = let 
+    FT = Float64
+    tendency = FT[1, 2, 3]
+    IntegratorTestCase(;
+        test_name = "constant_tendency",
+        linear_implicit = true,
+        t_end = FT(1),
+        Y₀ = FT[0, 0, 0],
+        analytic_sol = (t) -> tendency .* t,
+        tendency! = (Yₜ, Y, _, t) -> Yₜ .= tendency,
+        increment! = (Y⁺, Y, _, t, Δt) -> Y⁺ .+= Δt .* tendency,
+        Wfact! = (W, Y, _, Δt, t) -> W .= -1,
+    )
+end
+
+# From Section 1.1 of "Example Programs for ARKode v4.4.0" by D. R. Reynolds
+ark_analytic_test = let
+    FT = Float64
+    λ = FT(-100) # increase magnitude for more stiffness
+    source(t) = 1 / (1 + t^2) - λ * atan(t)
+    IntegratorTestCase(;
+        test_name = "ark_analytic",
+        linear_implicit = true,
+        t_end = FT(10),
+        Y₀ = FT[0],
+        analytic_sol = (t) -> [atan(t)],
+        tendency! = (Yₜ, Y, _, t) -> Yₜ .= λ .* Y .+ source(t),
+        increment! = (Y⁺, Y, _, t, Δt) -> Y⁺ .+= Δt .* (λ .* Y .+ source(t)),
+        implicit_tendency! = (Yₜ, Y, _, t) -> Yₜ .= λ .* Y,
+        explicit_tendency! = (Yₜ, Y, _, t) -> Yₜ .= source(t),
+        implicit_increment! = (Y⁺, Y, _, t, Δt) -> Y⁺ .+= (Δt * λ) .* Y,
+        explicit_increment! = (Y⁺, Y, _, t, Δt) -> Y⁺ .+= Δt * source(t),
+        Wfact! = (W, Y, _, Δt, t) -> W .= Δt * λ - 1,
+        tgrad! =
+            (∂Y∂t, Y, _, t) -> ∂Y∂t .= -(λ + 2 * t + λ * t^2) / (1 + t^2)^2,
+    )
+end
+
+# From Section 1.2 of "Example Programs for ARKode v4.4.0" by D. R. Reynolds
+ark_analytic_nonlin_test = let
+    FT = Float64
+    IntegratorTestCase(;
+        test_name = "ark_analytic_nonlin",
+        linear_implicit = false,
+        t_end = FT(10),
+        Y₀ = FT[0],
+        analytic_sol = (t) -> [log(t^2 / 2 + t + 1)],
+        tendency! = (Yₜ, Y, _, t) -> Yₜ .= (t + 1) .* exp.(.-Y),
+        increment! = (Y⁺, Y, _, t, Δt) -> Y⁺ .+= Δt .* ((t + 1) .* exp.(.-Y)),
+        Wfact! = (W, Y, _, Δt, t) -> W .= (-Δt * (t + 1) .* exp.(.-Y) .- 1),
+        tgrad! = (∂Y∂t, Y, _, t) -> ∂Y∂t .= exp.(.-Y),
+    )
+end
+
+# From Section 5.1 of "Example Programs for ARKode v4.4.0" by D. R. Reynolds
+ark_analytic_sys_test = let
+    FT = Float64
+    λ = FT(-100) # increase magnitude for more stiffness
+    V = FT[1 -1 1; -1 2 1; 0 -1 2]
+    V⁻¹ = FT[5 1 -3; 2 2 -2; 1 1 1] / 4
+    D = Diagonal(FT[-1/2, -1/10, λ])
+    A = V * D * V⁻¹
+    I = LinearAlgebra.I(3)
+    Y₀ = FT[1, 1, 1]
+    IntegratorTestCase(;
+        test_name = "ark_analytic_sys",
+        linear_implicit = true,
+        t_end = FT(1 / 20),
+        Y₀,
+        analytic_sol = (t) -> V * exp(D * t) * V⁻¹ * Y₀,
+        tendency! = (Yₜ, Y, _, t) -> mul!(Yₜ, A, Y),
+        increment! = (Y⁺, Y, _, t, Δt) -> mul!(Y⁺, A, Y, Δt, 1),
+        Wfact! = (W, Y, _, Δt, t) -> W .= Δt .* A .- I,
+    )
+end

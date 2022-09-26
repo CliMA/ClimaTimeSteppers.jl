@@ -1,6 +1,4 @@
-using DiffEqBase, ClimaTimeSteppers, LinearAlgebra, Test
-
-include("utils.jl")
+using ClimaTimeSteppers, LinearAlgebra, Test
 
 dts = 0.5 .^ (4:7)
 
@@ -39,29 +37,23 @@ for (prob, sol, tscale) in [
 
 end
 
+ENV["GKSwstype"] = "nul" # avoid displaying plots
+
 @testset "IMEX ARK Algorithms" begin
     algs1 = (ARS111, ARS121)
     algs2 = (ARS122, ARS232, ARS222, IMKG232a, IMKG232b, IMKG242a, IMKG242b)
     algs2 = (algs2..., IMKG252a, IMKG252b, IMKG253a, IMKG253b, IMKG254a)
     algs2 = (algs2..., IMKG254b, IMKG254c, HOMMEM1)
     algs3 = (ARS233, ARS343, ARS443, IMKG342a, IMKG343a, DBM453)
-    for (algorithm_names, order) in ((algs1, 1), (algs2, 2), (algs3, 3))
-        for algorithm_name in algorithm_names
-            for (problem, solution) in (
-                (split_linear_prob_wfact_split, linear_sol),
-                (split_linear_prob_wfact_split_fe, linear_sol),
-            )
-                algorithm = algorithm_name(
-                    NewtonsMethod(; linsolve = linsolve_direct, max_iters = 1),
-                ) # the problem is linear, so more iters have no effect
-                @test isapprox(
-                    convergence_order(problem, solution, algorithm, dts),
-                    order;
-                    rtol = 0.01,
-                )
-            end
-        end
-    end
+    dict = Dict(((algs1 .=> 1)..., (algs2 .=> 2)..., (algs3 .=> 3)...))
+    test_algs("IMEX ARK", dict, ark_analytic_nonlin_test, 400)
+    test_algs("IMEX ARK", dict, ark_analytic_sys_test, 60)
+
+    # For some bizarre reason, ARS121 converges with order 2 for ark_analytic,
+    # even though it is only a 1st order method.
+    dict′ = copy(dict)
+    dict′[ARS121] = 2
+    test_algs("IMEX ARK", dict′, ark_analytic_test, 16000)
 end
 
 #=

@@ -6,13 +6,22 @@ env:
   CLIMATEMACHINE_SETTINGS_FIX_RNG_SEED: "true"
 
 steps:
-  - label: "init perf env"
-    key: "init_perf_env"
+  - label: "init cpu env"
+    key: "init_cpu_env"
     command:
       - "echo $JULIA_DEPOT_PATH"
+      - echo "--- Instantiate project"
+      - "julia --project -e 'using Pkg; Pkg.instantiate(;verbose=true)'"
+      - "julia --project -e 'using Pkg; Pkg.precompile(;strict=true)'"
+      - echo "--- Instantiate test"
+      - "julia --project=test -e 'using Pkg; Pkg.develop(path=\".\")'"
+      - "julia --project=test -e 'using Pkg; Pkg.instantiate(;verbose=true)'"
+      - "julia --project=test -e 'using Pkg; Pkg.precompile(;strict=true)'"
+      - echo "--- Instantiate perf"
       - "julia --project=perf -e 'using Pkg; Pkg.instantiate(;verbose=true)'"
-      - "julia --project=perf -e 'using Pkg; Pkg.precompile()'"
-      - "julia --project=perf -e 'using Pkg; Pkg.status()'"
+      - "julia --project=perf -e 'using Pkg; Pkg.precompile(;strict=true)'"
+      - echo "--- Package status"
+      - "julia --project -e 'using Pkg; Pkg.status()'"
     agents:
       config: cpu
       queue: central
@@ -22,10 +31,17 @@ steps:
     key: "init_gpu_env"
     command:
       - "echo $JULIA_DEPOT_PATH"
+      - echo "--- Instantiate project"
       - "julia --project -e 'using Pkg; Pkg.instantiate(;verbose=true)'"
-      - "julia --project -e 'using Pkg; Pkg.precompile()'"
-      - "julia --project -e 'using CUDA; CUDA.versioninfo()'"
+      - "julia --project -e 'using Pkg; Pkg.precompile(;strict=true)'"
+      - echo "--- Instantiate test"
+      - "julia --project=test -e 'using Pkg; Pkg.develop(path=\".\")'"
+      - "julia --project=test -e 'using Pkg; Pkg.instantiate(;verbose=true)'"
+      - "julia --project=test -e 'using Pkg; Pkg.precompile()'"
+      - echo "--- Initialize CUDA runtime"
       - "julia --project -e 'using CUDA; CUDA.precompile_runtime()'"
+      - "julia --project -e 'using CUDA; CUDA.versioninfo()'"
+      - echo "--- Package status"
       - "julia --project -e 'using Pkg; Pkg.status()'"
     agents:
       config: gpu
@@ -35,9 +51,19 @@ steps:
 
   - wait
 
+  - label: "CPU tests"
+    command:
+      - "julia --project=test --check-bounds=yes test/runtests.jl"
+    artifact_paths: "output/*"
+    agents:
+      config: cpu
+      queue: central
+      slurm_ntasks: 1
+
   - label: "GPU tests"
     command:
-      - "julia --project -e 'using Pkg; Pkg.test(;test_args=[\"CuArray\"])'"
+      - "julia --project=test --check-bounds=yes test/runtests.jl CuArray"
+    artifact_paths: "output/*"
     agents:
       config: gpu
       queue: central

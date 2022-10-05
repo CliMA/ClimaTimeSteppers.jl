@@ -57,7 +57,7 @@ function step_u!(int, cache::MultirateCache)
     N = nstages(outercache)
     for stage in 1:N
 
-        update_inner!(innerinteg, outercache, int.prob.f.f2, u, p, t, dt, stage)
+        update_inner!(innerinteg, outercache, int.sol.prob.f.f2, u, p, t, dt, stage)
 
         # solve inner problem
         #  dv/dτ .= B[s]/(C[s+1] - C[s]) .* du .+ f_fast(v,τ) τ ∈ [τ0,τ1]

@@ -49,7 +49,7 @@ end
 function step_u!(int, cache::StrongStabilityPreservingRungeKuttaCache{Nstages, RT, A}) where {Nstages, RT, A}
     tab = cache.tableau
 
-    f! = int.prob.f
+    f! = int.sol.prob.f
     u = int.u
     p = int.p
     t = int.t

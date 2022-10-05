@@ -198,7 +198,7 @@ end
 
 function step_u!(int, cache::ARSCache{Nstages}) where {Nstages}
 
-    f = int.prob.f
+    f = int.sol.prob.f
     f1! = f.f1
     f2! = f.f2
     Wfact! = f1!.Wfact

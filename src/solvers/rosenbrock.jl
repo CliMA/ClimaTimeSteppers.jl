@@ -37,8 +37,8 @@ end
 function step_u!(int, cache::RosenbrockCache{Nstages, RT}) where {Nstages, RT}
     tab = cache.tableau
 
-    f! = int.prob.f
-    Wfact_t! = int.prob.f.Wfact_t
+    f! = int.sol.prob.f
+    Wfact_t! = int.sol.prob.f.Wfact_t
 
     u = int.u
     p = int.p

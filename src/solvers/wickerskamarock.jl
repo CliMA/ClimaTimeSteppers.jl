@@ -39,7 +39,7 @@ end
 function update_inner!(innerinteg, outercache::WickerSkamarockRungeKuttaCache,
   f_slow, u, p, t, dt, i)
 
-  f_offset = innerinteg.prob.f
+  f_offset = innerinteg.sol.prob.f
   tab = outercache.tableau
   U = outercache.U
   N = nstages(outercache)

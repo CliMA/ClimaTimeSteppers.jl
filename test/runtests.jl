@@ -14,6 +14,7 @@ include("callbacks.jl")
 include("test_convergence_checker.jl")
 include("single_column_ARS_test.jl")
 include("compare_generated.jl") # TODO: Remove this.
+include("aqua.jl")
 
 #=
 @testset "ODE Tests: Basic" begin

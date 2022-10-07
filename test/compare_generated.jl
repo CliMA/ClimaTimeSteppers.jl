@@ -11,28 +11,25 @@ include("problems.jl")
         split_linear_prob_wfact_split_fe,
     )
         integrator = DiffEqBase.init(deepcopy(problem), algorithm; dt)
-        not_generated_integrator = DiffEqBase.init(deepcopy(problem), algorithm; dt)
+        not_generated_integrator = deepcopy(integrator)
 
-        integrator.cache = ClimaTimeSteppers.cache(problem, algorithm)
-        not_generated_integrator.cache =
+        cache = ClimaTimeSteppers.cache(problem, algorithm)
+        not_generated_cache =
             ClimaTimeSteppers.not_generated_cache(problem, algorithm)
 
-        ClimaTimeSteppers.step_u!(integrator, integrator.cache)
+        ClimaTimeSteppers.step_u!(integrator, cache)
         ClimaTimeSteppers.not_generated_step_u!(
             not_generated_integrator,
-            not_generated_integrator.cache,
+            not_generated_cache,
         )
         @test !(integrator.u === not_generated_integrator.u)
         @test integrator.u == not_generated_integrator.u
 
-        benchmark = @benchmark ClimaTimeSteppers.step_u!(
-            $integrator,
-            $(integrator.cache),
-        )
+        benchmark = @benchmark ClimaTimeSteppers.step_u!($integrator, $cache)
         not_generated_benchmark =
             @benchmark ClimaTimeSteppers.not_generated_step_u!(
                 $not_generated_integrator,
-                $(not_generated_integrator.cache),
+                $not_generated_cache,
             )
         @info "Generated step_u! benchmark: $benchmark"
         @info "Not generated step_u! benchmark: $not_generated_benchmark"

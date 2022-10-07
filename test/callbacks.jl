@@ -38,7 +38,7 @@ cbs = CallbackSet(
     EveryXWallTimeSeconds(cb5, 0.49, MPI.COMM_SELF)
 )
 
-solve(const_prob, LSRKEulerMethod(), dt=1/32, callback=cbs)
+solve(const_prob_inc, LSRKEulerMethod(), dt=1/32, callback=cbs)
 
 @test cb1.initialized
 @test cb2.initialized

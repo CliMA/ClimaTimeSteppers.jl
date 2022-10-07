@@ -17,18 +17,9 @@ end
 (s, parsed_args) = parse_commandline()
 cts = joinpath(dirname(@__DIR__));
 include(joinpath(cts, "test", "problems.jl"))
-function config_integrators(problem)
-    algorithm = ARS343(NewtonsMethod(; linsolve = linsolve_direct, max_iters = 2))
-    dt = 0.01
-    integrator = DiffEqBase.init(problem, algorithm; dt)
-    not_generated_integrator = DiffEqBase.init(problem, algorithm; dt)
-    integrator.cache = CTS.cache(problem, algorithm)
-    not_generated_integrator.cache = CTS.not_generated_cache(problem, algorithm)
-    return (; integrator_generated=integrator, not_generated_integrator)
-end
-function do_work!(integrator)
+function do_work!(integrator, not_generated_cache)
     for _ in 1:100_000
-        CTS.not_generated_step_u!(integrator, integrator.cache)
+        CTS.not_generated_step_u!(integrator, not_generated_cache)
     end
 end
 problem_str = parsed_args["problem"]
@@ -39,15 +30,16 @@ elseif problem_str=="fe"
 else
     error("Bad option")
 end
-(; not_generated_integrator) = config_integrators(prob)
-integrator = not_generated_integrator
-
-do_work!(integrator) # compile first
+algorithm = ARS343(NewtonsMethod(; linsolve = linsolve_direct, max_iters = 2))
+dt = 0.01
+integrator = DiffEqBase.init(prob, algorithm; dt)
+not_generated_cache = CTS.not_generated_cache(prob, algorithm)
+do_work!(integrator, not_generated_cache) # compile first
 import Profile
 Profile.clear_malloc_data()
 Profile.clear()
 prof = Profile.@profile begin
-    do_work!(integrator)
+    do_work!(integrator, not_generated_cache)
 end
 
 import ProfileCanvas

@@ -303,8 +303,8 @@ end
 
     
         u = solve(single_column_prob_wfact_split , algo; dt=dt)
-        @info norm(u.u[1])
-        @test norm(u.u[1]) ≈ reference_sol_norm[i] atol = 1e3eps()
+        @info norm(u.u[end])
+        @test norm(u.u[end]) ≈ reference_sol_norm[i] atol = 1e3eps()
     end
 
 end

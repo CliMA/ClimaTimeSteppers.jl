@@ -10,7 +10,7 @@ function convergence_errors(prob, sol, method, dts; kwargs...)
   errs = map(dts) do dt
        # copy the problem so we don't mutate u0
       prob_copy = deepcopy(prob)
-      u = solve(prob_copy, method; dt=dt, kwargs...)
+      u = solve(prob_copy, method; dt=dt, saveat=(prob.tspan[2],), kwargs...)
       norm(u .- sol(prob.u0, prob.p, prob.tspan[end]))
   end
   return errs

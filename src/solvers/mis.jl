@@ -74,7 +74,7 @@ end
 function update_inner!(innerinteg, outercache::MultirateInfinitesimalStepCache,
   f_slow, u, p, t, dt, i)
 
-  f_offset = innerinteg.prob.f
+  f_offset = innerinteg.sol.prob.f
   tab = outercache.tableau
   N = nstages(outercache)
 

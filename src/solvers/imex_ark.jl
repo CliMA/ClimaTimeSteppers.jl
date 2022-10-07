@@ -282,8 +282,8 @@ function step_u_expr(
 
     expr = :(
         (; broadcasted, materialize!) = Base;
-        (; u, p, t, dt, prob, alg) = integrator;
-        (; f) = prob;
+        (; u, p, t, dt, sol, alg) = integrator;
+        (; f) = sol.prob;
         (; f1, f2) = f;
         (; newtons_method) = alg;
         (; _cache, newtons_method_cache) = cache
@@ -385,8 +385,8 @@ step_u!(integrator, cache::IMEXARKCache) =
     imex_ark_step_u!(
         integrator,
         cache,
-        typeof(integrator.prob.f.f2),
-        typeof(integrator.prob.f.f1),
+        typeof(integrator.sol.prob.f.f2),
+        typeof(integrator.sol.prob.f.f1),
         typeof(integrator.dt),
     )
 @generated imex_ark_step_u!(
@@ -448,8 +448,8 @@ function not_generated_cache(
 end
 function not_generated_step_u!(integrator, cache::IMEXARKCache{as, cs}) where {as, cs}
     @inbounds begin
-        (; u, p, t, dt, prob, alg) = integrator
-        (; f) = prob
+        (; u, p, t, dt, sol, alg) = integrator
+        (; f) = sol.prob
         (; f1, f2) = f
         (; newtons_method) = alg
         (; _cache, newtons_method_cache) = cache

@@ -54,7 +54,7 @@ function step_u!(int, cache::LowStorageRungeKutta2NIncCache)
     for stage in 1:nstages(cache)
         #  du .= f(u, p, t + tab.C[stage]*dt) .+ tab.A[stage] .* du
         stage_time = t + tab.C[stage]*dt
-        int.prob.f(du, u, p, stage_time, 1, tab.A[stage])
+        int.sol.prob.f(du, u, p, stage_time, 1, tab.A[stage])
         u .+= (dt*tab.B[stage]) .* du
     end
 end
@@ -66,7 +66,7 @@ end
 function update_inner!(innerinteg, outercache::LowStorageRungeKutta2NIncCache,
         f_slow, u, p, t, dt, stage)
 
-    f_offset = innerinteg.prob.f
+    f_offset = innerinteg.sol.prob.f
     tab = outercache.tableau
     N = nstages(outercache)
 

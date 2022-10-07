@@ -98,7 +98,7 @@ solve(prob, Rosenbrock23(linsolve=ColumnGMRES))
 # https://github.com/SciML/OrdinaryDiffEq.jl/blob/f93630317658b0c5460044a5d349f99391bc2f9c/src/derivative_utils.jl#L126
 
 function step_u!(int, cache::AdditiveRungeKuttaFullCache{Nstages}) where {Nstages}
-    step_u!(int, cache, int.prob.f)
+    step_u!(int, cache, int.sol.prob.f)
 end
 
 function step_u!(int, cache::AdditiveRungeKuttaFullCache{Nstages}, f::DiffEqBase.SplitFunction) where {Nstages}

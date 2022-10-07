@@ -23,7 +23,7 @@ include("problems.jl")
             not_generated_integrator.cache,
         )
         @test !(integrator.u === not_generated_integrator.u)
-        @test integrator.u == not_generated_integrator.u
+        @test all(integrator.u .≈ not_generated_integrator.u)
 
         benchmark = @benchmark ClimaTimeSteppers.step_u!(
             $integrator,

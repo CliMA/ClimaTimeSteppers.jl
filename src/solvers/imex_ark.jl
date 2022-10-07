@@ -312,15 +312,15 @@ function step_u_expr(
                         if j == i
                             Ûik_expr = :(
                                 $(Ûik_expr.args...);
-                                arr_cache.U_temp .= $Ui;
+                                _cache.U_temp .= $Ui;
                                 run!(
                                     newtons_method,
                                     newtons_method_cache,
-                                    arr_cache.U_temp,
+                                    _cache.U_temp,
                                     ImplicitError($f, $Ui, p, t′, Δt′),
                                     ImplicitErrorJacobian($f.Wfact, p, t′, Δt′),
                                 );
-                                $Ui .= arr_cache.U_temp
+                                $Ui .= _cache.U_temp
                             )
                         else # this is why we store Uj
                             Uj = j in u_alias_is(as[1], as[2]) ? :u :
@@ -344,7 +344,7 @@ function step_u_expr(
                     if save_tendency(i, a)
                         fi = :(_cache.$(Symbol(:f, χ, :_, i)))
                         save_tendency_expr =
-                            :($fi .= (arr_cache.U_temp .- $Ui) ./ Δt′)
+                            :($fi .= (_cache.U_temp .- $Ui) ./ Δt′)
                     else
                         save_tendency_expr = :()
                     end
@@ -352,16 +352,16 @@ function step_u_expr(
                         $(expr.args...);
                         t′ = t + dt * $(FT(c[i]));
                         Δt′ = dt * $(FT(a[i, i]));
-                        arr_cache.U_temp .= $Ui;
+                        _cache.U_temp .= $Ui;
                         run!(
                             newtons_method,
                             newtons_method_cache,
-                            arr_cache.U_temp,
+                            _cache.U_temp,
                             ImplicitError($f, $Ui, p, t′, Δt′),
                             ImplicitErrorJacobian($f.Wfact, p, t′, Δt′),
                         );
                         $save_tendency_expr;
-                        $Ui .= arr_cache.U_temp
+                        $Ui .= _cache.U_temp
                     )
                 end
             end
@@ -472,15 +472,28 @@ function not_generated_cache(
     )
 end
 
-function Δu_broadcast(i, j, χ, a, ::Type{T}, first_i_, _cache, f_map, dt, ::Type{FT}) where {T <: ForwardEulerODEFunType, FT}
+# function Δu_broadcast(i, j, χ, a, ::Type{T}, first_i_, _cache, f_map, dt, ::Type{FT}) where {T <: ForwardEulerODEFunType, FT}
+#     ΔÛj = getproperty(_cache, χ)
+#     ΔÛj = ΔÛj[f_map[Val{Tuple{j ,T}}()]]
+#     return broadcasted(*, FT(a[i, j] / a[first_i_[j], j]), ΔÛj)
+# end
+# function Δu_broadcast(i, j, χ, a, ::Type{T}, first_i_, _cache, f_map, dt, ::Type{FT}) where {T <: AbstractODEFunctionType, FT}
+#     fj = getproperty(_cache, χ)
+#     fj = fj[f_map[Val{Tuple{j ,T}}()]]
+#     return broadcasted(*, dt * FT(a[i, j]), fj)
+# end
+
+function assign_Ui!(Ui, u, i, j, χ, a, ::Type{T}, first_i_, _cache, f_map, dt, ::Type{FT}) where {T <: ForwardEulerODEFunType, FT}
     ΔÛj = getproperty(_cache, χ)
     ΔÛj = ΔÛj[f_map[Val{Tuple{j ,T}}()]]
-    return broadcasted(*, FT(a[i, j] / a[first_i_[j], j]), ΔÛj)
+    @. Ui = u + FT(a[i, j] / a[first_i_[j], j]) * ΔÛj
+    return nothing
 end
-function Δu_broadcast(i, j, χ, a, ::Type{T}, first_i_, _cache, f_map, dt, ::Type{FT}) where {T <: AbstractODEFunctionType, FT}
+function assign_Ui!(Ui, u, i, j, χ, a, ::Type{T}, first_i_, _cache, f_map, dt, ::Type{FT}) where {T <: AbstractODEFunctionType, FT}
     fj = getproperty(_cache, χ)
     fj = fj[f_map[Val{Tuple{j ,T}}()]]
-    return broadcasted(*, dt * FT(a[i, j]), fj)
+    @. Ui = u + dt * FT(a[i, j]) * fj
+    return nothing
 end
 
 function not_generated_step_u!(integrator, cache::IMEXARKCache{as, cs}) where {as, cs}
@@ -508,15 +521,20 @@ function not_generated_step_u!(integrator, cache::IMEXARKCache{as, cs}) where {a
                 if length(old_js_s[1][i])+length(old_js_s[2][i]) == 0
                     materialize!(Ui, u)
                 else
-                    all_Δu_broadcasts = (
-                        map(old_js_s[1][i]) do j
-                            Δu_broadcast(i, j, χs[1], as[1], f_types[1], first_i_s[1], arr_cache, f_map_exp, dt, FT)
-                        end...,
-                        map(old_js_s[2][i]) do j
-                            Δu_broadcast(i, j, χs[2], as[2], f_types[2], first_i_s[2], arr_cache, f_map_imp, dt, FT)
-                        end...,
-                    )
-                    materialize!(Ui, broadcasted(+, u, all_Δu_broadcasts...))
+                    # all_Δu_broadcasts = (
+                    #     map(old_js_s[1][i]) do j
+                    #         Δu_broadcast(i, j, χs[1], as[1], f_types[1], first_i_s[1], arr_cache, f_map_exp, dt, FT)
+                    #     end...,
+                    #     map(old_js_s[2][i]) do j
+                    #         Δu_broadcast(i, j, χs[2], as[2], f_types[2], first_i_s[2], arr_cache, f_map_imp, dt, FT)
+                    #     end...,
+                    # )
+                    for j in old_js_s[1][i]
+                        assign_Ui!(Ui, u, i, j, χs[1], as[1], f_types[1], first_i_s[1], arr_cache, f_map_exp, dt, FT)
+                    end
+                    for j in old_js_s[2][i]
+                        assign_Ui!(Ui, u, i, j, χs[2], as[2], f_types[2], first_i_s[2], arr_cache, f_map_imp, dt, FT)
+                    end
                 end
 
                 for index in 1:2

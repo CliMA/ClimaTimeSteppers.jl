@@ -161,3 +161,18 @@ end
         end
     end
 end
+
+@testset "integrator step past end time" begin
+    alg = SSPRK33ShuOsher()
+    prob = const_prob
+    analytic_sol = const_sol
+    t0, tf = prob.tspan
+    dt = tf - t0
+    integrator = init(deepcopy(prob), alg; dt, save_everystep = true)
+    step!(integrator)
+    step!(integrator)
+    step!(integrator)
+    sol = integrator.sol
+    @test sol.t == [t0, t0 + dt, t0 + 2 * dt, t0 + 3 * dt]
+    @test sol.u ≈ map(analytic_sol, sol.t) atol = 10 * eps()
+end

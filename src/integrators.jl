@@ -216,24 +216,25 @@ reached_tstop(integrator, tstop, stop_at_tstop = integrator.dtchangeable) =
     integrator.t == tstop || (!stop_at_tstop && is_past_t(integrator, tstop))
 
 function __step!(integrator)
-    tstops = integrator.tstops
-    tstop = first(tstops)
+    (; _dt, dtchangeable, tstops) = integrator
 
     # update step and dt before incrementing u; if dt is changeable and there is
     # a tstop within dt, reduce dt to tstop - t
     integrator.step += 1
-    integrator.dt = integrator.dtchangeable ?
-        tdir(integrator) * min(integrator._dt, abs(tstop - integrator.t)) :
-        tdir(integrator) * integrator._dt
+    integrator.dt = !isempty(tstops) && dtchangeable ?
+        tdir(integrator) * min(_dt, abs(first(tstops) - integrator.t)) :
+        tdir(integrator) * _dt
     step_u!(integrator)
 
-    # increment t by dt, rounding to the nearest tstop if that is roughly
+    # increment t by dt, rounding to the first tstop if that is roughly
     # equivalent up to machine precision; the specific bound of 100 * eps...
     # is taken from OrdinaryDiffEq.jl
     t_plus_dt = integrator.t + integrator.dt
     t_unit = oneunit(integrator.t)
     max_t_error = 100 * eps(float(integrator.t / t_unit)) * t_unit
-    integrator.t = abs(tstop - t_plus_dt) < max_t_error ? tstop : t_plus_dt
+    integrator.t =
+        !isempty(tstops) && abs(first(tstops) - t_plus_dt) < max_t_error ?
+        first(tstops) : t_plus_dt
 
     # apply callbacks
     discrete_callbacks = integrator.callback.discrete_callbacks

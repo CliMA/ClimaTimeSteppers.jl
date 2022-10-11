@@ -4,6 +4,39 @@
 CurrentModule = ClimaTimeSteppers
 ```
 
+## IMEX ARK methods
+
+```@docs
+IMEXARKAlgorithm
+```
+
+The convergence orders of the provided methods are verified using test cases from [ARKode](http://runge.math.smu.edu/ARKode_example.pdf). Plots of the solutions to these test cases, the errors of these solutions, and the convergence orders with respect to `dt` are shown below.
+
+```@setup plots
+using Pkg
+Pkg.activate("../../test")
+Pkg.instantiate()
+include("../../test/problems.jl")
+include("../../test/utils.jl")
+include("../../test/convergence.jl")
+Pkg.activate(".")
+```
+
+Plots for `ark_analytic`:
+![](output/solutions_ark_analytic_imex_ark.png)
+![](output/errors_ark_analytic_imex_ark.png)
+![](output/orders_ark_analytic_imex_ark.png)
+
+Plots for `ark_analytic_nonlin`:
+![](output/solutions_ark_analytic_nonlin_imex_ark.png)
+![](output/errors_ark_analytic_nonlin_imex_ark.png)
+![](output/orders_ark_analytic_nonlin_imex_ark.png)
+
+Plots for `ark_analytic_sys`:
+![](output/solutions_ark_analytic_sys_imex_ark.png)
+![](output/errors_ark_analytic_sys_imex_ark.png)
+![](output/orders_ark_analytic_sys_imex_ark.png)
+
 ## Low-Storage Runge--Kutta (LSRK) methods
 
 Low-storage Runger--Kutta methods reduce the number stages that need to be stored.

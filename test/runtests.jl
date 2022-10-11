@@ -7,6 +7,7 @@ end
 
 include("testhelper.jl")
 include("problems.jl")
+include("utils.jl")
 
 include("integrator.jl")
 include("convergence.jl")

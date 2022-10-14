@@ -49,8 +49,6 @@ using KernelAbstractions.Extras: @unroll
 using LinearAlgebra
 using StaticArrays
 using CUDA
-using MPI
-
 
 array_device(::Union{Array, SArray, MArray}) = CPU()
 array_device(::CuArray) = CUDADevice()

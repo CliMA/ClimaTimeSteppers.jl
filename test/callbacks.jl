@@ -1,9 +1,11 @@
 using Test
-using ClimaTimeSteppers, MPI, DiffEqBase
-
+using ClimaComms, ClimaCommsMPI
+using ClimaTimeSteppers, DiffEqBase
 using ClimaTimeSteppers.Callbacks
 
-MPI.Initialized() || MPI.Init()
+comm_ctx = ClimaCommsMPI.MPICommsContext()
+
+ClimaComms.init(comm_ctx)
 
 
 mutable struct MyCallback
@@ -35,7 +37,7 @@ cbs = CallbackSet(
     EveryXSimulationSteps(cb3, 1),
     EveryXSimulationSteps(cb4, 4,  atinit=true),
     EveryXSimulationSteps(_ -> sleep(1/32), 1),
-    EveryXWallTimeSeconds(cb5, 0.49, MPI.COMM_SELF)
+    EveryXWallTimeSeconds(cb5, 0.49, comm_ctx)
 )
 
 solve(const_prob_inc, LSRKEulerMethod(), dt=1/32, callback=cbs)

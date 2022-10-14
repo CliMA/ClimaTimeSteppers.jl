@@ -5,7 +5,7 @@ A suite of callback functions to be used with the ClimaTimeSteppers.jl ODE solve
 """
 module Callbacks
 
-import MPI, DiffEqBase
+import ClimaComms, DiffEqBase
 
 """
     ClimaTimeSteppers.Callbacks.initialize!(f!::F, integrator)
@@ -29,24 +29,24 @@ end
 export EveryXWallTimeSeconds, EveryXSimulationTime, EveryXSimulationSteps
 
 """
-    EveryXWallTimeSeconds(f!, Δwt, comm::MPI.Comm;
+    EveryXWallTimeSeconds(f!, Δwt, comm_ctx::ClimaComms.AbstractCommsContext;
                           atinit=false)
 
 Trigger `f!(integrator)` every `Δwt` wallclock seconds.
 
-An MPI communicator `comm` must be provided to synchronize timing across all ranks.
+An [ClimaComms context](https://clima.github.io/ClimaComms.jl/) must be provided to synchronize timing across all ranks.
 
 [`Callbacks.initialize!`](@ref) and [`Callbacks.finalize!`](@ref) can be defined for `f!`.
 
 If `atinit=true`, then `f!(integrator)` will additionally be triggered at initialization,
 otherwise the first trigger will be after `Δwt` seconds.
 """
-function EveryXWallTimeSeconds(f!, Δwt, comm::MPI.Comm;
+function EveryXWallTimeSeconds(f!, Δwt, comm_ctx::ClimaComms.AbstractCommsContext;
                                atinit=false)
     wt_next = 0.0
 
     function _initialize(c, u, t, integrator)
-        wt = MPI.Allreduce(time(), max, comm)
+        wt = ClimaComms.allreduce(comm_ctx, time(), max)
         wt_next = wt + Δwt
         initialize!(c.affect!, integrator)
         if atinit
@@ -59,7 +59,7 @@ function EveryXWallTimeSeconds(f!, Δwt, comm::MPI.Comm;
     end
 
     function condition(u, t, integrator)
-        wt = MPI.Allreduce(time(), max, comm)
+        wt = ClimaComms.allreduce(comm_ctx, time(), max)
         if wt >= wt_next
             while wt >= wt_next
                 wt_next += Δwt

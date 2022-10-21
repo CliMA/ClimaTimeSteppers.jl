@@ -141,8 +141,7 @@ function test_algs(
     for (alg_name, predicted_order) in sorted_algs_to_order
         if alg_name <: IMEXARKAlgorithm
             max_iters = linear_implicit ? 1 : 2 # TODO: is 2 enough?
-            alg =
-                alg_name(NewtonsMethod(; linsolve = linsolve_direct, max_iters))
+            alg = alg_name(NewtonsMethod(; max_iters))
             tendency_prob = test_case.split_prob
             increment_prob = test_case.split_increment_prob
         else

@@ -286,7 +286,15 @@ function step_u_expr(
         (; f) = sol.prob;
         (; f1, f2) = f;
         (; newtons_method) = alg;
-        (; _cache, newtons_method_cache) = cache
+        (; _cache, newtons_method_cache) = cache;
+        isnothing(f1.Wfact) || run!(
+            newtons_method.update_j,
+            newtons_method_cache.update_j_cache,
+            NewStep(),
+            ImplicitErrorJacobian(f1.Wfact, p, t, dt * $(FT(as[1][end, end]))),
+            newtons_method_cache.j,
+            u,
+        );
     )
 
     is = i_range(as[1]) # or as[2]
@@ -313,12 +321,14 @@ function step_u_expr(
                             Ûik_expr = :(
                                 $(Ûik_expr.args...);
                                 _cache.U_temp .= $Ui;
+                                j! = isnothing($f.Wfact) ? nothing :
+                                    ImplicitErrorJacobian($f.Wfact, p, t′, Δt′);
                                 run!(
                                     newtons_method,
                                     newtons_method_cache,
                                     _cache.U_temp,
                                     ImplicitError($f, $Ui, p, t′, Δt′),
-                                    ImplicitErrorJacobian($f.Wfact, p, t′, Δt′),
+                                    j!,
                                 );
                                 $Ui .= _cache.U_temp
                             )
@@ -353,12 +363,14 @@ function step_u_expr(
                         t′ = t + dt * $(FT(c[i]));
                         Δt′ = dt * $(FT(a[i, i]));
                         _cache.U_temp .= $Ui;
+                        j! = isnothing($f.Wfact) ? nothing :
+                            ImplicitErrorJacobian($f.Wfact, p, t′, Δt′);
                         run!(
                             newtons_method,
                             newtons_method_cache,
                             _cache.U_temp,
                             ImplicitError($f, $Ui, p, t′, Δt′),
-                            ImplicitErrorJacobian($f.Wfact, p, t′, Δt′),
+                            j!,
                         );
                         $save_tendency_expr;
                         $Ui .= _cache.U_temp
@@ -460,6 +472,15 @@ function not_generated_step_u!(integrator, cache::IMEXARKCache{as, cs}) where {a
         f_types = (typeof(f2), typeof(f1))
         (; u_alias_is_, first_i_s, new_js_s, js_to_save_s, has_implicit_step_s, save_tendency_s, old_js_s) = _cache
 
+        isnothing(f1.Wfact) || run!(
+            newtons_method.update_j,
+            newtons_method_cache.update_j_cache,
+            NewStep(),
+            ImplicitErrorJacobian(f1.Wfact, p, t, dt * FT(as[1][end, end])),
+            newtons_method_cache.j,
+            u,
+        )
+
         function Δu_broadcast(i, j, χ, a, f_type, first_i_)
             if is_increment(f_type)
                 ΔÛj = getproperty(_cache, Symbol(:ΔÛ, χ, :_, j))
@@ -498,12 +519,14 @@ function not_generated_step_u!(integrator, cache::IMEXARKCache{as, cs}) where {a
                             end
                             if j == i
                                 _cache.U_temp .= Ui
+                                j! = isnothing(f.Wfact) ? nothing :
+                                    ImplicitErrorJacobian(f.Wfact, p, t′, Δt′)
                                 run!(
                                     newtons_method,
                                     newtons_method_cache,
                                     _cache.U_temp,
                                     ImplicitError(f, Ui, p, t′, Δt′),
-                                    ImplicitErrorJacobian(f.Wfact, p, t′, Δt′),
+                                    j!,
                                 );
                                 Ui .= _cache.U_temp
                             else # this is why we store Uj
@@ -519,12 +542,14 @@ function not_generated_step_u!(integrator, cache::IMEXARKCache{as, cs}) where {a
                         t′ = t + dt * FT(c[i])
                         Δt′ = dt * FT(a[i, i])
                         _cache.U_temp .= Ui
+                        j! = isnothing(f.Wfact) ? nothing :
+                            ImplicitErrorJacobian(f.Wfact, p, t′, Δt′)
                         run!(
                             newtons_method,
                             newtons_method_cache,
                             _cache.U_temp,
                             ImplicitError(f, Ui, p, t′, Δt′),
-                            ImplicitErrorJacobian(f.Wfact, p, t′, Δt′),
+                            j!,
                         )
                         if save_tendency_[i]
                             fi = getproperty(_cache, Symbol(:f, χ, :_, i))

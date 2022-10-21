@@ -30,7 +30,7 @@ elseif problem_str=="fe"
 else
     error("Bad option")
 end
-algorithm = ARS343(NewtonsMethod(; linsolve = linsolve_direct, max_iters = 2))
+algorithm = ARS343(NewtonsMethod(; max_iters = 2))
 dt = 0.01
 integrator = DiffEqBase.init(prob, algorithm; dt)
 not_generated_cache = CTS.not_generated_cache(prob, algorithm)

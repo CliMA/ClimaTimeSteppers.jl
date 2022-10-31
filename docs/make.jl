@@ -14,6 +14,7 @@ makedocs(
     pages = [
         "index.md",
         "algorithms.md",
+        "newtons_method.md",
         "callbacks.md",
         "Background" => [
             "background/lsrk.md",

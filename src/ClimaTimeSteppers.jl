@@ -47,6 +47,7 @@ module ClimaTimeSteppers
 using KernelAbstractions
 using KernelAbstractions.Extras: @unroll
 using LinearAlgebra
+using LinearOperators
 using StaticArrays
 using CUDA
 
@@ -56,7 +57,7 @@ realview(x::Union{Array, SArray, MArray}) = x
 realview(x::CuArray) = x
 
 
-import DiffEqBase, SciMLBase, LinearAlgebra, DiffEqCallbacks
+import DiffEqBase, SciMLBase, LinearAlgebra, DiffEqCallbacks, Krylov
 
 include("functions.jl")
 include("operators.jl")
@@ -68,6 +69,7 @@ end
 SciMLBase.allowscomplex(alg::DistributedODEAlgorithm) = true
 include("integrators.jl")
 
+include("solvers/update_signal_handler.jl")
 include("solvers/convergence_condition.jl")
 include("solvers/convergence_checker.jl")
 include("solvers/newtons_method.jl")

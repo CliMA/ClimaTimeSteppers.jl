@@ -9,3 +9,6 @@ ClimaTimeSteppers.jl is built on top of
 [DiffEqBase.jl](https://github.com/SciML/DiffEqBase.jl/), and aims to be compatible with
 the [DifferentialEquations.jl ecosystem](https://diffeq.sciml.ai/latest/).
 
+```@docs
+ClimaTimeSteppers
+```

@@ -11,6 +11,9 @@ makedocs(
         prettyurls = get(ENV, "CI", nothing) == "true"
     ),
     modules = [ClimaTimeSteppers],
+    checkdocs = :exports,
+    clean = true,
+    strict = true,
     pages = [
         "index.md",
         "algorithms.md",

@@ -4,10 +4,19 @@
 CurrentModule = ClimaTimeSteppers
 ```
 
+## Interface and OrdinaryDiffEq compatibility
+
+```@docs
+allocate_cache
+run!
+ForwardEulerODEFunction
+```
+
 ## IMEX ARK methods
 
 ```@docs
 IMEXARKAlgorithm
+make_IMEXARKAlgorithm
 ```
 
 The convergence orders of the provided methods are verified using test cases from [ARKode](http://runge.math.smu.edu/ARKode_example.pdf). Plots of the solutions to these test cases, the errors of these solutions, and the convergence orders with respect to `dt` are shown below.

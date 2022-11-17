@@ -92,12 +92,7 @@ ARK548L2SA2KennedyCarpenter
 
 ### ARS
 
-```@docs
-ARS111
-ARS121
-ARS343
-```
-
+TODO: `ARS111`, `ARS121`, and `ARS343` should probably be types, and not constants, so that we can properly document them.
 
 ## Multirate
 

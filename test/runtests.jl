@@ -1,3 +1,4 @@
+using SafeTestsets
 if get(ARGS,1,"Array") == "CuArray"
     using CUDA
     const ArrayType = CUDA.CuArray
@@ -5,6 +6,7 @@ else
     const ArrayType = Array
 end
 
+@safetestset "SparseContainers" begin include("sparse_containers.jl") end
 include("testhelper.jl")
 include("problems.jl")
 include("utils.jl")

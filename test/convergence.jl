@@ -57,6 +57,13 @@ ENV["GKSwstype"] = "nul" # avoid displaying plots
     test_algs("IMEX ARK", tabs, ark_analytic_test(Float64), 16000; super_convergence=ARS121)
 end
 
+@testset "New IMEX ARK Algorithms" begin
+    tabs = [NewARS343]
+    test_algs("IMEX ARK", tabs, ark_analytic_nonlin_test, 400)
+    test_algs("IMEX ARK", tabs, ark_analytic_sys_test, 60)
+    test_algs("IMEX ARK", tabs, ark_analytic_test, 16000)
+end
+
 #=
 if ArrayType == Array
 for (prob, sol) in [

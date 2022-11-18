@@ -282,11 +282,53 @@ function IntegratorTestCase(;
     )
 end
 
+function ClimaIntegratorTestCase(;
+    test_name,
+    linear_implicit,
+    t_end,
+    Y₀,
+    analytic_sol,
+    tendency!,
+    increment!,
+    implicit_tendency! = nothing,
+    explicit_tendency! = nothing,
+    implicit_increment! = nothing,
+    explicit_increment! = nothing,
+    Wfact!,
+    tgrad! = nothing,
+)
+    FT = typeof(t_end)
+    jac_prototype = Matrix{FT}(undef, length(Y₀), length(Y₀))
+    func_args = (; jac_prototype, Wfact = Wfact!, tgrad = tgrad!)
+    tendency_func =
+        ClimaODEFunction(; T_imp! = ODEFunction(tendency!; func_args...))
+    if isnothing(implicit_tendency!) # assume that related args are also nothing
+        split_tendency_func =
+            ClimaODEFunction(; T_imp! = ODEFunction(tendency!; func_args...))
+    else
+        split_tendency_func = ClimaODEFunction(;
+            T_exp! = explicit_tendency!,
+            T_imp! = ODEFunction(implicit_tendency!; func_args...),
+        )
+    end
+    make_prob(func) = ODEProblem(func, Y₀, (FT(0), t_end), nothing)
+    IntegratorTestCase(
+        test_name,
+        linear_implicit,
+        t_end,
+        analytic_sol,
+        make_prob(tendency_func),
+        nothing,
+        make_prob(split_tendency_func),
+        nothing,
+    )
+end
+
 # A trivial test case for which any value of dt will work
 constant_tendency_test = let 
     FT = Float64
     tendency = FT[1, 2, 3]
-    IntegratorTestCase(;
+    ClimaIntegratorTestCase(;
         test_name = "constant_tendency",
         linear_implicit = true,
         t_end = FT(1),
@@ -303,7 +345,7 @@ ark_analytic_test = let
     FT = Float64
     λ = FT(-100) # increase magnitude for more stiffness
     source(t) = 1 / (1 + t^2) - λ * atan(t)
-    IntegratorTestCase(;
+    ClimaIntegratorTestCase(;
         test_name = "ark_analytic",
         linear_implicit = true,
         t_end = FT(10),
@@ -324,7 +366,7 @@ end
 # From Section 1.2 of "Example Programs for ARKode v4.4.0" by D. R. Reynolds
 ark_analytic_nonlin_test = let
     FT = Float64
-    IntegratorTestCase(;
+    ClimaIntegratorTestCase(;
         test_name = "ark_analytic_nonlin",
         linear_implicit = false,
         t_end = FT(10),
@@ -347,7 +389,7 @@ ark_analytic_sys_test = let
     A = V * D * V⁻¹
     I = LinearAlgebra.I(3)
     Y₀ = FT[1, 1, 1]
-    IntegratorTestCase(;
+    ClimaIntegratorTestCase(;
         test_name = "ark_analytic_sys",
         linear_implicit = true,
         t_end = FT(1 / 20),

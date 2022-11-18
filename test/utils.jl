@@ -139,16 +139,16 @@ function test_algs(
 
     sorted_algs_to_order = sort(collect(algs_to_order); by = x -> string(x[1]))
     for (alg_name, predicted_order) in sorted_algs_to_order
-        if alg_name <: IMEXARKAlgorithm
+        # if alg_name isa NewIMEXARKAlgorithm
             max_iters = linear_implicit ? 1 : 2 # TODO: is 2 enough?
             alg = alg_name(NewtonsMethod(; max_iters))
             tendency_prob = test_case.split_prob
-            increment_prob = test_case.split_increment_prob
-        else
-            alg = alg_name()
-            tendency_prob = test_case.prob
-            increment_prob = test_case.increment_prob
-        end
+            # increment_prob = test_case.split_increment_prob
+        # else
+        #     alg = alg_name()
+        #     tendency_prob = test_case.prob
+        #     increment_prob = test_case.increment_prob
+        # end
         linestyle = linestyles[(predicted_order - 1) % length(linestyles) + 1]
 
         # Use tstops to fix saving issues due to machine precision (e.g. if the
@@ -167,13 +167,13 @@ function test_algs(
         plot!(plot1a, plot1_saveat, tendency_norms; label = alg_name, linestyle)
         plot!(plot1b, plot1_saveat, tendency_errs; label = alg_name, linestyle)
 
-        if !(alg_name in no_increment_algs)
-            increment_sols =
-                solve(deepcopy(increment_prob), alg; solve_args...).u
-            increment_errs = @. norm(increment_sols - tendency_sols)
-            @test maximum(increment_errs) < 1000 * eps(FT) broken =
-                alg_name == HOMMEM1 # TODO: why is this one broken?
-        end
+        # if !(alg_name in no_increment_algs)
+        #     increment_sols =
+        #         solve(deepcopy(increment_prob), alg; solve_args...).u
+        #     increment_errs = @. norm(increment_sols - tendency_sols)
+        #     @test maximum(increment_errs) < 1000 * eps(FT) broken =
+        #         alg_name == HOMMEM1 # TODO: why is this one broken?
+        # end
 
         tendency_end_sols =
             map(dt -> solve(deepcopy(tendency_prob), alg; dt).u[end], plot2_dts)

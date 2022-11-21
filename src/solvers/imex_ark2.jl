@@ -138,7 +138,7 @@ function step_u!(integrator, cache::NewIMEXARKCache)
             @. temp = U[i]
             implicit_equation_residual! = (residual, Ui) -> begin
                 T_imp!(residual, Ui, p, t_imp)
-                @. residual = Ui - dt * a_imp[i, i] * residual - temp
+                @. residual = temp + dt * a_imp[i, i] * residual - Ui
             end
             implicit_equation_jacobian! =
                 if has_jac(T_imp!)
@@ -197,14 +197,12 @@ function step_u!(integrator, cache::NewIMEXARKCache)
 
     if !isnothing(T_imp!) # Update based on implicit tendencies from previous stages
         for j in 1:s
-            iszero(b_exp[j]) && continue
+            iszero(b_imp[j]) && continue
             @. u += dt * b_imp[j] * T_imp[j]
         end
     end
 
     dss!(u)
-
-    stage_callback!(u, p, t + dt)
 
     return u
 end

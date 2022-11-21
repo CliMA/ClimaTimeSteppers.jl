@@ -4,8 +4,8 @@ Base.@kwdef struct ClimaODEFunction{TL, TE, TI, L, D, S} <: DiffEqBase.AbstractO
     T_lim!::TL = nothing # nothing or (uₜ, u, p, t) -> ...
     T_exp!::TE = nothing # nothing or (uₜ, u, p, t) -> ...
     T_imp!::TI = nothing # nothing or (uₜ, u, p, t) -> ...
-    lim!::L = (u, u_ref) -> nothing
-    dss!::D = u -> nothing
+    lim!::L = (u, p, t, u_ref) -> nothing
+    dss!::D = (u, p, t) -> nothing
     stage_callback!::S = (u, p, t) -> nothing
 end
 
@@ -115,7 +115,7 @@ function step_u!(integrator, cache::NewIMEXARKCache)
                 iszero(a_exp[i, j]) && continue
                 @. U[i] += dt * a_exp[i, j] * T_lim[j]
             end
-            lim!(U[i], u)
+            lim!(U[i], p, t_exp, u)
         end
 
         if !isnothing(T_exp!) # Update based on explicit tendencies from previous stages
@@ -132,7 +132,7 @@ function step_u!(integrator, cache::NewIMEXARKCache)
             end
         end
 
-        dss!(U[i])
+        dss!(U[i], p, t_exp)
 
         if !isnothing(T_imp!) && !iszero(a_imp[i, i]) # Implicit solve
             @. temp = U[i]
@@ -178,13 +178,15 @@ function step_u!(integrator, cache::NewIMEXARKCache)
         end
     end
 
+    t_final = t + dt
+
     if !isnothing(T_lim!) # Update based on limited tendencies from previous stages
         @. temp = u
         for j in 1:s
             iszero(b_exp[j]) && continue
             @. temp += dt * b_exp[j] * T_lim[j]
         end
-        lim!(temp, u)
+        lim!(temp, p, t_final, u)
         @. u = temp
     end
 
@@ -202,7 +204,7 @@ function step_u!(integrator, cache::NewIMEXARKCache)
         end
     end
 
-    dss!(u)
+    dss!(u, p, t_final)
 
     return u
 end

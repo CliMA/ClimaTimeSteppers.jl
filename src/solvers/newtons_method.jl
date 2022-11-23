@@ -256,6 +256,74 @@ function run!(alg::EisenstatWalkerForcing, cache, f, n)
 end
 
 """
+    KrylovMethodDebugger
+
+Prints information about the Jacobian matrix `j` and the preconditioner `M` (if
+it is available) that are passed to a Krylov method. This is done by calling
+`run!(::KrylovMethodDebugger, cache, j, M)`. The `cache` can be obtained with
+`allocate_cache(::KrylovMethodDebugger, x_prototype)`, where `x_prototype` is
+`similar` to `x`.
+"""
+abstract type KrylovMethodDebugger end
+
+"""
+    PrintConditionNumber()
+
+Prints the condition number of the Jacobian matrix `j`, and, if a preconditioner
+`M` is available, also prints the condition number of `inv(M) * j` (i.e., the
+matrix that actually gets "inverted" by the Krylov method). This requires
+computing dense representations of `j` and `inv(M) * j`, which is likely to be
+significantly slower than the Krylov method itself.
+"""
+struct PrintConditionNumber <: KrylovMethodDebugger end
+
+function allocate_cache(::PrintConditionNumber, x_prototype)
+    l = length(x_prototype)
+    FT = eltype(x_prototype)
+    return (;
+        dense_vector = Array{FT}(undef, l),
+        dense_j = Array{FT}(undef, l, l),
+        dense_inv_M = Array{FT}(undef, l, l),
+        dense_inv_M_j = Array{FT}(undef, l, l),
+    )
+end
+
+function run!(::PrintConditionNumber, cache, j, M)
+    (; dense_vector, dense_j, dense_inv_M, dense_inv_M_j) = cache
+    dense_matrix_from_operator!(dense_j, dense_vector, j)
+    if M === I
+        @info "Condition number = $(cond(dense_j))"
+    else
+        dense_inverse_matrix_from_operator!(dense_inv_M, dense_vector, M)
+        mul!(dense_inv_M_j, dense_inv_M, dense_j)
+        @info "Condition number = $(cond(dense_inv_M_j)) ($(cond(dense_j)) \
+               without the preconditioner)"
+    end
+end
+
+# Like Matrix(op::AbstractLinearOperator) from LinearOperators.jl, but in-place.
+function dense_matrix_from_operator!(dense_matrix, dense_vector, op)
+    n_columns = size(dense_matrix)[2]
+    dense_vector .= 0
+    for column in 1:n_columns
+        dense_vector[column] = 1
+        mul!(view(dense_matrix, :, column), op, dense_vector)
+        dense_vector[column] = 0
+    end
+end
+
+# Same as dense_matrix_from_operator!, but with ldiv! instead of mul!.
+function dense_inverse_matrix_from_operator!(dense_inv_matrix, dense_vector, op)
+    n_columns = size(dense_inv_matrix)[2]
+    dense_vector .= 0
+    for column in 1:n_columns
+        dense_vector[column] = 1
+        ldiv!(view(dense_inv_matrix, :, column), op, dense_vector)
+        dense_vector[column] = 0
+    end
+end
+
+"""
     KrylovMethod(;
         jacobian_free_jvp = nothing,
         forcing_term = ConstantForcing(0),
@@ -265,6 +333,7 @@ end
         solve_kwargs = (;),
         disable_preconditioner = false,
         verbose = false,
+        debugger = nothing,
     )
 
 Finds an approximation `Δx[n] ≈ j(x[n]) \\ f(x[n])` for Newton's method such
@@ -312,6 +381,10 @@ All of the arguments and keyword arguments used to construct and run the solver
 can be modified using `args`, `kwargs`, and `solve_kwargs`. So, the default
 behavior of this wrapper can be easily overwritten, and any features of
 `Krylov.jl` that are not explicitly covered by this wrapper can still be used.
+
+If `verbose` is `true`, the residual `‖f(x[n]) - j(x[n]) * Δx[n]‖` is printed on
+each iteration of the Krylov method. If a debugger is specified, it is run
+before the call to `Kyrlov.solve!`.
 """
 Base.@kwdef struct KrylovMethod{
     J <: Union{Nothing, JacobianFreeJVP},
@@ -320,6 +393,7 @@ Base.@kwdef struct KrylovMethod{
     A <: Tuple,
     K <: NamedTuple,
     S <: NamedTuple,
+    D <: Union{Nothing, KrylovMethodDebugger},
 }
     jacobian_free_jvp::J = nothing
     forcing_term::F = ConstantForcing(0)
@@ -329,10 +403,11 @@ Base.@kwdef struct KrylovMethod{
     solve_kwargs::S = (;)
     disable_preconditioner::Bool = false
     verbose::Bool = false
+    debugger::D = nothing
 end
 
 function allocate_cache(alg::KrylovMethod, x_prototype)
-    (; jacobian_free_jvp, forcing_term, type, args, kwargs) = alg
+    (; jacobian_free_jvp, forcing_term, type, args, kwargs, debugger) = alg
     @assert alg.type isa Type{<:Krylov.KrylovSolver}
     l = length(x_prototype)
     return (;
@@ -340,18 +415,22 @@ function allocate_cache(alg::KrylovMethod, x_prototype)
             allocate_cache(jacobian_free_jvp, x_prototype),
         forcing_term_cache = allocate_cache(forcing_term, x_prototype),
         solver = type(l, l, args..., Krylov.ktypeof(x_prototype); kwargs...),
+        debugger_cache = isnothing(debugger) ? nothing :
+            allocate_cache(debugger, x_prototype),
     )
 end
 
 function run!(alg::KrylovMethod, cache, Δx, x, f!, f, n, j = nothing)
     (; jacobian_free_jvp, forcing_term, type, solve_kwargs) = alg
-    (; disable_preconditioner, verbose) = alg
-    (; jacobian_free_jvp_cache, forcing_term_cache, solver) = cache
+    (; disable_preconditioner, verbose, debugger) = alg
+    (; jacobian_free_jvp_cache, forcing_term_cache, solver, debugger_cache) =
+        cache
     jΔx!(jΔx, Δx) = isnothing(jacobian_free_jvp) ? mul!(jΔx, j, Δx) :
         run!(jacobian_free_jvp, jacobian_free_jvp_cache, jΔx, Δx, x, f!, f)
     opj = LinearOperator(eltype(x), length(x), length(x), false, false, jΔx!)
     M = disable_preconditioner || isnothing(j) || isnothing(jacobian_free_jvp) ?
         I : j
+    run!(debugger, debugger_cache, opj, M)
     ldiv = true
     atol = zero(eltype(Δx))
     rtol = run!(forcing_term, forcing_term_cache, f, n)

@@ -10,6 +10,7 @@ function linear_equation(FT, n)
     x_init = zeros(FT, n)
     return (f!, j!, x_exact, x_init)
 end
+
 function nonlinear_equation(FT, n)
     rng = MersenneTwister(1)
     A = rand(rng, FT, n, n)
@@ -65,4 +66,16 @@ end
             @test norm(x .- x_exact) / norm(x_exact) < rtol
         end
     end
+end
+
+@testset "Dense Matrix From Operator" begin
+    n = 10
+    rng = MersenneTwister(1)
+    A = rand(rng, n, n)
+    vector = similar(A, n)
+    matrix = similar(A, n, n)
+    ClimaTimeSteppers.dense_matrix_from_operator!(matrix, vector, A)
+    @test matrix == A
+    ClimaTimeSteppers.dense_inverse_matrix_from_operator!(matrix, vector, lu(A))
+    @test matrix ≈ inv(A)
 end

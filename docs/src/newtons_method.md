@@ -14,6 +14,8 @@ KrylovMethod
 ForcingTerm
 ConstantForcing
 EisenstatWalkerForcing
+KrylovMethodDebugger
+PrintConditionNumber
 ```
 
 ## Jacobian-free Newton-Krylov Method

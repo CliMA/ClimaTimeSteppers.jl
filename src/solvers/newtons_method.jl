@@ -386,30 +386,60 @@ If `verbose` is `true`, the residual `‖f(x[n]) - j(x[n]) * Δx[n]‖` is print
 each iteration of the Krylov method. If a debugger is specified, it is run
 before the call to `Kyrlov.solve!`.
 """
-Base.@kwdef struct KrylovMethod{
+struct KrylovMethod{
+    T <: Krylov.KrylovSolver,
     J <: Union{Nothing, JacobianFreeJVP},
     F <: ForcingTerm,
-    T <: Type,
     A <: Tuple,
     K <: NamedTuple,
     S <: NamedTuple,
     D <: Union{Nothing, KrylovMethodDebugger},
 }
-    jacobian_free_jvp::J = nothing
-    forcing_term::F = ConstantForcing(0)
-    type::T = Krylov.GmresSolver
-    args::A = (20,)
-    kwargs::K = (;)
-    solve_kwargs::S = (;)
-    disable_preconditioner::Bool = false
-    verbose::Bool = false
-    debugger::D = nothing
+    jacobian_free_jvp::J
+    forcing_term::F
+    args::A
+    kwargs::K
+    solve_kwargs::S
+    disable_preconditioner::Bool
+    verbose::Bool
+    debugger::D
+    function KrylovMethod(;
+            jacobian_free_jvp::J = nothing,
+            forcing_term::F = ConstantForcing(0),
+            type::T = nothing,
+            args::A = (20,),
+            kwargs::K = (;),
+            solve_kwargs::S = (;),
+            disable_preconditioner::Bool = false,
+            verbose::Bool = false,
+            debugger::D = nothing
+        ) where {J, F, T <: Union{Nothing, Krylov.KrylovSolver}, A, K, S, D}
+    ST = type == nothing ? default_solver(x_prototype) : type
+    return new{ST,J,F,A,K,S,D}(jacobian_free_jvp,
+        forcing_term,
+        args,
+        kwargs,
+        solve_kwargs,
+        disable_preconditioner,
+        verbose,
+        debugger
+    )
+    end
 end
 
+function default_solver(x_prototype)
+    S = Krylov.ktypeof(x_prototype)
+    FC = eltype(S)
+    T = real(FC)
+    return Krylov.GmresSolver{T, FC, S}
+end
+
+solver_type(::KrylovMethod{T}) where {T} = T
+
 function allocate_cache(alg::KrylovMethod, x_prototype)
-    (; jacobian_free_jvp, forcing_term, type, args, kwargs, debugger) = alg
-    @assert alg.type isa Type{<:Krylov.KrylovSolver}
+    (; jacobian_free_jvp, forcing_term, args, kwargs, debugger) = alg
     l = length(x_prototype)
+    type = solver_type(alg)
     return (;
         jacobian_free_jvp_cache = isnothing(jacobian_free_jvp) ? nothing :
             allocate_cache(jacobian_free_jvp, x_prototype),
@@ -421,10 +451,11 @@ function allocate_cache(alg::KrylovMethod, x_prototype)
 end
 
 function run!(alg::KrylovMethod, cache, Δx, x, f!, f, n, j = nothing)
-    (; jacobian_free_jvp, forcing_term, type, solve_kwargs) = alg
+    (; jacobian_free_jvp, forcing_term, solve_kwargs) = alg
     (; disable_preconditioner, verbose, debugger) = alg
     (; jacobian_free_jvp_cache, forcing_term_cache, solver, debugger_cache) =
         cache
+    type = solver_type(alg)
     jΔx!(jΔx, Δx) = isnothing(jacobian_free_jvp) ? mul!(jΔx, j, Δx) :
         run!(jacobian_free_jvp, jacobian_free_jvp_cache, jΔx, Δx, x, f!, f)
     opj = LinearOperator(eltype(x), length(x), length(x), false, false, jΔx!)

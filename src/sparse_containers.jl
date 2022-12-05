@@ -25,7 +25,7 @@ struct SparseContainer{SIM, T}
     function SparseContainer(
             compressed_data::T,
             sparse_index_map::Tuple
-        ) where {N, ET, T <: NTuple{N, ET}}
+        ) where {T}
         @assert all(map(x-> eltype(compressed_data) .== typeof(x), compressed_data))
         return new{sparse_index_map, T}(compressed_data)
     end
@@ -33,6 +33,7 @@ end
 
 Base.parent(sc::SparseContainer) = sc.data
 sc_eltype(::Type{NTuple{N, T}}) where {N, T} = T
+sc_eltype(::Type{T}) where {ET, T <: AbstractArray{ET}} = ET
 sc_eltype(::SparseContainer{SIM, T}) where {SIM, T} = sc_eltype(T)
 @inline function Base.getindex(sc::SparseContainer, i::Int)
     return _getindex_sparse(sc, Val(i))::sc_eltype(sc)

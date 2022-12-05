@@ -327,7 +327,7 @@ end
     KrylovMethod(;
         jacobian_free_jvp = nothing,
         forcing_term = ConstantForcing(0),
-        type = Krylov.GmresSolver,
+        type = Val(Krylov.GmresSolver),
         args = (20,),
         kwargs = (;),
         solve_kwargs = (;),
@@ -347,7 +347,8 @@ where `x_prototype` is `similar` to `x` (and also to `Δx` and `f`).
 
 This is primarily a wrapper for a `Krylov.KrylovSolver` from `Krylov.jl`. In
 `allocate_cache`, the solver is constructed with
-`solver = type(l, l, args..., Krylov.ktypeof(x_prototype); kwargs...)`, where
+`solver = type(l, l, args..., Krylov.ktypeof(x_prototype); kwargs...)` (note
+that `type` must be passed through in a `Val` struct), where
 `l = length(x_prototype)` and `Krylov.ktypeof(x_prototype)` is a subtype of
 `DenseVector` that can be used to store `x_prototype`. By default, the solver
 is a `Krylov.GmresSolver` with a Krylov subspace size of 20 (the default Krylov
@@ -387,17 +388,17 @@ each iteration of the Krylov method. If a debugger is specified, it is run
 before the call to `Kyrlov.solve!`.
 """
 Base.@kwdef struct KrylovMethod{
+    T <: Val,
     J <: Union{Nothing, JacobianFreeJVP},
     F <: ForcingTerm,
-    T <: Type,
     A <: Tuple,
     K <: NamedTuple,
     S <: NamedTuple,
     D <: Union{Nothing, KrylovMethodDebugger},
 }
+    type::T = Val(Krylov.GmresSolver)
     jacobian_free_jvp::J = nothing
     forcing_term::F = ConstantForcing(0)
-    type::T = Krylov.GmresSolver
     args::A = (20,)
     kwargs::K = (;)
     solve_kwargs::S = (;)
@@ -406,9 +407,12 @@ Base.@kwdef struct KrylovMethod{
     debugger::D = nothing
 end
 
+solver_type(::KrylovMethod{Val{T}}) where {T} = T
+
 function allocate_cache(alg::KrylovMethod, x_prototype)
-    (; jacobian_free_jvp, forcing_term, type, args, kwargs, debugger) = alg
-    @assert alg.type isa Type{<:Krylov.KrylovSolver}
+    (; jacobian_free_jvp, forcing_term, args, kwargs, debugger) = alg
+    type = solver_type(alg)
+    @assert type isa Type{<:Krylov.KrylovSolver}
     l = length(x_prototype)
     return (;
         jacobian_free_jvp_cache = isnothing(jacobian_free_jvp) ? nothing :
@@ -421,8 +425,9 @@ function allocate_cache(alg::KrylovMethod, x_prototype)
 end
 
 function run!(alg::KrylovMethod, cache, Δx, x, f!, f, n, j = nothing)
-    (; jacobian_free_jvp, forcing_term, type, solve_kwargs) = alg
+    (; jacobian_free_jvp, forcing_term, solve_kwargs) = alg
     (; disable_preconditioner, verbose, debugger) = alg
+    type = solver_type(alg)
     (; jacobian_free_jvp_cache, forcing_term_cache, solver, debugger_cache) =
         cache
     jΔx!(jΔx, Δx) = isnothing(jacobian_free_jvp) ? mul!(jΔx, j, Δx) :

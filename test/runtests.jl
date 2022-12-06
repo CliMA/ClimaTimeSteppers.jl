@@ -16,7 +16,7 @@ include("convergence.jl")
 include("callbacks.jl")
 include("test_convergence_checker.jl")
 include("test_newtons_method.jl")
-include("single_column_ARS_test.jl")
+@safetestset "Single column ARS" begin include("single_column_ARS_test.jl") end
 include("compare_generated.jl") # TODO: Remove this.
 @safetestset "Aqua" begin include("aqua.jl") end
 

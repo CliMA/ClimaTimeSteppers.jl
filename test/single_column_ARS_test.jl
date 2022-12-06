@@ -198,7 +198,7 @@ end
             spatial_residual!(du, u, ss, 0.0)
 
         end
-        function jac_imp(J, u) 
+        function jac_imp(J, u)
             jacobian!(J, u, ss, 0.0)
         end
 
@@ -236,7 +236,7 @@ end
             0 (1-γ)/2 γ  0;
             0 b1      b2 γ;]
         b_imp = [0, b1, b2, γ]
-        
+
 
         n_stage = size(a_imp)[1] - 1
         K_exp = zeros(3*N+1, n_stage + 1)
@@ -246,14 +246,14 @@ end
             u_stage = copy(u)
             for i_stage = 1:n_stage
                 f_exp(@view(K_exp[:, i_stage]), u_stage)
-                u_stage_temp = u + dt*(K_imp[:, 1:i_stage-1]*a_imp[i_stage+1, 2:i_stage] 
+                u_stage_temp = u + dt*(K_imp[:, 1:i_stage-1]*a_imp[i_stage+1, 2:i_stage]
                             + K_exp[:, 1:i_stage]*a_exp[i_stage+1, 1:i_stage])
 
                 K_imp[:, i_stage] = f_imp_solve(f_imp, jac_imp, u_stage_temp, dt*a_imp[i_stage+1, i_stage+1])
-                u_stage = u_stage_temp + dt*K_imp[:, i_stage]*a_imp[i_stage+1, i_stage+1] 
+                u_stage = u_stage_temp + dt*K_imp[:, i_stage]*a_imp[i_stage+1, i_stage+1]
             end
             f_exp(@view(K_exp[:, n_stage+1]), u_stage)
-            u .+= dt*(K_exp[:, 1:n_stage+1]*b_exp[1:n_stage+1] + K_imp[:, 1:n_stage]*b_imp[2:n_stage+1])          
+            u .+= dt*(K_exp[:, 1:n_stage+1]*b_exp[1:n_stage+1] + K_imp[:, 1:n_stage]*b_imp[2:n_stage+1])
         end
         ref_ARS343 = norm(u)
     end
@@ -271,7 +271,7 @@ end
         ARS222(NewtonsMethod(; max_iters = 1)),
         ARS343(NewtonsMethod(; max_iters = 1)),
     )
-    reference_sol_norm = [860.2745315698107; 860.2745315698107; 860.4393569534262; 
+    reference_sol_norm = [860.2745315698107; 860.2745315698107; 860.4393569534262;
                           860.452530117785; 860.452530117785; ref_ARS343]
 
 
@@ -289,7 +289,7 @@ end
             ),
             copy(u0),(0.0, N_iter*dt), ss)
 
-    
+
         u = solve(single_column_prob_wfact_split , algo; dt=dt)
         @info norm(u.u[end])
         @test norm(u.u[end]) ≈ reference_sol_norm[i] atol = 1e3eps()

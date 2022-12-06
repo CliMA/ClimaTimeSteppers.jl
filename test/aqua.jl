@@ -1,5 +1,6 @@
 using Aqua
 using Test
+using ClimaTimeSteppers
 
 @testset "Aqua tests - unbound args" begin
     # This tests that we don't accidentally run into

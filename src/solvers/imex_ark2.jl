@@ -136,6 +136,7 @@ function step_u!(integrator, cache::NewIMEXARKCache)
 
         if !isnothing(T_imp!) && !iszero(a_imp[i, i]) # Implicit solve
             @. temp = U[i]
+            # TODO: can/should we remove these closures?
             implicit_equation_residual! = (residual, Ui) -> begin
                 T_imp!(residual, Ui, p, t_imp)
                 @. residual = temp + dt * a_imp[i, i] * residual - Ui
@@ -208,26 +209,3 @@ function step_u!(integrator, cache::NewIMEXARKCache)
 
     return u
 end
-
-# function implicit_equation_residual!(residual, Ui, cache)
-#     (; p, t_imp, Δt, a_imp, implicit_equation_rhs) = cache
-#     T_imp!(residual, Ui, p, t_imp)
-#     @. residual = Ui - Δt * a_imp[i, i] * residual - implicit_equation_rhs
-# end
-
-# has_wfact(T_imp!::T) where {T} = hasfield(T, :Wfact) && !isnothing(T_imp!.Wfact)
-
-# function implicit_equation_jacobian!(jacobian, Ui, cache)
-#     (; T_imp!, p, Δt, a_imp, t_imp) = cache
-#     T_imp!.Wfact(jacobian, Ui, p, Δt * a_imp[i, i], t_imp)
-# end
-# function run_i!(U, implicit_equation_rhs, newtons_method, newtons_method_cache, residual, Ui, Δt, p, a_imp, t_imp, i)
-#     @. implicit_equation_rhs = U[i]
-#     run!(
-#         newtons_method,
-#         newtons_method_cache,
-#         U[i],
-#         implicit_equation_residual!,
-#         has_wfact(T_imp!) ? implicit_equation_jacobian! : nothing,
-#     )
-# end

@@ -4,17 +4,6 @@ if !@isdefined(ArrayType)
     ArrayType = Array
 end
 
-const_prob = ODEProblem((du,u,p,t) -> (du .= p),[0.0],(0.0,1.0),2.0)
-const_prob_inc = ODEProblem(
-    IncrementingODEFunction{true}((du,u,p,t,α=true,β=false) -> (du .= α .* p .+ β .* du)),
-    [0.0],(0.0,1.0),2.0)
-const_prob_fe = ODEProblem(
-        ForwardEulerODEFunction((un,u,p,t,dt) -> (un .= u .+ dt.* p)),
-        [0.0],(0.0,1.0),2.0)
-const_sol(t) = [0.0 .+ 2.0 * t]
-
-
-
 """
 Single variable linear ODE
 

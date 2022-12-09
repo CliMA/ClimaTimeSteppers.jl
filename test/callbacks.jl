@@ -40,6 +40,10 @@ cbs = CallbackSet(
     EveryXWallTimeSeconds(cb5, 0.49, comm_ctx)
 )
 
+const_prob_inc = ODEProblem(
+    IncrementingODEFunction{true}((du,u,p,t,α=true,β=false) -> (du .= α .* p .+ β .* du)),
+    [0.0],(0.0,1.0),2.0)
+
 solve(const_prob_inc, LSRKEulerMethod(), dt=1/32, callback=cbs)
 
 @test cb1.initialized

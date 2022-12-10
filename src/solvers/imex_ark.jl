@@ -178,7 +178,7 @@ js_to_save(i, a) = filter(
 
 # Helper functions for tendencies
 has_implicit_step(i, a) = i <= size(a, 2) && a[i, i] != 0
-save_tendency(i, a) = 
+save_tendency(i, a) =
     !isnothing(findlast(i′ -> a[i′, i] != 0, (i + 1):size(a, 1)))
 
 # Helper functions for increments and tendencies
@@ -440,10 +440,10 @@ function not_generated_cache(
     ))
     newtons_method_cache =
         allocate_cache(alg.newtons_method, u, prob.f.f1.jac_prototype)
-    
+
     f_types = (typeof(prob.f.f2), typeof(prob.f.f1))
     @inbounds _cache = (;
-        _cache..., 
+        _cache...,
         u_alias_is_ = u_alias_is(as[1], as[2]),
         first_i_s = map(χ -> map(j -> first_i(j, as[χ]), j_range(as[χ])), Tuple(1:2)),
         new_js_s = map(χ -> map(i -> new_js(i, as[χ]), i_range(as[χ])), Tuple(1:2)),

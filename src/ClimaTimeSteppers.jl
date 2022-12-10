@@ -64,8 +64,16 @@ include("functions.jl")
 include("operators.jl")
 include("algorithms.jl")
 
-abstract type DistributedODEAlgorithm <: DiffEqBase.AbstractODEAlgorithm
-end
+abstract type DistributedODEAlgorithm <: DiffEqBase.AbstractODEAlgorithm end
+
+"""
+    theoretical_convergence_order
+
+Returns the theoretical convergence order of an ODE algorithm
+"""
+function theoretical_convergence_order end
+theoretical_convergence_order(alg::DistributedODEAlgorithm) =
+    error("No convergence order found for algo $alg, please open an issue or PR.")
 
 SciMLBase.allowscomplex(alg::DistributedODEAlgorithm) = true
 include("integrators.jl")
@@ -88,5 +96,7 @@ include("solvers/wickerskamarock.jl")
 include("solvers/rosenbrock.jl")
 
 include("callbacks.jl")
+
+include("convergence_orders.jl")
 
 end

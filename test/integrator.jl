@@ -7,12 +7,8 @@ include("problems.jl")
     test_case = constant_tendency_test(Float64)
     (; prob, analytic_sol) = test_case
     for alg in (SSPRK33ShuOsher(), OrdinaryDiffEq.SSPRK33()),
-        reverse_prob in (false, true),
+        prob in (prob, reverse_problem(prob, analytic_sol)),
         n_dt_steps in (10, 10000)
-
-        if reverse_prob
-            prob = reverse_problem(prob, analytic_sol)
-        end
 
         t0, tf = prob.tspan
         dt = abs(tf - t0) / (n_dt_steps + 0.01) # not aligned with tspan
@@ -103,15 +99,16 @@ include("problems.jl")
             is_ode && !compare_to_ode && continue
 
             # hide the warning about unrecognized kwargs from OrdinaryDiffEq
-            hide_warning = (; kwargshandle = DiffEqBase.KeywordArgSilent)
-            sol = solve(deepcopy(prob), alg; dt, kwargs..., hide_warning...)
+            kwargshandle = DiffEqBase.KeywordArgSilent
+
+            sol = solve(deepcopy(prob), alg; dt, kwargs..., kwargshandle)
 
             # remove the duplicate entries put in sol by OrdinaryDiffEq
             sol_times = is_ode ? unique(sol.t) : sol.t
             @test sol_times == times
 
             isempty(times) && continue
-            @test sol.u ≈ map(analytic_sol, sol.t) atol = 1000000 * eps()
+            @test sol.u ≈ map(analytic_sol, sol.t) atol = 10000000 * eps()
             # the atol has to be very large for when n_dt_steps is big
         end
     end
@@ -123,11 +120,7 @@ end
     alg = SSPRK33ShuOsher()
     test_case = constant_tendency_test(Float64)
     (; prob, analytic_sol) = test_case
-    for reverse_prob in (false, true)
-        if reverse_prob
-            prob = reverse_problem(prob, analytic_sol)
-        end
-
+    for prob in (prob, reverse_problem(prob, analytic_sol))
         t0, tf = prob.tspan
         t0′, tf′ = prob.tspan .+ (tf - t0) / 3
         u0′ = analytic_sol(t0′)
@@ -172,4 +165,83 @@ end
     sol = integrator.sol
     @test sol.t == [t0, t0 + dt, t0 + 2 * dt, t0 + 3 * dt]
     @test sol.u ≈ map(analytic_sol, sol.t) atol = 10 * eps()
+end
+
+@testset "integrator progress callbacks" begin
+    alg = SSPRK33ShuOsher()
+    test_case = constant_tendency_test
+    (; prob, analytic_sol) = test_case
+    t0, tf = prob.tspan
+    dt = (tf - t0) / 8 # use 8 (power of 2) steps to avoid round-off errors
+
+    callback = DiffEqBase.DiscreteCallback(
+        (u, t, integrator) -> true,
+        integrator -> sleep(integrator.step == 1 ? 2 : 0.5),
+    ) # make step 1 take 2 seconds and steps 2--8 each take 0.5 seconds
+
+    # hide the warning about unrecognized kwargs from OrdinaryDiffEq
+    kwargshandle = DiffEqBase.KeywordArgSilent
+
+    test_io = IOBuffer() # buffer for testing the outputs of progress callbacks
+
+    for io in (stdout, test_io), # run once as a demo and once as a unit test
+        prob in (prob, reverse_problem(prob, analytic_sol))
+        progress = :basic
+        progress_kwargs = (; io, bar_length = 70)
+        kwargs = (; dt, callback, progress, progress_kwargs, kwargshandle)
+        solve(deepcopy(prob), alg; kwargs...)
+        io == test_io && @test String(take!(io)) == """
+                      0     10     20     30     40     50     60     70     80     90    100   (%)
+                      ▌     ▐▌     ▐▌     ▐▌     ▐▌     ▐▌     ▐▌     ▐▌     ▐▌     ▐▌     ▐
+            Progress: ██████████████████████████████████████████████████████████████████████
+            """
+
+        progress = :terminal
+        custom_message = (integrator, terminal_width) ->
+            if integrator.t == prob.tspan[1]
+                "Starting\nAnother Line To Print"
+            elseif integrator.t == prob.tspan[2]
+                "Finished\nAnother Line To Print"
+            else
+                "Terminal Width: $terminal_width"
+            end
+        progress_kwargs = (; io, custom_message)
+        kwargs = (; dt, callback, progress, progress_kwargs, kwargshandle)
+        solve(deepcopy(prob), alg; kwargs...)
+        clear_line = "\e[1A\r\e[0K"
+        io == test_io && @test String(take!(io)) == """
+            Progress: ▐                                                        ▌ 0.0%
+            Time Remaining: 
+            Starting
+            Another Line To Print
+            $(clear_line^4)Progress: ▐███████                                                 ▌ 12.5%
+            Time Remaining: ...
+            Terminal Width: 80
+            $(clear_line^3)Progress: ▐██████████████                                          ▌ 25.0%
+            Time Remaining: 3 seconds
+            Terminal Width: 80
+            $(clear_line^3)Progress: ▐█████████████████████                                   ▌ 37.5%
+            Time Remaining: 3 seconds
+            Terminal Width: 80
+            $(clear_line^3)Progress: ▐████████████████████████████                            ▌ 50.0%
+            Time Remaining: 2 seconds
+            Terminal Width: 80
+            $(clear_line^3)Progress: ▐███████████████████████████████████                     ▌ 62.5%
+            Time Remaining: 2 seconds
+            Terminal Width: 80
+            $(clear_line^3)Progress: ▐██████████████████████████████████████████              ▌ 75.0%
+            Time Remaining: 1 second
+            Terminal Width: 80
+            $(clear_line^3)Progress: ▐█████████████████████████████████████████████████       ▌ 87.5%
+            Time Remaining: 1 second
+            Terminal Width: 80
+            $(clear_line^3)Progress: ▐████████████████████████████████████████████████████████▌ 100.0%
+            Time Remaining: 0 seconds
+            Finished
+            Another Line To Print
+            $(clear_line^4)"""
+        # the "width" of an IOBuffer (the value returned by displaysize) is 80
+    end
+
+    close(test_io)
 end

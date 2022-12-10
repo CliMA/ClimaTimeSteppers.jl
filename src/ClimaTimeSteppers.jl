@@ -57,7 +57,7 @@ realview(x::Union{Array, SArray, MArray}) = x
 realview(x::CuArray) = x
 
 
-import DiffEqBase, SciMLBase, LinearAlgebra, DiffEqCallbacks, Krylov
+import SciMLBase, DiffEqBase, DiffEqCallbacks, Krylov, LinearAlgebra, Dates
 
 include("sparse_containers.jl")
 include("functions.jl")
@@ -69,6 +69,7 @@ end
 
 SciMLBase.allowscomplex(alg::DistributedODEAlgorithm) = true
 include("integrators.jl")
+include("progress_callbacks.jl")
 
 include("solvers/update_signal_handler.jl")
 include("solvers/convergence_condition.jl")

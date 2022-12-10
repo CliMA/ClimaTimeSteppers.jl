@@ -77,8 +77,10 @@ function DiffEqBase.__init(
     save_func = (u, t, integrator) -> copy(u),
     callback = nothing,
     advance_to_tstop = false,
-    dtchangeable = true, # custom kwarg
-    stepstop = -1,       # custom kwarg
+    progress = false,
+    dtchangeable = true,   # custom kwarg
+    stepstop = -1,         # custom kwarg
+    progress_kwargs = (;), # custom kwarg
     kwargs...,
 )
     (; u0, p) = prob
@@ -98,7 +100,23 @@ function DiffEqBase.__init(
         DiffEqCallbacks.SavedValues(sol.t, sol.u),
         save_everystep,
     )
-    callback = DiffEqBase.CallbackSet(callback, saving_callback)
+    progress_callback = if progress == false
+        nothing
+    elseif progress == true
+        if stdout isa Base.TTY
+            TerminalProgressCallback(typeof(t0); progress_kwargs...)
+        else
+            BasicProgressCallback(; progress_kwargs...)
+        end
+    elseif progress == :terminal
+        TerminalProgressCallback(typeof(t0); progress_kwargs...)
+    elseif progress == :basic
+        BasicProgressCallback(; progress_kwargs...)
+    else
+        error("progress must be true, false, :terminal, or :basic")
+    end
+    callback =
+        DiffEqBase.CallbackSet(callback, saving_callback, progress_callback)
     isempty(callback.continuous_callbacks) ||
         error("Continuous callbacks are not supported")
     
@@ -226,14 +244,14 @@ function __step!(integrator)
         tdir(integrator) * _dt
     step_u!(integrator)
 
-    # increment t by dt, rounding to the first tstop if that is roughly
-    # equivalent up to machine precision; the specific bound of 100 * eps...
-    # is taken from OrdinaryDiffEq.jl
+    # increment t by dt, rounding to the first tstop if that is equivalent up to
+    # round-off error; they are considered equivalent if they differ by less
+    # than 100eps(t), which is roughly identical to what OrdinaryDiffEq.jl does:
+    # https://github.com/SciML/OrdinaryDiffEq.jl/blob/129c76bcc35fd9801f36ce090035c1b750a842ec/src/integrators/integrator_utils.jl#L229-L236
     t_plus_dt = integrator.t + integrator.dt
-    t_unit = oneunit(integrator.t)
-    max_t_error = 100 * eps(float(integrator.t / t_unit)) * t_unit
     integrator.t =
-        !isempty(tstops) && abs(first(tstops) - t_plus_dt) < max_t_error ?
+        !isempty(tstops) &&
+        abs(first(tstops) - t_plus_dt) < 100 * eps(integrator.t) ?
         first(tstops) : t_plus_dt
 
     # apply callbacks

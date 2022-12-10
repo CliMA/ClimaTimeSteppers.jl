@@ -1,20 +1,5 @@
 using DiffEqBase, ClimaTimeSteppers, LinearAlgebra, StaticArrays
 
-if !@isdefined(ArrayType)
-    ArrayType = Array
-end
-
-const_prob = ODEProblem((du,u,p,t) -> (du .= p),[0.0],(0.0,1.0),2.0)
-const_prob_inc = ODEProblem(
-    IncrementingODEFunction{true}((du,u,p,t,α=true,β=false) -> (du .= α .* p .+ β .* du)),
-    [0.0],(0.0,1.0),2.0)
-const_prob_fe = ODEProblem(
-        ForwardEulerODEFunction((un,u,p,t,dt) -> (un .= u .+ dt.* p)),
-        [0.0],(0.0,1.0),2.0)
-const_sol(t) = [0.0 .+ 2.0 * t]
-
-
-
 """
 Single variable linear ODE
 
@@ -28,22 +13,29 @@ u(t) = u_0 e^{αt}
 
 This is an in-place variant of the one from DiffEqProblemLibrary.jl.
 """
-linear_prob = ODEProblem(
+function linear_prob()
+    ODEProblem(
     IncrementingODEFunction{true}((du,u,p,t,α=true,β=false) -> (du .= α .* p .* u .+ β .* du)),
     [1/2],(0.0,1.0),1.01)
-linear_prob_fe = ODEProblem(
+end
+function linear_prob_fe()
+    ODEProblem(
     ForwardEulerODEFunction((un,u,p,t,dt) -> (un .= u .+ dt .* p .* u)),
     [1.0],(0.0,1.0),-0.2)
+end
 
-linear_prob_wfactt = ODEProblem(
+function linear_prob_wfactt()
+    ODEProblem(
         ODEFunction(
           (du,u,p,t) -> (du .= p .* u);
           jac_prototype=zeros(1,1),
           Wfact_t = (W,u,p,γ,t) -> (W[1,1]=1/γ-p),
         ),
         [1/2],(0.0,1.0),-0.2)
+end
 
-split_linear_prob_wfact_split = ODEProblem(
+function split_linear_prob_wfact_split()
+    ODEProblem(
     SplitFunction(
         ODEFunction(
             (du,u,p,t) -> (du .= real(p) .* u);
@@ -53,8 +45,10 @@ split_linear_prob_wfact_split = ODEProblem(
         ODEFunction((du, u, p, t) -> (du .= imag(p) * im .* u)),
     ),
     [1/2 + 0.0*im],(0.0,1.0),-0.2+0.1*im)
+end
 
-split_linear_prob_wfact_split_fe = ODEProblem(
+function split_linear_prob_wfact_split_fe()
+    ODEProblem(
     SplitFunction(
         ODEFunction(
             (du,u,p,t) -> (du .= real(p) .* u);
@@ -66,7 +60,7 @@ split_linear_prob_wfact_split_fe = ODEProblem(
         ),
     ),
     [1/2 + 0.0*im],(0.0,1.0),-0.2+0.1*im)
-
+end
 
 # DiffEqProblemLibrary.jl uses the `analytic` argument to ODEFunction to store the exact solution
 # IncrementingODEFunction doesn't have that
@@ -86,12 +80,16 @@ with initial condition ``u_0=[0,1]``, parameter ``α=2``, and solution
 u(t) = [cos(αt) sin(αt); -sin(αt) cos(αt) ] u_0
 ```
 """
-sincos_prob = ODEProblem(
+function sincos_prob()
+    ODEProblem(
     IncrementingODEFunction{true}((du,u,p,t,α=true,β=false) -> (du[1] = α*p*u[2]+β*du[1]; du[2] = -α*p*u[1]+β*du[2])),
     [0.0,1.0], (0.0,1.0), 2.0)
-sincos_prob_fe = ODEProblem(
+end
+function sincos_prob_fe()
+    ODEProblem(
     ForwardEulerODEFunction((un,u,p,t,dt) -> (un[1] = u[1] + dt*p*u[2]; un[2] = u[2]-dt*p*u[1])),
     [0.0,1.0], (0.0,1.0), 2.0)
+end
 
 function sincos_sol(u0,p,t)
     s,c = sincos(p*t)
@@ -109,10 +107,12 @@ with initial condition ``u_0 = 1/2``, parameter ``α=4``, and solution
 u(t) = \frac{e^t + sin(t) - cos(t)}{2 α} + u_0 e^t
 ```
 """
-imex_autonomous_prob = SplitODEProblem(
+function imex_autonomous_prob(::Type{ArrayType}) where {ArrayType}
+    SplitODEProblem(
     IncrementingODEFunction{true}((du, u, p, t, α=true, β=false) -> (du .= α .* u        .+ β .* du)),
     IncrementingODEFunction{true}((du, u, p, t, α=true, β=false) -> (du .= α .* cos(t)/p .+ β .* du)),
     ArrayType([0.5]), (0.0,1.0), 4.0)
+end
 
 function linsolve_direct(::Type{Val{:init}}, f, u0; kwargs...)
     function _linsolve!(x, A, b, update_matrix = false; kwargs...)
@@ -120,48 +120,30 @@ function linsolve_direct(::Type{Val{:init}}, f, u0; kwargs...)
     end
 end
 
-imex_autonomous_prob_jac = ODEProblem(
+function imex_autonomous_prob_jac(::Type{ArrayType}) where {ArrayType}
+    ODEProblem(
         ODEFunction(
             IncrementingODEFunction{true}((du, u, p, t, α=true, β=false) -> (du .= α .* (u .+ cos(t)/p) .+ β .* du)),
             jac_prototype = zeros(1,1),
             Wfact = (W,u,p,γ,t) -> W[1,1] = 1-γ,
         ),
         ArrayType([0.5]), (0.0,1.0), 4.0)
+end
 
 function imex_autonomous_sol(u0,p,t)
     (exp(t)  + sin(t) - cos(t)) / 2p .+ exp(t) .* u0
 end
 
-imex_nonautonomous_prob = SplitODEProblem(
+function imex_nonautonomous_prob(::Type{ArrayType}) where {ArrayType}
+    SplitODEProblem(
     IncrementingODEFunction{true}((du, u, p, t, α=true, β=false) -> (du .= α .* cos(t) * u .+ β .* du)),
     IncrementingODEFunction{true}((du, u, p, t, α=true, β=false) -> (du .= α .* cos(t)/p   .+ β .* du)),
     ArrayType([0.5]), (0.0,2.0), 4.0)
+end
 
 function imex_nonautonomous_sol(u0,p,t)
     (exp(sin(t)) .* (1 .+ p .* u0) .- 1) ./ p
 end
-
-
-"""
-Test problem (4.2) from RobertsSarsharSandu2018arxiv
-@article{RobertsSarsharSandu2018arxiv,
-    title={Coupled Multirate Infinitesimal GARK Schemes for Stiff Systems with
-            Multiple Time Scales},
-    author={Roberts, Steven and Sarshar, Arash and Sandu, Adrian},
-    journal={arXiv preprint arXiv:1812.00808},
-    year={2019}
-}
-
-Note: The actual rates are all over the place with this test and passing largely
-        depends on final dt size
-"""
-kpr_param = (
-    ω = 100,
-    λf = -10,
-    λs = -1,
-    ξ = 0.1,
-    α = 1,
-)
 
 function kpr_rhs(Q,param,t)
     yf, ys = Q
@@ -206,16 +188,52 @@ function kpr_sol(u0,param,t)
     ]
 end
 
-kpr_multirate_prob = SplitODEProblem(
-    IncrementingODEFunction{true}(kpr_fast!),
-    IncrementingODEFunction{true}(kpr_slow!),
-    [sqrt(4), sqrt(3)], (0.0, 5π/2), kpr_param,
-)
+"""
+Test problem (4.2) from RobertsSarsharSandu2018arxiv
 
-kpr_singlerate_prob = ODEProblem(
-    IncrementingODEFunction{true}((dQ,Q,param,t,α=1,β=0) -> (dQ .= α .* kpr_rhs(Q,param,t) .+ β .* dQ)),
-    [sqrt(4), sqrt(3)], (0.0, 5π/2), kpr_param,
-)
+# TODO: move this to bibliography
+
+```
+@article{RobertsSarsharSandu2018arxiv,
+    title={Coupled Multirate Infinitesimal GARK Schemes for Stiff Systems with
+            Multiple Time Scales},
+    author={Roberts, Steven and Sarshar, Arash and Sandu, Adrian},
+    journal={arXiv preprint arXiv:1812.00808},
+    year={2019}
+}
+```
+
+Note: The actual rates are all over the place with this test and passing largely
+        depends on final dt size
+"""
+function kpr_multirate_prob()
+    kpr_param = (
+        ω = 100,
+        λf = -10,
+        λs = -1,
+        ξ = 0.1,
+        α = 1,
+    )
+    SplitODEProblem(
+        IncrementingODEFunction{true}(kpr_fast!),
+        IncrementingODEFunction{true}(kpr_slow!),
+        [sqrt(4), sqrt(3)], (0.0, 5π/2), kpr_param,
+    )
+end
+
+function kpr_singlerate_prob()
+    kpr_param = (
+        ω = 100,
+        λf = -10,
+        λs = -1,
+        ξ = 0.1,
+        α = 1,
+    )
+    ODEProblem(
+        IncrementingODEFunction{true}((dQ,Q,param,t,α=1,β=0) -> (dQ .= α .* kpr_rhs(Q,param,t) .+ β .* dQ)),
+        [sqrt(4), sqrt(3)], (0.0, 5π/2), kpr_param,
+    )
+end
 
 reverse_problem(prob, analytic_sol) =
     ODEProblem(prob.f, analytic_sol(prob.tspan[2]), reverse(prob.tspan), prob.p)
@@ -325,8 +343,7 @@ function ClimaIntegratorTestCase(;
 end
 
 # A trivial test case for which any value of dt will work
-constant_tendency_test = let 
-    FT = Float64
+function constant_tendency_test(::Type{FT}) where {FT}
     tendency = FT[1, 2, 3]
     ClimaIntegratorTestCase(;
         test_name = "constant_tendency",
@@ -341,8 +358,7 @@ constant_tendency_test = let
 end
 
 # From Section 1.1 of "Example Programs for ARKode v4.4.0" by D. R. Reynolds
-ark_analytic_test = let
-    FT = Float64
+function ark_analytic_test(::Type{FT}) where {FT}
     λ = FT(-100) # increase magnitude for more stiffness
     source(t) = 1 / (1 + t^2) - λ * atan(t)
     ClimaIntegratorTestCase(;
@@ -364,8 +380,21 @@ ark_analytic_test = let
 end
 
 # From Section 1.2 of "Example Programs for ARKode v4.4.0" by D. R. Reynolds
-ark_analytic_nonlin_test = let
-    FT = Float64
+function ark_analytic_nonlin_test(::Type{FT}) where {FT}
+    IntegratorTestCase(;
+        test_name = "ark_analytic_nonlin",
+        linear_implicit = false,
+        t_end = FT(10),
+        Y₀ = FT[0],
+        analytic_sol = (t) -> [log(t^2 / 2 + t + 1)],
+        tendency! = (Yₜ, Y, _, t) -> Yₜ .= (t + 1) .* exp.(.-Y),
+        increment! = (Y⁺, Y, _, t, Δt) -> Y⁺ .+= Δt .* ((t + 1) .* exp.(.-Y)),
+        Wfact! = (W, Y, _, Δt, t) -> W .= (-Δt * (t + 1) .* exp.(.-Y) .- 1),
+        tgrad! = (∂Y∂t, Y, _, t) -> ∂Y∂t .= exp.(.-Y),
+    )
+end
+
+function ark_analytic_nonlin_test_cts(::Type{FT}) where {FT}
     ClimaIntegratorTestCase(;
         test_name = "ark_analytic_nonlin",
         linear_implicit = false,
@@ -380,8 +409,7 @@ ark_analytic_nonlin_test = let
 end
 
 # From Section 5.1 of "Example Programs for ARKode v4.4.0" by D. R. Reynolds
-ark_analytic_sys_test = let
-    FT = Float64
+function ark_analytic_sys_test(::Type{FT}) where {FT}
     λ = FT(-100) # increase magnitude for more stiffness
     V = FT[1 -1 1; -1 2 1; 0 -1 2]
     V⁻¹ = FT[5 1 -3; 2 2 -2; 1 1 1] / 4

@@ -24,9 +24,9 @@ function config_integrators(problem)
     return (; integrator_generated=integrator, not_generated_integrator)
 end
 prob = if parsed_args["problem"]=="ode_fun"
-    split_linear_prob_wfact_split
+    split_linear_prob_wfact_split()
 elseif parsed_args["problem"]=="fe"
-    split_linear_prob_wfact_split_fe
+    split_linear_prob_wfact_split_fe()
 else
     error("Bad option")
 end

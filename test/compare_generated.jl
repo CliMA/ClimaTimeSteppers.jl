@@ -6,8 +6,8 @@ include("problems.jl")
     algorithm = ARS343(NewtonsMethod(; max_iters = 2))
     dt = 0.01
     for problem in (
-        split_linear_prob_wfact_split,
-        split_linear_prob_wfact_split_fe,
+        split_linear_prob_wfact_split(),
+        split_linear_prob_wfact_split_fe(),
     )
         integrator = DiffEqBase.init(deepcopy(problem), algorithm; dt)
         not_generated_integrator = deepcopy(integrator)

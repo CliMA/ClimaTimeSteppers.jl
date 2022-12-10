@@ -24,9 +24,9 @@ function do_work!(integrator, not_generated_cache)
 end
 problem_str = parsed_args["problem"]
 prob = if problem_str=="ode_fun"
-    split_linear_prob_wfact_split
+    split_linear_prob_wfact_split()
 elseif problem_str=="fe"
-    split_linear_prob_wfact_split_fe
+    split_linear_prob_wfact_split_fe()
 else
     error("Bad option")
 end

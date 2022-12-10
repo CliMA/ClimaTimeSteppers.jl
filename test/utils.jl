@@ -1,55 +1,5 @@
-using Test, Plots, Printf
-
-"""
-    convergence_rates(problem, solution, method, dts; kwargs...)
-
-Compute the errors rates of `method` on `problem` by comparing to `solution`
-on the set of `dt` values in `dts`. Extra `kwargs` are passed to `solve`
-
-`solution` should be a function with a method `solution(u0, p, t)`.
-"""
-function convergence_errors(prob, sol, method, dts; kwargs...)
-  errs = map(dts) do dt
-       # copy the problem so we don't mutate u0
-      prob_copy = deepcopy(prob)
-      u = solve(prob_copy, method; dt=dt, saveat=(prob.tspan[2],), kwargs...)
-      norm(u .- sol(prob.u0, prob.p, prob.tspan[end]))
-  end
-  return errs
-end
-
-
-"""
-  convergence_order(problem, solution, method, dts; kwargs...)
-
-Estimate the order of the rate of convergence of `method` on `problem` by comparing to
-`solution` the set of `dt` values in `dts`.
-
-`solution` should be a function with a method `solution(u0, p, t)`.
-"""
-function convergence_order(prob, sol, method, dts; kwargs...)
-  errs = convergence_errors(prob, sol, method, dts; kwargs...)
-  # find slope coefficient in log scale
-  _,order_est = hcat(ones(length(dts)), log2.(dts)) \ log2.(errs)
-  return order_est
-end
-
-
-
-"""
-    DirectSolver
-
-A linear solver which forms the full matrix of a linear operator and its LU factorization.
-"""
-struct DirectSolver end
-
-DirectSolver(args...) = DirectSolver()
-
-function (::DirectSolver)(x,A,b,matrix_updated; kwargs...)
-  n = length(x)
-  M = mapslices(y -> mul!(similar(y), A, y), Matrix{eltype(x)}(I,n,n), dims=1)
-  x .= M \ b
-end
+import Plots, Printf
+using Test
 
 """
     test_algs(
@@ -104,16 +54,16 @@ function test_algs(
 
     plot1_dt = t_end / num_steps
     plot1_saveat = 0:(plot1_dt * save_every_n_steps):t_end
-    plot1a = plot(;
+    plot1a = Plots.plot(;
         title = "Solution Norms of $algs_name Methods for `$test_name` \
-                 (with dt = 10^$(@sprintf "%.1f" log10(plot1_dt)))",
+                 (with dt = 10^$(Printf.@sprintf "%.1f" log10(plot1_dt)))",
         xlabel = "t",
         ylabel = "Solution Norm: ||Y_computed||",
         plot_kwargs...,
     )
-    plot1b = plot(;
+    plot1b = Plots.plot(;
         title = "Solution Errors of $algs_name Methods for `$test_name` \
-                 (with dt = 10^$(@sprintf "%.1f" log10(plot1_dt)))",
+                 (with dt = 10^$(Printf.@sprintf "%.1f" log10(plot1_dt)))",
         xlabel = "t",
         ylabel = "Error Norm: ||Y_computed - Y_analytic||",
         yscale = :log10,
@@ -122,9 +72,9 @@ function test_algs(
     plot1b_ymin = typemax(FT) # dynamically set ylim because some errors are 0
     plot1b_ymax = typemin(FT)
 
-    t_end_string = t_end % 1 == 0 ? string(Int(t_end)) : @sprintf("%.2f", t_end)
+    t_end_string = t_end % 1 == 0 ? string(Int(t_end)) : Printf.@sprintf("%.2f", t_end)
     plot2_dts = [plot1_dt / sqrt(10), plot1_dt, plot1_dt * sqrt(10)]
-    plot2 = plot(;
+    plot2 = Plots.plot(;
         title = "Convergence Orders of $algs_name Methods for `$test_name` \
                  (at t = $t_end_string)",
         xlabel = "dt",
@@ -164,8 +114,8 @@ function test_algs(
         plot1b_ymax = max(plot1b_ymax, maximum(tendency_errs))
         tendency_errs .=
             max.(tendency_errs, eps(FT(0))) # plotting 0 breaks the log scale
-        plot!(plot1a, plot1_saveat, tendency_norms; label = alg_name, linestyle)
-        plot!(plot1b, plot1_saveat, tendency_errs; label = alg_name, linestyle)
+        Plots.plot!(plot1a, plot1_saveat, tendency_norms; label = alg_name, linestyle)
+        Plots.plot!(plot1b, plot1_saveat, tendency_errs; label = alg_name, linestyle)
 
         # if !(alg_name in no_increment_algs)
         #     increment_sols =
@@ -181,14 +131,14 @@ function test_algs(
         _, computed_order = hcat(ones(length(plot2_dts)), log10.(plot2_dts)) \
             log10.(tendency_end_errs)
         @test computed_order ≈ predicted_order rtol = 0.1
-        label = "$alg_name ($(@sprintf "%.3f" computed_order))"
-        plot!(plot2, plot2_dts, tendency_end_errs; label, linestyle)
+        label = "$alg_name ($(Printf.@sprintf "%.3f" computed_order))"
+        Plots.plot!(plot2, plot2_dts, tendency_end_errs; label, linestyle)
     end
-    plot!(plot1b; ylim = (plot1b_ymin / 2, plot1b_ymax * 2))
+    Plots.plot!(plot1b; ylim = (plot1b_ymin / 2, plot1b_ymax * 2))
 
     mkpath("output")
     file_suffix = "$(test_name)_$(lowercase(replace(algs_name, " " => "_")))"
-    savefig(plot1a, joinpath("output", "solutions_$(file_suffix).png"))
-    savefig(plot1b, joinpath("output", "errors_$(file_suffix).png"))
-    savefig(plot2, joinpath("output", "orders_$(file_suffix).png"))
+    Plots.savefig(plot1a, joinpath("output", "solutions_$(file_suffix).png"))
+    Plots.savefig(plot1b, joinpath("output", "errors_$(file_suffix).png"))
+    Plots.savefig(plot2, joinpath("output", "orders_$(file_suffix).png"))
 end

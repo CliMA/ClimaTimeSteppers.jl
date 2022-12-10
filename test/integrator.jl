@@ -4,7 +4,7 @@ import OrdinaryDiffEq
 include("problems.jl")
 
 @testset "integrator save times" begin
-    test_case = constant_tendency_test
+    test_case = constant_tendency_test(Float64)
     (; prob, analytic_sol) = test_case
     for alg in (SSPRK33ShuOsher(), OrdinaryDiffEq.SSPRK33()),
         reverse_prob in (false, true),
@@ -121,7 +121,7 @@ end
     # OrdinaryDiffEq does not save at t0′ after reinit! unless erase_sol is
     # true, so this test does not include a comparison with OrdinaryDiffEq.
     alg = SSPRK33ShuOsher()
-    test_case = constant_tendency_test
+    test_case = constant_tendency_test(Float64)
     (; prob, analytic_sol) = test_case
     for reverse_prob in (false, true)
         if reverse_prob
@@ -161,7 +161,7 @@ end
 
 @testset "integrator step past end time" begin
     alg = SSPRK33ShuOsher()
-    test_case = constant_tendency_test
+    test_case = constant_tendency_test(Float64)
     (; prob, analytic_sol) = test_case
     t0, tf = prob.tspan
     dt = tf - t0

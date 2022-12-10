@@ -25,8 +25,6 @@ The convergence orders of the provided methods are verified using test cases fro
 using Pkg
 Pkg.activate("../../test")
 Pkg.instantiate()
-include("../../test/problems.jl")
-include("../../test/utils.jl")
 include("../../test/convergence.jl")
 Pkg.activate(".")
 ```

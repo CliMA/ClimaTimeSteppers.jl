@@ -104,6 +104,19 @@ function step_u!(integrator, cache::NewIMEXARKCache)
     (; U, T_lim, T_exp, T_imp, temp, newtons_method_cache) = cache
     s = length(b_exp)
 
+    # TODO: Improve the update_j interface.
+    if !isnothing(T_imp!) && !iszero(a_imp[end, end]) && has_jac(T_imp!)
+        run!(
+            newtons_method.update_j,
+            newtons_method_cache.update_j_cache,
+            NewStep(),
+            (jacobian, u) ->
+                T_imp!.Wfact(jacobian, u, p, dt * a_imp[end, end], t),
+            newtons_method_cache.j,
+            u,
+        )
+    end
+
     for i in 1:s
         t_exp = t + dt * c_exp[i]
         t_imp = t + dt * c_imp[i]
@@ -161,6 +174,20 @@ function step_u!(integrator, cache::NewIMEXARKCache)
         # give the same results for redundant columns (as long as the implicit
         # tendency only acts in the vertical direction).
 
+        if !all(iszero, a_imp[:, i]) || !iszero(b_imp[i])
+            if !isnothing(T_imp!)
+                if iszero(a_imp[i, i])
+                    # If its coefficient is 0, T_imp[i] is effectively being
+                    # treated explicitly.
+                    T_imp!(T_imp[i], U[i], p, t_imp)
+                else
+                    # If T_imp[i] is being treated implicitly, ensure that it
+                    # exactly satisfies the implicit equation.
+                    @. T_imp[i] = (U[i] - temp) / (dt * a_imp[i, i])
+                end
+            end
+        end
+
         stage_callback!(U[i], p, t_exp)
 
         if !all(iszero, a_exp[:, i]) || !iszero(b_exp[i])
@@ -169,12 +196,6 @@ function step_u!(integrator, cache::NewIMEXARKCache)
             end
             if !isnothing(T_exp!)
                 T_exp!(T_exp[i], U[i], p, t_exp)
-            end
-        end
-
-        if !all(iszero, a_imp[:, i]) || !iszero(b_imp[i])
-            if !isnothing(T_imp!)
-                T_imp!(T_imp[i], U[i], p, t_imp)
             end
         end
     end

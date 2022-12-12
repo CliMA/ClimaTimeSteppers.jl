@@ -112,7 +112,7 @@ Is this too messy to do in the general case?
 
 Don't forget about the possible memory optimizations!
 =#
-export IMEXARKAlgorithm, make_IMEXARKAlgorithm
+export IMEXARKAlgorithm, make_IMEXARKTableau
 
 using Base: broadcasted, materialize!
 using StaticArrays: SMatrix, SVector
@@ -124,7 +124,7 @@ A generic implementation of an IMEX ARK algorithm that can handle arbitrary
 Butcher tableaus and problems specified using either `ForwardEulerODEFunction`s
 or regular `ODEFunction`s.
 """
-struct IMEXARKAlgorithm{as, cs, N} <: DistributedODEAlgorithm
+struct IMEXARKAlgorithm{as, cs, N} <: AbstractIMEXARKAlgorithm
     newtons_method::N
 end
 
@@ -132,7 +132,16 @@ IMEXARKAlgorithm{as, cs}(newtons_method::N) where {as, cs, N} =
     IMEXARKAlgorithm{as, cs, N}(newtons_method)
 
 """
-    make_IMEXARKAlgorithm(; a_exp, b_exp, c_exp, a_imp, b_imp, c_imp)
+    IMEXARKAlgorithm(::AbstractIMEXARKAlgorithm, newtons_method)
+
+Returns the imex ARK algorithm for a particular algorithm.
+"""
+function IMEXARKAlgorithm(tab::AbstractIMEXARKTableau, newtons_method)
+    tableau(tab)(newtons_method)
+end
+
+"""
+    make_IMEXARKTableau(; a_exp, b_exp, c_exp, a_imp, b_imp, c_imp)
 
 Generates an `IMEXARKAlgorithm` type from an IMEX ARK Butcher tableau. Only
 `a_exp` and `a_imp` are required arguments; the default values for `b_exp` and
@@ -140,7 +149,7 @@ Generates an `IMEXARKAlgorithm` type from an IMEX ARK Butcher tableau. Only
 values for `c_exp` and `c_imp` assume that the algorithm is internally
 consistent.
 """
-function make_IMEXARKAlgorithm(;
+function make_IMEXARKTableau(;
     a_exp::SMatrix{s, s},
     b_exp::SVector{s} = vec(a_exp[end, :]),
     c_exp::SVector{s} = vec(sum(a_exp; dims = 2)),

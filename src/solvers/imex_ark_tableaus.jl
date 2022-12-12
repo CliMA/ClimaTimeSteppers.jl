@@ -1,3 +1,4 @@
+export AbstractIMEXARKTableau
 export ARS111, ARS121, ARS122, ARS233, ARS232, ARS222, ARS343, ARS443
 export IMKG232a, IMKG232b, IMKG242a, IMKG242b, IMKG252a, IMKG252b
 export IMKG253a, IMKG253b, IMKG254a, IMKG254b, IMKG254c, IMKG342a, IMKG343a
@@ -16,27 +17,38 @@ using StaticArrays: @SArray, SMatrix, sacollect
 # the number of explicit stages, and p is the order of accuracy
 
 # This algorithm is equivalent to OrdinaryDiffEq.IMEXEuler.
-const ARS111 = make_IMEXARKAlgorithm(;
-    a_exp = @SArray([0 0; 1 0]),
-    a_imp = @SArray([0 0; 0 1]),
-)
+struct ARS111 <: AbstractIMEXARKTableau end
 
-const ARS121 = make_IMEXARKAlgorithm(;
-    a_exp = @SArray([0 0; 1 0]),
-    b_exp = @SArray([0, 1]),
-    a_imp = @SArray([0 0; 0 1]),
-)
+function tableau(::ARS111)
+    make_IMEXARKTableau(;
+        a_exp = @SArray([0 0; 1 0]),
+        a_imp = @SArray([0 0; 0 1]),
+    )
+end
 
-const ARS122 = make_IMEXARKAlgorithm(;
-    a_exp = @SArray([0 0; 1/2 0]),
-    b_exp = @SArray([0, 1]),
-    a_imp = @SArray([0 0; 0 1/2]),
-    b_imp = @SArray([0, 1]),
-)
+struct ARS121 <: AbstractIMEXARKTableau end
+function tableau(::ARS121)
+    make_IMEXARKTableau(;
+        a_exp = @SArray([0 0; 1 0]),
+        b_exp = @SArray([0, 1]),
+        a_imp = @SArray([0 0; 0 1]),
+    )
+end
 
-const ARS233 = let
+struct ARS122 <: AbstractIMEXARKTableau end
+function tableau(::ARS122)
+    make_IMEXARKTableau(;
+        a_exp = @SArray([0 0; 1/2 0]),
+        b_exp = @SArray([0, 1]),
+        a_imp = @SArray([0 0; 0 1/2]),
+        b_imp = @SArray([0, 1]),
+    )
+end
+
+struct ARS233 <: AbstractIMEXARKTableau end
+function tableau(::ARS233)
     γ = 1/2 + √3/6
-    make_IMEXARKAlgorithm(;
+    make_IMEXARKTableau(;
         a_exp = @SArray([
             0     0      0;
             γ     0      0;
@@ -52,10 +64,11 @@ const ARS233 = let
     )
 end
 
-const ARS232 = let
+struct ARS232 <: AbstractIMEXARKTableau end
+function tableau(::ARS232)
     γ = 1 - √2/2
     δ = -2√2/3
-    make_IMEXARKAlgorithm(;
+    make_IMEXARKTableau(;
         a_exp = @SArray([
             0 0     0;
             γ 0     0;
@@ -70,10 +83,11 @@ const ARS232 = let
     )
 end
 
-const ARS222 = let
+struct ARS222 <: AbstractIMEXARKTableau end
+function tableau(::ARS222)
     γ = 1 - √2/2
     δ = 1 - 1/2γ
-    make_IMEXARKAlgorithm(;
+    make_IMEXARKTableau(;
         a_exp = @SArray([
             0 0     0;
             γ 0     0;
@@ -87,7 +101,8 @@ const ARS222 = let
     )
 end
 
-const ARS343 = let
+struct ARS343 <: AbstractIMEXARKTableau end
+function tableau(::ARS343)
     γ = 0.4358665215084590
     a42 = 0.5529291480359398
     a43 = 0.5529291480359398
@@ -98,7 +113,7 @@ const ARS343 = let
     a32 = (-1 + 9/2 * γ - 3/2 * γ^2) * a42 +
         (-11/4 + 21/2 * γ - 15/4 * γ^2) * a43 + 4 - 25/2 * γ + 9/2 * γ^2
     a41 = 1 - a42 - a43
-    make_IMEXARKAlgorithm(;
+    make_IMEXARKTableau(;
         a_exp = @SArray([
             0   0   0   0;
             γ   0   0   0;
@@ -115,22 +130,25 @@ const ARS343 = let
     )
 end
 
-const ARS443 = make_IMEXARKAlgorithm(;
-    a_exp = @SArray([
-        0     0    0   0    0;
-        1/2   0    0   0    0;
-        11/18 1/18 0   0    0;
-        5/6   -5/6 1/2 0    0;
-        1/4   7/4  3/4 -7/4 0;
-    ]),
-    a_imp = @SArray([
-        0 0    0    0   0;
-        0 1/2  0    0   0;
-        0 1/6  1/2  0   0;
-        0 -1/2 1/2  1/2 0;
-        0 3/2  -3/2 1/2 1/2;
-    ]),
-)
+struct ARS443 <: AbstractIMEXARKTableau end
+function tableau(::ARS443)
+    make_IMEXARKTableau(;
+        a_exp = @SArray([
+            0     0    0   0    0;
+            1/2   0    0   0    0;
+            11/18 1/18 0   0    0;
+            5/6   -5/6 1/2 0    0;
+            1/4   7/4  3/4 -7/4 0;
+        ]),
+        a_imp = @SArray([
+            0 0    0    0   0;
+            0 1/2  0    0   0;
+            0 1/6  1/2  0   0;
+            0 -1/2 1/2  1/2 0;
+            0 3/2  -3/2 1/2 1/2;
+        ]),
+    )
+end
 
 ################################################################################
 
@@ -163,86 +181,122 @@ imkg_imp(i, j, α̂, β, δ̂) = i == j + 1 ? α̂[j] :
 function make_IMKGAlgorithm(α, α̂, δ̂, β = ntuple(_ -> 0, length(δ̂)))
     s = length(α̂) + 1
     type = SMatrix{s, s}
-    return make_IMEXARKAlgorithm(;
+    return make_IMEXARKTableau(;
         a_exp = sacollect(type, imkg_exp(i, j, α, β) for i in 1:s, j in 1:s),
         a_imp = sacollect(type, imkg_imp(i, j, α̂, β, δ̂) for i in 1:s, j in 1:s),
     )
 end
 
-const IMKG232a = make_IMKGAlgorithm(
-    (1/2, 1/2, 1),
-    (0, -1/2 + √2/2, 1),
-    (1 - √2/2, 1 - √2/2),
-)
+struct IMKG232a <: AbstractIMEXARKTableau end
+function tableau(::IMKG232a)
+    make_IMKGAlgorithm(
+        (1/2, 1/2, 1),
+        (0, -1/2 + √2/2, 1),
+        (1 - √2/2, 1 - √2/2),
+    )
+end
 
-const IMKG232b = make_IMKGAlgorithm(
-    (1/2, 1/2, 1),
-    (0, -1/2 - √2/2, 1),
-    (1 + √2/2, 1 + √2/2),
-)
+struct IMKG232b <: AbstractIMEXARKTableau end
+function tableau(::IMKG232b)
+    make_IMKGAlgorithm(
+        (1/2, 1/2, 1),
+        (0, -1/2 - √2/2, 1),
+        (1 + √2/2, 1 + √2/2),
+    )
+end
 
-const IMKG242a = make_IMKGAlgorithm(
-    (1/4, 1/3, 1/2, 1),
-    (0, 0, -1/2 + √2/2, 1),
-    (0, 1 - √2/2, 1 - √2/2),
-)
+struct IMKG242a <: AbstractIMEXARKTableau end
+function tableau(::IMKG242a)
+    make_IMKGAlgorithm(
+        (1/4, 1/3, 1/2, 1),
+        (0, 0, -1/2 + √2/2, 1),
+        (0, 1 - √2/2, 1 - √2/2),
+    )
+end
 
-const IMKG242b = make_IMKGAlgorithm(
-    (1/4, 1/3, 1/2, 1),
-    (0, 0, -1/2 - √2/2, 1),
-    (0, 1 + √2/2, 1 + √2/2),
-)
+struct IMKG242b <: AbstractIMEXARKTableau end
+function tableau(::IMKG242b)
+    make_IMKGAlgorithm(
+        (1/4, 1/3, 1/2, 1),
+        (0, 0, -1/2 - √2/2, 1),
+        (0, 1 + √2/2, 1 + √2/2),
+    )
+end
 
 # The paper uses √3/6 for α̂[3], which also seems to work.
-const IMKG243a = make_IMKGAlgorithm(
-    (1/4, 1/3, 1/2, 1),
-    (0, 1/6, -√3/6, 1),
-    (1/2 + √3/6, 1/2 + √3/6, 1/2 + √3/6),
-)
+struct IMKG243a <: AbstractIMEXARKTableau end
+function tableau(::IMKG243a)
+    make_IMKGAlgorithm(
+        (1/4, 1/3, 1/2, 1),
+        (0, 1/6, -√3/6, 1),
+        (1/2 + √3/6, 1/2 + √3/6, 1/2 + √3/6),
+    )
+end
 
-const IMKG252a = make_IMKGAlgorithm(
-    (1/4, 1/6, 3/8, 1/2, 1),
-    (0, 0, 0, -1/2 + √2/2, 1),
-    (0, 0, 1 - √2/2, 1 - √2/2),
-)
+struct IMKG252a <: AbstractIMEXARKTableau end
+function tableau(::IMKG252a)
+    make_IMKGAlgorithm(
+        (1/4, 1/6, 3/8, 1/2, 1),
+        (0, 0, 0, -1/2 + √2/2, 1),
+        (0, 0, 1 - √2/2, 1 - √2/2),
+    )
+end
 
-const IMKG252b = make_IMKGAlgorithm(
-    (1/4, 1/6, 3/8, 1/2, 1),
-    (0, 0, 0, -1/2 - √2/2, 1),
-    (0, 0, 1 + √2/2, 1 + √2/2),
-)
+struct IMKG252b <: AbstractIMEXARKTableau end
+function tableau(::IMKG252b)
+    make_IMKGAlgorithm(
+        (1/4, 1/6, 3/8, 1/2, 1),
+        (0, 0, 0, -1/2 - √2/2, 1),
+        (0, 0, 1 + √2/2, 1 + √2/2),
+    )
+end
 
 # The paper uses 0.08931639747704086 for α̂[3], which also seems to work.
-const IMKG253a = make_IMKGAlgorithm(
-    (1/4, 1/6, 3/8, 1/2, 1),
-    (0, 0, √3/4 * (1 - √3/3) * ((1 + √3/3)^2 - 2), √3/6, 1),
-    (0, 1/2 - √3/6, 1/2 - √3/6, 1/2 - √3/6),
-)
+struct IMKG253a <: AbstractIMEXARKTableau end
+function tableau(::IMKG253a)
+    make_IMKGAlgorithm(
+        (1/4, 1/6, 3/8, 1/2, 1),
+        (0, 0, √3/4 * (1 - √3/3) * ((1 + √3/3)^2 - 2), √3/6, 1),
+        (0, 1/2 - √3/6, 1/2 - √3/6, 1/2 - √3/6),
+    )
+end
 
 # The paper uses 1.2440169358562922 for α̂[3], which also seems to work.
-const IMKG253b = make_IMKGAlgorithm(
-    (1/4, 1/6, 3/8, 1/2, 1),
-    (0, 0, √3/4 * (1 + √3/3) * ((1 - √3/3)^2 - 2), -√3/6, 1),
-    (0, 1/2 + √3/6, 1/2 + √3/6, 1/2 + √3/6),
-)
+struct IMKG253b <: AbstractIMEXARKTableau end
+function tableau(::IMKG253b)
+    make_IMKGAlgorithm(
+        (1/4, 1/6, 3/8, 1/2, 1),
+        (0, 0, √3/4 * (1 + √3/3) * ((1 - √3/3)^2 - 2), -√3/6, 1),
+        (0, 1/2 + √3/6, 1/2 + √3/6, 1/2 + √3/6),
+    )
+end
 
-const IMKG254a = make_IMKGAlgorithm(
-    (1/4, 1/6, 3/8, 1/2, 1),
-    (0, -3/10, 5/6, -3/2, 1),
-    (-1/2, 1, 1, 2),
-)
+struct IMKG254a <: AbstractIMEXARKTableau end
+function tableau(::IMKG254a)
+    make_IMKGAlgorithm(
+        (1/4, 1/6, 3/8, 1/2, 1),
+        (0, -3/10, 5/6, -3/2, 1),
+        (-1/2, 1, 1, 2),
+    )
+end
 
-const IMKG254b = make_IMKGAlgorithm(
-    (1/4, 1/6, 3/8, 1/2, 1),
-    (0, -1/20, 5/4, -1/2, 1),
-    (-1/2, 1, 1, 1),
-)
+struct IMKG254b <: AbstractIMEXARKTableau end
+function tableau(::IMKG254b)
+    make_IMKGAlgorithm(
+        (1/4, 1/6, 3/8, 1/2, 1),
+        (0, -1/20, 5/4, -1/2, 1),
+        (-1/2, 1, 1, 1),
+    )
+end
 
-const IMKG254c = make_IMKGAlgorithm(
-    (1/4, 1/6, 3/8, 1/2, 1),
-    (0, 1/20, 5/36, 1/3, 1),
-    (1/6, 1/6, 1/6, 1/6),
-)
+struct IMKG254c <: AbstractIMEXARKTableau end
+function tableau(::IMKG254c)
+    make_IMKGAlgorithm(
+        (1/4, 1/6, 3/8, 1/2, 1),
+        (0, 1/20, 5/36, 1/3, 1),
+        (1/6, 1/6, 1/6, 1/6),
+    )
+end
 
 # The paper and HOMME completely disagree on this algorithm. Since the version
 # in the paper is not "342" (it appears to be "332"), the version from HOMME is
@@ -253,45 +307,60 @@ const IMKG254c = make_IMKGAlgorithm(
 #     (0, 1/2 + √3/6, 1/2 + √3/6),
 #     (1/3, 1/3, 1/4),
 # )
-const IMKG342a = make_IMKGAlgorithm(
-    (1/4, 2/3, 1/3, 3/4),
-    (0, 1/6 - √3/6, -1/6 - √3/6, 3/4),
-    (0, 1/2 + √3/6, 1/2 + √3/6),
-    (0, 1/3, 1/4),
-)
+struct IMKG342a <: AbstractIMEXARKTableau end
+function tableau(::IMKG342a)
+    make_IMKGAlgorithm(
+        (1/4, 2/3, 1/3, 3/4),
+        (0, 1/6 - √3/6, -1/6 - √3/6, 3/4),
+        (0, 1/2 + √3/6, 1/2 + √3/6),
+        (0, 1/3, 1/4),
+    )
+end
 
-const IMKG343a = make_IMKGAlgorithm(
-    (1/4, 2/3, 1/3, 3/4),
-    (0, -1/3, -2/3, 3/4),
-    (-1/3, 1, 1),
-    (0, 1/3, 1/4),
-)
+struct IMKG343a <: AbstractIMEXARKTableau end
+function tableau(::IMKG343a)
+    make_IMKGAlgorithm(
+        (1/4, 2/3, 1/3, 3/4),
+        (0, -1/3, -2/3, 3/4),
+        (-1/3, 1, 1),
+        (0, 1/3, 1/4),
+    )
+end
 
 # The paper and HOMME completely disagree on this algorithm, but neither version
 # is "353" (they appear to be "343" and "354", respectively).
-# const IMKG353a = make_IMKGAlgorithm(
-#     (1/4, 2/3, 1/3, 3/4),
-#     (0, -359/600, -559/600, 3/4),
-#     (-1.1678009811335388, 253/200, 253/200),
-#     (0, 1/3, 1/4),
-# )
-# const IMKG353a = make_IMKGAlgorithm(
-#     (-0.017391304347826087, -23/25, 5/3, 1/3, 3/4),
-#     (0.3075640504095504, -1.2990164859879263, 751/600, -49/60, 3/4),
-#     (-0.2981612530370581, 83/200, 83/200, 23/20),
-#     (1, -1, 1/3, 1/4),
-# )
+# struct IMKG353a <: AbstractIMEXARKTableau end
+# function tableau(::IMKG353a)
+#     make_IMKGAlgorithm(
+#         (1/4, 2/3, 1/3, 3/4),
+#         (0, -359/600, -559/600, 3/4),
+#         (-1.1678009811335388, 253/200, 253/200),
+#         (0, 1/3, 1/4),
+#     )
+# end
+# struct IMKG353a <: AbstractIMEXARKTableau end
+# function tableau(::IMKG353a)
+#     make_IMKGAlgorithm(
+#         (-0.017391304347826087, -23/25, 5/3, 1/3, 3/4),
+#         (0.3075640504095504, -1.2990164859879263, 751/600, -49/60, 3/4),
+#         (-0.2981612530370581, 83/200, 83/200, 23/20),
+#         (1, -1, 1/3, 1/4),
+#     )
+# end
 
 # The version of this algorithm in the paper is not "354" (it appears to be
 # "253"), and this algorithm is missing from HOMME (or, more precisely, the
 # tableau for IMKG353a is mistakenly used to define IMKG354a, and the tableau
 # for IMKG354a is not specified).
-# const IMKG354a = make_IMKGAlgorithm(
-#     (1/5, 1/5, 2/3, 1/3, 3/4),
-#     (0, 0, 11/30, -2/3, 3/4),
-#     (0, 2/4, 2/5, 1),
-#     (0, 0, 1/3, 1/4),
-# )
+# struct IMKG354a <: AbstractIMEXARKTableau end
+# function tableau(::IMKG354a)
+#     make_IMKGAlgorithm(
+#         (1/5, 1/5, 2/3, 1/3, 3/4),
+#         (0, 0, 11/30, -2/3, 3/4),
+#         (0, 2/4, 2/5, 1),
+#         (0, 0, 1/3, 1/4),
+#     )
+# end
 
 ################################################################################
 
@@ -302,9 +371,10 @@ const IMKG343a = make_IMKGAlgorithm(
 
 # The algorithm has 4 implicit stages, 5 overall stages, and 3rd order accuracy.
 
-const DBM453 = let
+struct DBM453 <: AbstractIMEXARKTableau end
+function tableau(::DBM453)
     γ = 0.32591194130117247
-    make_IMEXARKAlgorithm(;
+    make_IMEXARKTableau(;
         a_exp = @SArray([
             0                    0                   0                   0                    0;
             0.10306208811591838  0                   0                   0                    0;
@@ -334,21 +404,24 @@ end
 
 # The algorithm has 5 implicit stages, 6 overall stages, and 2rd order accuracy.
 
-const HOMMEM1 = make_IMEXARKAlgorithm(;
-    a_exp = @SArray([
-        0   0   0   0   0   0;
-        1/5 0   0   0   0   0;
-        0   1/5 0   0   0   0;
-        0   0   1/3 0   0   0;
-        0   0   0   1/2 0   0;
-        0   0   0   0   1   0;
-    ]),
-    a_imp = @SArray([
-        0    0    0    0    0    0;
-        0    1/5  0    0    0    0;
-        0    0    1/5  0    0    0;
-        0    0    0    1/3  0    0;
-        0    0    0    0    1/2  0;
-        5/18 5/18 0    0    0    8/18;
-    ]),
-)
+struct HOMMEM1 <: AbstractIMEXARKTableau end
+function tableau(::HOMMEM1)
+    make_IMEXARKTableau(;
+        a_exp = @SArray([
+            0   0   0   0   0   0;
+            1/5 0   0   0   0   0;
+            0   1/5 0   0   0   0;
+            0   0   1/3 0   0   0;
+            0   0   0   1/2 0   0;
+            0   0   0   0   1   0;
+        ]),
+        a_imp = @SArray([
+            0    0    0    0    0    0;
+            0    1/5  0    0    0    0;
+            0    0    1/5  0    0    0;
+            0    0    0    1/3  0    0;
+            0    0    0    0    1/2  0;
+            5/18 5/18 0    0    0    8/18;
+        ]),
+    )
+end

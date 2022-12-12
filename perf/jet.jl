@@ -15,7 +15,7 @@ end
 cts = joinpath(dirname(@__DIR__));
 include(joinpath(cts, "test", "problems.jl"))
 function config_integrators(problem)
-    algorithm = ARS343(NewtonsMethod(; linsolve = linsolve_direct, max_iters = 2))
+    algorithm = CTS.IMEXARKAlgorithm(ARS343(), NewtonsMethod(; linsolve = linsolve_direct, max_iters = 2))
     dt = 0.01
     integrator = DiffEqBase.init(problem, algorithm; dt)
     not_generated_integrator = DiffEqBase.init(problem, algorithm; dt)

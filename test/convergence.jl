@@ -46,20 +46,15 @@ end
 ENV["GKSwstype"] = "nul" # avoid displaying plots
 
 @testset "IMEX ARK Algorithms" begin
-    algs1 = (ARS111, ARS121)
-    algs2 = (ARS122, ARS232, ARS222, IMKG232a, IMKG232b, IMKG242a, IMKG242b)
-    algs2 = (algs2..., IMKG252a, IMKG252b, IMKG253a, IMKG253b, IMKG254a)
-    algs2 = (algs2..., IMKG254b, IMKG254c, HOMMEM1)
-    algs3 = (ARS233, ARS343, ARS443, IMKG342a, IMKG343a, DBM453)
-    dict = Dict(((algs1 .=> 1)..., (algs2 .=> 2)..., (algs3 .=> 3)...))
-    test_algs("IMEX ARK", dict, ark_analytic_nonlin_test(Float64), 400)
-    test_algs("IMEX ARK", dict, ark_analytic_sys_test(Float64), 60)
-
-    # For some bizarre reason, ARS121 converges with order 2 for ark_analytic,
-    # even though it is only a 1st order method.
-    dict′ = copy(dict)
-    dict′[ARS121] = 2
-    test_algs("IMEX ARK", dict′, ark_analytic_test(Float64), 16000)
+    tab1 = (ARS111, ARS121)
+    tab2 = (ARS122, ARS232, ARS222, IMKG232a, IMKG232b, IMKG242a, IMKG242b)
+    tab2 = (tab2..., IMKG252a, IMKG252b, IMKG253a, IMKG253b, IMKG254a)
+    tab2 = (tab2..., IMKG254b, IMKG254c, HOMMEM1)
+    tab3 = (ARS233, ARS343, ARS443, IMKG342a, IMKG343a, DBM453)
+    tabs = [tab1..., tab2..., tab3...]
+    test_algs("IMEX ARK", tabs, ark_analytic_nonlin_test(Float64), 400)
+    test_algs("IMEX ARK", tabs, ark_analytic_sys_test(Float64), 60)
+    test_algs("IMEX ARK", tabs, ark_analytic_test(Float64), 16000; super_convergence=ARS121)
 end
 
 #=

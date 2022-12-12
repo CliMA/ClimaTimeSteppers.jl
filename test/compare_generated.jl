@@ -1,9 +1,10 @@
+import ClimaTimeSteppers as CTS
 using Test, BenchmarkTools, DiffEqBase, ClimaTimeSteppers
 
 include("problems.jl")
 
 @testset "Generated vs. Not Generated" begin
-    algorithm = ARS343(NewtonsMethod(; max_iters = 2))
+    algorithm = CTS.IMEXARKAlgorithm(ARS343(), NewtonsMethod(; max_iters = 2))
     dt = 0.01
     for problem in (
         split_linear_prob_wfact_split(),

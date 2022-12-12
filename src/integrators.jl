@@ -50,7 +50,7 @@ function tstops_and_saveat_heaps(t0, tf, tstops, saveat)
     tstops = DataStructures.BinaryHeap{FT, ordering}(tstops)
 
     if isnothing(saveat)
-        saveat = [t0, tf]        
+        saveat = [t0, tf]
     elseif saveat isa Number
         saveat > zero(saveat) || error("saveat value must be positive")
         saveat = tf > t0 ? saveat : -saveat
@@ -101,7 +101,7 @@ function DiffEqBase.__init(
     callback = DiffEqBase.CallbackSet(callback, saving_callback)
     isempty(callback.continuous_callbacks) ||
         error("Continuous callbacks are not supported")
-    
+
     integrator = DistributedODEIntegrator(
         alg,
         u0,

@@ -1,6 +1,7 @@
 using ClimaTimeSteppers, Test
 import OrdinaryDiffEq
 
+include("integrator_utils.jl")
 include("problems.jl")
 
 @testset "integrator save times" begin
@@ -150,6 +151,7 @@ end
             ((; saveat = save_dt, tstops = all_times), (; erase_sol = false), all_times),
         )
             integrator = init(deepcopy(prob), alg; dt, init_kwargs...)
+            @test !@has_DataType_or_UnionAll(integrator)
             solve!(integrator)
             reinit!(integrator, u0′; t0 = t0′, tf = tf′, reinit_kwargs...)
             sol = solve!(integrator)

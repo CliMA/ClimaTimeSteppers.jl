@@ -89,14 +89,14 @@ function test_algs(
     analytic_end_sol = [analytic_sols[end]]
 
     for tab in tableaus
-        if tab() isa CTS.AbstractIMEXARKTableau
-            max_iters = linear_implicit ? 1 : 2 # TODO: is 2 enough?
-            alg = CTS.IMEXARKAlgorithm(tab(), NewtonsMethod(; max_iters))
-            tendency_prob = test_case.split_prob
-            increment_prob = test_case.split_increment_prob
-        elseif tab() isa CTS.NewARS343
+        if tab() isa CTS.NewARS343
             max_iters = linear_implicit ? 1 : 2 # TODO: is 2 enough?
             alg = CTS.NewIMEXARKAlgorithm(tab(), NewtonsMethod(; max_iters))
+            tendency_prob = test_case.split_prob
+            increment_prob = test_case.split_increment_prob
+        elseif tab() isa CTS.AbstractIMEXARKTableau
+            max_iters = linear_implicit ? 1 : 2 # TODO: is 2 enough?
+            alg = CTS.IMEXARKAlgorithm(tab(), NewtonsMethod(; max_iters))
             tendency_prob = test_case.split_prob
             increment_prob = test_case.split_increment_prob
         else

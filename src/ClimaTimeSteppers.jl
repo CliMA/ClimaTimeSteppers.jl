@@ -70,7 +70,6 @@ abstract type AbstractIMEXARKAlgorithm <: DistributedODEAlgorithm end
 
 abstract type AbstractTableau end
 abstract type AbstractIMEXARKTableau <: AbstractTableau end
-abstract type NewAbstractIMEXARKTableau <: AbstractTableau end
 
 """
     tableau(::DistributedODEAlgorithm)

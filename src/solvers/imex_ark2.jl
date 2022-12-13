@@ -44,8 +44,7 @@ end
 
 # TODO: make new package, ButcherTableaus.jl? Or just separate into separate file
 
-# struct NewARS343 <:    AbstractIMEXARKTableau end
-struct NewARS343 <: NewAbstractIMEXARKTableau end
+struct NewARS343 <: AbstractIMEXARKTableau end
 function tableau(::NewARS343)
     γ = 0.4358665215084590
     a42 = 0.5529291480359398

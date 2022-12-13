@@ -220,12 +220,15 @@ function cache(
             i -> Symbol(:f, χ, :_, i) => similar(u),
             filter(i -> save_tendency(i, a), i_range(a)),
         )
+    γs = unique(filter(!iszero, diag(as[2])))
+    γ = length(γs) == 1 ? γs[1] : nothing
     u = prob.u0
     Uis = map(
         i -> Symbol(:U, i) => similar(u),
         filter(i -> !(i in u_alias_is(as[1], as[2])), i_range(as[1])[1:end - 1])
     )
     _cache = NamedTuple((
+        :γ => γ,
         :U_temp => similar(u),
         Uis...,
         f_cache(:exp, as[1], typeof(prob.f.f2))...,
@@ -253,6 +256,14 @@ struct ImplicitErrorJacobian{W, P, T}
     t::T
     Δt::T
 end
+struct FirstImplicitErrorJacobian{W, U, P, T, Γ}
+    Wfact!::W
+    u::U
+    p::P
+    t::T
+    Δt::T
+    γ::Γ
+end
 
 (implicit_error::ImplicitError)(f, u) =
     implicit_error(f, u, implicit_error.ode_f!)
@@ -266,6 +277,14 @@ function ((; û, p, t, Δt)::ImplicitError)(f, u, ode_f!)
     f .= û .+ Δt .* f .- u
 end
 ((; Wfact!, p, t, Δt)::ImplicitErrorJacobian)(j, u) = Wfact!(j, u, p, Δt, t)
+function ((; Wfact!, u, p, t, Δt, γ)::FirstImplicitErrorJacobian)(j)
+    isnothing(γ) &&
+        error(
+            "Cannot compute implicit error Jacobian for timestep becasue a_imp \
+             does not have a unique value of γ. Try using a different tableau."
+        )
+    Wfact!(j, u, p, Δt * typeof(Δt)(γ), t)
+end
 
 function step_u_expr(
     ::Type{<:IMEXARKCache{as, cs}},
@@ -296,13 +315,11 @@ function step_u_expr(
         (; f1, f2) = f;
         (; newtons_method) = alg;
         (; _cache, newtons_method_cache) = cache;
-        isnothing(f1.Wfact) || run!(
-            newtons_method.update_j,
-            newtons_method_cache.update_j_cache,
-            NewStep(),
-            ImplicitErrorJacobian(f1.Wfact, p, t, dt * $(FT(as[1][end, end]))),
-            newtons_method_cache.j,
-            u,
+        isnothing(f1.Wfact) || update!(
+            newtons_method,
+            newtons_method_cache,
+            NewTimeStep(t),
+            FirstImplicitErrorJacobian(f1.Wfact, u, p, t, dt, _cache.γ),
         );
     )
 
@@ -436,12 +453,15 @@ function not_generated_cache(
             filter(i -> save_tendency(i, a), i_range(a)),
         )
 
+    γs = unique(filter(!iszero, diag(as[2])))
+    γ = length(γs) == 1 ? γs[1] : nothing
     u = prob.u0
     Uis = map(
         i -> Symbol(:U, i) => similar(u),
         filter(i -> !(i in u_alias_is(as[1], as[2])), i_range(as[1])[1:end - 1])
     )
     _cache = NamedTuple((
+        :γ => γ,
         :U_temp => similar(u),
         Uis...,
         f_cache(:exp, as[1], typeof(prob.f.f2))...,
@@ -481,13 +501,11 @@ function not_generated_step_u!(integrator, cache::IMEXARKCache{as, cs}) where {a
         f_types = (typeof(f2), typeof(f1))
         (; u_alias_is_, first_i_s, new_js_s, js_to_save_s, has_implicit_step_s, save_tendency_s, old_js_s) = _cache
 
-        isnothing(f1.Wfact) || run!(
-            newtons_method.update_j,
-            newtons_method_cache.update_j_cache,
-            NewStep(),
-            ImplicitErrorJacobian(f1.Wfact, p, t, dt * FT(as[1][end, end])),
-            newtons_method_cache.j,
-            u,
+        isnothing(f1.Wfact) || update!(
+            newtons_method,
+            newtons_method_cache,
+            NewTimeStep(t),
+            FirstImplicitErrorJacobian(f1.Wfact, u, p, t, dt, _cache.γ),
         )
 
         function Δu_broadcast(i, j, χ, a, f_type, first_i_)

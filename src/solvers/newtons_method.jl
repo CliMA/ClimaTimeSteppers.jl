@@ -325,9 +325,9 @@ end
 
 """
     KrylovMethod(;
+        type = Val(Krylov.GmresSolver),
         jacobian_free_jvp = nothing,
         forcing_term = ConstantForcing(0),
-        type = Val(Krylov.GmresSolver),
         args = (20,),
         kwargs = (;),
         solve_kwargs = (;),
@@ -347,13 +347,14 @@ where `x_prototype` is `similar` to `x` (and also to `Δx` and `f`).
 
 This is primarily a wrapper for a `Krylov.KrylovSolver` from `Krylov.jl`. In
 `allocate_cache`, the solver is constructed with
-`solver = type(l, l, args..., Krylov.ktypeof(x_prototype); kwargs...)` (note
-that `type` must be passed through in a `Val` struct), where
+`solver = type(l, l, args..., Krylov.ktypeof(x_prototype); kwargs...)`, where
 `l = length(x_prototype)` and `Krylov.ktypeof(x_prototype)` is a subtype of
 `DenseVector` that can be used to store `x_prototype`. By default, the solver
 is a `Krylov.GmresSolver` with a Krylov subspace size of 20 (the default Krylov
 subspace size for this solver in `Krylov.jl`). In `run!`, the solver is run with
 `Krylov.solve!(solver, opj, f; M, ldiv, atol, rtol, verbose, solve_kwargs...)`.
+The solver's type can be changed by specifying a different value for `type`,
+though this value has to be wrapped in a `Val` to avoid runtime compilation.
 
 In the call to `Krylov.solve!`, `opj` is a `LinearOperator` that represents
 `j(x[n])`, which the solver uses by evaluating `mul!(jΔx, opj, Δx)`. If a
@@ -388,7 +389,7 @@ each iteration of the Krylov method. If a debugger is specified, it is run
 before the call to `Kyrlov.solve!`.
 """
 Base.@kwdef struct KrylovMethod{
-    T <: Val,
+    T <: Val{<:Krylov.KrylovSolver},
     J <: Union{Nothing, JacobianFreeJVP},
     F <: ForcingTerm,
     A <: Tuple,
@@ -412,7 +413,6 @@ solver_type(::KrylovMethod{Val{T}}) where {T} = T
 function allocate_cache(alg::KrylovMethod, x_prototype)
     (; jacobian_free_jvp, forcing_term, args, kwargs, debugger) = alg
     type = solver_type(alg)
-    @assert type isa Type{<:Krylov.KrylovSolver}
     l = length(x_prototype)
     return (;
         jacobian_free_jvp_cache = isnothing(jacobian_free_jvp) ? nothing :
@@ -466,7 +466,7 @@ end
 """
     NewtonsMethod(;
         max_iters = 1,
-        update_j = UpdateEvery(NewNewtonIteration()),
+        update_j = UpdateEvery(NewNewtonIteration),
         krylov_method = nothing,
         convergence_checker = nothing,
         verbose = false,
@@ -512,11 +512,23 @@ for its preconditioners, so, since the value computed with `j!` is used as a
 preconditioner in Krylov methods with a Jacobian-free JVP, using such a Krylov
 method requires specifying a `j_prototype` that can be passed to `ldiv!`.
 
-If `j(x)` changes sufficiently slowly, `update_j` can be changed from
-`UpdateEvery(NewNewtonIteration())` to some other `UpdateSignalHandler` in order
-to make the approximation `j(x[n]) ≈ j(x₀)`, where `x₀` is a previous value of
-`x[n]` (this could even be a value from a previous `run!` of Newton's method).
-When Newton's method uses this approximation, it is called the "chord method".
+If `j(x)` changes sufficiently slowly, `update_j` may be changed from
+`UpdateEvery(NewNewtonIteration)` to some other `UpdateSignalHandler` that
+gets triggered less frequently, such as `UpdateEvery(NewNewtonSolve)`. This
+can be used to make the approximation `j(x[n]) ≈ j(x₀)`, where `x₀` is a
+previous value of `x[n]` (possibly even a value from a previous `run!` of
+Newton's method). When Newton's method uses such an approximation, it is called
+the "chord method".
+
+In addition, `update_j` can be set to an `UpdateSignalHandler` that gets
+triggered by signals that originate outside of Newton's method, such as
+`UpdateEvery(NewTimeStep)`. It is possible to send any signal for updating `j`
+to Newton's method while it is not running by calling
+`update!(::NewtonsMethod, cache, ::UpdateSignal, j!)`, where in this case
+`j!(j)` is a function that sets `j` in-place without any dependence on `x`
+(since `x` is not necessarily defined while Newton's method is not running, this
+version of `j!` does not take `x` as an argument). This can be used to make the
+approximation `j(x[n]) ≈ j₀`, where `j₀` can have an arbitrary value.
 
 If a convergence checker is provided, it gets used to determine whether to stop
 iterating on iteration `n` based on the value `x[n]` and its error `Δx[n]`;
@@ -534,7 +546,7 @@ Base.@kwdef struct NewtonsMethod{
     C <: Union{Nothing, ConvergenceChecker},
 }
     max_iters::Int = 1
-    update_j::U = UpdateEvery(NewNewtonIteration())
+    update_j::U = UpdateEvery(NewNewtonIteration)
     krylov_method::K = nothing
     convergence_checker::C = nothing
     verbose::Bool = false
@@ -547,7 +559,7 @@ function allocate_cache(alg::NewtonsMethod, x_prototype, j_prototype = nothing)
         (isnothing(krylov_method) || isnothing(krylov_method.jacobian_free_jvp))
     )
     return (;
-        update_j_cache = allocate_cache(update_j),
+        update_j_cache = allocate_cache(update_j, eltype(x_prototype)),
         krylov_method_cache = isnothing(krylov_method) ? nothing :
             allocate_cache(krylov_method, x_prototype),
         convergence_checker_cache = isnothing(convergence_checker) ? nothing :
@@ -595,4 +607,10 @@ function run!(alg::NewtonsMethod, cache, x, f!, j! = nothing)
                 @warn "Newton's method did not converge within $n iterations"
         end
     end
+end
+
+function update!(alg::NewtonsMethod, cache, signal::UpdateSignal, j!)
+    (; update_j) = alg
+    (; update_j_cache, j) = cache
+    isnothing(j) || run!(update_j, update_j_cache, signal, j!, j)
 end

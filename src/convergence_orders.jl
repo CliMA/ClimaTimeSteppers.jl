@@ -37,6 +37,7 @@ const second_order_tableau = [
 const third_order_tableau = [
     ARS233,
     ARS343,
+    NewARS343,
     ARS443,
     IMKG342a,
     IMKG343a,

@@ -13,28 +13,40 @@ end
 DiffEqBase.ODEFunction{iip}(f::ClimaODEFunction) where {iip} = f
 DiffEqBase.ODEFunction(f::ClimaODEFunction) = f
 
-struct NewIMEXARKAlgorithm{VS <: StaticArrays.StaticArray, MS <: StaticArrays.StaticArray, NM} <: DistributedODEAlgorithm
+struct IMEXARKTableau{VS <: StaticArrays.StaticArray, MS <: StaticArrays.StaticArray} <: AbstractIMEXARKTableau
     a_exp::MS # matrix of size s×s
     b_exp::VS # vector of length s
     c_exp::VS # vector of length s
     a_imp::MS # matrix of size s×s
     b_imp::VS # vector of length s
     c_imp::VS # vector of length s
-    newtons_method::NM
 end
-NewIMEXARKAlgorithm(;
+IMEXARKTableau(;
     a_exp,
     b_exp = a_exp[end, :],
     c_exp = vec(sum(a_exp; dims = 2)),
     a_imp,
     b_imp = a_imp[end, :],
     c_imp = vec(sum(a_imp; dims = 2)),
-    newtons_method,
-) = NewIMEXARKAlgorithm(a_exp, b_exp, c_exp, a_imp, b_imp, c_imp, newtons_method)
+) = IMEXARKTableau(a_exp, b_exp, c_exp, a_imp, b_imp, c_imp)
+
+
+struct NewIMEXARKAlgorithm{T <: IMEXARKTableau, NM} <: DistributedODEAlgorithm
+    tab::T
+    newtons_method::NM
+    function NewIMEXARKAlgorithm(tabname::AbstractTableau, newtons_method)
+        tab = tableau(tabname)
+        T = typeof(tab)
+        new{T, typeof(newtons_method)}(tab, newtons_method)
+    end
+end
+
 
 # TODO: make new package, ButcherTableaus.jl? Or just separate into separate file
 
-function NewARS343(newtons_method)
+# struct NewARS343 <:    AbstractIMEXARKTableau end
+struct NewARS343 <: NewAbstractIMEXARKTableau end
+function tableau(::NewARS343)
     γ = 0.4358665215084590
     a42 = 0.5529291480359398
     a43 = a42
@@ -45,7 +57,7 @@ function NewARS343(newtons_method)
     a32 = (-1 + 9/2 * γ - 3/2 * γ^2) * a42 +
         (-11/4 + 21/2 * γ - 15/4 * γ^2) * a43 + 4 - 25/2 * γ + 9/2 * γ^2
     a41 = 1 - a42 - a43
-    return NewIMEXARKAlgorithm(;
+    return IMEXARKTableau(;
         a_exp = @SArray([
             0   0   0   0;
             γ   0   0   0;
@@ -58,8 +70,7 @@ function NewARS343(newtons_method)
             0 γ       0  0;
             0 (1-γ)/2 γ  0;
             0 b1      b2 γ;
-        ]),
-        newtons_method,
+        ])
     )
 end
 
@@ -81,7 +92,8 @@ end
 function cache(prob::DiffEqBase.AbstractODEProblem, alg::NewIMEXARKAlgorithm; kwargs...)
     (; u0, f) = prob
     (; T_imp!) = f
-    (; a_exp, b_exp, a_imp, b_imp, newtons_method) = alg
+    (; tab, newtons_method) = alg
+    (; a_exp, b_exp, a_imp, b_imp) = tab
     s = length(b_exp)
     inds = ntuple(i->i, s)
     inds_T_exp = filter(i -> !all(iszero, a_exp[:, i]) || !iszero(b_exp[i]), inds)
@@ -100,7 +112,8 @@ function step_u!(integrator, cache::NewIMEXARKCache)
     (; u, p, t, dt, sol, alg) = integrator
     (; f) = sol.prob
     (; T_lim!, T_exp!, T_imp!, lim!, dss!, stage_callback!) = f
-    (; a_exp, b_exp, c_exp, a_imp, b_imp, c_imp, newtons_method) = alg
+    (; tab, newtons_method) = alg
+    (; a_exp, b_exp, a_imp, b_imp, c_exp, c_imp) = tab
     (; U, T_lim, T_exp, T_imp, temp, newtons_method_cache) = cache
     s = length(b_exp)
 

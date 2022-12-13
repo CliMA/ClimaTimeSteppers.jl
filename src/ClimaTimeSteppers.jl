@@ -67,7 +67,10 @@ include("algorithms.jl")
 abstract type DistributedODEAlgorithm <: DiffEqBase.AbstractODEAlgorithm end
 
 abstract type AbstractIMEXARKAlgorithm <: DistributedODEAlgorithm end
-abstract type AbstractIMEXARKTableau end
+
+abstract type AbstractTableau end
+abstract type AbstractIMEXARKTableau <: AbstractTableau end
+abstract type NewAbstractIMEXARKTableau <: AbstractTableau end
 
 """
     tableau(::DistributedODEAlgorithm)

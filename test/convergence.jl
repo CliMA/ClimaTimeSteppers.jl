@@ -59,9 +59,9 @@ end
 
 @testset "New IMEX ARK Algorithms" begin
     tabs = [NewARS343]
-    test_algs("IMEX ARK", tabs, ark_analytic_nonlin_test, 400)
-    test_algs("IMEX ARK", tabs, ark_analytic_sys_test, 60)
-    test_algs("IMEX ARK", tabs, ark_analytic_test, 16000)
+    test_algs("IMEX ARK", tabs, ark_analytic_nonlin_test_cts(Float64), 400)
+    test_algs("IMEX ARK", tabs, ark_analytic_sys_test_cts(Float64), 60)
+    test_algs("IMEX ARK", tabs, ark_analytic_test_cts(Float64), 16000)
 end
 
 #=

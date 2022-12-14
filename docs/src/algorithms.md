@@ -15,8 +15,8 @@ ForwardEulerODEFunction
 ## IMEX ARK methods
 
 ```@docs
-IMEXARKAlgorithm
-make_IMEXARKTableau
+OldIMEXARKAlgorithm
+Oldmake_IMEXARKTableau
 ```
 
 The convergence orders of the provided methods are verified using test cases from [ARKode](http://runge.math.smu.edu/ARKode_example.pdf). Plots of the solutions to these test cases, the errors of these solutions, and the convergence orders with respect to `dt` are shown below.
@@ -90,7 +90,7 @@ ARK548L2SA2KennedyCarpenter
 
 ### ARS
 
-TODO: `ARS111`, `ARS121`, and `ARS343` should probably be types, and not constants, so that we can properly document them.
+TODO: add `ARS111`, `ARS121`, and `ARS343` docs.
 
 ## Multirate
 

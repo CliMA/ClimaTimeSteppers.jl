@@ -67,7 +67,9 @@ include("algorithms.jl")
 abstract type DistributedODEAlgorithm <: DiffEqBase.AbstractODEAlgorithm end
 
 abstract type AbstractIMEXARKAlgorithm <: DistributedODEAlgorithm end
-abstract type AbstractIMEXARKTableau end
+
+abstract type AbstractTableau end
+abstract type AbstractIMEXARKTableau <: AbstractTableau end
 
 """
     tableau(::DistributedODEAlgorithm)
@@ -93,6 +95,7 @@ include("solvers/convergence_condition.jl")
 include("solvers/convergence_checker.jl")
 include("solvers/newtons_method.jl")
 include("solvers/imex_ark.jl")
+include("solvers/imex_ark2.jl")
 
 # Include concrete implementations
 include("solvers/imex_ark_tableaus.jl")

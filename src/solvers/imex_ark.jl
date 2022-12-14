@@ -112,44 +112,44 @@ Is this too messy to do in the general case?
 
 Don't forget about the possible memory optimizations!
 =#
-export IMEXARKAlgorithm, make_IMEXARKTableau
+export OldIMEXARKAlgorithm, Oldmake_IMEXARKTableau
 
 using Base: broadcasted, materialize!
 using StaticArrays: SMatrix, SVector
 
 """
-    IMEXARKAlgorithm <: DistributedODEAlgorithm
+    OldIMEXARKAlgorithm <: DistributedODEAlgorithm
 
 A generic implementation of an IMEX ARK algorithm that can handle arbitrary
 Butcher tableaus and problems specified using either `ForwardEulerODEFunction`s
 or regular `ODEFunction`s.
 """
-struct IMEXARKAlgorithm{as, cs, N} <: AbstractIMEXARKAlgorithm
+struct OldIMEXARKAlgorithm{as, cs, N} <: AbstractIMEXARKAlgorithm
     newtons_method::N
 end
 
-IMEXARKAlgorithm{as, cs}(newtons_method::N) where {as, cs, N} =
-    IMEXARKAlgorithm{as, cs, N}(newtons_method)
+OldIMEXARKAlgorithm{as, cs}(newtons_method::N) where {as, cs, N} =
+    OldIMEXARKAlgorithm{as, cs, N}(newtons_method)
 
 """
-    IMEXARKAlgorithm(::AbstractIMEXARKAlgorithm, newtons_method)
+    OldIMEXARKAlgorithm(::AbstractIMEXARKAlgorithm, newtons_method)
 
 Returns the imex ARK algorithm for a particular algorithm.
 """
-function IMEXARKAlgorithm(tab::AbstractIMEXARKTableau, newtons_method)
+function OldIMEXARKAlgorithm(tab::AbstractIMEXARKTableau, newtons_method)
     tableau(tab)(newtons_method)
 end
 
 """
-    make_IMEXARKTableau(; a_exp, b_exp, c_exp, a_imp, b_imp, c_imp)
+    Oldmake_IMEXARKTableau(; a_exp, b_exp, c_exp, a_imp, b_imp, c_imp)
 
-Generates an `IMEXARKAlgorithm` type from an IMEX ARK Butcher tableau. Only
+Generates an `OldIMEXARKAlgorithm` type from an IMEX ARK Butcher tableau. Only
 `a_exp` and `a_imp` are required arguments; the default values for `b_exp` and
 `b_imp` assume that the algorithm is FSAL (first same as last), and the default
 values for `c_exp` and `c_imp` assume that the algorithm is internally
 consistent.
 """
-function make_IMEXARKTableau(;
+function Oldmake_IMEXARKTableau(;
     a_exp::SMatrix{s, s},
     b_exp::SVector{s} = vec(a_exp[end, :]),
     c_exp::SVector{s} = vec(sum(a_exp; dims = 2)),
@@ -165,7 +165,7 @@ function make_IMEXARKTableau(;
         as = (vcat(a_exp, b_exp'), vcat(a_imp, b_imp'))
     end
     cs = (c_exp, c_imp)
-    return IMEXARKAlgorithm{as, cs}
+    return OldIMEXARKAlgorithm{as, cs}
 end
 
 # General helper functions
@@ -208,7 +208,7 @@ end
 #       interval graph for all required cached values.
 function cache(
     prob::DiffEqBase.AbstractODEProblem,
-    alg::IMEXARKAlgorithm{as, cs};
+    alg::OldIMEXARKAlgorithm{as, cs};
     kwargs...
 ) where {as, cs}
     f_cache(χ, a, f_type) = is_increment(f_type) ?
@@ -440,7 +440,7 @@ step_u!(integrator, cache::IMEXARKCache) =
 
 function not_generated_cache(
     prob::DiffEqBase.AbstractODEProblem,
-    alg::IMEXARKAlgorithm{as, cs};
+    alg::OldIMEXARKAlgorithm{as, cs};
     kwargs...
 ) where {as, cs}
     f_cache(χ, a, f_type) = is_increment(f_type) ?

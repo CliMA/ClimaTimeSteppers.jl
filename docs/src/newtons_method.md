@@ -44,8 +44,9 @@ MultipleConditions
 UpdateSignalHandler
 UpdateEvery
 UpdateEveryN
+UpdateEveryDt
 UpdateSignal
-NewStep
+NewTimeStep
 NewNewtonSolve
 NewNewtonIteration
 ```

@@ -1,4 +1,4 @@
-export ClimaODEFunction, NewIMEXARKAlgorithm, NewARS343
+export ClimaODEFunction, IMEXARKAlgorithm, ARS343
 
 Base.@kwdef struct ClimaODEFunction{TL, TE, TI, L, D, S} <: DiffEqBase.AbstractODEFunction{true}
     T_lim!::TL = nothing # nothing or (uₜ, u, p, t) -> ...
@@ -31,10 +31,10 @@ IMEXARKTableau(;
 ) = IMEXARKTableau(a_exp, b_exp, c_exp, a_imp, b_imp, c_imp)
 
 
-struct NewIMEXARKAlgorithm{T <: IMEXARKTableau, NM} <: DistributedODEAlgorithm
+struct IMEXARKAlgorithm{T <: IMEXARKTableau, NM} <: DistributedODEAlgorithm
     tab::T
     newtons_method::NM
-    function NewIMEXARKAlgorithm(tabname::AbstractTableau, newtons_method)
+    function IMEXARKAlgorithm(tabname::AbstractTableau, newtons_method)
         tab = tableau(tabname)
         T = typeof(tab)
         new{T, typeof(newtons_method)}(tab, newtons_method)
@@ -44,8 +44,8 @@ end
 
 # TODO: make new package, ButcherTableaus.jl? Or just separate into separate file
 
-struct NewARS343 <: AbstractIMEXARKTableau end
-function tableau(::NewARS343)
+struct ARS343 <: AbstractIMEXARKTableau end
+function tableau(::ARS343)
     γ = 0.4358665215084590
     a42 = 0.5529291480359398
     a43 = a42
@@ -89,7 +89,7 @@ struct NewIMEXARKCache{SCU, SCE, SCI, T, Γ, NMC}
     newtons_method_cache::NMC
 end
 
-function cache(prob::DiffEqBase.AbstractODEProblem, alg::NewIMEXARKAlgorithm; kwargs...)
+function cache(prob::DiffEqBase.AbstractODEProblem, alg::IMEXARKAlgorithm; kwargs...)
     (; u0, f) = prob
     (; T_imp!) = f
     (; tab, newtons_method) = alg

@@ -79,12 +79,13 @@ has_jac(T_imp!) =
     !isnothing(T_imp!.Wfact) &&
     !isnothing(T_imp!.jac_prototype)
 
-struct NewIMEXARKCache{SCU, SCE, SCI, T, NMC}
+struct NewIMEXARKCache{SCU, SCE, SCI, T, Γ, NMC}
     U::SCU     # sparse container of length s
     T_lim::SCE # sparse container of length s
     T_exp::SCE # sparse container of length s
     T_imp::SCI # sparse container of length s
     temp::T
+    γ::Γ
     newtons_method_cache::NMC
 end
 
@@ -102,9 +103,11 @@ function cache(prob::DiffEqBase.AbstractODEProblem, alg::NewIMEXARKAlgorithm; kw
     T_exp = SparseContainer(map(i->similar(u0), collect(1:length(inds_T_exp))), inds_T_exp)
     T_imp = SparseContainer(map(i->similar(u0), collect(1:length(inds_T_imp))), inds_T_imp)
     temp = similar(u0)
+    γs = unique(filter(!iszero, diag(a_imp)))
+    γ = length(γs) == 1 ? γs[1] : nothing # TODO: This could just be a constant.
     jac_prototype = has_jac(T_imp!) ? T_imp!.jac_prototype : nothing
     newtons_method_cache = allocate_cache(newtons_method, u0, jac_prototype)
-    return NewIMEXARKCache(U, T_lim, T_exp, T_imp, temp, newtons_method_cache)
+    return NewIMEXARKCache(U, T_lim, T_exp, T_imp, temp, γ, newtons_method_cache)
 end
 
 function step_u!(integrator, cache::NewIMEXARKCache)
@@ -113,19 +116,20 @@ function step_u!(integrator, cache::NewIMEXARKCache)
     (; T_lim!, T_exp!, T_imp!, lim!, dss!, stage_callback!) = f
     (; tab, newtons_method) = alg
     (; a_exp, b_exp, a_imp, b_imp, c_exp, c_imp) = tab
-    (; U, T_lim, T_exp, T_imp, temp, newtons_method_cache) = cache
+    (; U, T_lim, T_exp, T_imp, temp, γ, newtons_method_cache) = cache
     s = length(b_exp)
 
-    # TODO: Improve the update_j interface.
-    if !isnothing(T_imp!) && !iszero(a_imp[end, end]) && has_jac(T_imp!)
-        run!(
-            newtons_method.update_j,
-            newtons_method_cache.update_j_cache,
-            NewStep(),
-            (jacobian, u) ->
-                T_imp!.Wfact(jacobian, u, p, dt * a_imp[end, end], t),
-            newtons_method_cache.j,
-            u,
+    if !isnothing(T_imp!)
+        update!(
+            newtons_method,
+            newtons_method_cache,
+            NewTimeStep(t),
+            jacobian -> isnothing(γ) ?
+                error(
+                    "The tableau does not specify a unique value of γ for the \
+                     duration of each time step; do not update based on the \
+                     NewTimeStep signal when using this tableau."
+                ) : T_imp!.Wfact(jacobian, u, p, dt * γ, t),
         )
     end
 
@@ -167,12 +171,8 @@ function step_u!(integrator, cache::NewIMEXARKCache)
                 @. residual = temp + dt * a_imp[i, i] * residual - Ui
             end
             implicit_equation_jacobian! =
-                if has_jac(T_imp!)
-                    (jacobian, Ui) ->
-                        T_imp!.Wfact(jacobian, Ui, p, dt * a_imp[i, i], t_imp)
-                else
-                    nothing
-                end
+                (jacobian, Ui) ->
+                    T_imp!.Wfact(jacobian, Ui, p, dt * a_imp[i, i], t_imp)
             run!(
                 newtons_method,
                 newtons_method_cache,

@@ -1,5 +1,5 @@
 export AbstractIMEXARKTableau
-export ARS111, ARS121, ARS122, ARS233, ARS232, ARS222, OldARS343, ARS443
+export ARS111, ARS121, ARS122, ARS233, ARS232, ARS222, ARS443
 export IMKG232a, IMKG232b, IMKG242a, IMKG242b, IMKG252a, IMKG252b
 export IMKG253a, IMKG253b, IMKG254a, IMKG254b, IMKG254c, IMKG342a, IMKG343a
 export DBM453, HOMMEM1
@@ -7,6 +7,37 @@ export DBM453, HOMMEM1
 using StaticArrays: @SArray, SMatrix, sacollect
 
 ################################################################################
+
+"""
+    IMEXARKTableau(; a_exp, b_exp, c_exp, a_imp, b_imp, c_imp)
+
+Generates an `IMEXARKTableau` struct from an IMEX ARK Butcher tableau. Only
+`a_exp` and `a_imp` are required arguments; the default values for `b_exp` and
+`b_imp` assume that the algorithm is FSAL (first same as last), and the default
+values for `c_exp` and `c_imp` assume that the algorithm is internally
+consistent.
+"""
+struct IMEXARKTableau{VS <: StaticArrays.StaticArray, MS <: StaticArrays.StaticArray} <: AbstractIMEXARKTableau
+    a_exp::MS # matrix of size s×s
+    b_exp::VS # vector of length s
+    c_exp::VS # vector of length s
+    a_imp::MS # matrix of size s×s
+    b_imp::VS # vector of length s
+    c_imp::VS # vector of length s
+end
+function IMEXARKTableau(;
+    a_exp,
+    b_exp = a_exp[end, :],
+    c_exp = vec(sum(a_exp; dims = 2)),
+    a_imp,
+    b_imp = a_imp[end, :],
+    c_imp = vec(sum(a_imp; dims = 2)),
+)
+    # TODO: add generic promote_eltype
+    a_exp, a_imp = promote(a_exp, a_imp)
+    b_exp, b_imp, c_exp, c_imp = promote(b_exp, b_imp, c_exp, c_imp)
+    return IMEXARKTableau(a_exp, b_exp, c_exp, a_imp, b_imp, c_imp)
+end
 
 # ARS algorithms
 
@@ -20,7 +51,7 @@ using StaticArrays: @SArray, SMatrix, sacollect
 struct ARS111 <: AbstractIMEXARKTableau end
 
 function tableau(::ARS111)
-    Oldmake_IMEXARKTableau(;
+    IMEXARKTableau(;
         a_exp = @SArray([0 0; 1 0]),
         a_imp = @SArray([0 0; 0 1]),
     )
@@ -28,7 +59,7 @@ end
 
 struct ARS121 <: AbstractIMEXARKTableau end
 function tableau(::ARS121)
-    Oldmake_IMEXARKTableau(;
+    IMEXARKTableau(;
         a_exp = @SArray([0 0; 1 0]),
         b_exp = @SArray([0, 1]),
         a_imp = @SArray([0 0; 0 1]),
@@ -37,7 +68,7 @@ end
 
 struct ARS122 <: AbstractIMEXARKTableau end
 function tableau(::ARS122)
-    Oldmake_IMEXARKTableau(;
+    IMEXARKTableau(;
         a_exp = @SArray([0 0; 1/2 0]),
         b_exp = @SArray([0, 1]),
         a_imp = @SArray([0 0; 0 1/2]),
@@ -48,7 +79,7 @@ end
 struct ARS233 <: AbstractIMEXARKTableau end
 function tableau(::ARS233)
     γ = 1/2 + √3/6
-    Oldmake_IMEXARKTableau(;
+    IMEXARKTableau(;
         a_exp = @SArray([
             0     0      0;
             γ     0      0;
@@ -68,7 +99,7 @@ struct ARS232 <: AbstractIMEXARKTableau end
 function tableau(::ARS232)
     γ = 1 - √2/2
     δ = -2√2/3
-    Oldmake_IMEXARKTableau(;
+    IMEXARKTableau(;
         a_exp = @SArray([
             0 0     0;
             γ 0     0;
@@ -87,7 +118,7 @@ struct ARS222 <: AbstractIMEXARKTableau end
 function tableau(::ARS222)
     γ = 1 - √2/2
     δ = 1 - 1/2γ
-    Oldmake_IMEXARKTableau(;
+    IMEXARKTableau(;
         a_exp = @SArray([
             0 0     0;
             γ 0     0;
@@ -101,11 +132,11 @@ function tableau(::ARS222)
     )
 end
 
-struct OldARS343 <: AbstractIMEXARKTableau end
-function tableau(::OldARS343)
+struct ARS343 <: AbstractIMEXARKTableau end
+function tableau(::ARS343)
     γ = 0.4358665215084590
     a42 = 0.5529291480359398
-    a43 = 0.5529291480359398
+    a43 = a42
     b1 = -3/2 * γ^2 + 4 * γ - 1/4
     b2 =  3/2 * γ^2 - 5 * γ + 5/4
     a31 = (1 - 9/2 * γ + 3/2 * γ^2) * a42 +
@@ -113,7 +144,7 @@ function tableau(::OldARS343)
     a32 = (-1 + 9/2 * γ - 3/2 * γ^2) * a42 +
         (-11/4 + 21/2 * γ - 15/4 * γ^2) * a43 + 4 - 25/2 * γ + 9/2 * γ^2
     a41 = 1 - a42 - a43
-    Oldmake_IMEXARKTableau(;
+    return IMEXARKTableau(;
         a_exp = @SArray([
             0   0   0   0;
             γ   0   0   0;
@@ -126,13 +157,13 @@ function tableau(::OldARS343)
             0 γ       0  0;
             0 (1-γ)/2 γ  0;
             0 b1      b2 γ;
-        ]),
+        ])
     )
 end
 
 struct ARS443 <: AbstractIMEXARKTableau end
 function tableau(::ARS443)
-    Oldmake_IMEXARKTableau(;
+    IMEXARKTableau(;
         a_exp = @SArray([
             0     0    0   0    0;
             1/2   0    0   0    0;
@@ -181,7 +212,7 @@ imkg_imp(i, j, α̂, β, δ̂) = i == j + 1 ? α̂[j] :
 function make_IMKGAlgorithm(α, α̂, δ̂, β = ntuple(_ -> 0, length(δ̂)))
     s = length(α̂) + 1
     type = SMatrix{s, s}
-    return Oldmake_IMEXARKTableau(;
+    return IMEXARKTableau(;
         a_exp = sacollect(type, imkg_exp(i, j, α, β) for i in 1:s, j in 1:s),
         a_imp = sacollect(type, imkg_imp(i, j, α̂, β, δ̂) for i in 1:s, j in 1:s),
     )
@@ -374,7 +405,7 @@ end
 struct DBM453 <: AbstractIMEXARKTableau end
 function tableau(::DBM453)
     γ = 0.32591194130117247
-    Oldmake_IMEXARKTableau(;
+    IMEXARKTableau(;
         a_exp = @SArray([
             0                    0                   0                   0                    0;
             0.10306208811591838  0                   0                   0                    0;
@@ -406,7 +437,7 @@ end
 
 struct HOMMEM1 <: AbstractIMEXARKTableau end
 function tableau(::HOMMEM1)
-    Oldmake_IMEXARKTableau(;
+    IMEXARKTableau(;
         a_exp = @SArray([
             0   0   0   0   0   0;
             1/5 0   0   0   0   0;

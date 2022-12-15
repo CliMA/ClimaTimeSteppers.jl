@@ -17,9 +17,9 @@ end
 (s, parsed_args) = parse_commandline()
 cts = joinpath(dirname(@__DIR__));
 include(joinpath(cts, "test", "problems.jl"))
-function do_work!(integrator, not_generated_cache)
+function do_work!(integrator, cache)
     for _ in 1:100_000
-        CTS.not_generated_step_u!(integrator, not_generated_cache)
+        CTS.step_u!(integrator, cache)
     end
 end
 problem_str = parsed_args["problem"]
@@ -30,16 +30,16 @@ elseif problem_str=="fe"
 else
     error("Bad option")
 end
-algorithm = CTS.OldIMEXARKAlgorithm(OldARS343(), NewtonsMethod(; max_iters = 2))
+algorithm = CTS.IMEXARKAlgorithm(ARS343(), NewtonsMethod(; max_iters = 2))
 dt = 0.01
 integrator = DiffEqBase.init(prob, algorithm; dt)
-not_generated_cache = CTS.not_generated_cache(prob, algorithm)
-do_work!(integrator, not_generated_cache) # compile first
+cache = CTS.cache(prob, algorithm)
+do_work!(integrator, cache) # compile first
 import Profile
 Profile.clear_malloc_data()
 Profile.clear()
 prof = Profile.@profile begin
-    do_work!(integrator, not_generated_cache)
+    do_work!(integrator, cache)
 end
 
 import ProfileCanvas

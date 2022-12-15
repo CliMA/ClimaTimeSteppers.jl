@@ -265,12 +265,12 @@ end
 
 
     algorithms = (
-        CTS.OldIMEXARKAlgorithm(ARS111(), NewtonsMethod(; max_iters = 1)),
-        CTS.OldIMEXARKAlgorithm(ARS121(), NewtonsMethod(; max_iters = 1)),
-        CTS.OldIMEXARKAlgorithm(ARS122(), NewtonsMethod(; max_iters = 1)),
-        CTS.OldIMEXARKAlgorithm(ARS232(), NewtonsMethod(; max_iters = 1)),
-        CTS.OldIMEXARKAlgorithm(ARS222(), NewtonsMethod(; max_iters = 1)),
-        CTS.OldIMEXARKAlgorithm(OldARS343(), NewtonsMethod(; max_iters = 1)),
+        CTS.IMEXARKAlgorithm(ARS111(), NewtonsMethod(; max_iters = 1)),
+        CTS.IMEXARKAlgorithm(ARS121(), NewtonsMethod(; max_iters = 1)),
+        CTS.IMEXARKAlgorithm(ARS122(), NewtonsMethod(; max_iters = 1)),
+        CTS.IMEXARKAlgorithm(ARS232(), NewtonsMethod(; max_iters = 1)),
+        CTS.IMEXARKAlgorithm(ARS222(), NewtonsMethod(; max_iters = 1)),
+        CTS.IMEXARKAlgorithm(ARS343(), NewtonsMethod(; max_iters = 1)),
     )
     reference_sol_norm = [860.2745315698107; 860.2745315698107; 860.4393569534262;
                           860.452530117785; 860.452530117785; ref_ARS343]
@@ -279,17 +279,14 @@ end
 
     # ARS solve
     for (i, algo) in (enumerate(algorithms))
-        single_column_prob_wfact_split = ODEProblem(
-            SplitFunction(
-                ODEFunction(
-                    spatial_residual!;
-                    jac_prototype=zeros(Float64,3N+1,3N+1),
-                    Wfact = single_column_Wfact!,
-                ),
-                ODEFunction((du, u, p, t) -> (du .= 0.0)),
-            ),
-            copy(u0),(0.0, N_iter*dt), ss)
 
+        func_kwargs = (; jac_prototype=zeros(Float64,3N+1,3N+1), Wfact = single_column_Wfact!)
+        tendency_func = ClimaODEFunction(;
+            T_exp! = ODEFunction((du, u, p, t) -> (du .= 0.0)),
+            T_imp! = ODEFunction(spatial_residual!; func_kwargs...)
+        )
+
+        single_column_prob_wfact_split = ODEProblem(tendency_func, copy(u0),(0.0, N_iter*dt), ss)
 
         u = solve(single_column_prob_wfact_split , algo; dt=dt)
         @info norm(u.u[end])

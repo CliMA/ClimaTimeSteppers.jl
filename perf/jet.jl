@@ -15,13 +15,11 @@ end
 cts = joinpath(dirname(@__DIR__));
 include(joinpath(cts, "test", "problems.jl"))
 function config_integrators(problem)
-    algorithm = CTS.OldIMEXARKAlgorithm(OldARS343(), NewtonsMethod(; linsolve = linsolve_direct, max_iters = 2))
+    algorithm = CTS.IMEXARKAlgorithm(ARS343(), NewtonsMethod(; linsolve = linsolve_direct, max_iters = 2))
     dt = 0.01
     integrator = DiffEqBase.init(problem, algorithm; dt)
-    not_generated_integrator = DiffEqBase.init(problem, algorithm; dt)
     integrator.cache = CTS.cache(problem, algorithm)
-    not_generated_integrator.cache = CTS.not_generated_cache(problem, algorithm)
-    return (; integrator_generated=integrator, not_generated_integrator)
+    return (; integrator)
 end
 prob = if parsed_args["problem"]=="ode_fun"
     split_linear_prob_wfact_split()
@@ -30,8 +28,7 @@ elseif parsed_args["problem"]=="fe"
 else
     error("Bad option")
 end
-(; not_generated_integrator) = config_integrators(prob)
-integrator = not_generated_integrator
+(; integrator) = config_integrators(prob)
 
-JET.@test_opt CTS.not_generated_step_u!(integrator, integrator.cache)
+JET.@test_opt CTS.step_u!(integrator, integrator.cache)
 

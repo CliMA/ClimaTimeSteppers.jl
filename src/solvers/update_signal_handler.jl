@@ -53,7 +53,7 @@ An `UpdateSignalHandler` that performs the update whenever it is `run!` with an
 struct UpdateEvery{U <: UpdateSignal} <: UpdateSignalHandler end
 UpdateEvery(::Type{U}) where {U} = UpdateEvery{U}()
 
-run!(alg::UpdateEvery{U}, cache, ::U, f!, args...) where {U} = f!(args...)
+run!(alg::UpdateEvery{U}, cache, ::U, f!::F, args...) where {U, F} = f!(args...)
 
 """
     UpdateEveryN(n, update_signal_type, reset_signal_type = Nothing)
@@ -73,7 +73,7 @@ UpdateEveryN(n, ::Type{U}, ::Type{R} = Nothing) where {U, R} =
 
 allocate_cache(::UpdateEveryN, _) = (; counter = Ref(0))
 
-function run!(alg::UpdateEveryN{U}, cache, ::U, f!, args...) where {U}
+function run!(alg::UpdateEveryN{U}, cache, ::U, f!::F, args...) where {U, F}
     (; n) = alg
     (; counter) = cache
     if counter[] == 0
@@ -104,7 +104,7 @@ end
 allocate_cache(alg::UpdateEveryDt, ::Type{FT}) where {FT} =
     (; is_first_t = Ref(true), prev_update_t = Ref{FT}())
 
-function run!(alg::UpdateEveryDt, cache, signal::NewTimeStep, f!, args...)
+function run!(alg::UpdateEveryDt, cache, signal::NewTimeStep, f!::F, args...) where {F}
     (; dt) = alg
     (; is_first_t, prev_update_t) = cache
     (; t) = signal

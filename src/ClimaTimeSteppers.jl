@@ -94,11 +94,10 @@ include("solvers/update_signal_handler.jl")
 include("solvers/convergence_condition.jl")
 include("solvers/convergence_checker.jl")
 include("solvers/newtons_method.jl")
-include("solvers/imex_ark.jl")
+include("solvers/imex_ark_tableaus.jl")
 include("solvers/imex_ark2.jl")
 
 # Include concrete implementations
-include("solvers/imex_ark_tableaus.jl")
 include("solvers/multirate.jl")
 include("solvers/lsrk.jl")
 include("solvers/ssprk.jl")

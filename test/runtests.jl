@@ -18,5 +18,3 @@ end
 @safetestset "Integrator tests" begin include("integrator.jl") end
 @safetestset "Algorithm convergence" begin include("convergence.jl") end
 @safetestset "Convergence checker unit tests" begin include("test_convergence_checker.jl") end
- # TODO: Remove this.
-@safetestset "Compare generated and non-generated ARK" begin include("compare_generated.jl") end

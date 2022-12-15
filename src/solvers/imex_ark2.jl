@@ -13,24 +13,16 @@ end
 DiffEqBase.ODEFunction{iip}(f::ClimaODEFunction) where {iip} = f
 DiffEqBase.ODEFunction(f::ClimaODEFunction) = f
 
-struct IMEXARKTableau{VS <: StaticArrays.StaticArray, MS <: StaticArrays.StaticArray} <: AbstractIMEXARKTableau
-    a_exp::MS # matrix of size s×s
-    b_exp::VS # vector of length s
-    c_exp::VS # vector of length s
-    a_imp::MS # matrix of size s×s
-    b_imp::VS # vector of length s
-    c_imp::VS # vector of length s
-end
-IMEXARKTableau(;
-    a_exp,
-    b_exp = a_exp[end, :],
-    c_exp = vec(sum(a_exp; dims = 2)),
-    a_imp,
-    b_imp = a_imp[end, :],
-    c_imp = vec(sum(a_imp; dims = 2)),
-) = IMEXARKTableau(a_exp, b_exp, c_exp, a_imp, b_imp, c_imp)
+"""
+    IMEXARKAlgorithm(
+        tabname::AbstractTableau,
+        newtons_method
+    ) <: DistributedODEAlgorithm
 
-
+A generic implementation of an IMEX ARK algorithm that can handle arbitrary
+Butcher tableaus and problems specified using either `ForwardEulerODEFunction`s
+or regular `ODEFunction`s.
+"""
 struct IMEXARKAlgorithm{T <: IMEXARKTableau, NM} <: DistributedODEAlgorithm
     tab::T
     newtons_method::NM
@@ -41,45 +33,13 @@ struct IMEXARKAlgorithm{T <: IMEXARKTableau, NM} <: DistributedODEAlgorithm
     end
 end
 
-
-# TODO: make new package, ButcherTableaus.jl? Or just separate into separate file
-
-struct ARS343 <: AbstractIMEXARKTableau end
-function tableau(::ARS343)
-    γ = 0.4358665215084590
-    a42 = 0.5529291480359398
-    a43 = a42
-    b1 = -3/2 * γ^2 + 4 * γ - 1/4
-    b2 =  3/2 * γ^2 - 5 * γ + 5/4
-    a31 = (1 - 9/2 * γ + 3/2 * γ^2) * a42 +
-        (11/4 - 21/2 * γ + 15/4 * γ^2) * a43 - 7/2 + 13 * γ - 9/2 * γ^2
-    a32 = (-1 + 9/2 * γ - 3/2 * γ^2) * a42 +
-        (-11/4 + 21/2 * γ - 15/4 * γ^2) * a43 + 4 - 25/2 * γ + 9/2 * γ^2
-    a41 = 1 - a42 - a43
-    return IMEXARKTableau(;
-        a_exp = @SArray([
-            0   0   0   0;
-            γ   0   0   0;
-            a31 a32 0   0;
-            a41 a42 a43 0;
-        ]),
-        b_exp = @SArray([0, b1, b2, γ]),
-        a_imp = @SArray([
-            0 0       0  0;
-            0 γ       0  0;
-            0 (1-γ)/2 γ  0;
-            0 b1      b2 γ;
-        ])
-    )
-end
-
 has_jac(T_imp!) =
     hasfield(typeof(T_imp!), :Wfact) &&
     hasfield(typeof(T_imp!), :jac_prototype) &&
     !isnothing(T_imp!.Wfact) &&
     !isnothing(T_imp!.jac_prototype)
 
-struct NewIMEXARKCache{SCU, SCE, SCI, T, Γ, NMC}
+struct IMEXARKCache{SCU, SCE, SCI, T, Γ, NMC}
     U::SCU     # sparse container of length s
     T_lim::SCE # sparse container of length s
     T_exp::SCE # sparse container of length s
@@ -107,10 +67,10 @@ function cache(prob::DiffEqBase.AbstractODEProblem, alg::IMEXARKAlgorithm; kwarg
     γ = length(γs) == 1 ? γs[1] : nothing # TODO: This could just be a constant.
     jac_prototype = has_jac(T_imp!) ? T_imp!.jac_prototype : nothing
     newtons_method_cache = allocate_cache(newtons_method, u0, jac_prototype)
-    return NewIMEXARKCache(U, T_lim, T_exp, T_imp, temp, γ, newtons_method_cache)
+    return IMEXARKCache(U, T_lim, T_exp, T_imp, temp, γ, newtons_method_cache)
 end
 
-function step_u!(integrator, cache::NewIMEXARKCache)
+function step_u!(integrator, cache::IMEXARKCache)
     (; u, p, t, dt, sol, alg) = integrator
     (; f) = sol.prob
     (; T_lim!, T_exp!, T_imp!, lim!, dss!, stage_callback!) = f

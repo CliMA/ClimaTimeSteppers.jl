@@ -50,18 +50,11 @@ ENV["GKSwstype"] = "nul" # avoid displaying plots
     tab2 = (ARS122, ARS232, ARS222, IMKG232a, IMKG232b, IMKG242a, IMKG242b)
     tab2 = (tab2..., IMKG252a, IMKG252b, IMKG253a, IMKG253b, IMKG254a)
     tab2 = (tab2..., IMKG254b, IMKG254c, HOMMEM1)
-    tab3 = (ARS233, OldARS343, ARS443, IMKG342a, IMKG343a, DBM453)
+    tab3 = (ARS233, ARS343, ARS443, IMKG342a, IMKG343a, DBM453)
     tabs = [tab1..., tab2..., tab3...]
-    test_algs("IMEX ARK", tabs, ark_analytic_nonlin_test(Float64), 400)
-    test_algs("IMEX ARK", tabs, ark_analytic_sys_test(Float64), 60)
-    test_algs("IMEX ARK", tabs, ark_analytic_test(Float64), 16000; super_convergence=ARS121)
-end
-
-@testset "New IMEX ARK Algorithms" begin
-    tabs = [ARS343]
     test_algs("IMEX ARK", tabs, ark_analytic_nonlin_test_cts(Float64), 400)
     test_algs("IMEX ARK", tabs, ark_analytic_sys_test_cts(Float64), 60)
-    test_algs("IMEX ARK", tabs, ark_analytic_test_cts(Float64), 16000)
+    test_algs("IMEX ARK", tabs, ark_analytic_test_cts(Float64), 16000; super_convergence=ARS121)
 end
 
 #=

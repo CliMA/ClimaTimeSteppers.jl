@@ -51,19 +51,12 @@ end
 struct ARS111 <: AbstractIMEXARKTableau end
 
 function tableau(::ARS111)
-    IMEXARKTableau(;
-        a_exp = @SArray([0 0; 1 0]),
-        a_imp = @SArray([0 0; 0 1]),
-    )
+    IMEXARKTableau(; a_exp = @SArray([0 0; 1 0]), a_imp = @SArray([0 0; 0 1]))
 end
 
 struct ARS121 <: AbstractIMEXARKTableau end
 function tableau(::ARS121)
-    IMEXARKTableau(;
-        a_exp = @SArray([0 0; 1 0]),
-        b_exp = @SArray([0, 1]),
-        a_imp = @SArray([0 0; 0 1]),
-    )
+    IMEXARKTableau(; a_exp = @SArray([0 0; 1 0]), b_exp = @SArray([0, 1]), a_imp = @SArray([0 0; 0 1]))
 end
 
 struct ARS122 <: AbstractIMEXARKTableau end
@@ -78,58 +71,55 @@ end
 
 struct ARS233 <: AbstractIMEXARKTableau end
 function tableau(::ARS233)
-    γ = 1/2 + √3/6
+    γ = 1 / 2 + √3 / 6
     IMEXARKTableau(;
         a_exp = @SArray([
-            0     0      0;
-            γ     0      0;
-            (γ-1) (2-2γ) 0;
+            0 0 0
+            γ 0 0
+            (γ-1) (2-2γ) 0
         ]),
-        b_exp = @SArray([0, 1/2, 1/2]),
+        b_exp = @SArray([0, 1 / 2, 1 / 2]),
         a_imp = @SArray([
-            0 0      0;
-            0 γ      0;
-            0 (1-2γ) γ;
+            0 0 0
+            0 γ 0
+            0 (1-2γ) γ
         ]),
-        b_imp = @SArray([0, 1/2, 1/2]),
+        b_imp = @SArray([0, 1 / 2, 1 / 2]),
     )
 end
 
 struct ARS232 <: AbstractIMEXARKTableau end
 function tableau(::ARS232)
-    γ = 1 - √2/2
-    δ = -2√2/3
+    γ = 1 - √2 / 2
+    δ = -2√2 / 3
     IMEXARKTableau(;
         a_exp = @SArray([
-            0 0     0;
-            γ 0     0;
-            δ (1-δ) 0;
+            0 0 0
+            γ 0 0
+            δ (1-δ) 0
         ]),
         b_exp = @SArray([0, 1 - γ, γ]),
         a_imp = @SArray([
-            0 0     0;
-            0 γ     0;
-            0 (1-γ) γ;
+            0 0 0
+            0 γ 0
+            0 (1-γ) γ
         ]),
     )
 end
 
 struct ARS222 <: AbstractIMEXARKTableau end
 function tableau(::ARS222)
-    γ = 1 - √2/2
-    δ = 1 - 1/2γ
-    IMEXARKTableau(;
-        a_exp = @SArray([
-            0 0     0;
-            γ 0     0;
-            δ (1-δ) 0;
-        ]),
-        a_imp = @SArray([
-            0 0     0;
-            0 γ     0;
-            0 (1-γ) γ;
-        ]),
-    )
+    γ = 1 - √2 / 2
+    δ = 1 - 1 / 2γ
+    IMEXARKTableau(; a_exp = @SArray([
+        0 0 0
+        γ 0 0
+        δ (1-δ) 0
+    ]), a_imp = @SArray([
+        0 0 0
+        0 γ 0
+        0 (1-γ) γ
+    ]))
 end
 
 struct ARS343 <: AbstractIMEXARKTableau end
@@ -137,27 +127,28 @@ function tableau(::ARS343)
     γ = 0.4358665215084590
     a42 = 0.5529291480359398
     a43 = a42
-    b1 = -3/2 * γ^2 + 4 * γ - 1/4
-    b2 =  3/2 * γ^2 - 5 * γ + 5/4
-    a31 = (1 - 9/2 * γ + 3/2 * γ^2) * a42 +
-        (11/4 - 21/2 * γ + 15/4 * γ^2) * a43 - 7/2 + 13 * γ - 9/2 * γ^2
-    a32 = (-1 + 9/2 * γ - 3/2 * γ^2) * a42 +
-        (-11/4 + 21/2 * γ - 15/4 * γ^2) * a43 + 4 - 25/2 * γ + 9/2 * γ^2
+    b1 = -3 / 2 * γ^2 + 4 * γ - 1 / 4
+    b2 = 3 / 2 * γ^2 - 5 * γ + 5 / 4
+    a31 =
+        (1 - 9 / 2 * γ + 3 / 2 * γ^2) * a42 + (11 / 4 - 21 / 2 * γ + 15 / 4 * γ^2) * a43 - 7 / 2 + 13 * γ - 9 / 2 * γ^2
+    a32 =
+        (-1 + 9 / 2 * γ - 3 / 2 * γ^2) * a42 + (-11 / 4 + 21 / 2 * γ - 15 / 4 * γ^2) * a43 + 4 - 25 / 2 * γ +
+        9 / 2 * γ^2
     a41 = 1 - a42 - a43
     return IMEXARKTableau(;
         a_exp = @SArray([
-            0   0   0   0;
-            γ   0   0   0;
-            a31 a32 0   0;
-            a41 a42 a43 0;
+            0 0 0 0
+            γ 0 0 0
+            a31 a32 0 0
+            a41 a42 a43 0
         ]),
         b_exp = @SArray([0, b1, b2, γ]),
         a_imp = @SArray([
-            0 0       0  0;
-            0 γ       0  0;
-            0 (1-γ)/2 γ  0;
-            0 b1      b2 γ;
-        ])
+            0 0 0 0
+            0 γ 0 0
+            0 (1 - γ)/2 γ 0
+            0 b1 b2 γ
+        ]),
     )
 end
 
@@ -165,18 +156,18 @@ struct ARS443 <: AbstractIMEXARKTableau end
 function tableau(::ARS443)
     IMEXARKTableau(;
         a_exp = @SArray([
-            0     0    0   0    0;
-            1/2   0    0   0    0;
-            11/18 1/18 0   0    0;
-            5/6   -5/6 1/2 0    0;
-            1/4   7/4  3/4 -7/4 0;
+            0 0 0 0 0
+            1/2 0 0 0 0
+            11/18 1/18 0 0 0
+            5/6 -5/6 1/2 0 0
+            1/4 7/4 3/4 -7/4 0
         ]),
         a_imp = @SArray([
-            0 0    0    0   0;
-            0 1/2  0    0   0;
-            0 1/6  1/2  0   0;
-            0 -1/2 1/2  1/2 0;
-            0 3/2  -3/2 1/2 1/2;
+            0 0 0 0 0
+            0 1/2 0 0 0
+            0 1/6 1/2 0 0
+            0 -1/2 1/2 1/2 0
+            0 3/2 -3/2 1/2 1/2
         ]),
     )
 end
@@ -207,8 +198,8 @@ end
 # ⋮      ⋮       ⋱     α[s-2] 0      0     ⋮      ⋮       ⋱      α̂[s-2] δ̂[s-2] 0
 # β[s-2] 0      ⋯      0      α[s-1] 0     β[s-2] 0      ⋯       0      α̂[s-1] 0
 imkg_exp(i, j, α, β) = i == j + 1 ? α[j] : (i > 2 && j == 1 ? β[i - 2] : 0)
-imkg_imp(i, j, α̂, β, δ̂) = i == j + 1 ? α̂[j] :
-    (i > 2 && j == 1 ? β[i - 2] : (1 < i <= length(α̂) && i == j ? δ̂[i - 1] : 0))
+imkg_imp(i, j, α̂, β, δ̂) =
+    i == j + 1 ? α̂[j] : (i > 2 && j == 1 ? β[i - 2] : (1 < i <= length(α̂) && i == j ? δ̂[i - 1] : 0))
 function make_IMKGAlgorithm(α, α̂, δ̂, β = ntuple(_ -> 0, length(δ̂)))
     s = length(α̂) + 1
     type = SMatrix{s, s}
@@ -220,75 +211,51 @@ end
 
 struct IMKG232a <: AbstractIMEXARKTableau end
 function tableau(::IMKG232a)
-    make_IMKGAlgorithm(
-        (1/2, 1/2, 1),
-        (0, -1/2 + √2/2, 1),
-        (1 - √2/2, 1 - √2/2),
-    )
+    make_IMKGAlgorithm((1 / 2, 1 / 2, 1), (0, -1 / 2 + √2 / 2, 1), (1 - √2 / 2, 1 - √2 / 2))
 end
 
 struct IMKG232b <: AbstractIMEXARKTableau end
 function tableau(::IMKG232b)
-    make_IMKGAlgorithm(
-        (1/2, 1/2, 1),
-        (0, -1/2 - √2/2, 1),
-        (1 + √2/2, 1 + √2/2),
-    )
+    make_IMKGAlgorithm((1 / 2, 1 / 2, 1), (0, -1 / 2 - √2 / 2, 1), (1 + √2 / 2, 1 + √2 / 2))
 end
 
 struct IMKG242a <: AbstractIMEXARKTableau end
 function tableau(::IMKG242a)
-    make_IMKGAlgorithm(
-        (1/4, 1/3, 1/2, 1),
-        (0, 0, -1/2 + √2/2, 1),
-        (0, 1 - √2/2, 1 - √2/2),
-    )
+    make_IMKGAlgorithm((1 / 4, 1 / 3, 1 / 2, 1), (0, 0, -1 / 2 + √2 / 2, 1), (0, 1 - √2 / 2, 1 - √2 / 2))
 end
 
 struct IMKG242b <: AbstractIMEXARKTableau end
 function tableau(::IMKG242b)
-    make_IMKGAlgorithm(
-        (1/4, 1/3, 1/2, 1),
-        (0, 0, -1/2 - √2/2, 1),
-        (0, 1 + √2/2, 1 + √2/2),
-    )
+    make_IMKGAlgorithm((1 / 4, 1 / 3, 1 / 2, 1), (0, 0, -1 / 2 - √2 / 2, 1), (0, 1 + √2 / 2, 1 + √2 / 2))
 end
 
 # The paper uses √3/6 for α̂[3], which also seems to work.
 struct IMKG243a <: AbstractIMEXARKTableau end
 function tableau(::IMKG243a)
     make_IMKGAlgorithm(
-        (1/4, 1/3, 1/2, 1),
-        (0, 1/6, -√3/6, 1),
-        (1/2 + √3/6, 1/2 + √3/6, 1/2 + √3/6),
+        (1 / 4, 1 / 3, 1 / 2, 1),
+        (0, 1 / 6, -√3 / 6, 1),
+        (1 / 2 + √3 / 6, 1 / 2 + √3 / 6, 1 / 2 + √3 / 6),
     )
 end
 
 struct IMKG252a <: AbstractIMEXARKTableau end
 function tableau(::IMKG252a)
-    make_IMKGAlgorithm(
-        (1/4, 1/6, 3/8, 1/2, 1),
-        (0, 0, 0, -1/2 + √2/2, 1),
-        (0, 0, 1 - √2/2, 1 - √2/2),
-    )
+    make_IMKGAlgorithm((1 / 4, 1 / 6, 3 / 8, 1 / 2, 1), (0, 0, 0, -1 / 2 + √2 / 2, 1), (0, 0, 1 - √2 / 2, 1 - √2 / 2))
 end
 
 struct IMKG252b <: AbstractIMEXARKTableau end
 function tableau(::IMKG252b)
-    make_IMKGAlgorithm(
-        (1/4, 1/6, 3/8, 1/2, 1),
-        (0, 0, 0, -1/2 - √2/2, 1),
-        (0, 0, 1 + √2/2, 1 + √2/2),
-    )
+    make_IMKGAlgorithm((1 / 4, 1 / 6, 3 / 8, 1 / 2, 1), (0, 0, 0, -1 / 2 - √2 / 2, 1), (0, 0, 1 + √2 / 2, 1 + √2 / 2))
 end
 
 # The paper uses 0.08931639747704086 for α̂[3], which also seems to work.
 struct IMKG253a <: AbstractIMEXARKTableau end
 function tableau(::IMKG253a)
     make_IMKGAlgorithm(
-        (1/4, 1/6, 3/8, 1/2, 1),
-        (0, 0, √3/4 * (1 - √3/3) * ((1 + √3/3)^2 - 2), √3/6, 1),
-        (0, 1/2 - √3/6, 1/2 - √3/6, 1/2 - √3/6),
+        (1 / 4, 1 / 6, 3 / 8, 1 / 2, 1),
+        (0, 0, √3 / 4 * (1 - √3 / 3) * ((1 + √3 / 3)^2 - 2), √3 / 6, 1),
+        (0, 1 / 2 - √3 / 6, 1 / 2 - √3 / 6, 1 / 2 - √3 / 6),
     )
 end
 
@@ -296,37 +263,25 @@ end
 struct IMKG253b <: AbstractIMEXARKTableau end
 function tableau(::IMKG253b)
     make_IMKGAlgorithm(
-        (1/4, 1/6, 3/8, 1/2, 1),
-        (0, 0, √3/4 * (1 + √3/3) * ((1 - √3/3)^2 - 2), -√3/6, 1),
-        (0, 1/2 + √3/6, 1/2 + √3/6, 1/2 + √3/6),
+        (1 / 4, 1 / 6, 3 / 8, 1 / 2, 1),
+        (0, 0, √3 / 4 * (1 + √3 / 3) * ((1 - √3 / 3)^2 - 2), -√3 / 6, 1),
+        (0, 1 / 2 + √3 / 6, 1 / 2 + √3 / 6, 1 / 2 + √3 / 6),
     )
 end
 
 struct IMKG254a <: AbstractIMEXARKTableau end
 function tableau(::IMKG254a)
-    make_IMKGAlgorithm(
-        (1/4, 1/6, 3/8, 1/2, 1),
-        (0, -3/10, 5/6, -3/2, 1),
-        (-1/2, 1, 1, 2),
-    )
+    make_IMKGAlgorithm((1 / 4, 1 / 6, 3 / 8, 1 / 2, 1), (0, -3 / 10, 5 / 6, -3 / 2, 1), (-1 / 2, 1, 1, 2))
 end
 
 struct IMKG254b <: AbstractIMEXARKTableau end
 function tableau(::IMKG254b)
-    make_IMKGAlgorithm(
-        (1/4, 1/6, 3/8, 1/2, 1),
-        (0, -1/20, 5/4, -1/2, 1),
-        (-1/2, 1, 1, 1),
-    )
+    make_IMKGAlgorithm((1 / 4, 1 / 6, 3 / 8, 1 / 2, 1), (0, -1 / 20, 5 / 4, -1 / 2, 1), (-1 / 2, 1, 1, 1))
 end
 
 struct IMKG254c <: AbstractIMEXARKTableau end
 function tableau(::IMKG254c)
-    make_IMKGAlgorithm(
-        (1/4, 1/6, 3/8, 1/2, 1),
-        (0, 1/20, 5/36, 1/3, 1),
-        (1/6, 1/6, 1/6, 1/6),
-    )
+    make_IMKGAlgorithm((1 / 4, 1 / 6, 3 / 8, 1 / 2, 1), (0, 1 / 20, 5 / 36, 1 / 3, 1), (1 / 6, 1 / 6, 1 / 6, 1 / 6))
 end
 
 # The paper and HOMME completely disagree on this algorithm. Since the version
@@ -341,21 +296,16 @@ end
 struct IMKG342a <: AbstractIMEXARKTableau end
 function tableau(::IMKG342a)
     make_IMKGAlgorithm(
-        (1/4, 2/3, 1/3, 3/4),
-        (0, 1/6 - √3/6, -1/6 - √3/6, 3/4),
-        (0, 1/2 + √3/6, 1/2 + √3/6),
-        (0, 1/3, 1/4),
+        (1 / 4, 2 / 3, 1 / 3, 3 / 4),
+        (0, 1 / 6 - √3 / 6, -1 / 6 - √3 / 6, 3 / 4),
+        (0, 1 / 2 + √3 / 6, 1 / 2 + √3 / 6),
+        (0, 1 / 3, 1 / 4),
     )
 end
 
 struct IMKG343a <: AbstractIMEXARKTableau end
 function tableau(::IMKG343a)
-    make_IMKGAlgorithm(
-        (1/4, 2/3, 1/3, 3/4),
-        (0, -1/3, -2/3, 3/4),
-        (-1/3, 1, 1),
-        (0, 1/3, 1/4),
-    )
+    make_IMKGAlgorithm((1 / 4, 2 / 3, 1 / 3, 3 / 4), (0, -1 / 3, -2 / 3, 3 / 4), (-1 / 3, 1, 1), (0, 1 / 3, 1 / 4))
 end
 
 # The paper and HOMME completely disagree on this algorithm, but neither version
@@ -406,23 +356,25 @@ struct DBM453 <: AbstractIMEXARKTableau end
 function tableau(::DBM453)
     γ = 0.32591194130117247
     IMEXARKTableau(;
-        a_exp = @SArray([
-            0                    0                   0                   0                    0;
-            0.10306208811591838  0                   0                   0                    0;
-            -0.94124866143519894 1.6626399742527356  0                   0                    0;
-            -1.3670975201437765  1.3815852911016873  1.2673234025619065  0                    0;
-            -0.81287582068772448 0.81223739060505738 0.90644429603699305 0.094194134045674111 0;
-        ]),
-        b_exp = @SArray([
-            0.87795339639076675, -0.72692641526151547, 0.7520413715737272, -0.22898029400415088, γ
-        ]),
-        a_imp = @SArray([
-            0                    0                    0                   0                    0;
-            -0.2228498531852541  γ                    0                   0                    0;
-            -0.46801347074080545 0.86349284225716961  γ                   0                    0;
-            -0.46509906651927421 0.81063103116959553  0.61036726756832357 γ                    0;
-            0.87795339639076675  -0.72692641526151547 0.7520413715737272  -0.22898029400415088 γ;
-        ]),
+        a_exp = @SArray(
+            [
+                0 0 0 0 0
+                0.10306208811591838 0 0 0 0
+                -0.94124866143519894 1.6626399742527356 0 0 0
+                -1.3670975201437765 1.3815852911016873 1.2673234025619065 0 0
+                -0.81287582068772448 0.81223739060505738 0.90644429603699305 0.094194134045674111 0
+            ]
+        ),
+        b_exp = @SArray([0.87795339639076675, -0.72692641526151547, 0.7520413715737272, -0.22898029400415088, γ]),
+        a_imp = @SArray(
+            [
+                0 0 0 0 0
+                -0.2228498531852541 γ 0 0 0
+                -0.46801347074080545 0.86349284225716961 γ 0 0
+                -0.46509906651927421 0.81063103116959553 0.61036726756832357 γ 0
+                0.87795339639076675 -0.72692641526151547 0.7520413715737272 -0.22898029400415088 γ
+            ]
+        ),
     )
 end
 
@@ -439,20 +391,20 @@ struct HOMMEM1 <: AbstractIMEXARKTableau end
 function tableau(::HOMMEM1)
     IMEXARKTableau(;
         a_exp = @SArray([
-            0   0   0   0   0   0;
-            1/5 0   0   0   0   0;
-            0   1/5 0   0   0   0;
-            0   0   1/3 0   0   0;
-            0   0   0   1/2 0   0;
-            0   0   0   0   1   0;
+            0 0 0 0 0 0
+            1/5 0 0 0 0 0
+            0 1/5 0 0 0 0
+            0 0 1/3 0 0 0
+            0 0 0 1/2 0 0
+            0 0 0 0 1 0
         ]),
         a_imp = @SArray([
-            0    0    0    0    0    0;
-            0    1/5  0    0    0    0;
-            0    0    1/5  0    0    0;
-            0    0    0    1/3  0    0;
-            0    0    0    0    1/2  0;
-            5/18 5/18 0    0    0    8/18;
+            0 0 0 0 0 0
+            0 1/5 0 0 0 0
+            0 0 1/5 0 0 0
+            0 0 0 1/3 0 0
+            0 0 0 0 1/2 0
+            5/18 5/18 0 0 0 8/18
         ]),
     )
 end

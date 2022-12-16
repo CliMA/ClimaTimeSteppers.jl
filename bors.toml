@@ -3,6 +3,7 @@ status = [
   "test-os (1.8, windows-latest)",
   "test-os (1.8, macos-latest)",
   "buildkite/climatimesteppers-ci",
+  "format",
   "docbuild"
 ]
 delete_merged_branches = true

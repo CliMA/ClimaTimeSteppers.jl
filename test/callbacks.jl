@@ -16,10 +16,10 @@ end
 MyCallback() = MyCallback(false, 0, false)
 
 function Callbacks.initialize!(cb::MyCallback, integrator)
-    cb.initialized=true
+    cb.initialized = true
 end
 function Callbacks.finalize!(cb::MyCallback, integrator)
-    cb.finalized=true
+    cb.finalized = true
 end
 function (cb::MyCallback)(integrator)
     cb.calls += 1
@@ -32,19 +32,22 @@ cb4 = MyCallback()
 cb5 = MyCallback()
 
 cbs = CallbackSet(
-    EveryXSimulationTime(cb1, 1/4),
-    EveryXSimulationTime(cb2, 1/2, atinit=true),
+    EveryXSimulationTime(cb1, 1 / 4),
+    EveryXSimulationTime(cb2, 1 / 2, atinit = true),
     EveryXSimulationSteps(cb3, 1),
-    EveryXSimulationSteps(cb4, 4,  atinit=true),
-    EveryXSimulationSteps(_ -> sleep(1/32), 1),
-    EveryXWallTimeSeconds(cb5, 0.49, comm_ctx)
+    EveryXSimulationSteps(cb4, 4, atinit = true),
+    EveryXSimulationSteps(_ -> sleep(1 / 32), 1),
+    EveryXWallTimeSeconds(cb5, 0.49, comm_ctx),
 )
 
 const_prob_inc = ODEProblem(
-    IncrementingODEFunction{true}((du,u,p,t,α=true,β=false) -> (du .= α .* p .+ β .* du)),
-    [0.0],(0.0,1.0),2.0)
+    IncrementingODEFunction{true}((du, u, p, t, α = true, β = false) -> (du .= α .* p .+ β .* du)),
+    [0.0],
+    (0.0, 1.0),
+    2.0,
+)
 
-solve(const_prob_inc, LSRKEulerMethod(), dt=1/32, callback=cbs)
+solve(const_prob_inc, LSRKEulerMethod(), dt = 1 / 32, callback = cbs)
 
 @test cb1.initialized
 @test cb2.initialized

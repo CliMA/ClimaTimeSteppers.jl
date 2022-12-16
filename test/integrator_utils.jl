@@ -2,7 +2,7 @@ function has_DataType_or_UnionAll(obj, name, pc = ())
     for pn in propertynames(obj)
         prop = getproperty(obj, pn)
         pc_full = (pc..., ".", pn)
-        pc_string = name*string(join(pc_full))
+        pc_string = name * string(join(pc_full))
         if prop isa DataType
             @warn "$pc_string::$(typeof(prop)) is a DataType"
             return true

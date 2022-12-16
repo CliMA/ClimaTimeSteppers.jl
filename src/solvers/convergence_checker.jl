@@ -47,12 +47,10 @@ function allocate_cache(alg::ConvergenceChecker, val_prototype)
     end
     FT = eltype(val_prototype)
     return (;
-        norm_cache = isnothing(norm_condition) ? nothing :
-            Ref{cache_type(norm_condition, FT)}(),
+        norm_cache = isnothing(norm_condition) ? nothing : Ref{cache_type(norm_condition, FT)}(),
         component_cache = isnothing(component_condition) ? nothing :
-            similar(val_prototype, cache_type(component_condition, FT)),
-        component_bools = isnothing(component_condition) ? nothing :
-            similar(val_prototype, Bool),
+                          similar(val_prototype, cache_type(component_condition, FT)),
+        component_bools = isnothing(component_condition) ? nothing : similar(val_prototype, Bool),
     )
 end
 
@@ -78,43 +76,21 @@ function run!(alg::ConvergenceChecker, cache, val, err, iter)
     else
         norm_val = norm(val)
         norm_err = norm(err)
-        converged = has_converged(
-            norm_condition,
-            norm_cache[],
-            norm_val,
-            norm_err,
-            iter,
-        )
+        converged = has_converged(norm_condition, norm_cache[], norm_val, norm_err, iter)
         if !isnothing(component_condition)
             if condition_combiner === &
-                converged = converged &&
-                    has_component_converged(alg, cache, val, err, iter)
+                converged = converged && has_component_converged(alg, cache, val, err, iter)
             else # condition_combiner === |
-                converged = converged ||
-                    has_component_converged(alg, cache, val, err, iter)
+                converged = converged || has_component_converged(alg, cache, val, err, iter)
             end
         end
     end
     if !converged # only update caches if they will be needed for future iters
-        if !isnothing(norm_condition) &&
-            needs_cache_update(norm_condition, iter)
-            norm_cache[] = updated_cache(
-                norm_condition,
-                norm_cache[],
-                norm_val,
-                norm_err,
-                iter,
-            )
+        if !isnothing(norm_condition) && needs_cache_update(norm_condition, iter)
+            norm_cache[] = updated_cache(norm_condition, norm_cache[], norm_val, norm_err, iter)
         end
-        if !isnothing(component_condition) &&
-            needs_cache_update(component_condition, iter)
-            @. component_cache = updated_cache(
-                (component_condition,),
-                component_cache,
-                abs(val),
-                abs(err),
-                iter,
-            )
+        if !isnothing(component_condition) && needs_cache_update(component_condition, iter)
+            @. component_cache = updated_cache((component_condition,), component_cache, abs(val), abs(err), iter)
         end
     end
     return converged

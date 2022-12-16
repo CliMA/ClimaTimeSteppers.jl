@@ -10,11 +10,27 @@ else
 end
 =#
 
-@safetestset "SparseContainers" begin include("sparse_containers.jl") end
-@safetestset "Newtons method" begin include("test_newtons_method.jl") end
-@safetestset "Single column ARS" begin include("single_column_ARS_test.jl") end
-@safetestset "Callbacks" begin include("callbacks.jl") end
-@safetestset "Aqua" begin include("aqua.jl") end
-@safetestset "Integrator tests" begin include("integrator.jl") end
-@safetestset "Algorithm convergence" begin include("convergence.jl") end
-@safetestset "Convergence checker unit tests" begin include("test_convergence_checker.jl") end
+@safetestset "SparseContainers" begin
+    include("sparse_containers.jl")
+end
+@safetestset "Newtons method" begin
+    include("test_newtons_method.jl")
+end
+@safetestset "Single column ARS" begin
+    include("single_column_ARS_test.jl")
+end
+@safetestset "Callbacks" begin
+    include("callbacks.jl")
+end
+@safetestset "Aqua" begin
+    include("aqua.jl")
+end
+@safetestset "Integrator tests" begin
+    include("integrator.jl")
+end
+@safetestset "Algorithm convergence" begin
+    include("convergence.jl")
+end
+@safetestset "Convergence checker unit tests" begin
+    include("test_convergence_checker.jl")
+end

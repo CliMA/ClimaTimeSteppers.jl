@@ -13,8 +13,7 @@ import ClimaComms, DiffEqBase
 Initialize a callback event for callbacks of type `F`. By default this does nothing, but
 can be extended for new callback events.
 """
-function initialize!(f!, integrator)
-end
+function initialize!(f!, integrator) end
 
 """
     ClimaTimeSteppers.Callbacks.finalize!(f!::F, integrator)
@@ -22,8 +21,7 @@ end
 Finalize a callback event for callbacks of type `F`. By default this does nothing, but
 can be extended for new callback events.
 """
-function finalize!(f!, integrator)
-end
+function finalize!(f!, integrator) end
 
 
 export EveryXWallTimeSeconds, EveryXSimulationTime, EveryXSimulationSteps
@@ -41,8 +39,7 @@ An [ClimaComms context](https://clima.github.io/ClimaComms.jl/) must be provided
 If `atinit=true`, then `f!(integrator)` will additionally be triggered at initialization,
 otherwise the first trigger will be after `Δwt` seconds.
 """
-function EveryXWallTimeSeconds(f!, Δwt, comm_ctx::ClimaComms.AbstractCommsContext;
-                               atinit=false)
+function EveryXWallTimeSeconds(f!, Δwt, comm_ctx::ClimaComms.AbstractCommsContext; atinit = false)
     wt_next = 0.0
 
     function _initialize(c, u, t, integrator)
@@ -71,9 +68,9 @@ function EveryXWallTimeSeconds(f!, Δwt, comm_ctx::ClimaComms.AbstractCommsConte
     end
 
     if isdefined(DiffEqBase, :finalize!)
-        DiffEqBase.DiscreteCallback(condition, f!; initialize=_initialize, finalize=_finalize)
+        DiffEqBase.DiscreteCallback(condition, f!; initialize = _initialize, finalize = _finalize)
     else
-        DiffEqBase.DiscreteCallback(condition, f!; initialize=_initialize)
+        DiffEqBase.DiscreteCallback(condition, f!; initialize = _initialize)
     end
 end
 
@@ -88,8 +85,7 @@ Trigger `f!(integrator)` every `Δt` simulation time.
 If `atinit=true`, then `f!` will additionally be triggered at initialization. Otherwise
 the first trigger will be after `Δt` simulation time.
 """
-function EveryXSimulationTime(f!, Δt;
-                              atinit=false)
+function EveryXSimulationTime(f!, Δt; atinit = false)
     t_next = zero(Δt)
 
     function _initialize(c, u, t, integrator)
@@ -116,9 +112,9 @@ function EveryXSimulationTime(f!, Δt;
         end
     end
     if isdefined(DiffEqBase, :finalize!)
-        DiffEqBase.DiscreteCallback(condition, f!; initialize=_initialize, finalize=_finalize)
+        DiffEqBase.DiscreteCallback(condition, f!; initialize = _initialize, finalize = _finalize)
     else
-        DiffEqBase.DiscreteCallback(condition, f!; initialize=_initialize)
+        DiffEqBase.DiscreteCallback(condition, f!; initialize = _initialize)
     end
 end
 
@@ -133,8 +129,7 @@ Trigger `f!(integrator)` every `Δsteps` simulation steps.
 If `atinit==true`, then `f!` will additionally be triggered at initialization. Otherwise
 the first trigger will be after `Δsteps`.
 """
-function EveryXSimulationSteps(f!, Δsteps;
-                               atinit=false)
+function EveryXSimulationSteps(f!, Δsteps; atinit = false)
     steps = 0
     steps_next = 0
 
@@ -162,9 +157,9 @@ function EveryXSimulationSteps(f!, Δsteps;
     end
 
     if isdefined(DiffEqBase, :finalize!)
-        DiffEqBase.DiscreteCallback(condition, f!; initialize=_initialize, finalize=_finalize)
+        DiffEqBase.DiscreteCallback(condition, f!; initialize = _initialize, finalize = _finalize)
     else
-        DiffEqBase.DiscreteCallback(condition, f!; initialize=_initialize)
+        DiffEqBase.DiscreteCallback(condition, f!; initialize = _initialize)
     end
 end
 

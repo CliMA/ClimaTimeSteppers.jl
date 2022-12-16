@@ -34,7 +34,7 @@ mutable struct DistributedODEIntegrator{
     callback::callbackType
     advance_to_tstop::Bool
     u_modified::Bool # not used; field is required for compatibility with
-                     # DiffEqBase.initialize! and DiffEqBase.finalize!
+    # DiffEqBase.initialize! and DiffEqBase.finalize!
     cache::cacheType
     sol::solType
 end
@@ -42,8 +42,7 @@ end
 # helper function for setting up min/max heaps for tstops and saveat
 function tstops_and_saveat_heaps(t0, tf, tstops, saveat)
     FT = typeof(tf)
-    ordering = tf > t0 ? DataStructures.FasterForward :
-        DataStructures.FasterReverse
+    ordering = tf > t0 ? DataStructures.FasterForward : DataStructures.FasterReverse
 
     # ensure that tstops includes tf and only has values ahead of t0
     tstops = [filter(t -> t0 < t < tf || tf < t < t0, tstops)..., tf]
@@ -93,14 +92,10 @@ function DiffEqBase.__init(
     tstops, saveat = tstops_and_saveat_heaps(t0, tf, tstops, saveat)
 
     sol = DiffEqBase.build_solution(prob, alg, typeof(t0)[], typeof(u0)[])
-    saving_callback = NonInterpolatingSavingCallback(
-        save_func,
-        DiffEqCallbacks.SavedValues(sol.t, sol.u),
-        save_everystep,
-    )
+    saving_callback =
+        NonInterpolatingSavingCallback(save_func, DiffEqCallbacks.SavedValues(sol.t, sol.u), save_everystep)
     callback = DiffEqBase.CallbackSet(callback, saving_callback)
-    isempty(callback.continuous_callbacks) ||
-        error("Continuous callbacks are not supported")
+    isempty(callback.continuous_callbacks) || error("Continuous callbacks are not supported")
 
     integrator = DistributedODEIntegrator(
         alg,
@@ -139,8 +134,7 @@ function DiffEqBase.reinit!(
 )
     integrator.u .= u0
     integrator.t = t0
-    integrator.tstops, integrator.saveat =
-        tstops_and_saveat_heaps(t0, tf, tstops, saveat)
+    integrator.tstops, integrator.saveat = tstops_and_saveat_heaps(t0, tf, tstops, saveat)
     integrator.step = 0
     if erase_sol
         resize!(integrator.sol.t, 0)
@@ -155,12 +149,7 @@ function DiffEqBase.reinit!(
 end
 
 # called by DiffEqBase.solve
-function DiffEqBase.__solve(
-    prob::DiffEqBase.AbstractODEProblem,
-    alg::DistributedODEAlgorithm,
-    args...;
-    kwargs...,
-)
+function DiffEqBase.__solve(prob::DiffEqBase.AbstractODEProblem, alg::DistributedODEAlgorithm, args...; kwargs...)
     integrator = DiffEqBase.__init(prob, alg, args...; kwargs...)
     DiffEqBase.solve!(integrator)
 end
@@ -170,12 +159,7 @@ function DiffEqBase.solve!(integrator::DistributedODEIntegrator)
     while !isempty(integrator.tstops) && integrator.step != integrator.stepstop
         __step!(integrator)
     end
-    DiffEqBase.finalize!(
-        integrator.callback,
-        integrator.u,
-        integrator.t,
-        integrator,
-    )
+    DiffEqBase.finalize!(integrator.callback, integrator.u, integrator.t, integrator)
     return integrator.sol
 end
 
@@ -190,15 +174,10 @@ function DiffEqBase.step!(integrator::DistributedODEIntegrator)
     end
 end
 
-function DiffEqBase.step!(
-    integrator::DistributedODEIntegrator,
-    dt,
-    stop_at_tdt = false,
-)
+function DiffEqBase.step!(integrator::DistributedODEIntegrator, dt, stop_at_tdt = false)
     # OridinaryDiffEq lets dt be negative if tdir is -1, but that's inconsistent
     dt <= zero(dt) && error("dt must be positive")
-    stop_at_tdt && !integrator.dtchangeable &&
-        error("Cannot stop at t + dt if dtchangeable is false")
+    stop_at_tdt && !integrator.dtchangeable && error("Cannot stop at t + dt if dtchangeable is false")
     t_plus_dt = integrator.t + tdir(integrator) * dt
     stop_at_tdt && DiffEqBase.add_tstop!(integrator, t_plus_dt)
     while !reached_tstop(integrator, t_plus_dt, stop_at_tdt)
@@ -208,10 +187,8 @@ end
 
 # helper functions for dealing with time-reversed integrators in the same way
 # that OrdinaryDiffEq.jl does
-tdir(integrator) =
-    integrator.tstops.ordering isa DataStructures.FasterForward ? 1 : -1
-is_past_t(integrator, t) =
-    tdir(integrator) * (t - integrator.t) < zero(integrator.t)
+tdir(integrator) = integrator.tstops.ordering isa DataStructures.FasterForward ? 1 : -1
+is_past_t(integrator, t) = tdir(integrator) * (t - integrator.t) < zero(integrator.t)
 reached_tstop(integrator, tstop, stop_at_tstop = integrator.dtchangeable) =
     integrator.t == tstop || (!stop_at_tstop && is_past_t(integrator, tstop))
 
@@ -221,8 +198,8 @@ function __step!(integrator)
     # update step and dt before incrementing u; if dt is changeable and there is
     # a tstop within dt, reduce dt to tstop - t
     integrator.step += 1
-    integrator.dt = !isempty(tstops) && dtchangeable ?
-        tdir(integrator) * min(_dt, abs(first(tstops) - integrator.t)) :
+    integrator.dt =
+        !isempty(tstops) && dtchangeable ? tdir(integrator) * min(_dt, abs(first(tstops) - integrator.t)) :
         tdir(integrator) * _dt
     step_u!(integrator)
 
@@ -232,9 +209,7 @@ function __step!(integrator)
     t_plus_dt = integrator.t + integrator.dt
     t_unit = oneunit(integrator.t)
     max_t_error = 100 * eps(float(integrator.t / t_unit)) * t_unit
-    integrator.t =
-        !isempty(tstops) && abs(first(tstops) - t_plus_dt) < max_t_error ?
-        first(tstops) : t_plus_dt
+    integrator.t = !isempty(tstops) && abs(first(tstops) - t_plus_dt) < max_t_error ? first(tstops) : t_plus_dt
 
     # apply callbacks
     discrete_callbacks = integrator.callback.discrete_callbacks
@@ -261,22 +236,20 @@ function set_dt!(integrator::DistributedODEIntegrator, dt)
 end
 
 function DiffEqBase.add_tstop!(integrator::DistributedODEIntegrator, t)
-    is_past_t(integrator, t) &&
-        error("Cannot add a tstop at $t because that is behind the current \
-               integrator time $(integrator.t)")
+    is_past_t(integrator, t) && error("Cannot add a tstop at $t because that is behind the current \
+                                       integrator time $(integrator.t)")
     push!(integrator.tstops, t)
 end
 
 function DiffEqBase.add_saveat!(integrator::DistributedODEIntegrator, t)
-    is_past_t(integrator, t) &&
-        error("Cannot add a saveat point at $t because that is behind the \
-               current integrator time $(integrator.t)")
+    is_past_t(integrator, t) && error("Cannot add a saveat point at $t because that is behind the \
+                                       current integrator time $(integrator.t)")
     push!(integrator.saveat, t)
 end
 
 # not sure what this should do?
 # defined as default initialize: https://github.com/SciML/DiffEqBase.jl/blob/master/src/callbacks.jl#L3
-DiffEqBase.u_modified!(i::DistributedODEIntegrator,bool) = nothing
+DiffEqBase.u_modified!(i::DistributedODEIntegrator, bool) = nothing
 
 # this is roughly based on SavingCallback from DiffEqCallbacks, except that it
 # doesn't interpolate; instead it will save the first step after
@@ -284,28 +257,22 @@ function NonInterpolatingSavingCallback(save_func, saved_values, save_everystep)
     if save_everystep
         condition = (u, t, integrator) -> true
     else
-        condition = (u, t, integrator) -> begin
-            cond = false
-            while !isempty(integrator.saveat) && (
-                first(integrator.saveat) == integrator.t ||
-                is_past_t(integrator, first(integrator.saveat))
-            )
-                cond = true
-                pop!(integrator.saveat)
+        condition =
+            (u, t, integrator) -> begin
+                cond = false
+                while !isempty(integrator.saveat) &&
+                    (first(integrator.saveat) == integrator.t || is_past_t(integrator, first(integrator.saveat)))
+                    cond = true
+                    pop!(integrator.saveat)
+                end
+                return cond
             end
-            return cond
-        end
     end
     function affect!(integrator)
         push!(saved_values.t, integrator.t)
-        push!(
-            saved_values.saveval,
-            save_func(integrator.u, integrator.t, integrator),
-        )
+        push!(saved_values.saveval, save_func(integrator.u, integrator.t, integrator))
     end
-    initialize(cb, u, t, integrator) =
-        condition(u,t,integrator) && affect!(integrator)
-    finalize(cb, u, t, integrator) =
-        !save_everystep && !isempty(integrator.saveat) && affect!(integrator)
+    initialize(cb, u, t, integrator) = condition(u, t, integrator) && affect!(integrator)
+    finalize(cb, u, t, integrator) = !save_everystep && !isempty(integrator.saveat) && affect!(integrator)
     DiffEqBase.DiscreteCallback(condition, affect!; initialize, finalize)
 end

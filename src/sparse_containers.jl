@@ -22,11 +22,8 @@ v = SparseContainer((a1,a2,a3,a4), (1,3,5,7))
 """
 struct SparseContainer{SIM, T}
     data::T
-    function SparseContainer(
-            compressed_data::T,
-            sparse_index_map::Tuple
-        ) where {T}
-        @assert all(map(x-> eltype(compressed_data) .== typeof(x), compressed_data))
+    function SparseContainer(compressed_data::T, sparse_index_map::Tuple) where {T}
+        @assert all(map(x -> eltype(compressed_data) .== typeof(x), compressed_data))
         return new{sparse_index_map, T}(compressed_data)
     end
 end

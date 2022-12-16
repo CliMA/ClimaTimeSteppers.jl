@@ -40,7 +40,7 @@ function test_algs(
     test_case,
     num_steps;
     save_every_n_steps = Int(cld(num_steps, 500)),
-    super_convergence = nothing
+    super_convergence = nothing,
 )
     (; test_name, linear_implicit, t_end, analytic_sol) = test_case
     FT = typeof(t_end)
@@ -99,8 +99,8 @@ function test_algs(
             tendency_prob = test_case.prob
             increment_prob = test_case.increment_prob
         end
-        predicted_order = if super_convergence==tab
-            CTS.theoretical_convergence_order(tab())+1
+        predicted_order = if super_convergence == tab
+            CTS.theoretical_convergence_order(tab()) + 1
         else
             CTS.theoretical_convergence_order(tab())
         end
@@ -110,32 +110,26 @@ function test_algs(
         # Use tstops to fix saving issues due to machine precision (e.g. if the
         # integrator needs to save at t but it stops at t - eps(), it will skip
         # over saving at t, unless tstops forces it to round t - eps() to t).
-        solve_args =
-            (; dt = plot1_dt, saveat = plot1_saveat, tstops = plot1_saveat)
+        solve_args = (; dt = plot1_dt, saveat = plot1_saveat, tstops = plot1_saveat)
         tendency_sols = solve(deepcopy(tendency_prob), alg; solve_args...).u
         tendency_norms = @. norm(tendency_sols)
         tendency_errs = @. norm(tendency_sols - analytic_sols)
         min_err = minimum(x -> x == 0 ? typemax(FT) : x, tendency_errs)
         plot1b_ymin = min(plot1b_ymin, min_err)
         plot1b_ymax = max(plot1b_ymax, maximum(tendency_errs))
-        tendency_errs .=
-            max.(tendency_errs, eps(FT(0))) # plotting 0 breaks the log scale
+        tendency_errs .= max.(tendency_errs, eps(FT(0))) # plotting 0 breaks the log scale
         Plots.plot!(plot1a, plot1_saveat, tendency_norms; label = alg_name, linestyle)
         Plots.plot!(plot1b, plot1_saveat, tendency_errs; label = alg_name, linestyle)
 
         if has_increment_formulation(tab())
-            increment_sols =
-                solve(deepcopy(increment_prob), alg; solve_args...).u
+            increment_sols = solve(deepcopy(increment_prob), alg; solve_args...).u
             increment_errs = @. norm(increment_sols - tendency_sols)
-            @test maximum(increment_errs) < 1000 * eps(FT) broken =
-                alg_name == "HOMMEM1" # TODO: why is this one broken?
+            @test maximum(increment_errs) < 1000 * eps(FT) broken = alg_name == "HOMMEM1" # TODO: why is this one broken?
         end
 
-        tendency_end_sols =
-            map(dt -> solve(deepcopy(tendency_prob), alg; dt).u[end], plot2_dts)
+        tendency_end_sols = map(dt -> solve(deepcopy(tendency_prob), alg; dt).u[end], plot2_dts)
         tendency_end_errs = @. norm(tendency_end_sols - analytic_end_sol)
-        _, computed_order = hcat(ones(length(plot2_dts)), log10.(plot2_dts)) \
-            log10.(tendency_end_errs)
+        _, computed_order = hcat(ones(length(plot2_dts)), log10.(plot2_dts)) \ log10.(tendency_end_errs)
         @test computed_order ≈ predicted_order rtol = 0.1
         label = "$alg_name ($(Printf.@sprintf "%.3f" computed_order))"
         Plots.plot!(plot2, plot2_dts, tendency_end_errs; label, linestyle)

@@ -5,12 +5,12 @@ A wrapper around a function `f` that acts as a linear operator.
 
 `isconstant=true` if `f` is time-invariant.
 """
-struct DiffEqLinearOperator{T,F,isconstant} <: DiffEqBase.AbstractDiffEqLinearOperator{T}
-  f::F
+struct DiffEqLinearOperator{T, F, isconstant} <: DiffEqBase.AbstractDiffEqLinearOperator{T}
+    f::F
 end
-DiffEqLinearOperator{T}(f; isconstant=false) where {T} = DiffEqLinearOperator{T,typeof(f), isconstant}(f)
+DiffEqLinearOperator{T}(f; isconstant = false) where {T} = DiffEqLinearOperator{T, typeof(f), isconstant}(f)
 
-DiffEqBase.isconstant(::DiffEqLinearOperator{F,isconstant}) where {F,isconstant} = isconstant
+DiffEqBase.isconstant(::DiffEqLinearOperator{F, isconstant}) where {F, isconstant} = isconstant
 (op::DiffEqLinearOperator)(args...) = op.f(args...)
 
 """
@@ -29,7 +29,7 @@ f!(dQ, Q, args...)
 LQ .= Q .+ γ .* dQ
 ```
 """
-mutable struct EulerOperator{T,F,P,tType}
+mutable struct EulerOperator{T, F, P, tType}
     f::F
     γ::T
     p::P
@@ -40,5 +40,6 @@ function (op::EulerOperator)(LQ, Q, args...)
     op.f(LQ, Q, args...)
     @. LQ = Q + op.γ * LQ
 end
-DiffEqBase.isconstant(op::EulerOperator) = op.f isa DiffEqBase.AbstractDiffEqLinearOperator && DiffEqBase.isconstant(op.f)
-LinearAlgebra.mul!(Y, op::EulerOperator, X) = op(Y,X,op.p,op.t)
+DiffEqBase.isconstant(op::EulerOperator) =
+    op.f isa DiffEqBase.AbstractDiffEqLinearOperator && DiffEqBase.isconstant(op.f)
+LinearAlgebra.mul!(Y, op::EulerOperator, X) = op(Y, X, op.p, op.t)

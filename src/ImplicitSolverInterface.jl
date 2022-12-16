@@ -45,8 +45,7 @@ where `f` is the ODE tendency function, `param` are the ODE parameters, and
 `time` is the current ODE time. The arguments `Q` should be modified in place
 and should not be assumed to be initialized to any value.
 """
-(be::AbstractBackwardEulerSolver)(Q, Qhat, α, p, t) =
-    throw(MethodError(be, (Q, Qhat, α, p, t)))
+(be::AbstractBackwardEulerSolver)(Q, Qhat, α, p, t) = throw(MethodError(be, (Q, Qhat, α, p, t)))
 
 """
     Δt_is_adjustable(::AbstractBackwardEulerSolver)
@@ -92,8 +91,7 @@ time step size.
 struct LinearBackwardEulerSolver{LS}
     solver::LS
     isadjustable::Bool
-    LinearBackwardEulerSolver(solver; isadjustable = false) =
-        new{typeof(solver)}(solver, isadjustable)
+    LinearBackwardEulerSolver(solver; isadjustable = false) = new{typeof(solver)}(solver, isadjustable)
 end
 
 """
@@ -115,21 +113,14 @@ end
 
 function setup_backward_Euler_solver(lin::LinearBackwardEulerSolver, Q, α, rhs!)
     FT = eltype(α)
-    factors =
-        prefactorize(EulerOperator(rhs!, -α), lin.solver, Q, nothing, FT(NaN))
+    factors = prefactorize(EulerOperator(rhs!, -α), lin.solver, Q, nothing, FT(NaN))
     LinBESolver(α, factors, lin.solver, lin.isadjustable, rhs!)
 end
 
 function update_backward_Euler_solver!(lin::LinBESolver, Q, α)
     lin.α = α
     FT = eltype(Q)
-    lin.linearoperator = prefactorize(
-        EulerOperator(lin.rhs!, -α),
-        lin.solver,
-        Q,
-        nothing,
-        FT(NaN),
-    )
+    lin.linearoperator = prefactorize(EulerOperator(lin.rhs!, -α), lin.solver, Q, nothing, FT(NaN))
 end
 
 function (lin::LinBESolver)(Q, Qhat, α, p, t)

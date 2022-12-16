@@ -1,13 +1,45 @@
-import Plots, Printf
+import Plots, Printf, Distributions
+using LaTeXStrings
 import ClimaTimeSteppers as CTS
 using Test
 
-# Should we remove this?
-has_increment_formulation(::CTS.AbstractIMEXARKTableau) = false
+# Compute a confidence interval for the convergence order, returning the
+# estimated convergence order and its uncertainty.
+function convergence_order(dts, errs, confidence)
+    log_dts = log10.(dts)
+    log_errs = log10.(errs)
+    n_dts = length(dts)
+
+    # slope and vertical intercept of linear regression (for each log_dt and
+    # log_err, log_err ≈ log_dt * order + log_err_of_dt1)
+    order, log_err_of_dt1 = hcat(log_dts, ones(n_dts)) \ log_errs
+
+    # number of degrees of freedom of linear regression (number of data
+    # points minus number of fitted parameters)
+    n_dof = n_dts - 2
+
+    # critical value of Student's t-distribution for two-sided confidence
+    # interval
+    confidence_interval_t_value = -Distributions.quantile(Distributions.TDist(n_dof), (1 - confidence) / 2)
+
+    # standard deviation of linear regression
+    regression_standard_deviation = sqrt(sum((log_errs .- (log_dts .* order .+ log_err_of_dt1)) .^ 2) / n_dof)
+
+    # standard deviation of slope
+    order_standard_deviation = regression_standard_deviation / sqrt(sum((log_dts .- sum(log_dts) / n_dts) .^ 2))
+
+    # "uncertainty" in slope (half of width of confidence interval)
+    order_uncertainty = confidence_interval_t_value * order_standard_deviation
+
+    return order, order_uncertainty
+end
+
+average_function_name() = "RMS"
+average_function(array) = norm(array) / sqrt(length(array))
 
 """
     test_algs(
-        algs_name,
+        tableaus_name,
         algs,
         test_case,
         num_steps;
@@ -34,111 +66,237 @@ errors with respect to `dt`.
       are plotted (unless there are fewer than 500 steps, in which case every
       step is plotted)
 """
-function test_algs(
-    algs_name,
+function test_tableaus(
+    tableaus_name,
     tableaus,
     test_case,
     num_steps;
-    save_every_n_steps = Int(cld(num_steps, 500)),
-    super_convergence = nothing,
+    num_steps_scaling_factor = 10,
+    order_confidence_percent = 99,
+    super_convergence_tableaus = (),
+    numerical_reference_tableau = nothing,
+    numerical_reference_num_steps = num_steps_scaling_factor^3 * num_steps,
+    full_history_tableau = nothing,
 )
     (; test_name, linear_implicit, t_end, analytic_sol) = test_case
+    prob = test_case.split_prob
     FT = typeof(t_end)
+    default_dt = t_end / num_steps
+
+    max_iters = linear_implicit ? 1 : 2 # TODO: is 2 enough?
+    algorithm(tableau) = CTS.IMEXARKAlgorithm(tableau(), NewtonsMethod(; max_iters))
+
+    ref_sol = if isnothing(numerical_reference_tableau)
+        analytic_sol
+    else
+        ref_alg = algorithm(numerical_reference_tableau)
+        ref_dt = t_end / numerical_reference_num_steps
+        solve(deepcopy(prob), ref_alg; dt = ref_dt, save_everystep = true)
+    end
+
+    cur_avg_err(u, t) = average_function(abs.(u .- ref_sol(t)))
+    cur_avg_sol_and_err(u, t) = (average_function(u), average_function(abs.(u .- ref_sol(t))))
+
+    float_str(x) = Printf.@sprintf "%.4f" x
+    pow_str(x) = "10^{$(Printf.@sprintf "%.1f" log10(x))}"
+    function si_str(x)
+        exponent = floor(Int, log10(x))
+        mantissa = x / 10.0^exponent
+        return "$(float_str(mantissa)) \\times 10^{$exponent}"
+    end
+
+    net_avg_sol_str = "\\textrm{$(average_function_name())}\\_\\textrm{solution}"
+    net_avg_err_str = "\\textrm{$(average_function_name())}\\_\\textrm{error}"
+    cur_avg_sol_str = "\\textrm{current}\\_$net_avg_sol_str"
+    cur_avg_err_str = "\\textrm{current}\\_$net_avg_err_str"
+
     linestyles = (:solid, :dash, :dot, :dashdot, :dashdotdot)
     plot_kwargs = (;
-        size = (1000, 600),
-        margin = 4Plots.mm,
-        titlelocation = :left,
-        legend_position = :outerright,
+        legendposition = :outerright,
+        legendtitlefontpointsize = 8,
         palette = :glasbey_bw_minc_20_maxl_70_n256,
+        size = (1000, 2000), # size in px
+        leftmargin = 60Plots.px,
+        rightmargin = 0Plots.px,
+        topmargin = 0Plots.px,
+        bottommargin = 30Plots.px,
     )
 
-    plot1_dt = t_end / num_steps
-    plot1_saveat = 0:(plot1_dt * save_every_n_steps):t_end
-    plot1a = Plots.plot(;
-        title = "Solution Norms of $algs_name Methods for `$test_name` \
-                 (with dt = 10^$(Printf.@sprintf "%.1f" log10(plot1_dt)))",
-        xlabel = "t",
-        ylabel = "Solution Norm: ||Y_computed||",
-        plot_kwargs...,
-    )
-    plot1b = Plots.plot(;
-        title = "Solution Errors of $algs_name Methods for `$test_name` \
-                 (with dt = 10^$(Printf.@sprintf "%.1f" log10(plot1_dt)))",
-        xlabel = "t",
-        ylabel = "Error Norm: ||Y_computed - Y_analytic||",
-        yscale = :log10,
-        plot_kwargs...,
-    )
-    plot1b_ymin = typemax(FT) # dynamically set ylim because some errors are 0
-    plot1b_ymax = typemin(FT)
-
-    t_end_string = t_end % 1 == 0 ? string(Int(t_end)) : Printf.@sprintf("%.2f", t_end)
-    plot2_dts = [plot1_dt / sqrt(10), plot1_dt, plot1_dt * sqrt(10)]
-    plot2 = Plots.plot(;
-        title = "Convergence Orders of $algs_name Methods for `$test_name` \
-                 (at t = $t_end_string)",
-        xlabel = "dt",
-        ylabel = "Error Norm: ||Y_computed - Y_analytic||",
-        xscale = :log10,
-        yscale = :log10,
+    plot1_dts = t_end ./ round.(Int, num_steps .* num_steps_scaling_factor .^ (-1:0.5:1))
+    plot1 = Plots.plot(;
+        title = "Convergence Orders",
+        xaxis = (latexstring("dt"), :log10),
+        yaxis = (latexstring(net_avg_err_str), :log10),
+        legendtitle = "Convergence Order ($order_confidence_percent% CI)",
         plot_kwargs...,
     )
 
-    analytic_sols = map(analytic_sol, plot1_saveat)
-    analytic_end_sol = [analytic_sols[end]]
+    plot2b_min = typemax(FT)
+    plot2b_max = typemin(FT)
+    plot2a = Plots.plot(;
+        title = latexstring("Solutions with \$dt = $(pow_str(default_dt))\$"),
+        xaxis = (latexstring("t"),),
+        yaxis = (latexstring(cur_avg_sol_str),),
+        legendtitle = latexstring(net_avg_sol_str),
+        plot_kwargs...,
+    )
+    plot2b = Plots.plot(;
+        title = latexstring("Errors with \$dt = $(pow_str(default_dt))\$"),
+        xaxis = (latexstring("t"),),
+        yaxis = (latexstring(cur_avg_err_str), :log10),
+        legendtitle = latexstring(net_avg_err_str),
+        plot_kwargs...,
+    )
 
-    for tab in tableaus
-        if tab() isa CTS.AbstractIMEXARKTableau
-            max_iters = linear_implicit ? 1 : 2 # TODO: is 2 enough?
-            alg = CTS.IMEXARKAlgorithm(tab(), NewtonsMethod(; max_iters))
-            tendency_prob = test_case.split_prob
-            increment_prob = test_case.split_increment_prob
-        else
-            alg = tab()
-            tendency_prob = test_case.prob
-            increment_prob = test_case.increment_prob
-        end
-        predicted_order = if super_convergence == tab
-            CTS.theoretical_convergence_order(tab()) + 1
-        else
-            CTS.theoretical_convergence_order(tab())
-        end
+    for tableau in tableaus
+        alg = algorithm(tableau)
+        alg_name = string(nameof(tableau))
+        predicted_order = CTS.theoretical_convergence_order(tableau(), prob.f)
         linestyle = linestyles[(predicted_order - 1) % length(linestyles) + 1]
-        alg_name = string(nameof(tab))
 
-        # Use tstops to fix saving issues due to machine precision (e.g. if the
-        # integrator needs to save at t but it stops at t - eps(), it will skip
-        # over saving at t, unless tstops forces it to round t - eps() to t).
-        solve_args = (; dt = plot1_dt, saveat = plot1_saveat, tstops = plot1_saveat)
-        tendency_sols = solve(deepcopy(tendency_prob), alg; solve_args...).u
-        tendency_norms = @. norm(tendency_sols)
-        tendency_errs = @. norm(tendency_sols - analytic_sols)
-        min_err = minimum(x -> x == 0 ? typemax(FT) : x, tendency_errs)
-        plot1b_ymin = min(plot1b_ymin, min_err)
-        plot1b_ymax = max(plot1b_ymax, maximum(tendency_errs))
-        tendency_errs .= max.(tendency_errs, eps(FT(0))) # plotting 0 breaks the log scale
-        Plots.plot!(plot1a, plot1_saveat, tendency_norms; label = alg_name, linestyle)
-        Plots.plot!(plot1b, plot1_saveat, tendency_errs; label = alg_name, linestyle)
-
-        if has_increment_formulation(tab())
-            increment_sols = solve(deepcopy(increment_prob), alg; solve_args...).u
-            increment_errs = @. norm(increment_sols - tendency_sols)
-            @test maximum(increment_errs) < 1000 * eps(FT) broken = alg_name == "HOMMEM1" # TODO: why is this one broken?
+        plot1_net_avg_errs = map(plot1_dts) do plot1_dt
+            cur_avg_errs =
+                solve(
+                    deepcopy(prob),
+                    alg;
+                    dt = plot1_dt,
+                    save_everystep = true,
+                    save_func = cur_avg_err,
+                    kwargshandle = DiffEqBase.KeywordArgSilent,
+                ).u
+            return average_function(cur_avg_errs)
         end
+        order, order_uncertainty = convergence_order(plot1_dts, plot1_net_avg_errs, order_confidence_percent / 100)
+        order_str = "$(float_str(order)) \\pm $(float_str(order_uncertainty))"
+        if tableau in super_convergence_tableaus
+            predicted_order += 1
+            plot1_label = "$alg_name: \$$order_str\\ \\ \\ \\textbf{\\textit{SC}}\$"
+        else
+            plot1_label = "$alg_name: \$$order_str\$"
+        end
+        @test abs(order - predicted_order) <= order_uncertainty
+        @test order_uncertainty <= predicted_order / 10
+        Plots.plot!(
+            plot1,
+            plot1_dts,
+            plot1_net_avg_errs;
+            label = latexstring(plot1_label),
+            markershape = :circle,
+            markeralpha = 0.5,
+            markerstrokewidth = 0,
+            linestyle,
+        )
 
-        tendency_end_sols = map(dt -> solve(deepcopy(tendency_prob), alg; dt).u[end], plot2_dts)
-        tendency_end_errs = @. norm(tendency_end_sols - analytic_end_sol)
-        _, computed_order = hcat(ones(length(plot2_dts)), log10.(plot2_dts)) \ log10.(tendency_end_errs)
-        @test computed_order ≈ predicted_order rtol = 0.1
-        label = "$alg_name ($(Printf.@sprintf "%.3f" computed_order))"
-        Plots.plot!(plot2, plot2_dts, tendency_end_errs; label, linestyle)
+        # Remove all 0s from plot2_cur_avg_errs because they cannot be plotted on a
+        # logarithmic scale. Record the extrema of plot2_cur_avg_errs to set ylim.
+        plot2_values = solve(
+            deepcopy(prob),
+            alg;
+            dt = default_dt,
+            save_everystep = true,
+            save_func = cur_avg_sol_and_err,
+            kwargshandle = DiffEqBase.KeywordArgSilent,
+        )
+        plot2_ts = plot2_values.t
+        plot2_cur_avg_sols = first.(plot2_values.u)
+        plot2_cur_avg_errs = last.(plot2_values.u)
+        plot2b_min = min(plot2b_min, minimum(x -> x == 0 ? typemax(FT) : x, plot2_cur_avg_errs))
+        plot2b_max = max(plot2b_max, maximum(plot2_cur_avg_errs))
+        plot2_cur_avg_errs .= max.(plot2_cur_avg_errs, eps(FT(0)))
+        plot2_net_avg_sol = average_function(plot2_cur_avg_sols)
+        plot2_net_avg_err = average_function(plot2_cur_avg_errs)
+        Plots.plot!(
+            plot2a,
+            plot2_ts,
+            plot2_cur_avg_sols;
+            label = latexstring("$alg_name: \$$(si_str(plot2_net_avg_sol))\$"),
+            linestyle,
+        )
+        Plots.plot!(
+            plot2b,
+            plot2_ts,
+            plot2_cur_avg_errs;
+            label = latexstring("$alg_name: \$$(si_str(plot2_net_avg_err))\$"),
+            linestyle,
+        )
     end
-    Plots.plot!(plot1b; ylim = (plot1b_ymin / 2, plot1b_ymax * 2))
+
+    Plots.plot!(plot2b; ylim = (plot2b_min / 2, plot2b_max * 2))
+
+    plots = (plot1, plot2a, plot2b)
+
+    if !isnothing(full_history_tableau)
+        history_alg = algorithm(full_history_tableau)
+        history_alg_name = string(nameof(full_history_tableau))
+        history_solve_results = solve(
+            deepcopy(prob),
+            history_alg;
+            dt = default_dt,
+            save_everystep = true,
+            save_func = (u, t) -> u .- ref_sol(t),
+            kwargshandle = DiffEqBase.KeywordArgSilent,
+        )
+        history_array = hcat(history_solve_results.u...)
+        history_plot_title = "Errors for $history_alg_name with \$dt = $(pow_str(default_dt))\$"
+        history_plot = Plots.heatmap(
+            history_solve_results.t,
+            1:size(history_array, 1),
+            history_array;
+            title = latexstring(history_plot_title),
+            xaxis = (latexstring("t"),),
+            yaxis = ("index",),
+            plot_kwargs...,
+        )
+        plots = (plots..., history_plot)
+    end
+
+    avg_def_str(val_str, var_str) = "\\textrm{$(average_function_name())}(\\{$val_str\\,\\forall\\,$var_str\\})"
+    ref_sol_def_str =
+        isnothing(numerical_reference_tableau) ? "Y_{analytic}(t)[\\textrm{index}]" : "Y_{ref}(t)[\\textrm{index}]"
+    cur_avg_sol_def_str = avg_def_str("Y(t)[\\textrm{index}]", "\\textrm{index}")
+    cur_avg_err_def_str = avg_def_str("|Y(t)[\\textrm{index}] - $ref_sol_def_str|", "\\textrm{index}")
+    net_avg_sol_def_str = avg_def_str("$cur_avg_sol_str(t)", "t")
+    net_avg_err_def_str = avg_def_str("$cur_avg_err_str(t)", "t")
+    footnote = """
+        Terminology:
+            \$$cur_avg_sol_str(t) = $cur_avg_sol_def_str\$
+            \$$cur_avg_err_str(t) = $cur_avg_err_def_str\$
+            \$$net_avg_sol_str = $net_avg_sol_def_str\$
+            \$$net_avg_err_str = $net_avg_err_def_str\$"""
+    if !isnothing(numerical_reference_tableau)
+        ref_alg_name = string(nameof(numerical_reference_tableau))
+        ref_cur_avg_errs = map(ref_sol.u, ref_sol.t) do u, t
+            average_function(abs.(u .- analytic_sol(t)))
+        end
+        ref_net_avg_err = average_function(ref_cur_avg_errs)
+        ref_cur_avg_err_def_str =
+            avg_def_str("|Y_{ref}(t)[\\textrm{index}] - Y_{analytic}(t)[\\textrm{index}]|", "\\textrm{index}")
+        ref_net_avg_err_def_str = avg_def_str(ref_cur_avg_err_def_str, "t")
+        footnote = "$footnote\n\n\nNote: The \"reference solution\" \$Y_{ref}\$ was \
+                    computed using $ref_alg_name with\n\$dt = $(pow_str(ref_dt)),\\ \
+                    \\textrm{and}\\ $ref_net_avg_err_def_str = \
+                    $(si_str(ref_net_avg_err))\$"
+    end
+    footnote_plot = Plots.plot(;
+        title = latexstring(footnote),
+        titlelocation = :left,
+        titlefontsize = 12,
+        axis = nothing,
+        framestyle = :none,
+        margin = 0Plots.px,
+        bottommargin = 10Plots.px,
+    )
+    plots = (plots..., footnote_plot)
+
+    n_plots = length(plots)
+    plot = Plots.plot(
+        plots...;
+        plot_title = "Analysis of $tableaus_name Methods for \"$test_name\"",
+        layout = Plots.grid(n_plots, 1; heights = [repeat([1 / (n_plots - 1)], n_plots - 1)..., 0]),
+        fontfamily = "Computer Modern",
+    )
 
     mkpath("output")
-    file_suffix = "$(test_name)_$(lowercase(replace(algs_name, " " => "_")))"
-    Plots.savefig(plot1a, joinpath("output", "solutions_$(file_suffix).png"))
-    Plots.savefig(plot1b, joinpath("output", "errors_$(file_suffix).png"))
-    Plots.savefig(plot2, joinpath("output", "orders_$(file_suffix).png"))
+    file_suffix = lowercase(replace(test_name * ' ' * tableaus_name, " " => "_"))
+    Plots.savefig(plot, joinpath("output", "convergence_$file_suffix.png"))
 end

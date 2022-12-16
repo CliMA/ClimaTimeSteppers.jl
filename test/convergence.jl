@@ -1,4 +1,5 @@
-using ClimaTimeSteppers, LinearAlgebra, Test
+using ClimaTimeSteppers, LinearAlgebra, Test, ClimaCore
+import ClimaTimeSteppers as CTS
 
 include(joinpath(@__DIR__, "convergence_utils.jl"))
 include(joinpath(@__DIR__, "utils.jl"))
@@ -44,15 +45,34 @@ end
 ENV["GKSwstype"] = "nul" # avoid displaying plots
 
 @testset "IMEX ARK Algorithms" begin
+
     tab1 = (ARS111, ARS121)
     tab2 = (ARS122, ARS232, ARS222, IMKG232a, IMKG232b, IMKG242a, IMKG242b)
     tab2 = (tab2..., IMKG252a, IMKG252b, IMKG253a, IMKG253b, IMKG254a)
     tab2 = (tab2..., IMKG254b, IMKG254c, HOMMEM1)
     tab3 = (ARS233, ARS343, ARS443, IMKG342a, IMKG343a, DBM453)
-    tabs = [tab1..., tab2..., tab3...]
-    test_algs("IMEX ARK", tabs, ark_analytic_nonlin_test_cts(Float64), 400)
-    test_algs("IMEX ARK", tabs, ark_analytic_sys_test_cts(Float64), 60)
-    test_algs("IMEX ARK", tabs, ark_analytic_test_cts(Float64), 16000; super_convergence = ARS121)
+    tableaus = [tab1..., tab2..., tab3...]
+    # tableaus = subtypes(CTS.AbstractIMEXARKTableau)
+    test_tableaus("IMEX ARK", tableaus, ark_analytic_nonlin_test_cts(Float64), 200)
+    test_tableaus("IMEX ARK", tableaus, ark_analytic_sys_test_cts(Float64), 400)
+    test_tableaus("IMEX ARK", tableaus, ark_analytic_test_cts(Float64), 40000; super_convergence_tableaus = (ARS121,))
+    test_tableaus("IMEX ARK", tableaus, ark_onewaycouple_mri_test_cts(Float64), 14000; num_steps_scaling_factor = 8)
+    test_tableaus(
+        "IMEX ARK",
+        tableaus,
+        climacore_1Dheat_test_cts(Float64),
+        200;
+        num_steps_scaling_factor = 4,
+        numerical_reference_tableau = ARS343,
+    )
+    test_tableaus(
+        "IMEX ARK",
+        tableaus,
+        climacore_2Dheat_test_cts(Float64),
+        200;
+        num_steps_scaling_factor = 4,
+        numerical_reference_tableau = ARS343,
+    )
 end
 
 #=

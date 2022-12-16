@@ -17,7 +17,7 @@ Generates an `IMEXARKTableau` struct from an IMEX ARK Butcher tableau. Only
 values for `c_exp` and `c_imp` assume that the algorithm is internally
 consistent.
 """
-struct IMEXARKTableau{VS <: StaticArrays.StaticArray, MS <: StaticArrays.StaticArray} <: AbstractIMEXARKTableau
+struct IMEXARKTableau{VS <: StaticArrays.StaticArray, MS <: StaticArrays.StaticArray} <: AbstractTableau
     a_exp::MS # matrix of size s×s
     b_exp::VS # vector of length s
     c_exp::VS # vector of length s

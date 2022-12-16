@@ -4,11 +4,13 @@ env:
   OPENMPI_VERSION: "4.1.1"
   OPENBLAS_NUM_THREADS: 1
   CLIMATEMACHINE_SETTINGS_FIX_RNG_SEED: "true"
+  JULIA_DEPOT_PATH: "${BUILDKITE_BUILD_PATH}/${BUILDKITE_PIPELINE_SLUG}/depot/cpu"
 
 steps:
   - label: "init cpu env"
     key: "init_cpu_env"
     command:
+      - "echo $$JULIA_DEPOT_PATH"
       - echo "--- Configure MPI"
       - julia -e 'using Pkg; Pkg.add("MPIPreferences"); using MPIPreferences; use_system_binary()'
 

@@ -95,7 +95,7 @@ include("solvers/convergence_condition.jl")
 include("solvers/convergence_checker.jl")
 include("solvers/newtons_method.jl")
 include("solvers/imex_ark_tableaus.jl")
-include("solvers/imex_ark2.jl")
+include("solvers/imex_ark.jl")
 
 # Include concrete implementations
 include("solvers/multirate.jl")

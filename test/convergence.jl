@@ -12,20 +12,18 @@ include(joinpath(@__DIR__, "problems.jl"))
         (sincos_prob(), sincos_sol, 1)
     ]
 
-        @test convergence_order(prob, sol, LSRKEulerMethod(), dts.*tscale)     ≈ 1 atol=0.1
-        @test convergence_order(prob, sol, LSRK54CarpenterKennedy(), dts.*tscale)       ≈ 4 atol=0.05
-        @test convergence_order(prob, sol, LSRK144NiegemannDiehlBusch(),  dts.*tscale)   ≈ 4 atol=0.05
+        @test convergence_order(prob, sol, LSRKEulerMethod(), dts .* tscale) ≈ 1 atol = 0.1
+        @test convergence_order(prob, sol, LSRK54CarpenterKennedy(), dts .* tscale) ≈ 4 atol = 0.05
+        @test convergence_order(prob, sol, LSRK144NiegemannDiehlBusch(), dts .* tscale) ≈ 4 atol = 0.05
 
-        @test convergence_order(prob, sol, SSPRK22Heuns(), dts.*tscale)                 ≈ 2 atol=0.05
-        @test convergence_order(prob, sol, SSPRK22Ralstons(), dts.*tscale)              ≈ 2 atol=0.05
-        @test convergence_order(prob, sol, SSPRK33ShuOsher(), dts.*tscale)              ≈ 3 atol=0.05
-        @test convergence_order(prob, sol, SSPRK34SpiteriRuuth(), dts.*tscale)          ≈ 3 atol=0.05
+        @test convergence_order(prob, sol, SSPRK22Heuns(), dts .* tscale) ≈ 2 atol = 0.05
+        @test convergence_order(prob, sol, SSPRK22Ralstons(), dts .* tscale) ≈ 2 atol = 0.05
+        @test convergence_order(prob, sol, SSPRK33ShuOsher(), dts .* tscale) ≈ 3 atol = 0.05
+        @test convergence_order(prob, sol, SSPRK34SpiteriRuuth(), dts .* tscale) ≈ 3 atol = 0.05
     end
 
-    for (prob, sol, tscale) in [
-        (linear_prob_wfactt(), linear_sol, 1)
-    ]
-        @test convergence_order(prob, sol, SSPKnoth(linsolve=linsolve_direct), dts.*tscale) ≈ 2 atol=0.05
+    for (prob, sol, tscale) in [(linear_prob_wfactt(), linear_sol, 1)]
+        @test convergence_order(prob, sol, SSPKnoth(linsolve = linsolve_direct), dts .* tscale) ≈ 2 atol = 0.05
 
     end
 
@@ -35,10 +33,10 @@ include(joinpath(@__DIR__, "problems.jl"))
         (linear_prob_fe(), linear_sol, 1)
         (sincos_prob_fe(), sincos_sol, 1)
     ]
-        @test convergence_order(prob, sol, SSPRK22Heuns(), dts.*tscale)                 ≈ 2 atol=0.05
-        @test convergence_order(prob, sol, SSPRK22Ralstons(), dts.*tscale)              ≈ 2 atol=0.05
-        @test convergence_order(prob, sol, SSPRK33ShuOsher(), dts.*tscale)              ≈ 3 atol=0.05
-        @test convergence_order(prob, sol, SSPRK34SpiteriRuuth(), dts.*tscale)          ≈ 3 atol=0.05
+        @test convergence_order(prob, sol, SSPRK22Heuns(), dts .* tscale) ≈ 2 atol = 0.05
+        @test convergence_order(prob, sol, SSPRK22Ralstons(), dts .* tscale) ≈ 2 atol = 0.05
+        @test convergence_order(prob, sol, SSPRK33ShuOsher(), dts .* tscale) ≈ 3 atol = 0.05
+        @test convergence_order(prob, sol, SSPRK34SpiteriRuuth(), dts .* tscale) ≈ 3 atol = 0.05
 
     end
 end
@@ -54,7 +52,7 @@ ENV["GKSwstype"] = "nul" # avoid displaying plots
     tabs = [tab1..., tab2..., tab3...]
     test_algs("IMEX ARK", tabs, ark_analytic_nonlin_test_cts(Float64), 400)
     test_algs("IMEX ARK", tabs, ark_analytic_sys_test_cts(Float64), 60)
-    test_algs("IMEX ARK", tabs, ark_analytic_test_cts(Float64), 16000; super_convergence=ARS121)
+    test_algs("IMEX ARK", tabs, ark_analytic_test_cts(Float64), 16000; super_convergence = ARS121)
 end
 
 #=

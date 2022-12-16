@@ -7,9 +7,7 @@ include("problems.jl")
 @testset "integrator save times" begin
     test_case = constant_tendency_test(Float64)
     (; prob, analytic_sol) = test_case
-    for alg in (SSPRK33ShuOsher(), OrdinaryDiffEq.SSPRK33()),
-        reverse_prob in (false, true),
-        n_dt_steps in (10, 10000)
+    for alg in (SSPRK33ShuOsher(), OrdinaryDiffEq.SSPRK33()), reverse_prob in (false, true), n_dt_steps in (10, 10000)
 
         if reverse_prob
             prob = reverse_problem(prob, analytic_sol)
@@ -24,20 +22,17 @@ include("problems.jl")
         save_dt_times = t0:(tdir * save_dt):tf
 
         is_just_past_saving_time(t) = any(
-            saving_time -> tf > t0 ? saving_time <= t < saving_time + dt :
-                saving_time - dt < t <= saving_time,
+            saving_time -> tf > t0 ? saving_time <= t < saving_time + dt : saving_time - dt < t <= saving_time,
             save_dt_times,
         )
-        misaligned_saving_times =
-            filter(is_just_past_saving_time, exact_dt_times)
+        misaligned_saving_times = filter(is_just_past_saving_time, exact_dt_times)
 
         function adding_function!(integrator)
             if integrator.t in save_dt_times
                 add_saveat!(integrator, integrator.t)
             end
             next_saving_time_index = findfirst(
-                saving_time -> tf > t0 ? saving_time > integrator.t :
-                    saving_time < integrator.t,
+                saving_time -> tf > t0 ? saving_time > integrator.t : saving_time < integrator.t,
                 save_dt_times,
             )
             isnothing(next_saving_time_index) && return
@@ -50,20 +45,13 @@ include("problems.jl")
             save_positions = (false, false), # stop OrdinaryDiffEq from saving
         )
 
-        setting_function!(integrator) = ClimaTimeSteppers.set_dt!(
-            integrator,
-            2 * DiffEqBase.get_dt(integrator),
-        )
-        setting_callback = DiffEqBase.DiscreteCallback(
-            (u, t, integrator) -> true,
-            setting_function!,
-        )
+        setting_function!(integrator) = ClimaTimeSteppers.set_dt!(integrator, 2 * DiffEqBase.get_dt(integrator))
+        setting_callback = DiffEqBase.DiscreteCallback((u, t, integrator) -> true, setting_function!)
         n_set_steps = floor(Int, log2(1 + abs(tf - t0) / dt)) - 1
-        setting_times =
-            [accumulate(+, [t0, (tdir * dt * 2 .^ (0:n_set_steps))...])..., tf]
+        setting_times = [accumulate(+, [t0, (tdir * dt * 2 .^ (0:n_set_steps))...])..., tf]
 
         fixed_dt_times = [exact_dt_times..., exact_dt_times[end] + tdir * dt]
-        
+
         for (compare_to_ode, kwargs, times) in (
             # testing default saving behavior (OrdinaryDiffEq saves every step by default)
             (false, (;), [t0, tf]),
@@ -85,10 +73,10 @@ include("problems.jl")
             # testing tstops (tstops remove the need for interpolation when saving)
             (true, (; saveat = save_dt_times, tstops = save_dt_times), save_dt_times),
             (true, (; saveat = save_dt, tstops = save_dt_times), [save_dt_times..., tf]),
-            
+
             # testing add_tstops! and add_saveat!
             (true, (; saveat = [tf], callback = adding_callback), [save_dt_times..., tf]),
-            
+
             # testing set_dt! (OrdinaryDiffEq does not support this function)
             (false, (; save_everystep = true, callback = setting_callback), setting_times),
 

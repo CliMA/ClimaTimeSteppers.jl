@@ -84,8 +84,7 @@ function tableau end
 Returns the theoretical convergence order of an ODE algorithm
 """
 function theoretical_convergence_order end
-theoretical_convergence_order(tab) =
-    error("No convergence order found for tableau $tab, please open an issue or PR.")
+theoretical_convergence_order(tab) = error("No convergence order found for tableau $tab, please open an issue or PR.")
 
 SciMLBase.allowscomplex(alg::DistributedODEAlgorithm) = true
 include("integrators.jl")

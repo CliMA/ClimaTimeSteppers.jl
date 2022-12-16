@@ -40,13 +40,11 @@ end
         equation = is_linear ? linear_equation : nonlinear_equation
         max_iters = is_linear ? 1 : 10
         rtol = 100 * eps(FT)
-        convergence_checker =
-            ConvergenceChecker(; norm_condition = MaximumRelativeError(rtol))
+        convergence_checker = ConvergenceChecker(; norm_condition = MaximumRelativeError(rtol))
         alg1 = NewtonsMethod(; max_iters, convergence_checker)
         alg2 = NewtonsMethod(;
             max_iters,
-            krylov_method =
-                KrylovMethod(; forcing_term = ConstantForcing(rtol)),
+            krylov_method = KrylovMethod(; forcing_term = ConstantForcing(rtol)),
             convergence_checker,
         )
         alg3 = NewtonsMethod(;

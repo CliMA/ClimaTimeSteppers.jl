@@ -53,9 +53,9 @@ function step_u!(int, cache::LowStorageRungeKutta2NIncCache)
 
     for stage in 1:nstages(cache)
         #  du .= f(u, p, t + tab.C[stage]*dt) .+ tab.A[stage] .* du
-        stage_time = t + tab.C[stage]*dt
+        stage_time = t + tab.C[stage] * dt
         int.sol.prob.f(du, u, p, stage_time, 1, tab.A[stage])
-        u .+= (dt*tab.B[stage]) .* du
+        u .+= (dt * tab.B[stage]) .* du
     end
 end
 
@@ -63,25 +63,24 @@ end
 function init_inner(prob, outercache::LowStorageRungeKutta2NIncCache, dt)
     OffsetODEFunction(prob.f.f1, zero(dt), one(dt), zero(dt), outercache.du)
 end
-function update_inner!(innerinteg, outercache::LowStorageRungeKutta2NIncCache,
-        f_slow, u, p, t, dt, stage)
+function update_inner!(innerinteg, outercache::LowStorageRungeKutta2NIncCache, f_slow, u, p, t, dt, stage)
 
     f_offset = innerinteg.sol.prob.f
     tab = outercache.tableau
     N = nstages(outercache)
 
-    τ0 = t+tab.C[stage]*dt
-    τ1 = stage == N ? t+dt : t+tab.C[stage+1]*dt
+    τ0 = t + tab.C[stage] * dt
+    τ1 = stage == N ? t + dt : t + tab.C[stage + 1] * dt
     f_offset.α = τ0
     innerinteg.t = zero(τ0)
-    innerinteg.tstop = τ1-τ0
+    innerinteg.tstop = τ1 - τ0
 
     #  du .= f(u, p, t + tab.C[stage]*dt) .+ tab.A[stage] .* du
     f_slow(f_offset.x, u, p, τ0, 1, tab.A[stage])
 
     C0 = tab.C[stage]
-    C1 = stage == N ? one(tab.C[stage]) : tab.C[stage+1]
-    f_offset.γ = tab.B[stage] / (C1-C0)
+    C1 = stage == N ? one(tab.C[stage]) : tab.C[stage + 1]
+    f_offset.γ = tab.B[stage] / (C1 - C0)
 end
 
 
@@ -193,7 +192,5 @@ end
 An implementation of explicit Euler method using [`LowStorageRungeKutta2N`](@ref) infrastructure.
 This is mainly for debugging.
 """
-struct LSRKEulerMethod <: LowStorageRungeKutta2N
-end
-tableau(::LSRKEulerMethod, RT) =
-    LowStorageRungeKutta2NTableau((RT(0),), (RT(1),), (RT(0),))
+struct LSRKEulerMethod <: LowStorageRungeKutta2N end
+tableau(::LSRKEulerMethod, RT) = LowStorageRungeKutta2NTableau((RT(0),), (RT(1),), (RT(0),))

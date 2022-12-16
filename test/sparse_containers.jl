@@ -6,7 +6,7 @@ using Test
     a2 = ones(3) .* 2
     a3 = ones(3) .* 3
     a4 = ones(3) .* 4
-    v = SparseContainer((a1,a2,a3,a4), (1,3,5,7))
+    v = SparseContainer((a1, a2, a3, a4), (1, 3, 5, 7))
     @test v[1] == ones(3) .* 1
     @test v[3] == ones(3) .* 2
     @test v[5] == ones(3) .* 3
@@ -25,7 +25,7 @@ using Test
     a2 = ones(3) .* 2
     a3 = ones(3) .* 3
     a4 = ones(3) .* 4
-    v = SparseContainer([a1,a2,a3,a4], (1,3,5,7))
+    v = SparseContainer([a1, a2, a3, a4], (1, 3, 5, 7))
     @test v[1] == ones(3) .* 1
     @test v[3] == ones(3) .* 2
     @test v[5] == ones(3) .* 3

@@ -21,9 +21,9 @@ function config_integrators(problem)
     integrator.cache = CTS.cache(problem, algorithm)
     return (; integrator)
 end
-prob = if parsed_args["problem"]=="ode_fun"
+prob = if parsed_args["problem"] == "ode_fun"
     split_linear_prob_wfact_split()
-elseif parsed_args["problem"]=="fe"
+elseif parsed_args["problem"] == "fe"
     split_linear_prob_wfact_split_fe()
 else
     error("Bad option")
@@ -31,4 +31,3 @@ end
 (; integrator) = config_integrators(prob)
 
 JET.@test_opt CTS.step_u!(integrator, integrator.cache)
-

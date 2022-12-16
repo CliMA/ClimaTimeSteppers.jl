@@ -26,16 +26,14 @@ const ArrayType = CuArray
                 finaltime = 20.0
                 dts = [2.0^(-k) for k in 6:7]
                 errors = similar(dts)
-                q0 =
-                    ArrayType === Array ? [1.0] : range(-1.0, 1.0, length = 303)
+                q0 = ArrayType === Array ? [1.0] : range(-1.0, 1.0, length = 303)
                 for (method, expected_order) in explicit_methods
                     for (n, dt) in enumerate(dts)
                         Q = ArrayType(q0)
                         solver = method(rhs!, Q; dt = dt, t0 = 0.0)
                         solve!(Q, solver; timeend = finaltime)
                         Q = Array(Q)
-                        errors[n] =
-                            maximum(@. abs(Q - exactsolution(q0, finaltime)))
+                        errors[n] = maximum(@. abs(Q - exactsolution(q0, finaltime)))
                     end
                     rates = log2.(errors[1:(end - 1)] ./ errors[2:end])
                     @test isapprox(rates[end], expected_order; atol = 0.17)
@@ -72,8 +70,7 @@ const ArrayType = CuArray
             rhs_fast! = rhs_linear!
 
             function exactsolution(q0, time)
-                q0 * exp(im * c * time) +
-                (exp(im * time) - exp(im * c * time)) / (im * (1 - c))
+                q0 * exp(im * c * time) + (exp(im * time) - exp(im * c * time)) / (im * (1 - c))
             end
 
             @testset "IMEX methods" begin
@@ -87,16 +84,11 @@ const ArrayType = CuArray
                         for variant in (LowStorageVariant(), NaiveVariant())
                             for (n, dt) in enumerate(dts)
                                 Q = ArrayType{ComplexF64}(q0)
-                                rhs! =
-                                    split_explicit_implicit ? rhs_nonlinear! :
-                                    rhs_full!
+                                rhs! = split_explicit_implicit ? rhs_nonlinear! : rhs_full!
                                 solver = method(
                                     rhs!,
                                     rhs_linear!,
-                                    LinearBackwardEulerSolver(
-                                        DivideLinearSolver(),
-                                        isadjustable = true,
-                                    ),
+                                    LinearBackwardEulerSolver(DivideLinearSolver(), isadjustable = true),
                                     Q;
                                     dt = dt,
                                     t0 = 0.0,
@@ -105,18 +97,12 @@ const ArrayType = CuArray
                                 )
                                 solve!(Q, solver; timeend = finaltime)
                                 Q = Array(Q)
-                                errors[n] = maximum(@. abs(
-                                    Q - exactsolution(q0, finaltime),
-                                ))
+                                errors[n] = maximum(@. abs(Q - exactsolution(q0, finaltime)))
                             end
 
                             rates = log2.(errors[1:(end - 1)] ./ errors[2:end])
                             @test errors[1] < 2.0
-                            @test isapprox(
-                                rates[end],
-                                expected_order;
-                                atol = 0.35,
-                            )
+                            @test isapprox(rates[end], expected_order; atol = 0.35)
                         end
                     end
                 end
@@ -128,30 +114,19 @@ const ArrayType = CuArray
                 errors = similar(dts)
                 for (slow_method, slow_expected_order) in slow_mrrk_methods
                     for (fast_method, fast_expected_order) in fast_mrrk_methods
-                        q0 = ArrayType === Array ? [1.0] :
-                            range(-1.0, 1.0, length = 303)
+                        q0 = ArrayType === Array ? [1.0] : range(-1.0, 1.0, length = 303)
                         for (n, dt) in enumerate(dts)
                             Q = ArrayType{ComplexF64}(q0)
-                            solver = Multirate(
-                                (
-                                    slow_method(rhs_slow!, Q),
-                                    fast_method(rhs_fast!, Q),
-                                );
-                                dt = dt,
-                                t0 = 0.0,
-                            )
+                            solver =
+                                Multirate((slow_method(rhs_slow!, Q), fast_method(rhs_fast!, Q)); dt = dt, t0 = 0.0)
                             solve!(Q, solver; timeend = finaltime)
                             Q = Array(Q)
-                            errors[n] = maximum(@. abs(
-                                Q - exactsolution(q0, finaltime),
-                            ))
+                            errors[n] = maximum(@. abs(Q - exactsolution(q0, finaltime)))
                         end
 
                         rates = log2.(errors[1:(end - 1)] ./ errors[2:end])
-                        min_order =
-                            min(slow_expected_order, fast_expected_order)
-                        max_order =
-                            max(slow_expected_order, fast_expected_order)
+                        min_order = min(slow_expected_order, fast_expected_order)
+                        max_order = max(slow_expected_order, fast_expected_order)
                         @test (
                             isapprox(rates[end], min_order; atol = 0.1) ||
                             isapprox(rates[end], max_order; atol = 0.1) ||
@@ -167,8 +142,7 @@ const ArrayType = CuArray
                 errors = similar(dts)
                 for (slow_method, slow_expected_order) in slow_mrrk_methods
                     for (fast_method, fast_expected_order) in fast_mrrk_methods
-                        q0 = ArrayType === Array ? [1.0] :
-                            range(-1.0, 1.0, length = 303)
+                        q0 = ArrayType === Array ? [1.0] : range(-1.0, 1.0, length = 303)
                         for (n, fast_dt) in enumerate(dts)
                             slow_dt = c * fast_dt
                             Q = ArrayType{ComplexF64}(q0)
@@ -178,16 +152,12 @@ const ArrayType = CuArray
                             ))
                             solve!(Q, solver; timeend = finaltime)
                             Q = Array(Q)
-                            errors[n] = maximum(@. abs(
-                                Q - exactsolution(q0, finaltime),
-                            ))
+                            errors[n] = maximum(@. abs(Q - exactsolution(q0, finaltime)))
                         end
 
                         rates = log2.(errors[1:(end - 1)] ./ errors[2:end])
-                        min_order =
-                            min(slow_expected_order, fast_expected_order)
-                        max_order =
-                            max(slow_expected_order, fast_expected_order)
+                        min_order = min(slow_expected_order, fast_expected_order)
+                        max_order = max(slow_expected_order, fast_expected_order)
                         @test (
                             isapprox(rates[end], min_order; atol = 0.1) ||
                             isapprox(rates[end], max_order; atol = 0.1) ||
@@ -203,31 +173,16 @@ const ArrayType = CuArray
                 errors = similar(dts)
                 for (mis_method, mis_expected_order) in mis_methods
                     for fast_method in (LSRK54CarpenterKennedy,)
-                        q0 = ArrayType === Array ? [1.0] :
-                            range(-1.0, 1.0, length = 303)
+                        q0 = ArrayType === Array ? [1.0] : range(-1.0, 1.0, length = 303)
                         for (n, dt) in enumerate(dts)
                             Q = ArrayType{ComplexF64}(q0)
-                            solver = mis_method(
-                                rhs_slow!,
-                                rhs_fast!,
-                                fast_method,
-                                4,
-                                Q;
-                                dt = dt,
-                                t0 = 0.0,
-                            )
+                            solver = mis_method(rhs_slow!, rhs_fast!, fast_method, 4, Q; dt = dt, t0 = 0.0)
                             solve!(Q, solver; timeend = finaltime)
                             Q = Array(Q)
-                            errors[n] = maximum(@. abs(
-                                Q - exactsolution(q0, finaltime),
-                            ))
+                            errors[n] = maximum(@. abs(Q - exactsolution(q0, finaltime)))
                         end
                         rates = log2.(errors[1:(end - 1)] ./ errors[2:end])
-                        @test isapprox(
-                            rates[end],
-                            mis_expected_order;
-                            atol = 0.1,
-                        )
+                        @test isapprox(rates[end], mis_expected_order; atol = 0.1)
                     end
                 end
             end
@@ -291,23 +246,15 @@ const ArrayType = CuArray
                     for (fast_method, fast_expected_order) in fast_mrrk_methods
                         for (n, dt) in enumerate(dts)
                             Q = exactsolution(0)
-                            solver = Multirate(
-                                (
-                                    slow_method(rhs_slow!, Q),
-                                    fast_method(rhs_fast!, Q),
-                                );
-                                dt = dt,
-                                t0 = 0.0,
-                            )
+                            solver =
+                                Multirate((slow_method(rhs_slow!, Q), fast_method(rhs_fast!, Q)); dt = dt, t0 = 0.0)
                             solve!(Q, solver; timeend = finaltime)
                             error[n] = norm(Q - exactsolution(finaltime))
                         end
 
                         rate = log2.(error[1:(end - 1)] ./ error[2:end])
-                        min_order =
-                            min(slow_expected_order, fast_expected_order)
-                        max_order =
-                            max(slow_expected_order, fast_expected_order)
+                        min_order = min(slow_expected_order, fast_expected_order)
+                        max_order = max(slow_expected_order, fast_expected_order)
                         @test (
                             isapprox(rate[end], min_order; atol = 0.3) ||
                             isapprox(rate[end], max_order; atol = 0.3) ||
@@ -335,10 +282,8 @@ const ArrayType = CuArray
                         end
 
                         rate = log2.(error[1:(end - 1)] ./ error[2:end])
-                        min_order =
-                            min(slow_expected_order, fast_expected_order)
-                        max_order =
-                            max(slow_expected_order, fast_expected_order)
+                        min_order = min(slow_expected_order, fast_expected_order)
+                        max_order = max(slow_expected_order, fast_expected_order)
                         @test (
                             isapprox(rate[end], min_order; atol = 0.3) ||
                             isapprox(rate[end], max_order; atol = 0.3) ||
@@ -368,10 +313,7 @@ const ArrayType = CuArray
                                 fast_method(
                                     rhs_fast!,
                                     rhs_zero!,
-                                    LinearBackwardEulerSolver(
-                                        DivideLinearSolver(),
-                                        isadjustable = true,
-                                    ),
+                                    LinearBackwardEulerSolver(DivideLinearSolver(), isadjustable = true),
                                     Q;
                                     dt = fast_dt,
                                     split_explicit_implicit = false,
@@ -382,12 +324,9 @@ const ArrayType = CuArray
                         end
 
                         rate = log2.(error[1:(end - 1)] ./ error[2:end])
-                        min_order =
-                            min(slow_expected_order, fast_expected_order)
-                        max_order =
-                            max(slow_expected_order, fast_expected_order)
-                        atol = fast_method == ARK2GiraldoKellyConstantinescu ?
-                            0.5 : 0.37
+                        min_order = min(slow_expected_order, fast_expected_order)
+                        max_order = max(slow_expected_order, fast_expected_order)
+                        atol = fast_method == ARK2GiraldoKellyConstantinescu ? 0.5 : 0.37
                         @test (
                             isapprox(rate[end], min_order; atol = atol) ||
                             isapprox(rate[end], max_order; atol = atol) ||
@@ -405,25 +344,13 @@ const ArrayType = CuArray
                     for fast_method in (LSRK54CarpenterKennedy,)
                         for (n, dt) in enumerate(dts)
                             Q = exactsolution(0)
-                            solver = mis_method(
-                                rhs_slow!,
-                                rhs_fast!,
-                                fast_method,
-                                4,
-                                Q;
-                                dt = dt,
-                                t0 = 0.0,
-                            )
+                            solver = mis_method(rhs_slow!, rhs_fast!, fast_method, 4, Q; dt = dt, t0 = 0.0)
                             solve!(Q, solver; timeend = finaltime)
                             error[n] = norm(Q - exactsolution(finaltime))
                         end
 
                         rate = log2.(error[1:(end - 1)] ./ error[2:end])
-                        @test isapprox(
-                            rate[end],
-                            mis_expected_order;
-                            atol = 0.1,
-                        )
+                        @test isapprox(rate[end], mis_expected_order; atol = 0.1)
                     end
                 end
             end
@@ -501,11 +428,7 @@ const ArrayType = CuArray
                 rhs2!(dQ, Q, param, t; increment = true)
             end
 
-            exactsolution(t) = [
-                sqrt(β1 + cos(ω1 * t)),
-                sqrt(β2 + cos(ω2 * t)),
-                sqrt(β3 + cos(ω3 * t)),
-            ]
+            exactsolution(t) = [sqrt(β1 + cos(ω1 * t)), sqrt(β2 + cos(ω2 * t)), sqrt(β3 + cos(ω3 * t))]
 
             @testset "MRRK methods (no substeps)" begin
                 finaltime = π / 2
@@ -517,11 +440,7 @@ const ArrayType = CuArray
                             for (n, dt) in enumerate(dts)
                                 Q = exactsolution(0)
                                 solver = Multirate(
-                                    (
-                                        rate3_method(rhs3!, Q),
-                                        rate2_method(rhs2!, Q),
-                                        rate1_method(rhs1!, Q),
-                                    );
+                                    (rate3_method(rhs3!, Q), rate2_method(rhs2!, Q), rate1_method(rhs1!, Q));
                                     dt = dt,
                                     t0 = 0.0,
                                 )
@@ -530,10 +449,8 @@ const ArrayType = CuArray
                             end
 
                             rate = log2.(error[1:(end - 1)] ./ error[2:end])
-                            min_order =
-                                min(rate3_order, rate2_order, rate1_order)
-                            max_order =
-                                max(rate3_order, rate2_order, rate1_order)
+                            min_order = min(rate3_order, rate2_order, rate1_order)
+                            max_order = max(rate3_order, rate2_order, rate1_order)
                             @test 2 <= rate[end]
                         end
                     end
@@ -561,10 +478,8 @@ const ArrayType = CuArray
                             end
 
                             rate = log2.(error[1:(end - 1)] ./ error[2:end])
-                            min_order =
-                                min(rate3_order, rate2_order, rate1_order)
-                            max_order =
-                                max(rate3_order, rate2_order, rate1_order)
+                            min_order = min(rate3_order, rate2_order, rate1_order)
+                            max_order = max(rate3_order, rate2_order, rate1_order)
 
                             @test 2 <= rate[end]
                         end
@@ -608,19 +523,11 @@ const ArrayType = CuArray
                         ys = Q[2]
                         gf = (-3 + yf^2 - cos(ω * t)) / 2yf
                         gs = (-2 + ys^2 - cos(t)) / 2ys
-                        dQ[1] +=
-                            Ω[1, 1] * gf + Ω[1, 2] * gs - ω * sin(ω * t) / 2yf
+                        dQ[1] += Ω[1, 1] * gf + Ω[1, 2] * gs - ω * sin(ω * t) / 2yf
                     end
                 end
                 event = Event(array_device(Q))
-                event = knl!(array_device(Q), 1)(
-                    dQ,
-                    Q,
-                    t,
-                    increment;
-                    ndrange = 1,
-                    dependencies = (event,),
-                )
+                event = knl!(array_device(Q), 1)(dQ, Q, t, increment; ndrange = 1, dependencies = (event,))
                 wait(array_device(Q), event)
             end
 
@@ -637,14 +544,7 @@ const ArrayType = CuArray
                     end
                 end
                 event = Event(array_device(Q))
-                event = knl!(array_device(Q), 1)(
-                    dQ,
-                    Q,
-                    t,
-                    increment;
-                    ndrange = 1,
-                    dependencies = (event,),
-                )
+                event = knl!(array_device(Q), 1)(dQ, Q, t, increment; ndrange = 1, dependencies = (event,))
                 wait(array_device(Q), event)
             end
 
@@ -667,79 +567,49 @@ const ArrayType = CuArray
                     end
                 end
                 event = Event(array_device(Q))
-                event = knl!(array_device(Q), 1)(
-                    Q,
-                    Qhat,
-                    α,
-                    p,
-                    t;
-                    ndrange = 1,
-                    dependencies = (event,),
-                )
+                event = knl!(array_device(Q), 1)(Q, Qhat, α, p, t; ndrange = 1, dependencies = (event,))
                 wait(array_device(Q), event)
             end
 
-            exactsolution(t) =
-                ArrayType([sqrt(3 + cos(ω * t)); sqrt(2 + cos(t))])
+            exactsolution(t) = ArrayType([sqrt(3 + cos(ω * t)); sqrt(2 + cos(t))])
 
             finaltime = 1
             dts = [2.0^(-k) for k in 6:7]
             error = similar(dts)
             @testset "Explicit" begin
                 for (mri_method, mri_expected_order) in mrigark_erk_methods
-                    for (fast_method, fast_expected_order) in
-                        fast_mrigark_methods
+                    for (fast_method, fast_expected_order) in fast_mrigark_methods
                         for (n, slow_dt) in enumerate(dts)
                             Q = exactsolution(0)
                             fast_dt = slow_dt / ω
                             fastsolver = fast_method(rhs_fast!, Q; dt = fast_dt)
-                            solver = mri_method(
-                                rhs_slow!,
-                                fastsolver,
-                                Q,
-                                dt = slow_dt,
-                            )
+                            solver = mri_method(rhs_slow!, fastsolver, Q, dt = slow_dt)
                             solve!(Q, solver; timeend = finaltime)
                             error[n] = norm(Q - exactsolution(finaltime))
                         end
 
                         rate = log2.(error[1:(end - 1)] ./ error[2:end])
                         order = mri_expected_order
-                        @test isapprox(
-                            rate[end],
-                            mri_expected_order;
-                            atol = 0.3,
-                        )
+                        @test isapprox(rate[end], mri_expected_order; atol = 0.3)
                     end
                 end
             end
 
             @testset "Implicit" begin
                 for (mri_method, mri_expected_order) in mrigark_irk_methods
-                    for (fast_method, fast_expected_order) in
-                        fast_mrigark_methods
+                    for (fast_method, fast_expected_order) in fast_mrigark_methods
                         for (n, slow_dt) in enumerate(dts)
                             Q = exactsolution(0)
                             fast_dt = slow_dt / ω
                             fastsolver = fast_method(rhs_fast!, Q; dt = fast_dt)
-                            solver = mri_method(
-                                rhs_slow!,
-                                ODETestConvNonLinBE(),
-                                fastsolver,
-                                Q,
-                                dt = slow_dt,
-                            )
+                            solver = mri_method(rhs_slow!, ODETestConvNonLinBE(), fastsolver, Q, dt = slow_dt)
                             solve!(Q, solver; timeend = finaltime)
                             error[n] = norm(Q - exactsolution(finaltime))
                         end
 
                         rate = log2.(error[1:(end - 1)] ./ error[2:end])
                         order = mri_expected_order
-                        @test isapprox(
-                            rate[end],
-                            mri_expected_order;
-                            atol = 0.3,
-                        )
+                        @test isapprox(rate[end], mri_expected_order; atol = 0.3)
                     end
                 end
             end
@@ -808,14 +678,7 @@ const ArrayType = CuArray
                     end
                 end
                 event = Event(array_device(Q))
-                event = knl!(array_device(Q), 1)(
-                    dQ,
-                    Q,
-                    t,
-                    increment;
-                    ndrange = 1,
-                    dependencies = (event,),
-                )
+                event = knl!(array_device(Q), 1)(dQ, Q, t, increment; ndrange = 1, dependencies = (event,))
                 wait(array_device(Q), event)
             end
             function rhs2!(dQ, Q, param, t; increment)
@@ -832,14 +695,7 @@ const ArrayType = CuArray
                     end
                 end
                 event = Event(array_device(Q))
-                event = knl!(array_device(Q), 1)(
-                    dQ,
-                    Q,
-                    t,
-                    increment;
-                    ndrange = 1,
-                    dependencies = (event,),
-                )
+                event = knl!(array_device(Q), 1)(dQ, Q, t, increment; ndrange = 1, dependencies = (event,))
                 wait(array_device(Q), event)
             end
             function rhs3!(dQ, Q, param, t; increment)
@@ -856,14 +712,7 @@ const ArrayType = CuArray
                     end
                 end
                 event = Event(array_device(Q))
-                event = knl!(array_device(Q), 1)(
-                    dQ,
-                    Q,
-                    t,
-                    increment;
-                    ndrange = 1,
-                    dependencies = (event,),
-                )
+                event = knl!(array_device(Q), 1)(dQ, Q, t, increment; ndrange = 1, dependencies = (event,))
                 wait(array_device(Q), event)
             end
             struct ODETestConvNonLinBE3Rate <: AbstractBackwardEulerSolver end
@@ -875,39 +724,22 @@ const ArrayType = CuArray
                         Q[1] = y1 = Qhat[1]
                         Q[2] = y2 = Qhat[2]
 
-                        g = @SVector [
-                            (-β1 + y1^2 - cos(ω1 * t)) / 2y1,
-                            (-β2 + y2^2 - cos(ω2 * t)) / 2y2,
-                        ]
+                        g = @SVector [(-β1 + y1^2 - cos(ω1 * t)) / 2y1, (-β2 + y2^2 - cos(ω2 * t)) / 2y2]
 
                         # solves: Q = Qhat + α * rhs_slow(Q, t)
                         # (simplifies to a quadratic equation)
                         a = 2 - α * Ω[3, 3]
-                        b =
-                            -2 *
-                            (Qhat[3] + α * Ω[3, 1] * g[1] + α * Ω[3, 2] * g[2])
+                        b = -2 * (Qhat[3] + α * Ω[3, 1] * g[1] + α * Ω[3, 2] * g[2])
                         c = α * (Ω[3, 3] * (β3 + cos(t)) + sin(t))
                         Q[3] = (-b + sqrt(b^2 - 4 * a * c)) / (2a)
                     end
                 end
                 event = Event(array_device(Q))
-                event = knl!(array_device(Q), 1)(
-                    Q,
-                    Qhat,
-                    α,
-                    p,
-                    t;
-                    ndrange = 1,
-                    dependencies = (event,),
-                )
+                event = knl!(array_device(Q), 1)(Q, Qhat, α, p, t; ndrange = 1, dependencies = (event,))
                 wait(array_device(Q), event)
             end
 
-            exactsolution(t) = ArrayType([
-                sqrt(β1 + cos(ω1 * t)),
-                sqrt(β2 + cos(ω2 * t)),
-                sqrt(β3 + cos(ω3 * t)),
-            ])
+            exactsolution(t) = ArrayType([sqrt(β1 + cos(ω1 * t)), sqrt(β2 + cos(ω2 * t)), sqrt(β3 + cos(ω3 * t))])
 
             finaltime = 1
             dts = [2.0^(-k) for k in 6:7]
@@ -921,30 +753,15 @@ const ArrayType = CuArray
                                 mid_dt = slow_dt / ω2
                                 fast_dt = slow_dt / ω1
                                 fastsolver = fast_method(rhs1!, Q; dt = fast_dt)
-                                midsolver = mid_method(
-                                    rhs2!,
-                                    fastsolver,
-                                    Q,
-                                    dt = mid_dt,
-                                )
-                                slowsolver = slow_method(
-                                    rhs3!,
-                                    midsolver,
-                                    Q,
-                                    dt = slow_dt,
-                                )
+                                midsolver = mid_method(rhs2!, fastsolver, Q, dt = mid_dt)
+                                slowsolver = slow_method(rhs3!, midsolver, Q, dt = slow_dt)
                                 solve!(Q, slowsolver; timeend = finaltime)
                                 error[n] = norm(Q - exactsolution(finaltime))
                             end
 
                             rate = log2.(error[1:(end - 1)] ./ error[2:end])
-                            expected_order =
-                                min(slow_order, mid_order, fast_order)
-                            @test isapprox(
-                                rate[end],
-                                expected_order;
-                                atol = 0.3,
-                            )
+                            expected_order = min(slow_order, mid_order, fast_order)
+                            @test isapprox(rate[end], expected_order; atol = 0.3)
                         end
                     end
                 end
@@ -958,31 +775,15 @@ const ArrayType = CuArray
                                 mid_dt = slow_dt / ω2
                                 fast_dt = slow_dt / ω1
                                 fastsolver = fast_method(rhs1!, Q; dt = fast_dt)
-                                midsolver = mid_method(
-                                    rhs2!,
-                                    fastsolver,
-                                    Q,
-                                    dt = mid_dt,
-                                )
-                                slowsolver = slow_method(
-                                    rhs3!,
-                                    ODETestConvNonLinBE3Rate(),
-                                    midsolver,
-                                    Q,
-                                    dt = slow_dt,
-                                )
+                                midsolver = mid_method(rhs2!, fastsolver, Q, dt = mid_dt)
+                                slowsolver = slow_method(rhs3!, ODETestConvNonLinBE3Rate(), midsolver, Q, dt = slow_dt)
                                 solve!(Q, slowsolver; timeend = finaltime)
                                 error[n] = norm(Q - exactsolution(finaltime))
                             end
 
                             rate = log2.(error[1:(end - 1)] ./ error[2:end])
-                            expected_order =
-                                min(slow_order, mid_order, fast_order)
-                            @test isapprox(
-                                rate[end],
-                                expected_order;
-                                atol = 0.4,
-                            )
+                            expected_order = min(slow_order, mid_order, fast_order)
+                            @test isapprox(rate[end], expected_order; atol = 0.4)
                         end
                     end
                 end

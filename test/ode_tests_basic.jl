@@ -14,12 +14,12 @@ c = 1 / 100
 α1, α2 = 1 / 4, 3 / 4
 β1, β2, β3 = 1 / 3, 3 / 6, 1 / 6
 
-function rhs!(du, u, param, t, α=true, β=false)
+function rhs!(du, u, param, t, α = true, β = false)
     @. du = $(α * cos(t)) * (a + b * u + c * u^2) + β * du
 end
 
 
-function rhs_linear!(dQ, Q, param, t; increment=false)
+function rhs_linear!(dQ, Q, param, t; increment = false)
     if increment
         @. dQ += $cos(t) * b * Q
     else
@@ -33,7 +33,7 @@ ODESolvers.Δt_is_adjustable(::ODETestBasicLinBE) = true
 (::ODETestBasicLinBE)(Q, Qhat, α, p, t) = @. Q = Qhat / (1 - α * $cos(t) * b)
 =#
 
-function rhs_nonlinear!(dQ, Q, param, t; increment=false)
+function rhs_nonlinear!(dQ, Q, param, t; increment = false)
     if increment
         @. dQ += $cos(t) * (a + c * Q^2)
     else
@@ -101,51 +101,51 @@ Q = similar(Qinit)
 Qexact = exactsolution(finaltime, q0, t0)
 
 @testset "Convergence/limited" begin
-#=
-    @testset "Explicit methods" begin
-        dts = [2.0^(-k) for k in 3:4]
-        errors = similar(dts)
-        for (method, expected_order) in explicit_methods
-            for (n, dt) in enumerate(dts)
-                Q .= Qinit
-                prob = IncrementingODEProblem(rhs!, Q, (t0, finaltime))
-                solve(prob, method; dt=dt, adjustfinal=true)
-                errors[n] = norm(Q - Qexact)
+    #=
+        @testset "Explicit methods" begin
+            dts = [2.0^(-k) for k in 3:4]
+            errors = similar(dts)
+            for (method, expected_order) in explicit_methods
+                for (n, dt) in enumerate(dts)
+                    Q .= Qinit
+                    prob = IncrementingODEProblem(rhs!, Q, (t0, finaltime))
+                    solve(prob, method; dt=dt, adjustfinal=true)
+                    errors[n] = norm(Q - Qexact)
+                end
+                rates = log2.(errors[1:(end - 1)] ./ errors[2:end])
+                @test isapprox(rates[end], expected_order; atol = 0.7)
             end
-            rates = log2.(errors[1:(end - 1)] ./ errors[2:end])
-            @test isapprox(rates[end], expected_order; atol = 0.7)
         end
-    end
-    =#
+        =#
 
     @testset "IMEX methods - split" begin
         dts = [2.0^(-k) for k in 5:10]
         errors = similar(dts)
         for (method, order) in imex_methods
             #for split_explicit_implicit in (false, true)
-                #for variant in (LowStorageVariant(), NaiveVariant())
-                    for (n, dt) in enumerate(dts)
-                        Q .= Qinit
-                        # rhs_arg! =
-                        #   split_explicit_implicit ? rhs_nonlinear! : rhs!
-                        prob = SplitODEProblem(rhs_linear!, rhs_nonlinear!, Q, (t0, finaltime))
-                        solve(prob, method(DirectSolver); dt=dt, adjustfinal=true)
-                        errors[n] = norm(Q - Qexact)
-                        @show (log2(dt), norm(Q - Qexact))
-                    end
-                    rates = log2.(errors[1:(end - 1)] ./ errors[2:end])
-                    @show rates
-                    #=if variant isa LowStorageVariant && split_explicit_implicit
-                        if method === ARK1ForwardBackwardEuler
-                            expected_order = 1
-                        else
-                            expected_order = 2
-                        end
-                    else
-                        expected_order = order
-                    end=#
-                    @test isapprox(rates[end], order; rtol = 0.3)
-                #end
+            #for variant in (LowStorageVariant(), NaiveVariant())
+            for (n, dt) in enumerate(dts)
+                Q .= Qinit
+                # rhs_arg! =
+                #   split_explicit_implicit ? rhs_nonlinear! : rhs!
+                prob = SplitODEProblem(rhs_linear!, rhs_nonlinear!, Q, (t0, finaltime))
+                solve(prob, method(DirectSolver); dt = dt, adjustfinal = true)
+                errors[n] = norm(Q - Qexact)
+                @show (log2(dt), norm(Q - Qexact))
+            end
+            rates = log2.(errors[1:(end - 1)] ./ errors[2:end])
+            @show rates
+            #=if variant isa LowStorageVariant && split_explicit_implicit
+                if method === ARK1ForwardBackwardEuler
+                    expected_order = 1
+                else
+                    expected_order = 2
+                end
+            else
+                expected_order = order
+            end=#
+            @test isapprox(rates[end], order; rtol = 0.3)
+            #end
             #end
         end
     end
@@ -154,29 +154,29 @@ Qexact = exactsolution(finaltime, q0, t0)
         errors = similar(dts)
         for (method, order) in imex_methods
             #for split_explicit_implicit in (false, true)
-                #for variant in (LowStorageVariant(), NaiveVariant())
-                    for (n, dt) in enumerate(dts)
-                        Q .= Qinit
-                        # rhs_arg! =
-                        #   split_explicit_implicit ? rhs_nonlinear! : rhs!
-                        prob = ODEProblem(ODEFunction(rhs!, jvp=rhs_linear!), Q, (t0, finaltime))
-                        solve(prob, method(DirectSolver); dt=dt, adjustfinal=true)
-                        errors[n] = norm(Q - Qexact)
-                        @show (log2(dt), norm(Q - Qexact))
-                    end
-                    rates = log2.(errors[1:(end - 1)] ./ errors[2:end])
-                    @show rates
-                    #=if variant isa LowStorageVariant && split_explicit_implicit
-                        if method === ARK1ForwardBackwardEuler
-                            expected_order = 1
-                        else
-                            expected_order = 2
-                        end
-                    else
-                        expected_order = order
-                    end=#
-                    @test isapprox(rates[end], order; rtol = 0.3)
-                #end
+            #for variant in (LowStorageVariant(), NaiveVariant())
+            for (n, dt) in enumerate(dts)
+                Q .= Qinit
+                # rhs_arg! =
+                #   split_explicit_implicit ? rhs_nonlinear! : rhs!
+                prob = ODEProblem(ODEFunction(rhs!, jvp = rhs_linear!), Q, (t0, finaltime))
+                solve(prob, method(DirectSolver); dt = dt, adjustfinal = true)
+                errors[n] = norm(Q - Qexact)
+                @show (log2(dt), norm(Q - Qexact))
+            end
+            rates = log2.(errors[1:(end - 1)] ./ errors[2:end])
+            @show rates
+            #=if variant isa LowStorageVariant && split_explicit_implicit
+                if method === ARK1ForwardBackwardEuler
+                    expected_order = 1
+                else
+                    expected_order = 2
+                end
+            else
+                expected_order = order
+            end=#
+            @test isapprox(rates[end], order; rtol = 0.3)
+            #end
             #end
         end
     end

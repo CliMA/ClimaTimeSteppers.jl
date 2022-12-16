@@ -15,55 +15,65 @@ This is an in-place variant of the one from DiffEqProblemLibrary.jl.
 """
 function linear_prob()
     ODEProblem(
-    IncrementingODEFunction{true}((du,u,p,t,α=true,β=false) -> (du .= α .* p .* u .+ β .* du)),
-    [1/2],(0.0,1.0),1.01)
+        IncrementingODEFunction{true}((du, u, p, t, α = true, β = false) -> (du .= α .* p .* u .+ β .* du)),
+        [1 / 2],
+        (0.0, 1.0),
+        1.01,
+    )
 end
 function linear_prob_fe()
-    ODEProblem(
-    ForwardEulerODEFunction((un,u,p,t,dt) -> (un .= u .+ dt .* p .* u)),
-    [1.0],(0.0,1.0),-0.2)
+    ODEProblem(ForwardEulerODEFunction((un, u, p, t, dt) -> (un .= u .+ dt .* p .* u)), [1.0], (0.0, 1.0), -0.2)
 end
 
 function linear_prob_wfactt()
     ODEProblem(
         ODEFunction(
-          (du,u,p,t) -> (du .= p .* u);
-          jac_prototype=zeros(1,1),
-          Wfact_t = (W,u,p,γ,t) -> (W[1,1]=1/γ-p),
+            (du, u, p, t) -> (du .= p .* u);
+            jac_prototype = zeros(1, 1),
+            Wfact_t = (W, u, p, γ, t) -> (W[1, 1] = 1 / γ - p),
         ),
-        [1/2],(0.0,1.0),-0.2)
+        [1 / 2],
+        (0.0, 1.0),
+        -0.2,
+    )
 end
 
 function split_linear_prob_wfact_split()
     ODEProblem(
-    ClimaODEFunction(;
-        T_imp! = ODEFunction(
-            (du,u,p,t) -> (du .= real(p) .* u);
-            jac_prototype=zeros(ComplexF64,1,1),
-            Wfact = (W,u,p,γ,t) -> (W[1,1]=γ*real(p)-1),
+        ClimaODEFunction(;
+            T_imp! = ODEFunction(
+                (du, u, p, t) -> (du .= real(p) .* u);
+                jac_prototype = zeros(ComplexF64, 1, 1),
+                Wfact = (W, u, p, γ, t) -> (W[1, 1] = γ * real(p) - 1),
+            ),
+            T_exp! = ODEFunction((du, u, p, t) -> (du .= imag(p) * im .* u)),
         ),
-        T_exp! = ODEFunction((du, u, p, t) -> (du .= imag(p) * im .* u)),
-    ),
-    [1/2 + 0.0*im],(0.0,1.0),-0.2+0.1*im)
+        [1 / 2 + 0.0 * im],
+        (0.0, 1.0),
+        -0.2 + 0.1 * im,
+    )
 end
 
 function split_linear_prob_wfact_split_fe()
     ODEProblem(
-    ClimaODEFunction(;
-        T_imp! = ODEFunction(
-            (du,u,p,t) -> (du .= real(p) .* u);
-            jac_prototype=zeros(ComplexF64,1,1),
-            Wfact = (W,u,p,γ,t) -> (W[1,1]=γ*real(p)-1),
+        ClimaODEFunction(;
+            T_imp! = ODEFunction(
+                (du, u, p, t) -> (du .= real(p) .* u);
+                jac_prototype = zeros(ComplexF64, 1, 1),
+                Wfact = (W, u, p, γ, t) -> (W[1, 1] = γ * real(p) - 1),
+            ),
+            T_exp! = (du, u, p, t) -> (du .= imag(p) * im .* u),
         ),
-        T_exp! = (du, u, p, t) -> (du .= imag(p) * im .* u),
-    ),
-    [1/2 + 0.0*im],(0.0,1.0),-0.2+0.1*im)
+        [1 / 2 + 0.0 * im],
+        (0.0, 1.0),
+        -0.2 + 0.1 * im,
+    )
 end
 
 # DiffEqProblemLibrary.jl uses the `analytic` argument to ODEFunction to store the exact solution
 # IncrementingODEFunction doesn't have that
-function linear_sol(u0,p,t)
-    u0 .* exp(p*t)
+function linear_sol(u0, p, t)
+    u0 .* exp(p * t)
 end
 
 
@@ -80,18 +90,25 @@ u(t) = [cos(αt) sin(αt); -sin(αt) cos(αt) ] u_0
 """
 function sincos_prob()
     ODEProblem(
-    IncrementingODEFunction{true}((du,u,p,t,α=true,β=false) -> (du[1] = α*p*u[2]+β*du[1]; du[2] = -α*p*u[1]+β*du[2])),
-    [0.0,1.0], (0.0,1.0), 2.0)
+        IncrementingODEFunction{true}((du, u, p, t, α = true, β = false) -> (du[1] = α * p * u[2] + β * du[1];
+        du[2] = -α * p * u[1] + β * du[2])),
+        [0.0, 1.0],
+        (0.0, 1.0),
+        2.0,
+    )
 end
 function sincos_prob_fe()
     ODEProblem(
-    ForwardEulerODEFunction((un,u,p,t,dt) -> (un[1] = u[1] + dt*p*u[2]; un[2] = u[2]-dt*p*u[1])),
-    [0.0,1.0], (0.0,1.0), 2.0)
+        ForwardEulerODEFunction((un, u, p, t, dt) -> (un[1] = u[1] + dt * p * u[2]; un[2] = u[2] - dt * p * u[1])),
+        [0.0, 1.0],
+        (0.0, 1.0),
+        2.0,
+    )
 end
 
-function sincos_sol(u0,p,t)
-    s,c = sincos(p*t)
-    [c s; -s c]*u0
+function sincos_sol(u0, p, t)
+    s, c = sincos(p * t)
+    [c s; -s c] * u0
 end
 
 """
@@ -107,9 +124,12 @@ u(t) = \frac{e^t + sin(t) - cos(t)}{2 α} + u_0 e^t
 """
 function imex_autonomous_prob(::Type{ArrayType}) where {ArrayType}
     SplitODEProblem(
-    IncrementingODEFunction{true}((du, u, p, t, α=true, β=false) -> (du .= α .* u        .+ β .* du)),
-    IncrementingODEFunction{true}((du, u, p, t, α=true, β=false) -> (du .= α .* cos(t)/p .+ β .* du)),
-    ArrayType([0.5]), (0.0,1.0), 4.0)
+        IncrementingODEFunction{true}((du, u, p, t, α = true, β = false) -> (du .= α .* u .+ β .* du)),
+        IncrementingODEFunction{true}((du, u, p, t, α = true, β = false) -> (du .= α .* cos(t) / p .+ β .* du)),
+        ArrayType([0.5]),
+        (0.0, 1.0),
+        4.0,
+    )
 end
 
 function linsolve_direct(::Type{Val{:init}}, f, u0; kwargs...)
@@ -121,29 +141,37 @@ end
 function imex_autonomous_prob_jac(::Type{ArrayType}) where {ArrayType}
     ODEProblem(
         ODEFunction(
-            IncrementingODEFunction{true}((du, u, p, t, α=true, β=false) -> (du .= α .* (u .+ cos(t)/p) .+ β .* du)),
-            jac_prototype = zeros(1,1),
-            Wfact = (W,u,p,γ,t) -> W[1,1] = 1-γ,
+            IncrementingODEFunction{true}(
+                (du, u, p, t, α = true, β = false) -> (du .= α .* (u .+ cos(t) / p) .+ β .* du),
+            ),
+            jac_prototype = zeros(1, 1),
+            Wfact = (W, u, p, γ, t) -> W[1, 1] = 1 - γ,
         ),
-        ArrayType([0.5]), (0.0,1.0), 4.0)
+        ArrayType([0.5]),
+        (0.0, 1.0),
+        4.0,
+    )
 end
 
-function imex_autonomous_sol(u0,p,t)
-    (exp(t)  + sin(t) - cos(t)) / 2p .+ exp(t) .* u0
+function imex_autonomous_sol(u0, p, t)
+    (exp(t) + sin(t) - cos(t)) / 2p .+ exp(t) .* u0
 end
 
 function imex_nonautonomous_prob(::Type{ArrayType}) where {ArrayType}
     SplitODEProblem(
-    IncrementingODEFunction{true}((du, u, p, t, α=true, β=false) -> (du .= α .* cos(t) * u .+ β .* du)),
-    IncrementingODEFunction{true}((du, u, p, t, α=true, β=false) -> (du .= α .* cos(t)/p   .+ β .* du)),
-    ArrayType([0.5]), (0.0,2.0), 4.0)
+        IncrementingODEFunction{true}((du, u, p, t, α = true, β = false) -> (du .= α .* cos(t) * u .+ β .* du)),
+        IncrementingODEFunction{true}((du, u, p, t, α = true, β = false) -> (du .= α .* cos(t) / p .+ β .* du)),
+        ArrayType([0.5]),
+        (0.0, 2.0),
+        4.0,
+    )
 end
 
-function imex_nonautonomous_sol(u0,p,t)
+function imex_nonautonomous_sol(u0, p, t)
     (exp(sin(t)) .* (1 .+ p .* u0) .- 1) ./ p
 end
 
-function kpr_rhs(Q,param,t)
+function kpr_rhs(Q, param, t)
     yf, ys = Q
     ω, λf, λs, ξ, α = param
 
@@ -154,30 +182,24 @@ function kpr_rhs(Q,param,t)
         ηsf λs
     ]
 
-    g = @SVector [
-        (-3 + yf^2 - cos(ω * t)) / 2yf,
-        (-2 + ys^2 - cos(t)) / 2ys,
-    ]
-    h = @SVector [
-        ω * sin(ω * t) / 2yf,
-        sin(t) / 2ys,
-    ]
+    g = @SVector [(-3 + yf^2 - cos(ω * t)) / 2yf, (-2 + ys^2 - cos(t)) / 2ys]
+    h = @SVector [ω * sin(ω * t) / 2yf, sin(t) / 2ys]
     return Ω * g - h
 end
 
-function kpr_fast!(dQ, Q, param, t, α=1, β=0)
-    dQf,_ = kpr_rhs(Q,param,t)
-    dQ[1] = α*dQf + β*dQ[1]
-    dQ[2] = β*dQ[2]
+function kpr_fast!(dQ, Q, param, t, α = 1, β = 0)
+    dQf, _ = kpr_rhs(Q, param, t)
+    dQ[1] = α * dQf + β * dQ[1]
+    dQ[2] = β * dQ[2]
 end
 
-function kpr_slow!(dQ, Q, param, t, α=1, β=0)
-    _,dQs = kpr_rhs(Q,param,t)
-    dQ[1] = β*dQ[1]
-    dQ[2] = α*dQs + β*dQ[2]
+function kpr_slow!(dQ, Q, param, t, α = 1, β = 0)
+    _, dQs = kpr_rhs(Q, param, t)
+    dQ[1] = β * dQ[1]
+    dQ[2] = α * dQs + β * dQ[2]
 end
 
-function kpr_sol(u0,param,t)
+function kpr_sol(u0, param, t)
     #@assert u0 == [sqrt(4) sqrt(3)]
     ω, λf, λs, ξ, α = param
     return [
@@ -205,36 +227,27 @@ Note: The actual rates are all over the place with this test and passing largely
         depends on final dt size
 """
 function kpr_multirate_prob()
-    kpr_param = (
-        ω = 100,
-        λf = -10,
-        λs = -1,
-        ξ = 0.1,
-        α = 1,
-    )
+    kpr_param = (ω = 100, λf = -10, λs = -1, ξ = 0.1, α = 1)
     SplitODEProblem(
         IncrementingODEFunction{true}(kpr_fast!),
         IncrementingODEFunction{true}(kpr_slow!),
-        [sqrt(4), sqrt(3)], (0.0, 5π/2), kpr_param,
+        [sqrt(4), sqrt(3)],
+        (0.0, 5π / 2),
+        kpr_param,
     )
 end
 
 function kpr_singlerate_prob()
-    kpr_param = (
-        ω = 100,
-        λf = -10,
-        λs = -1,
-        ξ = 0.1,
-        α = 1,
-    )
+    kpr_param = (ω = 100, λf = -10, λs = -1, ξ = 0.1, α = 1)
     ODEProblem(
-        IncrementingODEFunction{true}((dQ,Q,param,t,α=1,β=0) -> (dQ .= α .* kpr_rhs(Q,param,t) .+ β .* dQ)),
-        [sqrt(4), sqrt(3)], (0.0, 5π/2), kpr_param,
+        IncrementingODEFunction{true}((dQ, Q, param, t, α = 1, β = 0) -> (dQ .= α .* kpr_rhs(Q, param, t) .+ β .* dQ)),
+        [sqrt(4), sqrt(3)],
+        (0.0, 5π / 2),
+        kpr_param,
     )
 end
 
-reverse_problem(prob, analytic_sol) =
-    ODEProblem(prob.f, analytic_sol(prob.tspan[2]), reverse(prob.tspan), prob.p)
+reverse_problem(prob, analytic_sol) = ODEProblem(prob.f, analytic_sol(prob.tspan[2]), reverse(prob.tspan), prob.p)
 
 struct IntegratorTestCase{FT, A, P, IP, SP, SIP}
     test_name::String
@@ -271,15 +284,9 @@ function IntegratorTestCase(;
         no_tendency!(Yₜ, Y, _, t) = Yₜ .= FT(0)
         no_increment!(Y⁺, Y, _, t, Δt) = Y⁺
         split_tendency_func = SplitFunction(tendency_func, no_tendency!)
-        split_increment_func = SplitFunction(
-            increment_func,
-            ForwardEulerODEFunction(no_increment!),
-        )
+        split_increment_func = SplitFunction(increment_func, ForwardEulerODEFunction(no_increment!))
     else
-        split_tendency_func = SplitFunction(
-            ODEFunction(implicit_tendency!; func_args...),
-            explicit_tendency!,
-        )
+        split_tendency_func = SplitFunction(ODEFunction(implicit_tendency!; func_args...), explicit_tendency!)
         split_increment_func = SplitFunction(
             ForwardEulerODEFunction(implicit_increment!; func_args...),
             ForwardEulerODEFunction(explicit_increment!),
@@ -316,16 +323,12 @@ function ClimaIntegratorTestCase(;
     FT = typeof(t_end)
     jac_prototype = Matrix{FT}(undef, length(Y₀), length(Y₀))
     func_args = (; jac_prototype, Wfact = Wfact!, tgrad = tgrad!)
-    tendency_func =
-        ClimaODEFunction(; T_imp! = ODEFunction(tendency!; func_args...))
+    tendency_func = ClimaODEFunction(; T_imp! = ODEFunction(tendency!; func_args...))
     if isnothing(implicit_tendency!) # assume that related args are also nothing
-        split_tendency_func =
-            ClimaODEFunction(; T_imp! = ODEFunction(tendency!; func_args...))
+        split_tendency_func = ClimaODEFunction(; T_imp! = ODEFunction(tendency!; func_args...))
     else
-        split_tendency_func = ClimaODEFunction(;
-            T_exp! = explicit_tendency!,
-            T_imp! = ODEFunction(implicit_tendency!; func_args...),
-        )
+        split_tendency_func =
+            ClimaODEFunction(; T_exp! = explicit_tendency!, T_imp! = ODEFunction(implicit_tendency!; func_args...))
     end
     make_prob(func) = ODEProblem(func, Y₀, (FT(0), t_end), nothing)
     IntegratorTestCase(
@@ -386,8 +389,7 @@ function ark_analytic_test_cts(::Type{FT}) where {FT}
         implicit_increment! = (Y⁺, Y, _, t, Δt) -> Y⁺ .+= (Δt * λ) .* Y,
         explicit_increment! = (Y⁺, Y, _, t, Δt) -> Y⁺ .+= Δt * source(t),
         Wfact! = (W, Y, _, Δt, t) -> W .= Δt * λ - 1,
-        tgrad! =
-            (∂Y∂t, Y, _, t) -> ∂Y∂t .= -(λ + 2 * t + λ * t^2) / (1 + t^2)^2,
+        tgrad! = (∂Y∂t, Y, _, t) -> ∂Y∂t .= -(λ + 2 * t + λ * t^2) / (1 + t^2)^2,
     )
 end
 
@@ -411,7 +413,7 @@ function ark_analytic_sys_test_cts(::Type{FT}) where {FT}
     λ = FT(-100) # increase magnitude for more stiffness
     V = FT[1 -1 1; -1 2 1; 0 -1 2]
     V⁻¹ = FT[5 1 -3; 2 2 -2; 1 1 1] / 4
-    D = Diagonal(FT[-1/2, -1/10, λ])
+    D = Diagonal(FT[-1 / 2, -1 / 10, λ])
     A = V * D * V⁻¹
     I = LinearAlgebra.I(3)
     Y₀ = FT[1, 1, 1]

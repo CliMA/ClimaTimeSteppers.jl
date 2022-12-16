@@ -106,8 +106,7 @@ and D.E. Keyes. According to the paper, this is the step size used by the
 Fortran package NITSOL.
 """
 struct ForwardDiffStepSize2 <: ForwardDiffStepSize end
-(::ForwardDiffStepSize2)(Δx, x) =
-    sqrt(eps(eltype(Δx)) * (1 + norm(x))) / norm(Δx)
+(::ForwardDiffStepSize2)(Δx, x) = sqrt(eps(eltype(Δx)) * (1 + norm(x))) / norm(Δx)
 
 """
     ForwardDiffStepSize3()
@@ -118,8 +117,7 @@ and D.E. Keyes. According to the paper, this is the average step size one gets
 when using a certain forward difference approximation for each Jacobian element.
 """
 struct ForwardDiffStepSize3 <: ForwardDiffStepSize end
-(::ForwardDiffStepSize3)(Δx, x) = sqrt(eps(eltype(Δx))) *
-    sum(x_i -> 1 + abs(x_i), x) / (length(x) * norm(Δx))
+(::ForwardDiffStepSize3)(Δx, x) = sqrt(eps(eltype(Δx))) * sum(x_i -> 1 + abs(x_i), x) / (length(x) * norm(Δx))
 
 """
     JacobianFreeJVP
@@ -141,14 +139,12 @@ Computes the Jacobian-vector product using the forward difference approximation
 `j(x) * Δx = (f(x + ε * Δx) - f(x)) / ε`, where
 `ε = step_adjustment * default_step(Δx, x)`.
 """
-Base.@kwdef struct ForwardDiffJVP{S <: ForwardDiffStepSize, T} <:
-    JacobianFreeJVP
+Base.@kwdef struct ForwardDiffJVP{S <: ForwardDiffStepSize, T} <: JacobianFreeJVP
     default_step::S = ForwardDiffStepSize3()
     step_adjustment::T = 1
 end
 
-allocate_cache(::ForwardDiffJVP, x_prototype) =
-    (; x2 = similar(x_prototype), f2 = similar(x_prototype))
+allocate_cache(::ForwardDiffJVP, x_prototype) = (; x2 = similar(x_prototype), f2 = similar(x_prototype))
 
 function run!(alg::ForwardDiffJVP, cache, jΔx, Δx, x, f!, f)
     (; default_step, step_adjustment) = alg
@@ -416,11 +412,10 @@ function allocate_cache(alg::KrylovMethod, x_prototype)
     l = length(x_prototype)
     return (;
         jacobian_free_jvp_cache = isnothing(jacobian_free_jvp) ? nothing :
-            allocate_cache(jacobian_free_jvp, x_prototype),
+                                  allocate_cache(jacobian_free_jvp, x_prototype),
         forcing_term_cache = allocate_cache(forcing_term, x_prototype),
         solver = type(l, l, args..., Krylov.ktypeof(x_prototype); kwargs...),
-        debugger_cache = isnothing(debugger) ? nothing :
-            allocate_cache(debugger, x_prototype),
+        debugger_cache = isnothing(debugger) ? nothing : allocate_cache(debugger, x_prototype),
     )
 end
 
@@ -428,13 +423,12 @@ function run!(alg::KrylovMethod, cache, Δx, x, f!, f, n, j = nothing)
     (; jacobian_free_jvp, forcing_term, solve_kwargs) = alg
     (; disable_preconditioner, verbose, debugger) = alg
     type = solver_type(alg)
-    (; jacobian_free_jvp_cache, forcing_term_cache, solver, debugger_cache) =
-        cache
-    jΔx!(jΔx, Δx) = isnothing(jacobian_free_jvp) ? mul!(jΔx, j, Δx) :
+    (; jacobian_free_jvp_cache, forcing_term_cache, solver, debugger_cache) = cache
+    jΔx!(jΔx, Δx) =
+        isnothing(jacobian_free_jvp) ? mul!(jΔx, j, Δx) :
         run!(jacobian_free_jvp, jacobian_free_jvp_cache, jΔx, Δx, x, f!, f)
     opj = LinearOperator(eltype(x), length(x), length(x), false, false, jΔx!)
-    M = disable_preconditioner || isnothing(j) || isnothing(jacobian_free_jvp) ?
-        I : j
+    M = disable_preconditioner || isnothing(j) || isnothing(jacobian_free_jvp) ? I : j
     run!(debugger, debugger_cache, opj, M)
     ldiv = true
     atol = zero(eltype(Δx))
@@ -444,8 +438,7 @@ function run!(alg::KrylovMethod, cache, Δx, x, f!, f, n, j = nothing)
     iter = solver.stats.niter
     if !solver.stats.solved
         str1 = isnothing(j) ? () : ("the Jacobian",)
-        str2 =
-            isnothing(jacobian_free_jvp) ? () : ("the Jacobian-vector product",)
+        str2 = isnothing(jacobian_free_jvp) ? () : ("the Jacobian-vector product",)
         str = join((str1..., str2...), " and/or ")
         if solver.stats.inconsistent
             @warn "$type detected that the Jacobian is singular on iteration \
@@ -455,8 +448,7 @@ function run!(alg::KrylovMethod, cache, Δx, x, f!, f, n, j = nothing)
                    possible, try improving the approximation of $str, or try \
                    increasing the forcing term"
         end
-    elseif iter == 0 &&
-           solver.stats.status != "x = 0 is a zero-residual solution"
+    elseif iter == 0 && solver.stats.status != "x = 0 is a zero-residual solution"
         @warn "$type set Δx to 0 without running any iterations; if possible, \
                try decreasing the forcing term"
     end
@@ -554,16 +546,12 @@ end
 
 function allocate_cache(alg::NewtonsMethod, x_prototype, j_prototype = nothing)
     (; update_j, krylov_method, convergence_checker) = alg
-    @assert !(
-        isnothing(j_prototype) &&
-        (isnothing(krylov_method) || isnothing(krylov_method.jacobian_free_jvp))
-    )
+    @assert !(isnothing(j_prototype) && (isnothing(krylov_method) || isnothing(krylov_method.jacobian_free_jvp)))
     return (;
         update_j_cache = allocate_cache(update_j, eltype(x_prototype)),
-        krylov_method_cache = isnothing(krylov_method) ? nothing :
-            allocate_cache(krylov_method, x_prototype),
+        krylov_method_cache = isnothing(krylov_method) ? nothing : allocate_cache(krylov_method, x_prototype),
         convergence_checker_cache = isnothing(convergence_checker) ? nothing :
-            allocate_cache(convergence_checker, x_prototype),
+                                    allocate_cache(convergence_checker, x_prototype),
         Δx = similar(x_prototype),
         f = similar(x_prototype),
         j = isnothing(j_prototype) ? nothing : similar(j_prototype),
@@ -584,8 +572,7 @@ function run!(alg::NewtonsMethod, cache, x, f!, j! = nothing)
         end
 
         # Compute Δx[n].
-        isnothing(j) ||
-            run!(update_j, update_j_cache, NewNewtonIteration(), j!, j, x)
+        isnothing(j) || run!(update_j, update_j_cache, NewNewtonIteration(), j!, j, x)
         f!(f, x)
         if isnothing(krylov_method)
             if j isa DenseMatrix
@@ -596,15 +583,12 @@ function run!(alg::NewtonsMethod, cache, x, f!, j! = nothing)
         else
             run!(krylov_method, krylov_method_cache, Δx, x, f!, f, n, j)
         end
-        verbose &&
-            @info "Newton iteration $n: ‖x‖ = $(norm(x)), ‖Δx‖ = $(norm(Δx))"
+        verbose && @info "Newton iteration $n: ‖x‖ = $(norm(x)), ‖Δx‖ = $(norm(Δx))"
 
         # Check for convergence if necessary.
         if !isnothing(convergence_checker)
-            run!(convergence_checker, convergence_checker_cache, x, Δx, n) &&
-                break
-            n == max_iters &&
-                @warn "Newton's method did not converge within $n iterations"
+            run!(convergence_checker, convergence_checker_cache, x, Δx, n) && break
+            n == max_iters && @warn "Newton's method did not converge within $n iterations"
         end
     end
 end

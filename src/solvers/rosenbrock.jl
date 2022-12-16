@@ -14,13 +14,11 @@ struct RosenbrockCache{Nstages, RT, N², A}
     U::A
     fU::A
     k::NTuple{Nstages, A}
-    W
-    linsolve!
+    W::Any
+    linsolve!::Any
 end
 
-function cache(
-    prob::DiffEqBase.AbstractODEProblem,
-    alg::RosenbrockAlgorithm; kwargs...)
+function cache(prob::DiffEqBase.AbstractODEProblem, alg::RosenbrockAlgorithm; kwargs...)
 
     tab = tableau(alg, eltype(prob.u0))
     Nstages = length(tab.m)
@@ -51,22 +49,22 @@ function step_u!(int, cache::RosenbrockCache{Nstages, RT}) where {Nstages, RT}
     linsolve! = cache.linsolve!
 
     # 1) compute jacobian factorization
-    γ = dt * tab.Γ[1,1]
+    γ = dt * tab.Γ[1, 1]
     Wfact_t!(W, u, p, γ, t)
     for i in 1:Nstages
         U .= u
-        for j = 1:i-1
-            U .+= tab.A[i,j] .* k[j]
+        for j in 1:(i - 1)
+            U .+= tab.A[i, j] .* k[j]
         end
         # TODO: there should be a time modification here (t + c * dt)
         # if f does depend on time, would need to add tgrad term as well
         f!(fU, U, p, t)
-        for j = 1:i-1
-            fU .+= (tab.C[i,j] / dt) .* k[j]
+        for j in 1:(i - 1)
+            fU .+= (tab.C[i, j] / dt) .* k[j]
         end
         linsolve!(k[i], W, fU)
     end
-    for i = 1:Nstages
+    for i in 1:Nstages
         u .+= tab.m[i] .* k[i]
     end
 end
@@ -74,29 +72,31 @@ end
 struct SSPKnoth{L} <: RosenbrockAlgorithm
     linsolve::L
 end
-SSPKnoth(;linsolve)=SSPKnoth(linsolve)
+SSPKnoth(; linsolve) = SSPKnoth(linsolve)
 
 
 function tableau(::SSPKnoth, RT)
-  # ROS.transformed=true;
+    # ROS.transformed=true;
     N = 3
-    N² = N*N
+    N² = N * N
     α = @SMatrix RT[
-      0 0 0;
-      1 0 0;
-      1/4 1/4 0]
+        0 0 0
+        1 0 0
+        1/4 1/4 0
+    ]
     # ROS.d=ROS.alpha*ones(ROS.nStage,1);
-    b = @SMatrix RT[1/6 1/6 2/3]
+    b = @SMatrix RT[1 / 6 1 / 6 2 / 3]
     Γ = @SMatrix RT[
-        1 0 0;
-        0 1 0;
-        -3/4 -3/4 1]
+        1 0 0
+        0 1 0
+        -3/4 -3/4 1
+    ]
     A = α / Γ
     C = -inv(Γ)
     m = b / Γ
     return RosenbrockTableau{N, RT, N²}(A, C, Γ, m)
-#   ROS.SSP.alpha=[1 0 0
-#                  3/4 1/4 0
-#                  1/3 0 2/3];
+    #   ROS.SSP.alpha=[1 0 0
+    #                  3/4 1/4 0
+    #                  1/3 0 2/3];
 
 end

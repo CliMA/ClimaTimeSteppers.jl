@@ -13,31 +13,28 @@ Algorithms which currently support this are:
  - [`MultirateInfinitesimalStep`](@ref)
  - [`WickerSkamarockRungeKutta`](@ref)
 """
-struct Multirate{F,S} <: DistributedODEAlgorithm
+struct Multirate{F, S} <: DistributedODEAlgorithm
     fast::F
     slow::S
 end
 
 
-struct MultirateCache{OC,II}
+struct MultirateCache{OC, II}
     outercache::OC
     innerinteg::II
 end
 
-function cache(
-    prob::DiffEqBase.AbstractODEProblem,
-    alg::Multirate;
-    dt, fast_dt, kwargs...)
+function cache(prob::DiffEqBase.AbstractODEProblem, alg::Multirate; dt, fast_dt, kwargs...)
 
     @assert prob.f isa DiffEqBase.SplitFunction
 
     # subproblems
-    outerprob = DiffEqBase.remake(prob; f=prob.f.f2)
+    outerprob = DiffEqBase.remake(prob; f = prob.f.f2)
     outercache = cache(outerprob, alg.slow)
 
     innerfun = init_inner(prob, outercache, dt)
-    innerprob = DiffEqBase.remake(prob; f=innerfun)
-    innerinteg = DiffEqBase.init(innerprob, alg.fast; dt=fast_dt, kwargs...)
+    innerprob = DiffEqBase.remake(prob; f = innerfun)
+    innerinteg = DiffEqBase.init(innerprob, alg.fast; dt = fast_dt, kwargs...)
     return MultirateCache(outercache, innerinteg)
 end
 
@@ -73,4 +70,3 @@ function step_u!(int, cache::MultirateCache)
         innerinteg.dt = fast_dt # reset
     end
 end
-

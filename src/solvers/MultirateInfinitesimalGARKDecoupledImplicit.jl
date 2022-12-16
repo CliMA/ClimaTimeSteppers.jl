@@ -1,10 +1,6 @@
 
 export MRIGARKDecoupledImplicit
-export MRIGARKIRK21aSandu,
-    MRIGARKESDIRK34aSandu,
-    MRIGARKESDIRK46aSandu,
-    MRIGARKESDIRK23LSA,
-    MRIGARKESDIRK24LSA
+export MRIGARKIRK21aSandu, MRIGARKESDIRK34aSandu, MRIGARKESDIRK46aSandu, MRIGARKESDIRK23LSA, MRIGARKESDIRK24LSA
 
 """
     MRIGARKDecoupledImplicit(f!, backward_euler_solver, fastsolver, Γs, γ̂s, Q,
@@ -59,24 +55,13 @@ The available concrete implementations are:
         doi={10.1137/18M1205492}
     }
 """
-mutable struct MRIGARKDecoupledImplicit{
-    T,
-    RT,
-    AT,
-    Nstages,
-    NΓ,
-    FS,
-    Nx,
-    Ny,
-    Nx_Ny,
-    BE,
-} <: AbstractODESolver
+mutable struct MRIGARKDecoupledImplicit{T, RT, AT, Nstages, NΓ, FS, Nx, Ny, Nx_Ny, BE} <: AbstractODESolver
     "time step"
     dt::RT
     "time"
     t::RT
     "rhs function"
-    slowrhs!
+    slowrhs!::Any
     "backwark Euler solver"
     besolver!::BE
     "Storage for RHS during the `MRIGARKDecoupledImplicit` update"
@@ -139,8 +124,7 @@ mutable struct MRIGARKDecoupledImplicit{
 
         # Set up the backward Euler solver with the initial value of α
         α = dt * Γs[1][2, 2]
-        besolver! =
-            setup_backward_Euler_solver(backward_euler_solver, Q, α, slowrhs!)
+        besolver! = setup_backward_Euler_solver(backward_euler_solver, Q, α, slowrhs!)
         @assert besolver! isa AbstractBackwardEulerSolver
         BE = typeof(besolver!)
 
@@ -252,29 +236,13 @@ end
 
 The 2rd order, 2 stage implicit scheme from Sandu (2019).
 """
-function MRIGARKIRK21aSandu(
-    slowrhs!,
-    backward_euler_solver,
-    fastsolver,
-    Q;
-    dt,
-    t0 = 0,
-)
+function MRIGARKIRK21aSandu(slowrhs!, backward_euler_solver, fastsolver, Q; dt, t0 = 0)
     #! format: off
     Γ0 = [ 1 // 1 0 // 1
           -1 // 2 1 // 2 ]
     γ̂0 = [-1 // 2 1 // 2 ]
     #! format: on
-    MRIGARKDecoupledImplicit(
-        slowrhs!,
-        backward_euler_solver,
-        fastsolver,
-        (Γ0,),
-        (γ̂0,),
-        Q,
-        dt,
-        t0,
-    )
+    MRIGARKDecoupledImplicit(slowrhs!, backward_euler_solver, fastsolver, (Γ0,), (γ̂0,), Q, dt, t0)
 end
 
 """
@@ -282,14 +250,7 @@ end
 
 The 3rd order, 4 stage decoupled implicit scheme from Sandu (2019).
 """
-function MRIGARKESDIRK34aSandu(
-    slowrhs!,
-    backward_euler_solver,
-    fastsolver,
-    Q;
-    dt,
-    t0 = 0,
-)
+function MRIGARKESDIRK34aSandu(slowrhs!, backward_euler_solver, fastsolver, Q; dt, t0 = 0)
     T = real(eltype(Q))
     μ = acot(2 * sqrt(T(2))) / 3
     λ = 1 - cos(μ) / sqrt(T(2)) + sqrt(T(3 // 2)) * sin(μ)
@@ -306,16 +267,7 @@ function MRIGARKESDIRK34aSandu(
          ]
     γ̂0 = [ 0                      0                        0           0]
     #! format: on
-    MRIGARKDecoupledImplicit(
-        slowrhs!,
-        backward_euler_solver,
-        fastsolver,
-        (Γ0,),
-        (γ̂0,),
-        Q,
-        dt,
-        t0,
-    )
+    MRIGARKDecoupledImplicit(slowrhs!, backward_euler_solver, fastsolver, (Γ0,), (γ̂0,), Q, dt, t0)
 end
 
 """
@@ -323,14 +275,7 @@ end
 
 The 4th order, 6 stage decoupled implicit scheme from Sandu (2019).
 """
-function MRIGARKESDIRK46aSandu(
-    slowrhs!,
-    implicitsolve!,
-    fastsolver,
-    Q;
-    dt,
-    t0 = 0,
-)
+function MRIGARKESDIRK46aSandu(slowrhs!, implicitsolve!, fastsolver, Q; dt, t0 = 0)
     T = real(eltype(Q))
     μ = acot(2 * sqrt(T(2))) / 3
     λ = 1 - cos(μ) / sqrt(T(2)) + sqrt(T(3 // 2)) * sin(μ)
@@ -366,16 +311,7 @@ function MRIGARKESDIRK46aSandu(
     γ̂0 = [-1 // 4 5595 // 8804 -2445 // 8804 -4225 // 8804 2205 // 4402 -567 // 4402]
     γ̂1 = [ 0 // 1    0 // 1        0 // 1        0 // 1       0 // 1       0 // 1   ]
     #! format: on
-    MRIGARKDecoupledImplicit(
-        slowrhs!,
-        implicitsolve!,
-        fastsolver,
-        (Γ0, Γ1),
-        (γ̂0, γ̂1),
-        Q,
-        dt,
-        t0,
-    )
+    MRIGARKDecoupledImplicit(slowrhs!, implicitsolve!, fastsolver, (Γ0, Γ1), (γ̂0, γ̂1), Q, dt, t0)
 end
 
 """
@@ -413,15 +349,7 @@ The free parameter `δ` can take any values for accuracy.
         address = {Langley Research Center, Hampton, VA}
     }
 """
-function MRIGARKESDIRK23LSA(
-    slowrhs!,
-    implicitsolve!,
-    fastsolver,
-    Q;
-    dt,
-    t0 = 0,
-    δ = 0,
-)
+function MRIGARKESDIRK23LSA(slowrhs!, implicitsolve!, fastsolver, Q; dt, t0 = 0, δ = 0)
     T = real(eltype(Q))
     rt2 = sqrt(T(2))
 
@@ -454,16 +382,7 @@ function MRIGARKESDIRK23LSA(
     @assert Γ0[4, 3] ≈ 1 - 1 / rt2
 
 
-    MRIGARKDecoupledImplicit(
-        slowrhs!,
-        implicitsolve!,
-        fastsolver,
-        (Γ0,),
-        (γ̂0,),
-        Q,
-        dt,
-        t0,
-    )
+    MRIGARKDecoupledImplicit(slowrhs!, implicitsolve!, fastsolver, (Γ0,), (γ̂0,), Q, dt, t0)
 end
 
 """
@@ -516,8 +435,8 @@ function MRIGARKESDIRK24LSA(
     A = [
         0 0 0 0
         γ γ 0 0
-        c3 - a32 - γ a32 γ 0
-        1 - b2 - b3 - γ b2 b3 γ
+        c3 - a32-γ a32 γ 0
+        1 - b2 - b3-γ b2 b3 γ
     ]
     c = sum(A, dims = 2)
     b = A[end, :]
@@ -557,14 +476,5 @@ function MRIGARKESDIRK24LSA(
     @assert all(A ≈ [0 0 0 0; accumulate(+, Γ0, dims = 1)[2:2:end, :]])
     @assert all(Δc ≈ sum(Γ0, dims = 2))
 
-    MRIGARKDecoupledImplicit(
-        slowrhs!,
-        implicitsolve!,
-        fastsolver,
-        (Γ0,),
-        (γ̂0,),
-        Q,
-        dt,
-        t0,
-    )
+    MRIGARKDecoupledImplicit(slowrhs!, implicitsolve!, fastsolver, (Γ0,), (γ̂0,), Q, dt, t0)
 end

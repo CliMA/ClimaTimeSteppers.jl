@@ -18,13 +18,13 @@ const explicit_methods = (
     (SSPRK34SpiteriRuuth(), 3),
 )
 
- const imex_methods = (
+const imex_methods = (
 #     (ARK1ForwardBackwardEuler, 1),
 #     (ARK2ImplicitExplicitMidpoint, 2),
-     (ARK2GiraldoKellyConstantinescu, 2),
+    (ARK2GiraldoKellyConstantinescu, 2),
 #     (ARK437L2SA1KennedyCarpenter, 4),
 #     (ARK548L2SA2KennedyCarpenter, 5),
- )
+)
 
 # const mis_methods =
 #     ((MIS2, 2), (MIS3C, 2), (MIS4, 3), (MIS4a, 3), (TVDMISA, 2), (TVDMISB, 2))
@@ -47,8 +47,8 @@ struct DirectSolver end
 
 DirectSolver(args...) = DirectSolver()
 
-function (::DirectSolver)(x,A,b,matrix_updated; kwargs...)
+function (::DirectSolver)(x, A, b, matrix_updated; kwargs...)
     n = length(x)
-    M = mapslices(y -> mul!(similar(y), A, y), Matrix{eltype(x)}(I,n,n), dims=1)
+    M = mapslices(y -> mul!(similar(y), A, y), Matrix{eltype(x)}(I, n, n), dims = 1)
     x .= M \ b
 end

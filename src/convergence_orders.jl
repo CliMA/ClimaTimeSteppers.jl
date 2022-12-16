@@ -4,10 +4,7 @@
 
 # TODO: is it better to use `first_order_tableau = Union{ARS111,ARS121}`? to
 #       reduce the number of methods?
-const first_order_tableau = [
-    ARS111,
-    ARS121,
-]
+const first_order_tableau = [ARS111, ARS121]
 
 #####
 ##### 2nd order
@@ -34,14 +31,7 @@ const second_order_tableau = [
 #####
 ##### 3rd order
 #####
-const third_order_tableau = [
-    ARS233,
-    ARS343,
-    ARS443,
-    IMKG342a,
-    IMKG343a,
-    DBM453,
-]
+const third_order_tableau = [ARS233, ARS343, ARS443, IMKG342a, IMKG343a, DBM453]
 
 for m in first_order_tableau
     @eval theoretical_convergence_order(::$m) = 1

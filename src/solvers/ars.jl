@@ -1,9 +1,9 @@
 export ARS111, ARS121, ARS232, ARS343
 
-struct ARSAlgorithm{name,L} <: DistributedODEAlgorithm
+struct ARSAlgorithm{name, L} <: DistributedODEAlgorithm
     linsolve::L
 end
-ARSAlgorithm{name}(;linsolve) where {name} = ARSAlgorithm{name,typeof(linsolve)}(linsolve)
+ARSAlgorithm{name}(; linsolve) where {name} = ARSAlgorithm{name, typeof(linsolve)}(linsolve)
 
 
 
@@ -44,30 +44,32 @@ function ARSTableau(a::AbstractMatrix{RT}, ahat::AbstractMatrix{RT}) where {RT}
 
     =#
 
-    N = size(a,2)
+    N = size(a, 2)
 
-    c = vec(sum(a, dims=2))
-    chat = vec(sum(ahat, dims=2))
+    c = vec(sum(a, dims = 2))
+    chat = vec(sum(ahat, dims = 2))
 
-    Q = zeros(RT, N+1,N)
-    Q0 = zeros(RT,N+1)
-    Qhat = zeros(RT, N+1,N)
+    Q = zeros(RT, N + 1, N)
+    Q0 = zeros(RT, N + 1)
+    Qhat = zeros(RT, N + 1, N)
 
-    for i = 1:N+1
-      Q0[i] = 1 - sum(j -> ahat[i+1,j] / ahat[j+1,j] * Q0[j], 1:i-1;init=0.0)
-      for k = 1:i-1
-        Q[i, k] = a[i,k]/a[k,k] - sum(j -> ahat[i+1,j] / ahat[j+1,j] * Q[j,k], 1:i-1)
-        Qhat[i,k] = ahat[i+1,k]/ahat[k+1,k] - a[i,k]/a[k,k] - sum(j -> ahat[i+1,j] / ahat[j+1,j] * Qhat[j,k], 1:i-1)
-      end
+    for i in 1:(N + 1)
+        Q0[i] = 1 - sum(j -> ahat[i + 1, j] / ahat[j + 1, j] * Q0[j], 1:(i - 1); init = 0.0)
+        for k in 1:(i - 1)
+            Q[i, k] = a[i, k] / a[k, k] - sum(j -> ahat[i + 1, j] / ahat[j + 1, j] * Q[j, k], 1:(i - 1))
+            Qhat[i, k] =
+                ahat[i + 1, k] / ahat[k + 1, k] - a[i, k] / a[k, k] -
+                sum(j -> ahat[i + 1, j] / ahat[j + 1, j] * Qhat[j, k], 1:(i - 1))
+        end
     end
 
-    for i = 1:N+1
-      @assert Q0[i] + sum(Q[i,:]) + sum(Qhat[i,:]) ≈ 1
+    for i in 1:(N + 1)
+        @assert Q0[i] + sum(Q[i, :]) + sum(Qhat[i, :]) ≈ 1
     end
 
-    γ = a[1,1]
-    for i = 2:N
-      @assert a[i,i] == γ
+    γ = a[1, 1]
+    for i in 2:N
+        @assert a[i, i] == γ
     end
     ARSTableau(a, ahat, c, chat, Q0, Q, Qhat, γ)
 end
@@ -84,11 +86,14 @@ This is equivalent to the `OrdinaryDiffEq.IMEXEuler` algorithm.
 const ARS111 = ARSAlgorithm{:ARS111}
 function tableau(::ARS111, RT)
     # https://github.com/SciML/OrdinaryDiffEq.jl/issues/1590
-    a = RT[1;
-           1;;]
-    ahat = RT[0 0;
-              1 0;
-              1 0]
+    a = RT[
+        1; 1;;
+    ]
+    ahat = RT[
+        0 0
+        1 0
+        1 0
+    ]
     return ARSTableau(a, ahat)
 end
 
@@ -102,11 +107,14 @@ This is equivalent to the `OrdinaryDiffEq.IMEXEulerARK` algorithm.
 """
 const ARS121 = ARSAlgorithm{:ARS121}
 function tableau(::ARS121, RT)
-    a = RT[1;
-           1;;]
-    ahat = RT[0 0;
-              1 0;
-              0 1]
+    a = RT[
+        1; 1;;
+    ]
+    ahat = RT[
+        0 0
+        1 0
+        0 1
+    ]
     return ARSTableau(a, ahat)
 end
 
@@ -118,17 +126,21 @@ The Forward-Backward (2,3,2) implicit-explicit (IMEX) Runge-Kutta scheme of
 """
 const ARS232 = ARSAlgorithm{:ARS232}
 function tableau(::ARS232, RT)
-    γ = (2 - sqrt(2))/2
-    δ = -2*sqrt(2)/3
+    γ = (2 - sqrt(2)) / 2
+    δ = -2 * sqrt(2) / 3
     # implicit
-    a = RT[γ 0;
-        1-γ γ;
-        1-γ γ];
+    a = RT[
+        γ 0
+        1-γ γ
+        1-γ γ
+    ]
     # explicit
-    ahat = RT[ 0 0 0;
-            γ 0 0;
-            δ 1-δ 0;
-            0 1-γ γ];
+    ahat = RT[
+        0 0 0
+        γ 0 0
+        δ 1-δ 0
+        0 1-γ γ
+    ]
     return ARSTableau(a, ahat)
 end
 
@@ -142,32 +154,30 @@ const ARS343 = ARSAlgorithm{:ARS343}
 function tableau(::ARS343, RT)
     N = 3
     γ = 0.4358665215084590
-    b1 = -3/2 * γ^2 + 4 * γ - 1/4
-    b2 =  3/2 * γ^2 - 5 * γ + 5/4
+    b1 = -3 / 2 * γ^2 + 4 * γ - 1 / 4
+    b2 = 3 / 2 * γ^2 - 5 * γ + 5 / 4
     # implicit tableau
-    a = RT[γ 0 0;
-        (1-γ)/2 γ 0;
-        b1 b2 γ;
-        b1 b2 γ]
+    a = RT[
+        γ 0 0
+        (1 - γ)/2 γ 0
+        b1 b2 γ
+        b1 b2 γ
+    ]
 
-    dA42 = 0.5529291480359398;
-    dA43 = 0.5529291480359398;
-    dA31 =(
-        (1.0 - 4.5 * γ + 1.5 * γ * γ) * dA42
-          + (2.75 - 10.5 * γ + 3.75 * γ * γ) * dA43
-          - 3.5 + 13 * γ - 4.5 * γ * γ)
+    dA42 = 0.5529291480359398
+    dA43 = 0.5529291480359398
+    dA31 = ((1.0 - 4.5 * γ + 1.5 * γ * γ) * dA42 + (2.75 - 10.5 * γ + 3.75 * γ * γ) * dA43 - 3.5 + 13 * γ - 4.5 * γ * γ)
     dA32 = (
-        (-1.0 + 4.5 * γ - 1.5 * γ * γ) * dA42
-          + (-2.75 + 10.5 * γ - 3.75 * γ * γ) * dA43
-          + 4.0 - 12.5 * γ + 4.5 * γ * γ)
-    dA41 = 1.0 - dA42 - dA43;
+        (-1.0 + 4.5 * γ - 1.5 * γ * γ) * dA42 + (-2.75 + 10.5 * γ - 3.75 * γ * γ) * dA43 + 4.0 - 12.5 * γ + 4.5 * γ * γ
+    )
+    dA41 = 1.0 - dA42 - dA43
     # explicit tableau
     ahat = RT[
-      0 0 0 0;
-      γ 0 0 0;
-      dA31 dA32 0 0;
-      dA41 dA42 dA43 0;
-      0 b1 b2 γ
+        0 0 0 0
+        γ 0 0 0
+        dA31 dA32 0 0
+        dA41 dA42 dA43 0
+        0 b1 b2 γ
     ]
     ARSTableau(a, ahat)
 end
@@ -177,13 +187,11 @@ struct ARSCache{Nstages, RT, A}
     U::NTuple{Nstages, A}
     Uhat::NTuple{Nstages, A}
     idu::A
-    W
-    linsolve!
+    W::Any
+    linsolve!::Any
 end
 
-function cache(
-    prob::DiffEqBase.AbstractODEProblem,
-    alg::ARSAlgorithm; kwargs...)
+function cache(prob::DiffEqBase.AbstractODEProblem, alg::ARSAlgorithm; kwargs...)
 
     tab = tableau(alg, eltype(prob.u0))
     Nstages = length(tab.c) - 1
@@ -245,50 +253,47 @@ function step_u!(int, cache::ARSCache{Nstages}) where {Nstages}
     #### stage 1
     # explicit
     Uhat[1] .= u # utilde[i],  Q0[1] == 1
-    f2!(Uhat[1], u, p, t+dt*tab.chat[1], dt*tab.ahat[2,1])
+    f2!(Uhat[1], u, p, t + dt * tab.chat[1], dt * tab.ahat[2, 1])
 
     # implicit
-    implicit_step!(U[1], Uhat[1], p, t+dt*tab.c[1], dt*tab.a[1,1])
+    implicit_step!(U[1], Uhat[1], p, t + dt * tab.c[1], dt * tab.a[1, 1])
     if Nstages == 1
-        u .= tab.Q0[2] .* u .+
-            tab.Qhat[2,1] .* Uhat[1] .+ tab.Q[2,1] .* U[1] # utilde[2]
-        f2!(u, U[1], p, t+dt*tab.chat[2], dt*tab.ahat[3,2])
+        u .= tab.Q0[2] .* u .+ tab.Qhat[2, 1] .* Uhat[1] .+ tab.Q[2, 1] .* U[1] # utilde[2]
+        f2!(u, U[1], p, t + dt * tab.chat[2], dt * tab.ahat[3, 2])
         return
     end
 
     #### stage 2
-    Uhat[2] .= tab.Q0[2] .* u .+
-            tab.Qhat[2,1] .* Uhat[1] .+ tab.Q[2,1] .* U[1] # utilde[2]
-    f2!(Uhat[2], U[1], p, t+dt*tab.chat[2], dt*tab.ahat[3,2])
+    Uhat[2] .= tab.Q0[2] .* u .+ tab.Qhat[2, 1] .* Uhat[1] .+ tab.Q[2, 1] .* U[1] # utilde[2]
+    f2!(Uhat[2], U[1], p, t + dt * tab.chat[2], dt * tab.ahat[3, 2])
 
-    implicit_step!(U[2], Uhat[2], p, t+dt*tab.c[2], dt*tab.a[2,2])
+    implicit_step!(U[2], Uhat[2], p, t + dt * tab.c[2], dt * tab.a[2, 2])
 
     if Nstages == 2
-        u .= tab.Q0[3] .* u .+
-            tab.Qhat[3,1] .* Uhat[1] .+ tab.Q[3,1] .* U[1] .+
-            tab.Qhat[3,2] .* Uhat[2] .+ tab.Q[3,2] .* U[2] # utilde[3]
-        f2!(u, U[2], p, t+dt*tab.chat[3], dt*tab.ahat[4,3])
+        u .=
+            tab.Q0[3] .* u .+ tab.Qhat[3, 1] .* Uhat[1] .+ tab.Q[3, 1] .* U[1] .+ tab.Qhat[3, 2] .* Uhat[2] .+
+            tab.Q[3, 2] .* U[2] # utilde[3]
+        f2!(u, U[2], p, t + dt * tab.chat[3], dt * tab.ahat[4, 3])
         return
     end
 
     #### stage 3
-    Uhat[3] .= tab.Q0[3] .* u .+
-            tab.Qhat[3,1] .* Uhat[1] .+ tab.Q[3,1] .* U[1] .+
-            tab.Qhat[3,2] .* Uhat[2] .+ tab.Q[3,2] .* U[2] # utilde[3]
-    f2!(Uhat[3], U[2], p, t+dt*tab.chat[3], dt*tab.ahat[4,3])
+    Uhat[3] .=
+        tab.Q0[3] .* u .+ tab.Qhat[3, 1] .* Uhat[1] .+ tab.Q[3, 1] .* U[1] .+ tab.Qhat[3, 2] .* Uhat[2] .+
+        tab.Q[3, 2] .* U[2] # utilde[3]
+    f2!(Uhat[3], U[2], p, t + dt * tab.chat[3], dt * tab.ahat[4, 3])
     # @show Uhat[3] t+dt*tab.chat[3]
 
-    implicit_step!(U[3], Uhat[3], p, t+dt*tab.c[3], dt*tab.a[3,3])
+    implicit_step!(U[3], Uhat[3], p, t + dt * tab.c[3], dt * tab.a[3, 3])
     # @show U[3] t+dt*tab.c[3]
 
     ### final update
-    u .= tab.Q0[4] .* u .+
-    tab.Qhat[4,1] .* Uhat[1] .+ tab.Q[4,1] .* U[1] .+
-    tab.Qhat[4,2] .* Uhat[2] .+ tab.Q[4,2] .* U[2] .+
-    tab.Qhat[4,3] .* Uhat[3] .+ tab.Q[4,3] .* U[3]
+    u .=
+        tab.Q0[4] .* u .+ tab.Qhat[4, 1] .* Uhat[1] .+ tab.Q[4, 1] .* U[1] .+ tab.Qhat[4, 2] .* Uhat[2] .+
+        tab.Q[4, 2] .* U[2] .+ tab.Qhat[4, 3] .* Uhat[3] .+ tab.Q[4, 3] .* U[3]
 
     # @show u
-    f2!(u, U[3], p, t+dt*tab.chat[4], dt*tab.ahat[5,4])
+    f2!(u, U[3], p, t + dt * tab.chat[4], dt * tab.ahat[5, 4])
     # @show u t+dt*tab.chat[4]
     return
 end

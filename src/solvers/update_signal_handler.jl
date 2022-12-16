@@ -64,12 +64,10 @@ specified, then the counter (which gets incremented from 0 to `n` and then gets
 reset to 0 when it is time to perform another update) is reset to 0 whenever the
 signal handler is `run!` with an `UpdateSignal` of type `reset_signal_type`.
 """
-struct UpdateEveryN{U <: UpdateSignal, R <: Union{Nothing, UpdateSignal}} <:
-    UpdateSignalHandler
+struct UpdateEveryN{U <: UpdateSignal, R <: Union{Nothing, UpdateSignal}} <: UpdateSignalHandler
     n::Int
 end
-UpdateEveryN(n, ::Type{U}, ::Type{R} = Nothing) where {U, R} =
-    UpdateEveryN{U, R}(n)
+UpdateEveryN(n, ::Type{U}, ::Type{R} = Nothing) where {U, R} = UpdateEveryN{U, R}(n)
 
 allocate_cache(::UpdateEveryN, _) = (; counter = Ref(0))
 
@@ -101,8 +99,7 @@ struct UpdateEveryDt{T} <: UpdateSignalHandler
 end
 
 # TODO: This assumes that typeof(t) == FT, which might not always be correct.
-allocate_cache(alg::UpdateEveryDt, ::Type{FT}) where {FT} =
-    (; is_first_t = Ref(true), prev_update_t = Ref{FT}())
+allocate_cache(alg::UpdateEveryDt, ::Type{FT}) where {FT} = (; is_first_t = Ref(true), prev_update_t = Ref{FT}())
 
 function run!(alg::UpdateEveryDt, cache, signal::NewTimeStep, f!, args...)
     (; dt) = alg

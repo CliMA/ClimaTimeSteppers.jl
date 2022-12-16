@@ -7,9 +7,7 @@ bib = CitationBibliography(joinpath(@__DIR__, "refs.bib"))
 makedocs(
     bib,
     sitename = "ClimaTimeSteppers",
-    format = Documenter.HTML(
-        prettyurls = get(ENV, "CI", nothing) == "true"
-    ),
+    format = Documenter.HTML(prettyurls = get(ENV, "CI", nothing) == "true"),
     modules = [ClimaTimeSteppers],
     checkdocs = :exports,
     clean = true,
@@ -19,14 +17,9 @@ makedocs(
         "algorithms.md",
         "newtons_method.md",
         "callbacks.md",
-        "Background" => [
-            "background/lsrk.md",
-            "background/ssprk.md",
-            "background/ark.md",
-            "background/mrrk.md",
-        ],
+        "Background" => ["background/lsrk.md", "background/ssprk.md", "background/ark.md", "background/mrrk.md"],
         "references.md",
-    ]
+    ],
 )
 
 # Documenter can also automatically deploy documentation to gh-pages.

@@ -8,18 +8,18 @@ using ClimaTimeSteppers
 
     # Aqua.test_unbound_args(ClimaTimeSteppers)
     # Fails with:
-#=
-  Expression: detect_unbound_args_recursively(m) == []
-   Evaluated: Any[
-   ClimaTimeSteppers.WickerSkamarockRungeKuttaTableau(c::Tuple{Vararg{RT, Nstages}}) where {Nstages, RT}
-        in ClimaTimeSteppers at ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/src/solvers/wickerskamarock.jl:18,
-   ClimaTimeSteppers.LowStorageRungeKutta2NTableau(A::Tuple{Vararg{RT, Nstages}}, B::Tuple{Vararg{RT, Nstages}}, C::Tuple{Vararg{RT, Nstages}}) where {Nstages, RT}
-        in ClimaTimeSteppers at ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/src/solvers/lsrk.jl:23,
-   ClimaTimeSteppers.MultirateInfinitesimalStepCache(ΔU::Tuple{Vararg{A, Nstages}}, F::Tuple{Vararg{A, Nstages}}, tableau::T) where {Nstages, A, T<:ClimaTimeSteppers.MultirateInfinitesimalStepTableau}
-        in ClimaTimeSteppers at ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/src/solvers/mis.jl:45,
-   ClimaTimeSteppers.StrongStabilityPreservingRungeKuttaTableau(A1::Tuple{Vararg{RT, Nstages}}, A2::Tuple{Vararg{RT, Nstages}}, B::Tuple{Vararg{RT, Nstages}}, C::Tuple{Vararg{RT, Nstages}}) where {Nstages, RT}
-        in ClimaTimeSteppers at ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/src/solvers/ssprk.jl:19] == Any[]
-=#
+    #=
+      Expression: detect_unbound_args_recursively(m) == []
+       Evaluated: Any[
+       ClimaTimeSteppers.WickerSkamarockRungeKuttaTableau(c::Tuple{Vararg{RT, Nstages}}) where {Nstages, RT}
+            in ClimaTimeSteppers at ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/src/solvers/wickerskamarock.jl:18,
+       ClimaTimeSteppers.LowStorageRungeKutta2NTableau(A::Tuple{Vararg{RT, Nstages}}, B::Tuple{Vararg{RT, Nstages}}, C::Tuple{Vararg{RT, Nstages}}) where {Nstages, RT}
+            in ClimaTimeSteppers at ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/src/solvers/lsrk.jl:23,
+       ClimaTimeSteppers.MultirateInfinitesimalStepCache(ΔU::Tuple{Vararg{A, Nstages}}, F::Tuple{Vararg{A, Nstages}}, tableau::T) where {Nstages, A, T<:ClimaTimeSteppers.MultirateInfinitesimalStepTableau}
+            in ClimaTimeSteppers at ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/src/solvers/mis.jl:45,
+       ClimaTimeSteppers.StrongStabilityPreservingRungeKuttaTableau(A1::Tuple{Vararg{RT, Nstages}}, A2::Tuple{Vararg{RT, Nstages}}, B::Tuple{Vararg{RT, Nstages}}, C::Tuple{Vararg{RT, Nstages}}) where {Nstages, RT}
+            in ClimaTimeSteppers at ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/src/solvers/ssprk.jl:19] == Any[]
+    =#
 
     # See: https://github.com/SciML/OrdinaryDiffEq.jl/issues/1750
     # Test that we're not introducing method ambiguities across deps

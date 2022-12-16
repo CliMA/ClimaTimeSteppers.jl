@@ -55,13 +55,13 @@ function cache(prob::DiffEqBase.AbstractODEProblem, alg::IMEXARKAlgorithm; kwarg
     (; tab, newtons_method) = alg
     (; a_exp, b_exp, a_imp, b_imp) = tab
     s = length(b_exp)
-    inds = ntuple(i->i, s)
+    inds = ntuple(i -> i, s)
     inds_T_exp = filter(i -> !all(iszero, a_exp[:, i]) || !iszero(b_exp[i]), inds)
     inds_T_imp = filter(i -> !all(iszero, a_imp[:, i]) || !iszero(b_imp[i]), inds)
-    U = SparseContainer(map(i->similar(u0), collect(1:length(inds))), inds)
-    T_lim = SparseContainer(map(i->similar(u0), collect(1:length(inds_T_exp))), inds_T_exp)
-    T_exp = SparseContainer(map(i->similar(u0), collect(1:length(inds_T_exp))), inds_T_exp)
-    T_imp = SparseContainer(map(i->similar(u0), collect(1:length(inds_T_imp))), inds_T_imp)
+    U = SparseContainer(map(i -> similar(u0), collect(1:length(inds))), inds)
+    T_lim = SparseContainer(map(i -> similar(u0), collect(1:length(inds_T_exp))), inds_T_exp)
+    T_exp = SparseContainer(map(i -> similar(u0), collect(1:length(inds_T_exp))), inds_T_exp)
+    T_imp = SparseContainer(map(i -> similar(u0), collect(1:length(inds_T_imp))), inds_T_imp)
     temp = similar(u0)
     γs = unique(filter(!iszero, diag(a_imp)))
     γ = length(γs) == 1 ? γs[1] : nothing # TODO: This could just be a constant.
@@ -84,12 +84,11 @@ function step_u!(integrator, cache::IMEXARKCache)
             newtons_method,
             newtons_method_cache,
             NewTimeStep(t),
-            jacobian -> isnothing(γ) ?
-                error(
-                    "The tableau does not specify a unique value of γ for the \
-                     duration of each time step; do not update based on the \
-                     NewTimeStep signal when using this tableau."
-                ) : T_imp!.Wfact(jacobian, u, p, dt * γ, t),
+            jacobian ->
+                isnothing(γ) ? error("The tableau does not specify a unique value of γ for the \
+                                      duration of each time step; do not update based on the \
+                                      NewTimeStep signal when using this tableau.") :
+                T_imp!.Wfact(jacobian, u, p, dt * γ, t),
         )
     end
 
@@ -130,16 +129,8 @@ function step_u!(integrator, cache::IMEXARKCache)
                 T_imp!(residual, Ui, p, t_imp)
                 @. residual = temp + dt * a_imp[i, i] * residual - Ui
             end
-            implicit_equation_jacobian! =
-                (jacobian, Ui) ->
-                    T_imp!.Wfact(jacobian, Ui, p, dt * a_imp[i, i], t_imp)
-            run!(
-                newtons_method,
-                newtons_method_cache,
-                U[i],
-                implicit_equation_residual!,
-                implicit_equation_jacobian!,
-            )
+            implicit_equation_jacobian! = (jacobian, Ui) -> T_imp!.Wfact(jacobian, Ui, p, dt * a_imp[i, i], t_imp)
+            run!(newtons_method, newtons_method_cache, U[i], implicit_equation_residual!, implicit_equation_jacobian!)
         end
 
         # We do not need to DSS U[i] again because the implicit solve should

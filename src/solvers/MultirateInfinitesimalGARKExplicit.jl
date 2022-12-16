@@ -16,13 +16,7 @@ struct MRIParam{P, T, AT, N, M}
     Rs::NTuple{N, AT}
     ts::T
     Δts::T
-    function MRIParam(
-        p::P,
-        γs::NTuple{M},
-        Rs::NTuple{N, AT},
-        ts,
-        Δts,
-    ) where {P, M, N, AT}
+    function MRIParam(p::P, γs::NTuple{M}, Rs::NTuple{N, AT}, ts, Δts) where {P, M, N, AT}
         T = eltype(γs[1])
         new{P, T, AT, N, M}(p, γs, Rs, ts, Δts)
     end
@@ -98,14 +92,13 @@ The available concrete implementations are:
         doi={10.1137/18M1205492}
     }
 """
-mutable struct MRIGARKExplicit{T, RT, AT, Nstages, NΓ, FS, Nstages_sq} <:
-               AbstractODESolver
+mutable struct MRIGARKExplicit{T, RT, AT, Nstages, NΓ, FS, Nstages_sq} <: AbstractODESolver
     "time step"
     dt::RT
     "time"
     t::RT
     "rhs function"
-    slowrhs!
+    slowrhs!::Any
     "Storage for RHS during the `MRIGARKExplicit` update"
     Rstages::NTuple{Nstages, AT}
     "RK coefficient matrices for coupling coefficients"
@@ -117,15 +110,7 @@ mutable struct MRIGARKExplicit{T, RT, AT, Nstages, NΓ, FS, Nstages_sq} <:
     "fast solver"
     fastsolver::FS
 
-    function MRIGARKExplicit(
-        slowrhs!,
-        fastsolver,
-        Γs,
-        γ̂s,
-        Q::AT,
-        dt,
-        t0,
-    ) where {AT <: AbstractArray}
+    function MRIGARKExplicit(slowrhs!, fastsolver, Γs, γ̂s, Q::AT, dt, t0) where {AT <: AbstractArray}
         NΓ = length(Γs)
         Nstages = size(Γs[1], 1)
         T = eltype(Q)
@@ -145,16 +130,7 @@ mutable struct MRIGARKExplicit{T, RT, AT, Nstages, NΓ, FS, Nstages_sq} <:
         Rstages = ntuple(i -> similar(Q), Nstages)
 
         FS = typeof(fastsolver)
-        new{T, RT, AT, Nstages, NΓ, FS, Nstages^2}(
-            RT(dt),
-            RT(t0),
-            slowrhs!,
-            Rstages,
-            Γs,
-            γ̂s,
-            Δc,
-            fastsolver,
-        )
+        new{T, RT, AT, Nstages, NΓ, FS, Nstages^2}(RT(dt), RT(t0), slowrhs!, Rstages, Γs, γ̂s, Δc, fastsolver)
     end
 end
 

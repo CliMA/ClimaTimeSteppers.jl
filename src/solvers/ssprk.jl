@@ -34,9 +34,7 @@ struct StrongStabilityPreservingRungeKuttaCache{Nstages, RT, A}
     U::A
 end
 
-function cache(
-    prob::DiffEqBase.AbstractODEProblem,
-    alg::StrongStabilityPreservingRungeKutta; kwargs...)
+function cache(prob::DiffEqBase.AbstractODEProblem, alg::StrongStabilityPreservingRungeKutta; kwargs...)
 
     tab = tableau(alg, eltype(prob.u0))
     # can't use Vector{T}(undef) as need to ensure no NaNs
@@ -65,9 +63,9 @@ function step_u!(int, cache::StrongStabilityPreservingRungeKuttaCache{Nstages, R
             # We need                     un .= u .+ β .* f(u,p,t)
             if s == 1
                 @assert tab.A1[s] == 1 && tab.A2[s] == 0
-                f!(Un, u, p, t + tab.C[s]*dt, tab.B[s] * dt)
+                f!(Un, u, p, t + tab.C[s] * dt, tab.B[s] * dt)
             else
-                f!(cache.fU, cache.U, p, t + tab.C[s]*dt, tab.B[s] / tab.A2[s] * dt)
+                f!(cache.fU, cache.U, p, t + tab.C[s] * dt, tab.B[s] / tab.A2[s] * dt)
                 Un .= tab.A1[s] .* u .+ tab.A2[s] .* cache.fU
             end
             #@show Un
@@ -83,24 +81,24 @@ function step_u!(int, cache::StrongStabilityPreservingRungeKuttaCache{Nstages, R
             if s == 1
                 @assert tab.A1[s] == 1 && tab.A2[s] == 0
                 Un .= u
-                f!(Un, u, p, t + tab.C[s]*dt, tab.B[s] * dt, 1)
+                f!(Un, u, p, t + tab.C[s] * dt, tab.B[s] * dt, 1)
             else
                 cache.fU .= tab.A1[s] .* u .+ tab.A2[s] .* cache.U
-                f!(cache.fU, cache.U, p, t + tab.C[s]*dt, tab.B[s] * dt, 1)
+                f!(cache.fU, cache.U, p, t + tab.C[s] * dt, tab.B[s] * dt, 1)
                 Un .= cache.fU
             end
         end
     else
         for s in 1:Nstages
             if s == 1
-                f!(cache.fU, u, p, t + tab.C[s]*dt)
+                f!(cache.fU, u, p, t + tab.C[s] * dt)
             else
-                f!(cache.fU, cache.U, p, t + tab.C[s]*dt)
+                f!(cache.fU, cache.U, p, t + tab.C[s] * dt)
             end
             if s < Nstages
-                cache.U .= tab.A1[s] .* u  .+  tab.A2[s] .* cache.U .+ (dt * tab.B[s]) .* cache.fU
+                cache.U .= tab.A1[s] .* u .+ tab.A2[s] .* cache.U .+ (dt * tab.B[s]) .* cache.fU
             else
-                u .= tab.A1[s] .* u  .+  tab.A2[s] .* cache.U .+ (dt * tab.B[s]) .* cache.fU
+                u .= tab.A1[s] .* u .+ tab.A2[s] .* cache.U .+ (dt * tab.B[s]) .* cache.fU
             end
         end
     end
@@ -120,8 +118,8 @@ struct SSPRK22Heuns <: StrongStabilityPreservingRungeKutta end
 function tableau(::SSPRK22Heuns, RT)
     RKA1 = (RT(1), RT(1 // 2))
     RKA2 = (RT(0), RT(1 // 2))
-    RKB  = (RT(1), RT(1 // 2))
-    RKC  = (RT(0), RT(1))
+    RKB = (RT(1), RT(1 // 2))
+    RKC = (RT(0), RT(1))
     StrongStabilityPreservingRungeKuttaTableau(RKA1, RKA2, RKB, RKC)
 end
 
@@ -138,8 +136,8 @@ struct SSPRK22Ralstons <: StrongStabilityPreservingRungeKutta end
 function tableau(::SSPRK22Ralstons, RT)
     RKA1 = (RT(1), RT(5 // 8))
     RKA2 = (RT(0), RT(3 // 8))
-    RKB  = (RT(2 // 3), RT(3 // 4))
-    RKC  = (RT(0), RT(2 // 3))
+    RKB = (RT(2 // 3), RT(3 // 4))
+    RKC = (RT(0), RT(2 // 3))
     StrongStabilityPreservingRungeKuttaTableau(RKA1, RKA2, RKB, RKC)
 end
 
@@ -170,7 +168,7 @@ struct SSPRK34SpiteriRuuth <: StrongStabilityPreservingRungeKutta end
 function tableau(::SSPRK34SpiteriRuuth, RT)
     RKA1 = (RT(1), RT(0), RT(2 // 3), RT(0))
     RKA2 = (RT(0), RT(1), RT(1 // 3), RT(1))
-    RKB  = (RT(1 // 2), RT(1 // 2), RT(1 // 6), RT(1 // 2))
-    RKC  = (RT(0), RT(1 // 2), RT(1), RT(1 // 2))
+    RKB = (RT(1 // 2), RT(1 // 2), RT(1 // 6), RT(1 // 2))
+    RKC = (RT(0), RT(1 // 2), RT(1), RT(1 // 2))
     StrongStabilityPreservingRungeKuttaTableau(RKA1, RKA2, RKB, RKC)
 end

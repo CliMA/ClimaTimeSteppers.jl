@@ -29,6 +29,6 @@ using ClimaTimeSteppers
     # then please lower the limit. We're trying to drive this number
     # down to zero.
     ua = Aqua.detect_unbound_args_recursively(ClimaTimeSteppers)
-    @test length(ua) ≤ 5
-    @test_broken length(ua) ≠ 5
+    @test length(ua) ≤ 4
+    @test_broken length(ua) ≠ 4
 end

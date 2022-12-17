@@ -24,19 +24,17 @@ struct SparseContainer{SIM, T}
     data::T
     function SparseContainer(compressed_data::T, sparse_index_map::Tuple) where {T}
         @assert all(map(x -> eltype(compressed_data) .== typeof(x), compressed_data))
-        return new{sparse_index_map, T}(compressed_data)
+        SIM = zeros(Int, maximum(sparse_index_map))
+        for i in 1:length(SIM)
+            i in sparse_index_map || continue
+            SIM[i] = findfirst(k -> k == i, sparse_index_map)
+        end
+        SIM = Tuple(SIM)
+        return new{SIM, T}(compressed_data)
     end
 end
 
 Base.parent(sc::SparseContainer) = sc.data
-sc_eltype(::Type{NTuple{N, T}}) where {N, T} = T
-sc_eltype(::Type{T}) where {ET, T <: AbstractArray{ET}} = ET
-sc_eltype(::SparseContainer{SIM, T}) where {SIM, T} = sc_eltype(T)
-@inline function Base.getindex(sc::SparseContainer, i::Int)
-    return _getindex_sparse(sc, Val(i))::sc_eltype(sc)
-end
-@generated function _getindex_sparse(sc::SparseContainer{SIM}, ::Val{i}) where {SIM, i}
-    j = findfirst(k -> k == i, SIM)
-    j == nothing && error("No index $i found in sparse index map $(SIM)")
-    return :(sc.data[$j])
+@inline function Base.getindex(sc::SparseContainer{SIM}, i::Int) where {SIM}
+    return Base.getindex(sc.data, SIM[i])
 end

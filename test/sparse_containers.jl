@@ -17,8 +17,8 @@ using Test
     @test parent(v)[3] == ones(3) .* 3
     @test parent(v)[4] == ones(3) .* 4
 
-    @test_throws ErrorException("No index 2 found in sparse index map (1, 3, 5, 7)") v[2]
-    @test_throws ErrorException("No index 8 found in sparse index map (1, 3, 5, 7)") v[8]
+    @test_throws BoundsError v[2]
+    @test_throws BoundsError v[8]
     @inferred v[7]
 
     a1 = ones(3) .* 1
@@ -36,7 +36,7 @@ using Test
     @test parent(v)[3] == ones(3) .* 3
     @test parent(v)[4] == ones(3) .* 4
 
-    @test_throws ErrorException("No index 2 found in sparse index map (1, 3, 5, 7)") v[2]
-    @test_throws ErrorException("No index 8 found in sparse index map (1, 3, 5, 7)") v[8]
+    @test_throws BoundsError v[2]
+    @test_throws BoundsError v[8]
     @inferred v[7]
 end

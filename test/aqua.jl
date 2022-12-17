@@ -2,7 +2,7 @@ using Aqua
 using Test
 using ClimaTimeSteppers
 
-@testset "Aqua tests - unbound args" begin
+@testset "Aqua tests" begin
     # This tests that we don't accidentally run into
     # https://github.com/JuliaLang/julia/issues/29393
 
@@ -22,20 +22,13 @@ using ClimaTimeSteppers
     =#
 
     # See: https://github.com/SciML/OrdinaryDiffEq.jl/issues/1750
-    # Test that we're not introducing method ambiguities across deps
-    ambs = Aqua.detect_ambiguities(ClimaTimeSteppers; recursive = true)
-    pkg_match(pkgname, pkdir::Nothing) = false
-    pkg_match(pkgname, pkdir::AbstractString) = occursin(pkgname, pkdir)
-    filter!(x -> pkg_match("ClimaTimeSteppers", pkgdir(last(x).module)), ambs)
-    for method_ambiguity in ambs
-        @show method_ambiguity
-    end
-    # If the number of ambiguities is less than the limit below,
-    # then please lower the limit based on the new number of ambiguities.
-    # We're trying to drive this number down to zero to reduce latency.
-    @info "Number of method ambiguities: $(length(ambs))"
-    @test length(ambs) ≤ 100
+    # Test that we're not introducing method ambiguities
+    @test isempty(Aqua.detect_ambiguities(ClimaTimeSteppers; recursive = true))
 
-    # returns a vector of all unbound args
-    # ua = Aqua.detect_unbound_args_recursively(ClimaCore)
+    # If the number of unbound args is less than the limit below,
+    # then please lower the limit. We're trying to drive this number
+    # down to zero.
+    ua = Aqua.detect_unbound_args_recursively(ClimaTimeSteppers)
+    @test length(ua) ≤ 5
+    @test_broken length(ua) ≠ 5
 end

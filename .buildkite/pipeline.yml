@@ -100,3 +100,11 @@ steps:
       config: cpu
       queue: central
       slurm_ntasks: 1
+
+  - label: "Benchmark"
+    command:
+      - "julia --project=perf perf/benchmark.jl"
+    agents:
+      config: cpu
+      queue: central
+      slurm_ntasks: 1

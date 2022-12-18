@@ -466,7 +466,7 @@ end
 
 Solves the equation `f(x) = 0`, using the Jacobian (or an approximation of the
 Jacobian) `j(x) = f'(x)` if it is available. This is done by calling
-`run!(::NewtonsMethod, cache, x, f!, j! = nothing)`, where `f!(f, x)` is a
+`solve_newton!(::NewtonsMethod, cache, x, f!, j! = nothing)`, where `f!(f, x)` is a
 function that sets `f(x)` in-place and, if it is specified, `j!(j, x)` is a
 function that sets `j(x)` in-place. The `x` passed to Newton's method is
 modified in-place, and its initial value is used as a starting guess for the
@@ -508,7 +508,7 @@ If `j(x)` changes sufficiently slowly, `update_j` may be changed from
 `UpdateEvery(NewNewtonIteration)` to some other `UpdateSignalHandler` that
 gets triggered less frequently, such as `UpdateEvery(NewNewtonSolve)`. This
 can be used to make the approximation `j(x[n]) ≈ j(x₀)`, where `x₀` is a
-previous value of `x[n]` (possibly even a value from a previous `run!` of
+previous value of `x[n]` (possibly even a value from a previous `solve_newton!` of
 Newton's method). When Newton's method uses such an approximation, it is called
 the "chord method".
 
@@ -558,7 +558,7 @@ function allocate_cache(alg::NewtonsMethod, x_prototype, j_prototype = nothing)
     )
 end
 
-function run!(alg::NewtonsMethod, cache, x, f!, j! = nothing)
+function solve_newton!(alg::NewtonsMethod, cache, x, f!, j! = nothing)
     (; max_iters, update_j, krylov_method, convergence_checker, verbose) = alg
     (; update_j_cache, krylov_method_cache, convergence_checker_cache) = cache
     (; Δx, f, j) = cache

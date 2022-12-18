@@ -1,4 +1,5 @@
 using ClimaTimeSteppers, LinearAlgebra, Random, Test
+import ClimaTimeSteppers as CTS
 
 function linear_equation(FT, n)
     rng = MersenneTwister(1)
@@ -60,7 +61,7 @@ end
             x = copy(x_init)
             j_prototype = similar(x, length(x), length(x))
             cache = allocate_cache(alg, x, use_j ? j_prototype : nothing)
-            run!(alg, cache, x, f!, use_j ? j! : nothing)
+            CTS.solve_newton!(alg, cache, x, f!, use_j ? j! : nothing)
             @test norm(x .- x_exact) / norm(x_exact) < rtol
         end
     end

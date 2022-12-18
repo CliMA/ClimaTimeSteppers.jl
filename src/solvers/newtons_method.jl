@@ -335,7 +335,7 @@ end
 Finds an approximation `Δx[n] ≈ j(x[n]) \\ f(x[n])` for Newton's method such
 that `‖f(x[n]) - j(x[n]) * Δx[n]‖ ≤ rtol[n] * ‖f(x[n])‖`, where `rtol[n]` is the
 value of the forcing term on iteration `n`. This is done by calling
-`run!(::KrylovMethod, cache, Δx, x, f!, f, n, j = nothing)`, where `f` is
+`solve_krylov!(::KrylovMethod, cache, Δx, x, f!, f, n, j = nothing)`, where `f` is
 `f(x[n])` and, if it is specified, `j` is either `j(x[n])` or an approximation
 of `j(x[n])`. The `Δx` passed to a Krylov method is modified in-place. The
 `cache` can be obtained with `allocate_cache(::KrylovMethod, x_prototype)`,
@@ -347,7 +347,7 @@ This is primarily a wrapper for a `Krylov.KrylovSolver` from `Krylov.jl`. In
 `l = length(x_prototype)` and `Krylov.ktypeof(x_prototype)` is a subtype of
 `DenseVector` that can be used to store `x_prototype`. By default, the solver
 is a `Krylov.GmresSolver` with a Krylov subspace size of 20 (the default Krylov
-subspace size for this solver in `Krylov.jl`). In `run!`, the solver is run with
+subspace size for this solver in `Krylov.jl`). In `solve_krylov!`, the solver is run with
 `Krylov.solve!(solver, opj, f; M, ldiv, atol, rtol, verbose, solve_kwargs...)`.
 The solver's type can be changed by specifying a different value for `type`,
 though this value has to be wrapped in a `Val` to avoid runtime compilation.
@@ -419,7 +419,7 @@ function allocate_cache(alg::KrylovMethod, x_prototype)
     )
 end
 
-function run!(alg::KrylovMethod, cache, Δx, x, f!, f, n, j = nothing)
+function solve_krylov!(alg::KrylovMethod, cache, Δx, x, f!, f, n, j = nothing)
     (; jacobian_free_jvp, forcing_term, solve_kwargs) = alg
     (; disable_preconditioner, verbose, debugger) = alg
     type = solver_type(alg)
@@ -581,7 +581,7 @@ function run!(alg::NewtonsMethod, cache, x, f!, j! = nothing)
                 ldiv!(Δx, j, f)
             end
         else
-            run!(krylov_method, krylov_method_cache, Δx, x, f!, f, n, j)
+            solve_krylov!(krylov_method, krylov_method_cache, Δx, x, f!, f, n, j)
         end
         verbose && @info "Newton iteration $n: ‖x‖ = $(norm(x)), ‖Δx‖ = $(norm(Δx))"
 

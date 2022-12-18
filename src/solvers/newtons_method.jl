@@ -587,7 +587,7 @@ function run!(alg::NewtonsMethod, cache, x, f!, j! = nothing)
 
         # Check for convergence if necessary.
         if !isnothing(convergence_checker)
-            run!(convergence_checker, convergence_checker_cache, x, Δx, n) && break
+            check_convergence!(convergence_checker, convergence_checker_cache, x, Δx, n) && break
             n == max_iters && @warn "Newton's method did not converge within $n iterations"
         end
     end

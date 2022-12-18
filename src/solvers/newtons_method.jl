@@ -125,7 +125,7 @@ struct ForwardDiffStepSize3 <: ForwardDiffStepSize end
 Computes the Jacobian-vector product `j(x[n]) * Δx[n]` for a Newton-Krylov
 method without directly using the Jacobian `j(x[n])`, and instead only using
 `x[n]`, `f(x[n])`, and other function evaluations `f(x′)`. This is done by
-calling `run!(::JacobianFreeJVP, cache, jΔx, Δx, x, f!, f)`. The `jΔx` passed to
+calling `jvp!(::JacobianFreeJVP, cache, jΔx, Δx, x, f!, f)`. The `jΔx` passed to
 a Jacobian-free JVP is modified in-place. The `cache` can be obtained with
 `allocate_cache(::JacobianFreeJVP, x_prototype)`, where `x_prototype` is
 `similar` to `x` (and also to `Δx` and `f`).
@@ -146,7 +146,7 @@ end
 
 allocate_cache(::ForwardDiffJVP, x_prototype) = (; x2 = similar(x_prototype), f2 = similar(x_prototype))
 
-function run!(alg::ForwardDiffJVP, cache, jΔx, Δx, x, f!, f)
+function jvp!(alg::ForwardDiffJVP, cache, jΔx, Δx, x, f!, f)
     (; default_step, step_adjustment) = alg
     (; x2, f2) = cache
     FT = eltype(x)
@@ -160,7 +160,7 @@ end
     ForcingTerm
 
 Computes the value of `rtol[n]` for a Newton-Krylov method. This is done by
-calling `run!(::ForcingTerm, cache, f, n)`, which returns `rtol[n]`. The `cache`
+calling `get_rtol!(::ForcingTerm, cache, f, n)`, which returns `rtol[n]`. The `cache`
 can be obtained with `allocate_cache(::ForcingTerm, x_prototype)`, where
 `x_prototype` is `similar` to `f`.
 
@@ -188,7 +188,7 @@ end
 
 allocate_cache(::ConstantForcing, x_prototype) = (;)
 
-function run!(alg::ConstantForcing, cache, f, n)
+function get_rtol!(alg::ConstantForcing, cache, f, n)
     FT = eltype(f)
     return FT(alg.rtol)
 end
@@ -230,7 +230,7 @@ function allocate_cache(::EisenstatWalkerForcing, x_prototype)
     return (; prev_norm_f = Ref{FT}(), prev_rtol = Ref{FT}())
 end
 
-function run!(alg::EisenstatWalkerForcing, cache, f, n)
+function get_rtol!(alg::EisenstatWalkerForcing, cache, f, n)
     (; initial_rtol, γ, α, min_rtol_threshold, max_rtol) = alg
     (; prev_norm_f, prev_rtol) = cache
     FT = eltype(f)
@@ -426,13 +426,13 @@ function run!(alg::KrylovMethod, cache, Δx, x, f!, f, n, j = nothing)
     (; jacobian_free_jvp_cache, forcing_term_cache, solver, debugger_cache) = cache
     jΔx!(jΔx, Δx) =
         isnothing(jacobian_free_jvp) ? mul!(jΔx, j, Δx) :
-        run!(jacobian_free_jvp, jacobian_free_jvp_cache, jΔx, Δx, x, f!, f)
+        jvp!(jacobian_free_jvp, jacobian_free_jvp_cache, jΔx, Δx, x, f!, f)
     opj = LinearOperator(eltype(x), length(x), length(x), false, false, jΔx!)
     M = disable_preconditioner || isnothing(j) || isnothing(jacobian_free_jvp) ? I : j
     run!(debugger, debugger_cache, opj, M)
     ldiv = true
     atol = zero(eltype(Δx))
-    rtol = run!(forcing_term, forcing_term_cache, f, n)
+    rtol = get_rtol!(forcing_term, forcing_term_cache, f, n)
     verbose = Int(verbose)
     Krylov.solve!(solver, opj, f; M, ldiv, atol, rtol, verbose, solve_kwargs...)
     iter = solver.stats.niter

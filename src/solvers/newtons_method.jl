@@ -256,7 +256,7 @@ end
 
 Prints information about the Jacobian matrix `j` and the preconditioner `M` (if
 it is available) that are passed to a Krylov method. This is done by calling
-`run!(::KrylovMethodDebugger, cache, j, M)`. The `cache` can be obtained with
+`print_debug!(::KrylovMethodDebugger, cache, j, M)`. The `cache` can be obtained with
 `allocate_cache(::KrylovMethodDebugger, x_prototype)`, where `x_prototype` is
 `similar` to `x`.
 """
@@ -284,7 +284,9 @@ function allocate_cache(::PrintConditionNumber, x_prototype)
     )
 end
 
-function run!(::PrintConditionNumber, cache, j, M)
+print_debug!(::Nothing, cache, j, M) = nothing
+
+function print_debug!(::PrintConditionNumber, cache, j, M)
     (; dense_vector, dense_j, dense_inv_M, dense_inv_M_j) = cache
     dense_matrix_from_operator!(dense_j, dense_vector, j)
     if M === I
@@ -429,7 +431,7 @@ function solve_krylov!(alg::KrylovMethod, cache, Δx, x, f!, f, n, j = nothing)
         jvp!(jacobian_free_jvp, jacobian_free_jvp_cache, jΔx, Δx, x, f!, f)
     opj = LinearOperator(eltype(x), length(x), length(x), false, false, jΔx!)
     M = disable_preconditioner || isnothing(j) || isnothing(jacobian_free_jvp) ? I : j
-    run!(debugger, debugger_cache, opj, M)
+    print_debug!(debugger, debugger_cache, opj, M)
     ldiv = true
     atol = zero(eltype(Δx))
     rtol = get_rtol!(forcing_term, forcing_term_cache, f, n)

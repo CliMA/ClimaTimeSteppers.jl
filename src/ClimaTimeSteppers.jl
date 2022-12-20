@@ -56,8 +56,6 @@ array_device(::CuArray) = CUDADevice()
 realview(x::Union{Array, SArray, MArray}) = x
 realview(x::CuArray) = x
 
-export allocate_cache, run!
-
 import DiffEqBase, SciMLBase, LinearAlgebra, DiffEqCallbacks, Krylov
 
 include("sparse_containers.jl")

@@ -10,6 +10,19 @@ operation is performed.
 abstract type UpdateSignal end
 
 """
+    UpdateSignalHandler
+
+Updates a value upon receiving an appropriate `UpdateSignal`. This is done by
+calling `run!(::UpdateSignalHandler, cache, ::UpdateSignal, f!, args...)`, where
+`f!` is function such that `f!(args...)` modifies the desired value in-place.
+The `cache` can be obtained with `allocate_cache(::UpdateSignalHandler, FT)`,
+where `FT` is the floating-point type of the integrator.
+"""
+abstract type UpdateSignalHandler end
+
+run!(::UpdateSignalHandler, cache, ::UpdateSignal, f!, args...) = nothing
+
+"""
     NewTimeStep(t)
 
 The signal for a new time step at time `t`.
@@ -34,17 +47,6 @@ The signal for a new iteration of Newton's method.
 struct NewNewtonIteration <: UpdateSignal end
 
 """
-    UpdateSignalHandler
-
-Updates a value upon receiving an appropriate `UpdateSignal`. This is done by
-calling `run!(::UpdateSignalHandler, cache, ::UpdateSignal, f!, args...)`, where
-`f!` is function such that `f!(args...)` modifies the desired value in-place.
-The `cache` can be obtained with `allocate_cache(::UpdateSignalHandler, FT)`,
-where `FT` is the floating-point type of the integrator.
-"""
-abstract type UpdateSignalHandler end
-
-"""
     UpdateEvery(update_signal_type)
 
 An `UpdateSignalHandler` that performs the update whenever it is `run!` with an
@@ -53,7 +55,9 @@ An `UpdateSignalHandler` that performs the update whenever it is `run!` with an
 struct UpdateEvery{U <: UpdateSignal} <: UpdateSignalHandler end
 UpdateEvery(::Type{U}) where {U} = UpdateEvery{U}()
 
-run!(alg::UpdateEvery{U}, cache, ::U, f!, args...) where {U} = f!(args...)
+allocate_cache(::UpdateEvery, _) = nothing
+
+run!(alg::UpdateEvery{U}, cache, ::U, f!, args...) where {U <: UpdateSignal} = f!(args...)
 
 """
     UpdateEveryN(n, update_signal_type, reset_signal_type = Nothing)

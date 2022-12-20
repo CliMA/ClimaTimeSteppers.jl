@@ -7,8 +7,6 @@ CurrentModule = ClimaTimeSteppers
 ## Interface and OrdinaryDiffEq compatibility
 
 ```@docs
-allocate_cache
-run!
 ForwardEulerODEFunction
 ```
 

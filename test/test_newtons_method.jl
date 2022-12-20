@@ -60,7 +60,7 @@ end
         for (alg, use_j) in ((alg1, true), (alg2, true), (alg3, false))
             x = copy(x_init)
             j_prototype = similar(x, length(x), length(x))
-            cache = allocate_cache(alg, x, use_j ? j_prototype : nothing)
+            cache = CTS.allocate_cache(alg, x, use_j ? j_prototype : nothing)
             CTS.solve_newton!(alg, cache, x, f!, use_j ? j! : nothing)
             @test norm(x .- x_exact) / norm(x_exact) < rtol
         end

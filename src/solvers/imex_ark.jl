@@ -130,7 +130,13 @@ function step_u!(integrator, cache::IMEXARKCache)
                 @. residual = temp + dt * a_imp[i, i] * residual - Ui
             end
             implicit_equation_jacobian! = (jacobian, Ui) -> T_imp!.Wfact(jacobian, Ui, p, dt * a_imp[i, i], t_imp)
-            run!(newtons_method, newtons_method_cache, U[i], implicit_equation_residual!, implicit_equation_jacobian!)
+            solve_newton!(
+                newtons_method,
+                newtons_method_cache,
+                U[i],
+                implicit_equation_residual!,
+                implicit_equation_jacobian!,
+            )
         end
 
         # We do not need to DSS U[i] again because the implicit solve should

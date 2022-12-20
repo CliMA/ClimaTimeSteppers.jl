@@ -125,7 +125,7 @@ struct ForwardDiffStepSize3 <: ForwardDiffStepSize end
 Computes the Jacobian-vector product `j(x[n]) * Δx[n]` for a Newton-Krylov
 method without directly using the Jacobian `j(x[n])`, and instead only using
 `x[n]`, `f(x[n])`, and other function evaluations `f(x′)`. This is done by
-calling `run!(::JacobianFreeJVP, cache, jΔx, Δx, x, f!, f)`. The `jΔx` passed to
+calling `jvp!(::JacobianFreeJVP, cache, jΔx, Δx, x, f!, f)`. The `jΔx` passed to
 a Jacobian-free JVP is modified in-place. The `cache` can be obtained with
 `allocate_cache(::JacobianFreeJVP, x_prototype)`, where `x_prototype` is
 `similar` to `x` (and also to `Δx` and `f`).
@@ -146,7 +146,7 @@ end
 
 allocate_cache(::ForwardDiffJVP, x_prototype) = (; x2 = similar(x_prototype), f2 = similar(x_prototype))
 
-function run!(alg::ForwardDiffJVP, cache, jΔx, Δx, x, f!, f)
+function jvp!(alg::ForwardDiffJVP, cache, jΔx, Δx, x, f!, f)
     (; default_step, step_adjustment) = alg
     (; x2, f2) = cache
     FT = eltype(x)
@@ -160,7 +160,7 @@ end
     ForcingTerm
 
 Computes the value of `rtol[n]` for a Newton-Krylov method. This is done by
-calling `run!(::ForcingTerm, cache, f, n)`, which returns `rtol[n]`. The `cache`
+calling `get_rtol!(::ForcingTerm, cache, f, n)`, which returns `rtol[n]`. The `cache`
 can be obtained with `allocate_cache(::ForcingTerm, x_prototype)`, where
 `x_prototype` is `similar` to `f`.
 
@@ -188,7 +188,7 @@ end
 
 allocate_cache(::ConstantForcing, x_prototype) = (;)
 
-function run!(alg::ConstantForcing, cache, f, n)
+function get_rtol!(alg::ConstantForcing, cache, f, n)
     FT = eltype(f)
     return FT(alg.rtol)
 end
@@ -230,7 +230,7 @@ function allocate_cache(::EisenstatWalkerForcing, x_prototype)
     return (; prev_norm_f = Ref{FT}(), prev_rtol = Ref{FT}())
 end
 
-function run!(alg::EisenstatWalkerForcing, cache, f, n)
+function get_rtol!(alg::EisenstatWalkerForcing, cache, f, n)
     (; initial_rtol, γ, α, min_rtol_threshold, max_rtol) = alg
     (; prev_norm_f, prev_rtol) = cache
     FT = eltype(f)
@@ -256,7 +256,7 @@ end
 
 Prints information about the Jacobian matrix `j` and the preconditioner `M` (if
 it is available) that are passed to a Krylov method. This is done by calling
-`run!(::KrylovMethodDebugger, cache, j, M)`. The `cache` can be obtained with
+`print_debug!(::KrylovMethodDebugger, cache, j, M)`. The `cache` can be obtained with
 `allocate_cache(::KrylovMethodDebugger, x_prototype)`, where `x_prototype` is
 `similar` to `x`.
 """
@@ -284,7 +284,9 @@ function allocate_cache(::PrintConditionNumber, x_prototype)
     )
 end
 
-function run!(::PrintConditionNumber, cache, j, M)
+print_debug!(::Nothing, cache, j, M) = nothing
+
+function print_debug!(::PrintConditionNumber, cache, j, M)
     (; dense_vector, dense_j, dense_inv_M, dense_inv_M_j) = cache
     dense_matrix_from_operator!(dense_j, dense_vector, j)
     if M === I
@@ -335,7 +337,7 @@ end
 Finds an approximation `Δx[n] ≈ j(x[n]) \\ f(x[n])` for Newton's method such
 that `‖f(x[n]) - j(x[n]) * Δx[n]‖ ≤ rtol[n] * ‖f(x[n])‖`, where `rtol[n]` is the
 value of the forcing term on iteration `n`. This is done by calling
-`run!(::KrylovMethod, cache, Δx, x, f!, f, n, j = nothing)`, where `f` is
+`solve_krylov!(::KrylovMethod, cache, Δx, x, f!, f, n, j = nothing)`, where `f` is
 `f(x[n])` and, if it is specified, `j` is either `j(x[n])` or an approximation
 of `j(x[n])`. The `Δx` passed to a Krylov method is modified in-place. The
 `cache` can be obtained with `allocate_cache(::KrylovMethod, x_prototype)`,
@@ -347,7 +349,7 @@ This is primarily a wrapper for a `Krylov.KrylovSolver` from `Krylov.jl`. In
 `l = length(x_prototype)` and `Krylov.ktypeof(x_prototype)` is a subtype of
 `DenseVector` that can be used to store `x_prototype`. By default, the solver
 is a `Krylov.GmresSolver` with a Krylov subspace size of 20 (the default Krylov
-subspace size for this solver in `Krylov.jl`). In `run!`, the solver is run with
+subspace size for this solver in `Krylov.jl`). In `solve_krylov!`, the solver is run with
 `Krylov.solve!(solver, opj, f; M, ldiv, atol, rtol, verbose, solve_kwargs...)`.
 The solver's type can be changed by specifying a different value for `type`,
 though this value has to be wrapped in a `Val` to avoid runtime compilation.
@@ -419,20 +421,20 @@ function allocate_cache(alg::KrylovMethod, x_prototype)
     )
 end
 
-function run!(alg::KrylovMethod, cache, Δx, x, f!, f, n, j = nothing)
+function solve_krylov!(alg::KrylovMethod, cache, Δx, x, f!, f, n, j = nothing)
     (; jacobian_free_jvp, forcing_term, solve_kwargs) = alg
     (; disable_preconditioner, verbose, debugger) = alg
     type = solver_type(alg)
     (; jacobian_free_jvp_cache, forcing_term_cache, solver, debugger_cache) = cache
     jΔx!(jΔx, Δx) =
         isnothing(jacobian_free_jvp) ? mul!(jΔx, j, Δx) :
-        run!(jacobian_free_jvp, jacobian_free_jvp_cache, jΔx, Δx, x, f!, f)
+        jvp!(jacobian_free_jvp, jacobian_free_jvp_cache, jΔx, Δx, x, f!, f)
     opj = LinearOperator(eltype(x), length(x), length(x), false, false, jΔx!)
     M = disable_preconditioner || isnothing(j) || isnothing(jacobian_free_jvp) ? I : j
-    run!(debugger, debugger_cache, opj, M)
+    print_debug!(debugger, debugger_cache, opj, M)
     ldiv = true
     atol = zero(eltype(Δx))
-    rtol = run!(forcing_term, forcing_term_cache, f, n)
+    rtol = get_rtol!(forcing_term, forcing_term_cache, f, n)
     verbose = Int(verbose)
     Krylov.solve!(solver, opj, f; M, ldiv, atol, rtol, verbose, solve_kwargs...)
     iter = solver.stats.niter
@@ -466,7 +468,7 @@ end
 
 Solves the equation `f(x) = 0`, using the Jacobian (or an approximation of the
 Jacobian) `j(x) = f'(x)` if it is available. This is done by calling
-`run!(::NewtonsMethod, cache, x, f!, j! = nothing)`, where `f!(f, x)` is a
+`solve_newton!(::NewtonsMethod, cache, x, f!, j! = nothing)`, where `f!(f, x)` is a
 function that sets `f(x)` in-place and, if it is specified, `j!(j, x)` is a
 function that sets `j(x)` in-place. The `x` passed to Newton's method is
 modified in-place, and its initial value is used as a starting guess for the
@@ -508,7 +510,7 @@ If `j(x)` changes sufficiently slowly, `update_j` may be changed from
 `UpdateEvery(NewNewtonIteration)` to some other `UpdateSignalHandler` that
 gets triggered less frequently, such as `UpdateEvery(NewNewtonSolve)`. This
 can be used to make the approximation `j(x[n]) ≈ j(x₀)`, where `x₀` is a
-previous value of `x[n]` (possibly even a value from a previous `run!` of
+previous value of `x[n]` (possibly even a value from a previous `solve_newton!` of
 Newton's method). When Newton's method uses such an approximation, it is called
 the "chord method".
 
@@ -558,7 +560,7 @@ function allocate_cache(alg::NewtonsMethod, x_prototype, j_prototype = nothing)
     )
 end
 
-function run!(alg::NewtonsMethod, cache, x, f!, j! = nothing)
+function solve_newton!(alg::NewtonsMethod, cache, x, f!, j! = nothing)
     (; max_iters, update_j, krylov_method, convergence_checker, verbose) = alg
     (; update_j_cache, krylov_method_cache, convergence_checker_cache) = cache
     (; Δx, f, j) = cache
@@ -581,13 +583,13 @@ function run!(alg::NewtonsMethod, cache, x, f!, j! = nothing)
                 ldiv!(Δx, j, f)
             end
         else
-            run!(krylov_method, krylov_method_cache, Δx, x, f!, f, n, j)
+            solve_krylov!(krylov_method, krylov_method_cache, Δx, x, f!, f, n, j)
         end
         verbose && @info "Newton iteration $n: ‖x‖ = $(norm(x)), ‖Δx‖ = $(norm(Δx))"
 
         # Check for convergence if necessary.
         if !isnothing(convergence_checker)
-            run!(convergence_checker, convergence_checker_cache, x, Δx, n) && break
+            check_convergence!(convergence_checker, convergence_checker_cache, x, Δx, n) && break
             n == max_iters && @warn "Newton's method did not converge within $n iterations"
         end
     end

@@ -564,7 +564,9 @@ function solve_newton!(alg::NewtonsMethod, cache, x, f!, j! = nothing)
     (; max_iters, update_j, krylov_method, convergence_checker, verbose) = alg
     (; update_j_cache, krylov_method_cache, convergence_checker_cache) = cache
     (; Δx, f, j) = cache
-    isnothing(j) || run!(update_j, update_j_cache, NewNewtonSolve(), j!, j, x)
+    if (!isnothing(j)) && needs_update!(update_j, update_j_cache, NewNewtonSolve())
+        j!(j, x)
+    end
     for n in 0:max_iters
         # Update x[n] with Δx[n - 1], and exit the loop if Δx[n] is not needed.
         n > 0 && (x .-= Δx)
@@ -574,7 +576,9 @@ function solve_newton!(alg::NewtonsMethod, cache, x, f!, j! = nothing)
         end
 
         # Compute Δx[n].
-        isnothing(j) || run!(update_j, update_j_cache, NewNewtonIteration(), j!, j, x)
+        if (!isnothing(j)) && needs_update!(update_j, update_j_cache, NewNewtonIteration())
+            j!(j, x)
+        end
         f!(f, x)
         if isnothing(krylov_method)
             if j isa DenseMatrix
@@ -598,5 +602,7 @@ end
 function update!(alg::NewtonsMethod, cache, signal::UpdateSignal, j!)
     (; update_j) = alg
     (; update_j_cache, j) = cache
-    isnothing(j) || run!(update_j, update_j_cache, signal, j!, j)
+    if (!isnothing(j)) && needs_update!(update_j, update_j_cache, signal)
+        j!(j)
+    end
 end

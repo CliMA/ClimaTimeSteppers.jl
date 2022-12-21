@@ -101,6 +101,22 @@ steps:
       queue: central
       slurm_ntasks: 1
 
+  - label: "Jet graph (ode fun)"
+    command:
+      - "julia --project=perf perf/jet.jl --problem ode_fun"
+    agents:
+      config: cpu
+      queue: central
+      slurm_ntasks: 1
+
+  - label: "Jet (forward euler)"
+    command:
+      - "julia --project=perf perf/jet.jl --problem fe"
+    agents:
+      config: cpu
+      queue: central
+      slurm_ntasks: 1
+
   - label: "Benchmark"
     command:
       - "julia --project=perf perf/benchmark.jl"

@@ -73,11 +73,11 @@ function DiffEqBase.__init(
     tstops = (),
     saveat = nothing,
     save_everystep = false,
-    save_func = (u, t, integrator) -> copy(u),
     callback = nothing,
     advance_to_tstop = false,
-    dtchangeable = true, # custom kwarg
-    stepstop = -1,       # custom kwarg
+    save_func = (u, t) -> copy(u), # custom kwarg
+    dtchangeable = true,           # custom kwarg
+    stepstop = -1,                 # custom kwarg
     kwargs...,
 )
     (; u0, p) = prob
@@ -91,7 +91,7 @@ function DiffEqBase.__init(
     _saveat = saveat
     tstops, saveat = tstops_and_saveat_heaps(t0, tf, tstops, saveat)
 
-    sol = DiffEqBase.build_solution(prob, alg, typeof(t0)[], typeof(u0)[])
+    sol = DiffEqBase.build_solution(prob, alg, typeof(t0)[], typeof(save_func(u0, t0))[])
     saving_callback =
         NonInterpolatingSavingCallback(save_func, DiffEqCallbacks.SavedValues(sol.t, sol.u), save_everystep)
     callback = DiffEqBase.CallbackSet(callback, saving_callback)
@@ -270,7 +270,7 @@ function NonInterpolatingSavingCallback(save_func, saved_values, save_everystep)
     end
     function affect!(integrator)
         push!(saved_values.t, integrator.t)
-        push!(saved_values.saveval, save_func(integrator.u, integrator.t, integrator))
+        push!(saved_values.saveval, save_func(integrator.u, integrator.t))
     end
     initialize(cb, u, t, integrator) = condition(u, t, integrator) && affect!(integrator)
     finalize(cb, u, t, integrator) = !save_everystep && !isempty(integrator.saveat) && affect!(integrator)

@@ -2,6 +2,7 @@ export NewtonsMethod, KrylovMethod
 export JacobianFreeJVP, ForwardDiffJVP, ForwardDiffStepSize
 export ForwardDiffStepSize1, ForwardDiffStepSize2, ForwardDiffStepSize3
 export ForcingTerm, ConstantForcing, EisenstatWalkerForcing
+export Verbosity
 
 # TODO: Implement AutoDiffJVP after ClimaAtmos's cache is moved from f! to x (so
 #       that we only need to define Dual.(x), and not also make_dual(f!)).
@@ -11,6 +12,11 @@ export ForcingTerm, ConstantForcing, EisenstatWalkerForcing
 #       NewtonsMethod (scale Δx[n] by some λ[n] that reduces ‖f(x[n + 1])‖).
 # TODO: Consider implementing BroydensMethod, BadBroydensMethod, and other
 #       automatic Jacobian approximations.
+
+abstract type AbstractVerbosity end
+struct Verbose <: AbstractVerbosity end
+struct Silent <: AbstractVerbosity end
+is_verbose(v::AbstractVerbosity) = v isa Verbose
 
 """
     ForwardDiffStepSize
@@ -330,7 +336,7 @@ end
         kwargs = (;),
         solve_kwargs = (;),
         disable_preconditioner = false,
-        verbose = false,
+        verbose = Silent(),
         debugger = nothing,
     )
 
@@ -393,6 +399,7 @@ Base.@kwdef struct KrylovMethod{
     A <: Tuple,
     K <: NamedTuple,
     S <: NamedTuple,
+    V <: AbstractVerbosity,
     D <: Union{Nothing, KrylovMethodDebugger},
 }
     type::T = Val(Krylov.GmresSolver)
@@ -402,7 +409,7 @@ Base.@kwdef struct KrylovMethod{
     kwargs::K = (;)
     solve_kwargs::S = (;)
     disable_preconditioner::Bool = false
-    verbose::Bool = false
+    verbose::V = Silent()
     debugger::D = nothing
 end
 
@@ -423,7 +430,7 @@ end
 
 function solve_krylov!(alg::KrylovMethod, cache, Δx, x, f!, f, n, j = nothing)
     (; jacobian_free_jvp, forcing_term, solve_kwargs) = alg
-    (; disable_preconditioner, verbose, debugger) = alg
+    (; disable_preconditioner, debugger) = alg
     type = solver_type(alg)
     (; jacobian_free_jvp_cache, forcing_term_cache, solver, debugger_cache) = cache
     jΔx!(jΔx, Δx) =
@@ -435,7 +442,7 @@ function solve_krylov!(alg::KrylovMethod, cache, Δx, x, f!, f, n, j = nothing)
     ldiv = true
     atol = zero(eltype(Δx))
     rtol = get_rtol!(forcing_term, forcing_term_cache, f, n)
-    verbose = Int(verbose)
+    verbose = Int(is_verbose(alg.verbose))
     Krylov.solve!(solver, opj, f; M, ldiv, atol, rtol, verbose, solve_kwargs...)
     iter = solver.stats.niter
     if !solver.stats.solved
@@ -463,7 +470,7 @@ end
         update_j = UpdateEvery(NewNewtonIteration),
         krylov_method = nothing,
         convergence_checker = nothing,
-        verbose = false,
+        verbose = Silent(),
     )
 
 Solves the equation `f(x) = 0`, using the Jacobian (or an approximation of the
@@ -538,12 +545,13 @@ Base.@kwdef struct NewtonsMethod{
     U <: UpdateSignalHandler,
     K <: Union{Nothing, KrylovMethod},
     C <: Union{Nothing, ConvergenceChecker},
+    V <: AbstractVerbosity,
 }
     max_iters::Int = 1
     update_j::U = UpdateEvery(NewNewtonIteration)
     krylov_method::K = nothing
     convergence_checker::C = nothing
-    verbose::Bool = false
+    verbose::V = Silent()
 end
 
 function allocate_cache(alg::NewtonsMethod, x_prototype, j_prototype = nothing)
@@ -571,7 +579,7 @@ function solve_newton!(alg::NewtonsMethod, cache, x, f!, j! = nothing)
         # Update x[n] with Δx[n - 1], and exit the loop if Δx[n] is not needed.
         n > 0 && (x .-= Δx)
         if n == max_iters && isnothing(convergence_checker)
-            verbose && @info "Newton iteration $n: ‖x‖ = $(norm(x)), ‖Δx‖ = N/A"
+            is_verbose(verbose) && @info "Newton iteration $n: ‖x‖ = $(norm(x)), ‖Δx‖ = N/A"
             break
         end
 
@@ -589,7 +597,7 @@ function solve_newton!(alg::NewtonsMethod, cache, x, f!, j! = nothing)
         else
             solve_krylov!(krylov_method, krylov_method_cache, Δx, x, f!, f, n, j)
         end
-        verbose && @info "Newton iteration $n: ‖x‖ = $(norm(x)), ‖Δx‖ = $(norm(Δx))"
+        is_verbose(verbose) && @info "Newton iteration $n: ‖x‖ = $(norm(x)), ‖Δx‖ = $(norm(Δx))"
 
         # Check for convergence if necessary.
         if !isnothing(convergence_checker)

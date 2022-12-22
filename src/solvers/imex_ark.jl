@@ -66,7 +66,7 @@ function cache(prob::DiffEqBase.AbstractODEProblem, alg::IMEXARKAlgorithm; kwarg
     γs = unique(filter(!iszero, diag(a_imp)))
     γ = length(γs) == 1 ? γs[1] : nothing # TODO: This could just be a constant.
     jac_prototype = has_jac(T_imp!) ? T_imp!.jac_prototype : nothing
-    newtons_method_cache = allocate_cache(newtons_method, u0, jac_prototype)
+    newtons_method_cache = isnothing(T_imp!) ? nothing : allocate_cache(newtons_method, u0, jac_prototype)
     return IMEXARKCache(U, T_lim, T_exp, T_imp, temp, γ, newtons_method_cache)
 end
 

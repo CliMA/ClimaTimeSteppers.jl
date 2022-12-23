@@ -1,5 +1,5 @@
 export AbstractIMEXARKTableau
-export ARS111, ARS121, ARS122, ARS233, ARS232, ARS222, ARS443
+export ARS111, ARS121, ARS122, ARS233, ARS232, ARS222, ARS343, ARS443
 export IMKG232a, IMKG232b, IMKG242a, IMKG242b, IMKG252a, IMKG252b
 export IMKG253a, IMKG253b, IMKG254a, IMKG254b, IMKG254c, IMKG342a, IMKG343a
 export DBM453, HOMMEM1
@@ -48,13 +48,31 @@ end
 # the number of explicit stages, and p is the order of accuracy
 
 # This algorithm is equivalent to OrdinaryDiffEq.IMEXEuler.
+
+"""
+    ARS111
+
+The Forward-Backward (1,1,1) implicit-explicit (IMEX) Runge-Kutta scheme of
+[ARS1997](@cite), section 2.1.
+
+This is equivalent to the `OrdinaryDiffEq.IMEXEuler` algorithm.
+"""
 struct ARS111 <: AbstractIMEXARKTableau end
 
 function tableau(::ARS111)
     IMEXARKTableau(; a_exp = @SArray([0 0; 1 0]), a_imp = @SArray([0 0; 0 1]))
 end
 
+"""
+    ARS121
+
+The Forward-Backward (1,2,1) implicit-explicit (IMEX) Runge-Kutta scheme of
+[ARS1997](@cite), section 2.2.
+
+This is equivalent to the `OrdinaryDiffEq.IMEXEulerARK` algorithm.
+"""
 struct ARS121 <: AbstractIMEXARKTableau end
+
 function tableau(::ARS121)
     IMEXARKTableau(; a_exp = @SArray([0 0; 1 0]), b_exp = @SArray([0, 1]), a_imp = @SArray([0 0; 0 1]))
 end
@@ -88,6 +106,12 @@ function tableau(::ARS233)
     )
 end
 
+"""
+    ARS232
+
+The Forward-Backward (2,3,2) implicit-explicit (IMEX) Runge-Kutta scheme of
+[ARS1997](@cite), section 2.5.
+"""
 struct ARS232 <: AbstractIMEXARKTableau end
 function tableau(::ARS232)
     γ = 1 - √2 / 2
@@ -122,6 +146,12 @@ function tableau(::ARS222)
     ]))
 end
 
+"""
+    ARS343
+
+The L-stable, third-order (3,4,3) implicit-explicit (IMEX) Runge-Kutta scheme of
+[ARS1997](@cite), section 2.7.
+"""
 struct ARS343 <: AbstractIMEXARKTableau end
 function tableau(::ARS343)
     γ = 0.4358665215084590

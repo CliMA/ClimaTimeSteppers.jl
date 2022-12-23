@@ -99,7 +99,6 @@ include("solvers/multirate.jl")
 include("solvers/lsrk.jl")
 include("solvers/ssprk.jl")
 include("solvers/ark.jl")
-# include("solvers/ars.jl") # previous implementations of ARS schemes
 include("solvers/mis.jl")
 include("solvers/wickerskamarock.jl")
 include("solvers/rosenbrock.jl")

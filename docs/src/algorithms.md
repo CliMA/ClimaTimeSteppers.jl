@@ -88,7 +88,12 @@ ARK548L2SA2KennedyCarpenter
 
 ### ARS
 
-TODO: add `ARS111`, `ARS121`, and `ARS343` docs.
+```@docs
+ARS111
+ARS121
+ARS232
+ARS343
+```
 
 ## Multirate
 

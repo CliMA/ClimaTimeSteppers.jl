@@ -18,6 +18,8 @@ makedocs(
         "newtons_method.md",
         "callbacks.md",
         "Background" => ["background/lsrk.md", "background/ssprk.md", "background/ark.md", "background/mrrk.md"],
+        "test_problems.md",
+        "algo_comparisons.md",
         "references.md",
     ],
 )

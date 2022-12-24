@@ -2,8 +2,17 @@ import Plots, Printf
 import ClimaTimeSteppers as CTS
 using Test
 
-# Should we remove this?
-has_increment_formulation(::CTS.AbstractIMEXARKTableau) = false
+function problem_algo(test_case, tab)
+    if tab() isa CTS.AbstractIMEXARKTableau
+        max_iters = test_case.linear_implicit ? 1 : 2 # TODO: is 2 enough?
+        alg = CTS.IMEXARKAlgorithm(tab(), NewtonsMethod(; max_iters))
+        prob = test_case.split_prob
+    else
+        alg = tab()
+        prob = test_case.prob
+    end
+    return (prob, alg)
+end
 
 """
     test_algs(
@@ -89,16 +98,7 @@ function test_algs(
     analytic_end_sol = [analytic_sols[end]]
 
     for tab in tableaus
-        if tab() isa CTS.AbstractIMEXARKTableau
-            max_iters = linear_implicit ? 1 : 2 # TODO: is 2 enough?
-            alg = CTS.IMEXARKAlgorithm(tab(), NewtonsMethod(; max_iters))
-            tendency_prob = test_case.split_prob
-            increment_prob = test_case.split_increment_prob
-        else
-            alg = tab()
-            tendency_prob = test_case.prob
-            increment_prob = test_case.increment_prob
-        end
+        (prob, alg) = problem_algo(test_case, tab)
         predicted_order = if super_convergence == tab
             CTS.theoretical_convergence_order(tab()) + 1
         else
@@ -111,7 +111,7 @@ function test_algs(
         # integrator needs to save at t but it stops at t - eps(), it will skip
         # over saving at t, unless tstops forces it to round t - eps() to t).
         solve_args = (; dt = plot1_dt, saveat = plot1_saveat, tstops = plot1_saveat)
-        tendency_sols = solve(deepcopy(tendency_prob), alg; solve_args...).u
+        tendency_sols = solve(deepcopy(prob), alg; solve_args...).u
         tendency_norms = @. norm(tendency_sols)
         tendency_errs = @. norm(tendency_sols - analytic_sols)
         min_err = minimum(x -> x == 0 ? typemax(FT) : x, tendency_errs)
@@ -121,13 +121,7 @@ function test_algs(
         Plots.plot!(plot1a, plot1_saveat, tendency_norms; label = alg_name, linestyle)
         Plots.plot!(plot1b, plot1_saveat, tendency_errs; label = alg_name, linestyle)
 
-        if has_increment_formulation(tab())
-            increment_sols = solve(deepcopy(increment_prob), alg; solve_args...).u
-            increment_errs = @. norm(increment_sols - tendency_sols)
-            @test maximum(increment_errs) < 1000 * eps(FT) broken = alg_name == "HOMMEM1" # TODO: why is this one broken?
-        end
-
-        tendency_end_sols = map(dt -> solve(deepcopy(tendency_prob), alg; dt).u[end], plot2_dts)
+        tendency_end_sols = map(dt -> solve(deepcopy(prob), alg; dt).u[end], plot2_dts)
         tendency_end_errs = @. norm(tendency_end_sols - analytic_end_sol)
         _, computed_order = hcat(ones(length(plot2_dts)), log10.(plot2_dts)) \ log10.(tendency_end_errs)
         @test computed_order ≈ predicted_order rtol = 0.1

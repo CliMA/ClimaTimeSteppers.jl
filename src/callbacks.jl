@@ -27,8 +27,12 @@ function finalize!(f!, integrator) end
 export EveryXWallTimeSeconds, EveryXSimulationTime, EveryXSimulationSteps
 
 """
-    EveryXWallTimeSeconds(f!, Δwt, comm_ctx::ClimaComms.AbstractCommsContext;
-                          atinit=false)
+    EveryXWallTimeSeconds(
+        f!,
+        Δwt,
+        comm_ctx::ClimaComms.AbstractCommsContext;
+        atinit=false
+    )
 
 Trigger `f!(integrator)` every `Δwt` wallclock seconds.
 
@@ -75,8 +79,7 @@ function EveryXWallTimeSeconds(f!, Δwt, comm_ctx::ClimaComms.AbstractCommsConte
 end
 
 """
-    EveryXSimulationTime(f!, Δt;
-                         atinit=false)
+    EveryXSimulationTime(f!, Δt; atinit=false)
 
 Trigger `f!(integrator)` every `Δt` simulation time.
 
@@ -119,8 +122,7 @@ function EveryXSimulationTime(f!, Δt; atinit = false)
 end
 
 """
-    EveryXSimulationSteps(f!, Δsteps;
-                         atinit=false)
+    EveryXSimulationSteps(f!, Δsteps; atinit=false)
 
 Trigger `f!(integrator)` every `Δsteps` simulation steps.
 

@@ -18,7 +18,7 @@ struct RosenbrockCache{Nstages, RT, N², A}
     linsolve!::Any
 end
 
-function cache(prob::DiffEqBase.AbstractODEProblem, alg::RosenbrockAlgorithm; kwargs...)
+function init_cache(prob::DiffEqBase.AbstractODEProblem, alg::RosenbrockAlgorithm; kwargs...)
 
     tab = tableau(alg, eltype(prob.u0))
     Nstages = length(tab.m)

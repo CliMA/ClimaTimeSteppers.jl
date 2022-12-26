@@ -24,7 +24,7 @@ struct WickerSkamarockRungeKuttaCache{Nstages, RT, A}
     U::A
     F::A
 end
-function cache(prob::DiffEqBase.ODEProblem, alg::WickerSkamarockRungeKutta; kwargs...)
+function init_cache(prob::DiffEqBase.ODEProblem, alg::WickerSkamarockRungeKutta; kwargs...)
     U = similar(prob.u0)
     F = similar(prob.u0)
     return WickerSkamarockRungeKuttaCache(tableau(alg, eltype(F)), U, F)

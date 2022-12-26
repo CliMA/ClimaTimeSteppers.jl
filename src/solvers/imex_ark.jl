@@ -49,7 +49,7 @@ struct IMEXARKCache{SCU, SCE, SCI, T, Γ, NMC}
     newtons_method_cache::NMC
 end
 
-function cache(prob::DiffEqBase.AbstractODEProblem, alg::IMEXARKAlgorithm; kwargs...)
+function init_cache(prob::DiffEqBase.AbstractODEProblem, alg::IMEXARKAlgorithm; kwargs...)
     (; u0, f) = prob
     (; T_imp!) = f
     (; tab, newtons_method) = alg

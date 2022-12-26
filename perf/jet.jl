@@ -18,7 +18,7 @@ function config_integrators(problem)
     algorithm = CTS.IMEXARKAlgorithm(ARS343(), NewtonsMethod(; max_iters = 2))
     dt = 0.01
     integrator = DiffEqBase.init(problem, algorithm; dt)
-    integrator.cache = CTS.cache(problem, algorithm)
+    integrator.cache = CTS.init_cache(problem, algorithm)
     return (; integrator)
 end
 prob = if parsed_args["problem"] == "ode_fun"

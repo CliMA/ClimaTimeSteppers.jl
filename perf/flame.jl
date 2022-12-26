@@ -33,7 +33,7 @@ end
 algorithm = CTS.IMEXARKAlgorithm(ARS343(), NewtonsMethod(; max_iters = 2))
 dt = 0.01
 integrator = DiffEqBase.init(prob, algorithm; dt)
-cache = CTS.cache(prob, algorithm)
+cache = CTS.init_cache(prob, algorithm)
 do_work!(integrator, cache) # compile first
 import Profile
 Profile.clear_malloc_data()

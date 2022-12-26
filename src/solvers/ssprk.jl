@@ -34,7 +34,7 @@ struct StrongStabilityPreservingRungeKuttaCache{Nstages, RT, A}
     U::A
 end
 
-function cache(prob::DiffEqBase.AbstractODEProblem, alg::StrongStabilityPreservingRungeKutta; kwargs...)
+function init_cache(prob::DiffEqBase.AbstractODEProblem, alg::StrongStabilityPreservingRungeKutta; kwargs...)
 
     tab = tableau(alg, eltype(prob.u0))
     # can't use Vector{T}(undef) as need to ensure no NaNs

@@ -10,7 +10,7 @@ function main()
     for problem in (split_linear_prob_wfact_split(), split_linear_prob_wfact_split_fe())
         integrator = DiffEqBase.init(problem, algorithm; dt)
 
-        cache = CTS.cache(problem, algorithm)
+        cache = CTS.init_cache(problem, algorithm)
 
         CTS.step_u!(integrator, cache)
 

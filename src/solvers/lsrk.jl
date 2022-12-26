@@ -33,7 +33,7 @@ struct LowStorageRungeKutta2NIncCache{Nstages, RT, A}
     du::A
 end
 
-function cache(prob::DiffEqBase.ODEProblem, alg::LowStorageRungeKutta2N; kwargs...)
+function init_cache(prob::DiffEqBase.ODEProblem, alg::LowStorageRungeKutta2N; kwargs...)
     # @assert prob.problem_type isa DiffEqBase.IncrementingODEProblem ||
     #     prob.f isa DiffEqBase.IncrementingODEFunction
     du = zero(prob.u0)

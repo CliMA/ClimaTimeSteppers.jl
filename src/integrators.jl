@@ -114,7 +114,7 @@ function DiffEqBase.__init(
         callback,
         advance_to_tstop,
         false,
-        cache(prob, alg; dt, kwargs...),
+        init_cache(prob, alg; dt, kwargs...),
         sol,
     )
     DiffEqBase.initialize!(callback, u0, t0, integrator)

@@ -24,13 +24,13 @@ struct MultirateCache{OC, II}
     innerinteg::II
 end
 
-function cache(prob::DiffEqBase.AbstractODEProblem, alg::Multirate; dt, fast_dt, kwargs...)
+function init_cache(prob::DiffEqBase.AbstractODEProblem, alg::Multirate; dt, fast_dt, kwargs...)
 
     @assert prob.f isa DiffEqBase.SplitFunction
 
     # subproblems
     outerprob = DiffEqBase.remake(prob; f = prob.f.f2)
-    outercache = cache(outerprob, alg.slow)
+    outercache = init_cache(outerprob, alg.slow)
 
     innerfun = init_inner(prob, outercache, dt)
     innerprob = DiffEqBase.remake(prob; f = innerfun)

@@ -51,7 +51,7 @@ end
 
 nstages(::MultirateInfinitesimalStepCache{Nstages}) where {Nstages} = Nstages
 
-function cache(
+function init_cache(
     prob::DiffEqBase.AbstractODEProblem{uType, tType, true},
     alg::MultirateInfinitesimalStep;
     kwargs...,

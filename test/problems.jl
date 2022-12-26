@@ -428,3 +428,14 @@ function ark_analytic_sys_test_cts(::Type{FT}) where {FT}
         Wfact! = (W, Y, _, Δt, t) -> W .= Δt .* A .- I,
     )
 end
+
+function all_test_cases(::Type{FT}) where {FT}
+    return [
+        ark_analytic_nonlin_test_cts(FT),
+        ark_analytic_sys_test_cts(FT),
+        ark_analytic_test_cts(FT),
+        # onewaycouple_mri_test_cts(FT),
+        # climacore_2Dheat_test_cts(FT),
+        # climacore_1Dheat_test_cts(FT),
+    ]
+end

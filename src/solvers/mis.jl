@@ -16,15 +16,19 @@ The available implementations are:
 """
 abstract type MultirateInfinitesimalStep <: DistributedODEAlgorithm end
 
+const T1Type = SArray{NTuple{1, Nstages}, RT, 1, Nstages} where {Nstages, RT}
+const T2Type = SArray{NTuple{2, Nstages}, RT, 2, Nstages²} where {Nstages, RT, Nstages²}
 
-struct MultirateInfinitesimalStepTableau{Nstages, Nstages², RT}
-    α::SArray{NTuple{2, Nstages}, RT, 2, Nstages²}
-    β::SArray{NTuple{2, Nstages}, RT, 2, Nstages²}
-    γ::SArray{NTuple{2, Nstages}, RT, 2, Nstages²}
-    d::SArray{NTuple{1, Nstages}, RT, 1, Nstages}
-    c::SArray{NTuple{1, Nstages}, RT, 1, Nstages}
-    c̃::SArray{NTuple{1, Nstages}, RT, 1, Nstages}
+struct MultirateInfinitesimalStepTableau{T2 <: T2Type, T1 <: T1Type}
+    α::T2
+    β::T2
+    γ::T2
+    d::T1
+    c::T1
+    c̃::T1
 end
+n_stages(::MultirateInfinitesimalStepTableau{T2, T1}) where {T2, T1} = n_stages_ntuple(T1)
+
 function MultirateInfinitesimalStepTableau(α, β, γ)
     d = SVector(sum(β, dims = 2)) # KW2014 (2)
     # c = (I - α - γ) \ d
@@ -41,15 +45,15 @@ function MultirateInfinitesimalStepTableau(α, β, γ)
 end
 
 
-struct MultirateInfinitesimalStepCache{Nstages, A, T <: MultirateInfinitesimalStepTableau}
+struct MultirateInfinitesimalStepCache{T, TT <: MultirateInfinitesimalStepTableau}
     "difference between stage and initial value ``U^{(i)} - u``"
-    ΔU::NTuple{Nstages, A}
+    ΔU::T
     "evaluated slow part of each stage ``f_slow(U^{(i)})``"
-    F::NTuple{Nstages, A}
-    tableau::T
+    F::T
+    tableau::TT
 end
 
-n_stages(::MultirateInfinitesimalStepCache{Nstages}) where {Nstages} = Nstages
+n_stages(cache::MultirateInfinitesimalStepCache) = n_stages(cache.tableau)
 
 function init_cache(
     prob::DiffEqBase.AbstractODEProblem{uType, tType, true},

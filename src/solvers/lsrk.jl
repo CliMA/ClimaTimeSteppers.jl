@@ -19,17 +19,18 @@ abstract type LowStorageRungeKutta2N <: DistributedODEAlgorithm end
 
 Storage for the tableau of a [`LowStorageRungeKutta2N`](@ref) algorithm.
 """
-struct LowStorageRungeKutta2NTableau{Nstages, RT}
+struct LowStorageRungeKutta2NTableau{T <: NTuple}
     "low storage RK coefficient vector A (rhs scaling)"
-    A::NTuple{Nstages, RT}
+    A::T
     "low storage RK coefficient vector B (rhs add in scaling)"
-    B::NTuple{Nstages, RT}
+    B::T
     "low storage RK coefficient vector C (time scaling)"
-    C::NTuple{Nstages, RT}
+    C::T
 end
+n_stages(::LowStorageRungeKutta2NTableau{T}) where {T} = n_stages_ntuple(T)
 
-struct LowStorageRungeKutta2NIncCache{Nstages, RT, A}
-    tableau::LowStorageRungeKutta2NTableau{Nstages, RT}
+struct LowStorageRungeKutta2NIncCache{T <: LowStorageRungeKutta2NTableau, A}
+    tableau::T
     du::A
 end
 
@@ -40,7 +41,7 @@ function init_cache(prob::DiffEqBase.ODEProblem, alg::LowStorageRungeKutta2N; kw
     return LowStorageRungeKutta2NIncCache(tableau(alg, eltype(du)), du)
 end
 
-n_stages(::LowStorageRungeKutta2NIncCache{N}) where {N} = N
+n_stages(cache::LowStorageRungeKutta2NIncCache) = n_stages(cache.tableau)
 
 function step_u!(int, cache::LowStorageRungeKutta2NIncCache)
     (; C, A, B) = cache.tableau

@@ -50,15 +50,16 @@ function init_cache(
 ) where {uType, tType}
 
     tab = tableau(alg, eltype(prob.u0))
-    Nstages = length(tab.B) # TODO: create function for this
+    (; B, Aimpl) = tab
+    Nstages = length(B) # TODO: create function for this
     U = zero(prob.u0)
     L = ntuple(i -> zero(prob.u0), Nstages)
     R = ntuple(i -> zero(prob.u0), Nstages)
 
     if prob.f isa DiffEqBase.ODEFunction
-        W = EulerOperator(prob.f.jvp, -dt * tab.Aimpl[2, 2], prob.p, prob.tspan[1])
+        W = EulerOperator(prob.f.jvp, -dt * Aimpl[2, 2], prob.p, prob.tspan[1])
     elseif prob.f isa DiffEqBase.SplitFunction
-        W = EulerOperator(prob.f.f1, -dt * tab.Aimpl[2, 2], prob.p, prob.tspan[1])
+        W = EulerOperator(prob.f.f1, -dt * Aimpl[2, 2], prob.p, prob.tspan[1])
     end
     linsolve! = alg.linsolve(Val{:init}, W, prob.u0; kwargs...)
 
@@ -108,27 +109,25 @@ function step_u!(int, cache::AdditiveRungeKuttaFullCache{Nstages}) where {Nstage
 end
 
 function step_u!(int, cache::AdditiveRungeKuttaFullCache{Nstages}, f::DiffEqBase.SplitFunction) where {Nstages}
-    tab = cache.tableau
-    U = cache.U
-    Uhat = cache.R[end] # can be used as work array, as only used in last stage
 
+    (; C, Aimpl, Aexpl, B) = cache.tableau
+    (; U, R, L, W, linsolve) = cache
+    (; u, p, t, dt) = int
 
-    u = int.u
-    p = int.p
-    t = int.t
-    dt = int.dt
+    U = U
+    Uhat = R[end] # can be used as work array, as only used in last stage
 
     fL! = f.f1 # linear part
     fR! = f.f2 # remainder
 
     # first stage is always explicit
-    τ = t + tab.C[1] * dt
+    τ = t + C[1] * dt
 
-    #  cache.L[i] .= fL(cache.U[i-1], p, t + tab.C[i]*dt)
-    #  cache.R[1] .= fR(cache.U[i-1], p, t + tab.C[i]*dt)
+    #  L[i] .= fL(U[i-1], p, t + C[i]*dt)
+    #  R[1] .= fR(U[i-1], p, t + C[i]*dt)
 
-    fL!(cache.L[1], u, p, τ)
-    fR!(cache.R[1], u, p, τ)
+    fL!(L[1], u, p, τ)
+    fR!(R[1], u, p, τ)
 
     for i in 2:Nstages
         # solve for W * U = Uhat
@@ -136,67 +135,62 @@ function step_u!(int, cache::AdditiveRungeKuttaFullCache{Nstages}, f::DiffEqBase
         # TODO: we don't need this for direct solves
         U .= Uhat .= u
         for j in 1:(i - 1)
-            Uhat .+= (dt * tab.Aimpl[i, j]) .* cache.L[j] .+ (dt * tab.Aexpl[i, j]) .* cache.R[j]
+            Uhat .+= (dt * Aimpl[i, j]) .* L[j] .+ (dt * Aexpl[i, j]) .* R[j]
             # initial value: we only need to do this if using an iterative method:
-            U .+= (dt * tab.Aexpl[i, j]) .* (cache.L[j] .+ cache.R[j])
+            U .+= (dt * Aexpl[i, j]) .* (L[j] .+ R[j])
         end
 
         #  W = I - dt * Aimpl[i,i] * L
         # currently only use SDIRK methods where
         #    Aimpl[i,i] = i == 1 ? 0 : const
         # TODO: handle changing dt & Aimpl[i,i] coeffs
-        if !(DiffEqBase.isconstant(cache.W))
-            cache.W.t = τ
+        if !(DiffEqBase.isconstant(W))
+            W.t = τ
             W_updated = true
         end
-        γ = -dt * tab.Aimpl[i, i]
-        if cache.W.γ != γ
-            cache.W.γ = γ
+        γ = -dt * Aimpl[i, i]
+        if W.γ != γ
+            W.γ = γ
             W_updated = true
         end
-        cache.linsolve!(U, cache.W, Uhat, W_updated)
+        linsolve!(U, W, Uhat, W_updated)
 
-        τ = t + tab.C[i] * dt
-        fL!(cache.L[i], U, p, τ)
-        # or use cache.L[i] .= (U .- Uhat) ./ (dt * tab.Aimpl[i,i]) ?
-        fR!(cache.R[i], U, p, τ)
+        τ = t + C[i] * dt
+        fL!(L[i], U, p, τ)
+        # or use L[i] .= (U .- Uhat) ./ (dt * Aimpl[i,i]) ?
+        fR!(R[i], U, p, τ)
     end
 
     # compute next step
     for i in 1:Nstages
-        u .+= (dt * tab.B[i]) .* (cache.L[i] .+ cache.R[i])
+        u .+= (dt * B[i]) .* (L[i] .+ R[i])
     end
 end
 
 # WIP
 function step_u!(int, cache::AdditiveRungeKuttaFullCache{Nstages}, f::DiffEqBase.ODEFunction) where {Nstages}
-    tab = cache.tableau
-    U = cache.U
-    Uhat = cache.R[end] # can be used as work array, as only used in last stage
-
-
-    u = int.u
-    p = int.p
-    t = int.t
-    dt = int.dt
+    (; C, Aimpl, Aexpl, B) = cache.tableau
+    (; u, p, t, dt) = int
+    (; U, R, L, W, linsolve) = cache
+    Uhat = R[end] # can be used as work array, as only used in last stage
 
     fL! = f.jvp # linear part
     f! = f.f # remainder
 
     # first stage is always explicit
-    τ = t + tab.C[1] * dt
+    τ = t + C[1] * dt
 
-    f!(cache.R[1], u, p, τ)
-    fL!(cache.L[1], u, p, τ)
+    f!(R[1], u, p, τ)
+    fL!(L[1], u, p, τ)
     for i in 2:Nstages
         # solve for W * U = Uhat
         # set U to initial guess based on fully explicit
         # TODO: we don't need this for direct solves
         U .= Uhat .= u
         for j in 1:(i - 1)
-            Uhat .+= (dt * tab.Aimpl[i, j]) .* cache.L[j] .+ (dt * tab.Aexpl[i, j]) .* (cache.R[j] .- cache.L[j])
+            Uhat .+= (dt * Aimpl[i, j]) .* L[j] .+ (dt * Aexpl[i, j]) .* (R[j] .- L[j])
             # initial value: we only need to do this if using an iterative method:
-            U .+= (dt * tab.Aexpl[i, j]) .* cache.R[j]
+            U .+= (dt * Aexpl[i, j]) .* R[j]
         end
         #=
                 # solve for W * U = Uhat
@@ -205,8 +199,8 @@ function step_u!(int, cache::AdditiveRungeKuttaFullCache{Nstages}, f::DiffEqBase
                 V .= u
                 Ω .= 0
                 for j = 1:i-1
-                    V .+= dt * tab.Aexpl[i,j] .* cache.R[j]
-                    Ω .+= (tab.Aimpl[i,j]-tab.Aexpl[i,j])/tab.Aimpl[i,i] .* cache.U[j]
+                    V .+= dt * Aexpl[i,j] .* R[j]
+                    Ω .+= (Aimpl[i,j]-Aexpl[i,j])/Aimpl[i,i] .* U[j]
                 end
                 Vhat .= V .+ Ω
         =#
@@ -214,27 +208,27 @@ function step_u!(int, cache::AdditiveRungeKuttaFullCache{Nstages}, f::DiffEqBase
         # currently only use SDIRK methods where
         #    Aimpl[i,i] = i == 1 ? 0 : const
         # TODO: handle changing dt & Aimpl[i,i] coeffs
-        if !(DiffEqBase.isconstant(cache.W))
-            cache.W.t = τ
+        if !(DiffEqBase.isconstant(W))
+            W.t = τ
             W_updated = true
         end
-        γ = -dt * tab.Aimpl[i, i]
-        if cache.W.γ != γ
-            cache.W.γ = γ
+        γ = -dt * Aimpl[i, i]
+        if W.γ != γ
+            W.γ = γ
             W_updated = true
         end
-        cache.linsolve!(U, cache.W, Uhat, W_updated)
+        linsolve!(U, W, Uhat, W_updated)
         # U = V .- Ω
 
-        τ = t + tab.C[i] * dt
-        fL!(cache.L[i], U, p, τ)
-        # or use cache.L[i] .= (U .- Uhat) ./ (dt * tab.Aimpl[i,i]) ?
-        f!(cache.R[i], U, p, τ)
+        τ = t + C[i] * dt
+        fL!(L[i], U, p, τ)
+        # or use L[i] .= (U .- Uhat) ./ (dt * Aimpl[i,i]) ?
+        f!(R[i], U, p, τ)
     end
 
     # compute next step
     for i in 1:Nstages
-        u .+= (dt * tab.B[i]) .* cache.R[i]
+        u .+= (dt * B[i]) .* R[i]
     end
 end
 

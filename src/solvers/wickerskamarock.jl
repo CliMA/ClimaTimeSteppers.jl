@@ -30,7 +30,7 @@ function init_cache(prob::DiffEqBase.ODEProblem, alg::WickerSkamarockRungeKutta;
     return WickerSkamarockRungeKuttaCache(tableau(alg, eltype(F)), U, F)
 end
 
-nstages(::WickerSkamarockRungeKuttaCache{Nstages}) where {Nstages} = Nstages
+n_stages(::WickerSkamarockRungeKuttaCache{Nstages}) where {Nstages} = Nstages
 
 
 function init_inner(prob, outercache::WickerSkamarockRungeKuttaCache, dt)
@@ -39,11 +39,11 @@ end
 function update_inner!(innerinteg, outercache::WickerSkamarockRungeKuttaCache, f_slow, u, p, t, dt, i)
 
     f_offset = innerinteg.sol.prob.f
-    tab = outercache.tableau
+    (; c) = outercache.tableau
     U = outercache.U
-    N = nstages(outercache)
+    N = n_stages(outercache)
 
-    f_slow(f_offset.x, i == 1 ? u : U, p, t + tab.c[i] * dt)
+    f_slow(f_offset.x, i == 1 ? u : U, p, t + c[i] * dt)
 
     if i < N
         U .= u
@@ -53,7 +53,7 @@ function update_inner!(innerinteg, outercache::WickerSkamarockRungeKuttaCache, f
     end
 
     innerinteg.t = t
-    innerinteg.tstop = i == N ? t + dt : t + tab.c[i + 1] * dt
+    innerinteg.tstop = i == N ? t + dt : t + c[i + 1] * dt
 end
 
 

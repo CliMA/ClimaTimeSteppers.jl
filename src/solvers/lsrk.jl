@@ -40,22 +40,18 @@ function init_cache(prob::DiffEqBase.ODEProblem, alg::LowStorageRungeKutta2N; kw
     return LowStorageRungeKutta2NIncCache(tableau(alg, eltype(du)), du)
 end
 
-nstages(::LowStorageRungeKutta2NIncCache{N}) where {N} = N
+n_stages(::LowStorageRungeKutta2NIncCache{N}) where {N} = N
 
 function step_u!(int, cache::LowStorageRungeKutta2NIncCache)
-    tab = cache.tableau
+    (; C, A, B) = cache.tableau
     du = cache.du
+    (; u, p, t, dt) = int
 
-    u = int.u
-    p = int.p
-    t = int.t
-    dt = int.dt
-
-    for stage in 1:nstages(cache)
-        #  du .= f(u, p, t + tab.C[stage]*dt) .+ tab.A[stage] .* du
-        stage_time = t + tab.C[stage] * dt
-        int.sol.prob.f(du, u, p, stage_time, 1, tab.A[stage])
-        u .+= (dt * tab.B[stage]) .* du
+    for stage in 1:n_stages(cache)
+        #  du .= f(u, p, t + C[stage]*dt) .+ A[stage] .* du
+        stage_time = t + C[stage] * dt
+        int.sol.prob.f(du, u, p, stage_time, 1, A[stage])
+        u .+= (dt * B[stage]) .* du
     end
 end
 
@@ -65,22 +61,23 @@ function init_inner(prob, outercache::LowStorageRungeKutta2NIncCache, dt)
 end
 function update_inner!(innerinteg, outercache::LowStorageRungeKutta2NIncCache, f_slow, u, p, t, dt, stage)
 
+    (; C, A, B) = cache.tableau
     f_offset = innerinteg.sol.prob.f
     tab = outercache.tableau
-    N = nstages(outercache)
+    N = n_stages(outercache)
 
-    τ0 = t + tab.C[stage] * dt
-    τ1 = stage == N ? t + dt : t + tab.C[stage + 1] * dt
+    τ0 = t + C[stage] * dt
+    τ1 = stage == N ? t + dt : t + C[stage + 1] * dt
     f_offset.α = τ0
     innerinteg.t = zero(τ0)
     innerinteg.tstop = τ1 - τ0
 
-    #  du .= f(u, p, t + tab.C[stage]*dt) .+ tab.A[stage] .* du
-    f_slow(f_offset.x, u, p, τ0, 1, tab.A[stage])
+    #  du .= f(u, p, t + C[stage]*dt) .+ A[stage] .* du
+    f_slow(f_offset.x, u, p, τ0, 1, A[stage])
 
-    C0 = tab.C[stage]
-    C1 = stage == N ? one(tab.C[stage]) : tab.C[stage + 1]
-    f_offset.γ = tab.B[stage] / (C1 - C0)
+    C0 = C[stage]
+    C1 = stage == N ? one(C[stage]) : C[stage + 1]
+    f_offset.γ = B[stage] / (C1 - C0)
 end
 
 

@@ -15,26 +15,27 @@ The available implementations are:
 """
 abstract type StrongStabilityPreservingRungeKutta <: DistributedODEAlgorithm end
 
-struct StrongStabilityPreservingRungeKuttaTableau{Nstages, RT}
+struct StrongStabilityPreservingRungeKuttaTableau{T}
     "Storage RK coefficient vector A1 (rhs scaling of u)"
-    A1::NTuple{Nstages, RT}
+    A1::T
     "Storage RK coefficient vector A2 (rhs scaling of U)"
-    A2::NTuple{Nstages, RT}
+    A2::T
     "Storage RK coefficient vector B (rhs add in scaling)"
-    B::NTuple{Nstages, RT}
+    B::T
     "Storage RK coefficient vector C (time scaling)"
-    C::NTuple{Nstages, RT}
+    C::T
 end
+n_stages(::StrongStabilityPreservingRungeKuttaTableau{T}) where {T} = n_stages_ntuple(T)
 
-struct StrongStabilityPreservingRungeKuttaCache{Nstages, RT, A}
-    tableau::StrongStabilityPreservingRungeKuttaTableau{Nstages, RT}
+struct StrongStabilityPreservingRungeKuttaCache{T <: StrongStabilityPreservingRungeKuttaTableau, A}
+    tableau::T
     "Storage for RHS during the `StrongStabilityPreservingRungeKutta` update"
     fU::A
     "Storage for the stage state during the `StrongStabilityPreservingRungeKutta` update"
     U::A
 end
 
-n_stages(::StrongStabilityPreservingRungeKuttaCache{Nstages}) where {Nstages} = Nstages
+n_stages(cache::StrongStabilityPreservingRungeKuttaCache) = n_stages(cache.tableau)
 
 function init_cache(prob::DiffEqBase.AbstractODEProblem, alg::StrongStabilityPreservingRungeKutta; kwargs...)
 

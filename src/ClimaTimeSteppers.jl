@@ -94,6 +94,8 @@ include("solvers/newtons_method.jl")
 include("solvers/imex_ark_tableaus.jl")
 include("solvers/imex_ark.jl")
 
+n_stages_ntuple(::Type{<:NTuple{Nstages}}) where {Nstages} = Nstages
+
 # Include concrete implementations
 include("solvers/multirate.jl")
 include("solvers/lsrk.jl")

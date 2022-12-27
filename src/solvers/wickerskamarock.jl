@@ -14,13 +14,14 @@ Available implementations are:
 """
 abstract type WickerSkamarockRungeKutta <: DistributedODEAlgorithm end
 
-struct WickerSkamarockRungeKuttaTableau{Nstages, RT}
+struct WickerSkamarockRungeKuttaTableau{T <: NTuple}
     "Time-scaling coefficients c"
-    c::NTuple{Nstages, RT}
+    c::T
 end
+n_stages(::WickerSkamarockRungeKuttaTableau{T}) where {T} = n_stages_ntuple(T)
 
-struct WickerSkamarockRungeKuttaCache{Nstages, RT, A}
-    tableau::WickerSkamarockRungeKuttaTableau{Nstages, RT}
+struct WickerSkamarockRungeKuttaCache{T <: WickerSkamarockRungeKuttaTableau, A}
+    tableau::T
     U::A
     F::A
 end
@@ -30,7 +31,7 @@ function init_cache(prob::DiffEqBase.ODEProblem, alg::WickerSkamarockRungeKutta;
     return WickerSkamarockRungeKuttaCache(tableau(alg, eltype(F)), U, F)
 end
 
-n_stages(::WickerSkamarockRungeKuttaCache{Nstages}) where {Nstages} = Nstages
+n_stages(cache::WickerSkamarockRungeKuttaCache) = n_stages(cache.tableau)
 
 
 function init_inner(prob, outercache::WickerSkamarockRungeKuttaCache, dt)

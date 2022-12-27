@@ -34,6 +34,8 @@ struct StrongStabilityPreservingRungeKuttaCache{Nstages, RT, A}
     U::A
 end
 
+n_stages(::StrongStabilityPreservingRungeKuttaCache{Nstages}) where {Nstages} = Nstages
+
 function init_cache(prob::DiffEqBase.AbstractODEProblem, alg::StrongStabilityPreservingRungeKutta; kwargs...)
 
     tab = tableau(alg, eltype(prob.u0))
@@ -44,14 +46,11 @@ function init_cache(prob::DiffEqBase.AbstractODEProblem, alg::StrongStabilityPre
 end
 
 
-function step_u!(int, cache::StrongStabilityPreservingRungeKuttaCache{Nstages, RT, A}) where {Nstages, RT, A}
-    tab = cache.tableau
-
-    f! = int.sol.prob.f
-    u = int.u
-    p = int.p
-    t = int.t
-    dt = int.dt
+function step_u!(int, cache::StrongStabilityPreservingRungeKuttaCache)
+    Nstages = n_stages(cache)
+    (; A1, A2, C, B) = cache.tableau
+    (; u, p, t, dt, sol) = int
+    f! = sol.prob.f
 
     if f! isa ForwardEulerODEFunction
         for s in 1:Nstages
@@ -62,11 +61,11 @@ function step_u!(int, cache::StrongStabilityPreservingRungeKuttaCache{Nstages, R
             # IncrementingODEFunction f!(ux, u, p, t, α, β) = ux .= α .* ux .+ β .* f(u,p,t)
             # We need                     un .= u .+ β .* f(u,p,t)
             if s == 1
-                @assert tab.A1[s] == 1 && tab.A2[s] == 0
-                f!(Un, u, p, t + tab.C[s] * dt, tab.B[s] * dt)
+                @assert A1[s] == 1 && A2[s] == 0
+                f!(Un, u, p, t + C[s] * dt, B[s] * dt)
             else
-                f!(cache.fU, cache.U, p, t + tab.C[s] * dt, tab.B[s] / tab.A2[s] * dt)
-                Un .= tab.A1[s] .* u .+ tab.A2[s] .* cache.fU
+                f!(cache.fU, cache.U, p, t + C[s] * dt, B[s] / A2[s] * dt)
+                Un .= A1[s] .* u .+ A2[s] .* cache.fU
             end
             #@show Un
         end
@@ -79,26 +78,26 @@ function step_u!(int, cache::StrongStabilityPreservingRungeKuttaCache{Nstages, R
             # IncrementingODEFunction f!(ux, u, p, t, α, β) = ux .= α .* ux .+ β .* f(u,p,t)
             # We need                     un .= u .+ β .* f(u,p,t)
             if s == 1
-                @assert tab.A1[s] == 1 && tab.A2[s] == 0
+                @assert A1[s] == 1 && A2[s] == 0
                 Un .= u
-                f!(Un, u, p, t + tab.C[s] * dt, tab.B[s] * dt, 1)
+                f!(Un, u, p, t + C[s] * dt, B[s] * dt, 1)
             else
-                cache.fU .= tab.A1[s] .* u .+ tab.A2[s] .* cache.U
-                f!(cache.fU, cache.U, p, t + tab.C[s] * dt, tab.B[s] * dt, 1)
+                cache.fU .= A1[s] .* u .+ A2[s] .* cache.U
+                f!(cache.fU, cache.U, p, t + C[s] * dt, B[s] * dt, 1)
                 Un .= cache.fU
             end
         end
     else
         for s in 1:Nstages
             if s == 1
-                f!(cache.fU, u, p, t + tab.C[s] * dt)
+                f!(cache.fU, u, p, t + C[s] * dt)
             else
-                f!(cache.fU, cache.U, p, t + tab.C[s] * dt)
+                f!(cache.fU, cache.U, p, t + C[s] * dt)
             end
             if s < Nstages
-                cache.U .= tab.A1[s] .* u .+ tab.A2[s] .* cache.U .+ (dt * tab.B[s]) .* cache.fU
+                cache.U .= A1[s] .* u .+ A2[s] .* cache.U .+ (dt * B[s]) .* cache.fU
             else
-                u .= tab.A1[s] .* u .+ tab.A2[s] .* cache.U .+ (dt * tab.B[s]) .* cache.fU
+                u .= A1[s] .* u .+ A2[s] .* cache.U .+ (dt * B[s]) .* cache.fU
             end
         end
     end

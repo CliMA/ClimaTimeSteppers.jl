@@ -33,39 +33,30 @@ end
 
 
 function step_u!(int, cache::RosenbrockCache{Nstages, RT}) where {Nstages, RT}
-    tab = cache.tableau
-
+    (; m, Γ, A, C) = cache.tableau
+    (; u, p, t, dt) = int
+    (; W, U, fU, k, linsolve!) = cache
     f! = int.sol.prob.f
     Wfact_t! = int.sol.prob.f.Wfact_t
 
-    u = int.u
-    p = int.p
-    t = int.t
-    dt = int.dt
-    W = cache.W
-    U = cache.U
-    fU = cache.fU
-    k = cache.k
-    linsolve! = cache.linsolve!
-
     # 1) compute jacobian factorization
-    γ = dt * tab.Γ[1, 1]
+    γ = dt * Γ[1, 1]
     Wfact_t!(W, u, p, γ, t)
     for i in 1:Nstages
         U .= u
         for j in 1:(i - 1)
-            U .+= tab.A[i, j] .* k[j]
+            U .+= A[i, j] .* k[j]
         end
         # TODO: there should be a time modification here (t + c * dt)
         # if f does depend on time, would need to add tgrad term as well
         f!(fU, U, p, t)
         for j in 1:(i - 1)
-            fU .+= (tab.C[i, j] / dt) .* k[j]
+            fU .+= (C[i, j] / dt) .* k[j]
         end
         linsolve!(k[i], W, fU)
     end
     for i in 1:Nstages
-        u .+= tab.m[i] .* k[i]
+        u .+= m[i] .* k[i]
     end
 end
 

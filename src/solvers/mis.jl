@@ -49,7 +49,7 @@ struct MultirateInfinitesimalStepCache{Nstages, A, T <: MultirateInfinitesimalSt
     tableau::T
 end
 
-nstages(::MultirateInfinitesimalStepCache{Nstages}) where {Nstages} = Nstages
+n_stages(::MultirateInfinitesimalStepCache{Nstages}) where {Nstages} = Nstages
 
 function init_cache(
     prob::DiffEqBase.AbstractODEProblem{uType, tType, true},
@@ -76,15 +76,15 @@ end
 function update_inner!(innerinteg, outercache::MultirateInfinitesimalStepCache, f_slow, u, p, t, dt, i)
 
     f_offset = innerinteg.sol.prob.f
-    tab = outercache.tableau
-    N = nstages(outercache)
+    N = n_stages(outercache)
+    (; c, c̃, d) = outercache.tableau
 
     F = outercache.F
     ΔU = outercache.ΔU
 
     # F[i] = f_slow(U[i-1], p, t + c[i-1]*dt)
     u0 = i == 1 ? u : ΔU[i - 1]
-    t0 = i == 1 ? t : t + tab.c[i - 1] * dt
+    t0 = i == 1 ? t : t + c[i - 1] * dt
     f_slow(F[i], u0, p, t0)
 
     # the (i+1)th stage of the paper
@@ -109,16 +109,17 @@ function update_inner!(innerinteg, outercache::MultirateInfinitesimalStepCache, 
 
     # KW2014 (9)
     # evaluate f_fast(z(τ), p, t + c̃[i]*dt + (c[i]-c̃[i])/d[i] * τ)
-    f_offset.α = t + tab.c̃[i] * dt
-    f_offset.β = (tab.c[i] - tab.c̃[i]) / tab.d[i]
+    f_offset.α = t + c̃[i] * dt
+    f_offset.β = (c[i] - c̃[i]) / d[i]
 
     innerinteg.t = zero(t)
-    innerinteg.tstop = tab.d[i] * dt
+    innerinteg.tstop = d[i] * dt
 end
 
 @kernel function mis_update!(u, ΔU, F, innerinteg_u, f_offset_x, tab, i, N, dt)
     e = @index(Global, Linear)
     @inbounds begin
+        (; α, β, d, γ) = tab
         if i > 1
             ΔU[i - 1][e] -= u[e]
         end
@@ -128,13 +129,13 @@ end
             innerinteg_u[e] = u[e]
         end
         for j in 1:(i - 1)
-            innerinteg_u[e] += tab.α[i, j] * ΔU[j][e]
+            innerinteg_u[e] += α[i, j] * ΔU[j][e]
         end
 
         # KW2014 (1b) / (9)
-        f_offset_x[e] = tab.β[i, i] / tab.d[i] .* F[i][e]
+        f_offset_x[e] = β[i, i] / d[i] .* F[i][e]
         for j in 1:(i - 1)
-            f_offset_x[e] += (tab.γ[i, j] / (tab.d[i] * dt)) * ΔU[j][e] + tab.β[i, j] / tab.d[i] * F[j][e]
+            f_offset_x[e] += (γ[i, j] / (d[i] * dt)) * ΔU[j][e] + β[i, j] / d[i] * F[j][e]
         end
     end
 end

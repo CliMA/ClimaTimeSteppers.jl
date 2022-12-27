@@ -51,7 +51,7 @@ function step_u!(int, cache::MultirateCache)
     innerinteg = cache.innerinteg
     fast_dt = innerinteg.dt
 
-    N = nstages(outercache)
+    N = n_stages(outercache)
     for stage in 1:N
 
         update_inner!(innerinteg, outercache, int.sol.prob.f.f2, u, p, t, dt, stage)

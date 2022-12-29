@@ -59,8 +59,9 @@ function default_expected_order(alg, tab)
 end
 
 function test_convergence_order!(test_case, tab, results = Dict(); refinement_range)
-    prob, alg = problem_algo(test_case, tab)
-    expected_order = default_expected_order(alg, tab())
+    prob = problem(test_case, tab)
+    alg = algorithm(test_case, tab)
+    expected_order = default_expected_order(alg, tab)
     cr = OCT.refinement_study(
         prob,
         alg;
@@ -96,8 +97,8 @@ function tabulate_convergence_orders(test_cases, tabs, results)
     columns = map(test_cases) do test_case
         map(tab -> results[tab, test_case.test_name], tabs)
     end
-    expected_order = map(tab -> default_expected_order(nothing, tab()), tabs)
-    tab_names = map(tab -> "$tab ($(default_expected_order(nothing, tab())))", tabs)
+    expected_order = map(tab -> default_expected_order(nothing, tab), tabs)
+    tab_names = map(tab -> "$tab ($(default_expected_order(nothing, tab)))", tabs)
     data = hcat(columns...)
     summary(result) = result.computed_order
     data_summary = map(d -> summary(d), data)

@@ -72,6 +72,7 @@ function tabulate_convergence_orders()
         IMKG343a,
         DBM453,
     ]
+    tabs = map(t -> t(), tabs)
     test_cases = all_test_cases(Float64)
     results = convergence_order_results(tabs, test_cases)
     tabulate_convergence_orders(test_cases, tabs, results)

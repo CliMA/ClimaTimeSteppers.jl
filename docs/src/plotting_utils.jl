@@ -86,14 +86,15 @@ function test_algs(
     analytic_end_sol = [analytic_sols[end]]
 
     for tab in tableaus
-        (prob, alg) = problem_algo(test_case, tab)
+        prob = problem(test_case, tab)
+        alg = algorithm(test_case, tab)
         predicted_order = if super_convergence == tab
-            CTS.theoretical_convergence_order(tab()) + 1
+            CTS.theoretical_convergence_order(tab) + 1
         else
-            CTS.theoretical_convergence_order(tab())
+            CTS.theoretical_convergence_order(tab)
         end
         linestyle = linestyles[(predicted_order - 1) % length(linestyles) + 1]
-        alg_name = string(nameof(tab))
+        alg_name = string(nameof(typeof(tab)))
 
         # Use tstops to fix saving issues due to machine precision (e.g. if the
         # integrator needs to save at t but it stops at t - eps(), it will skip

@@ -274,11 +274,11 @@ function IntegratorTestCase(;
     jac_prototype = Matrix{FT}(undef, length(Y₀), length(Y₀))
     func_args = (; jac_prototype, Wfact = Wfact!, tgrad = tgrad!)
     tendency_func = ODEFunction(tendency!; func_args...)
-    if isnothing(implicit_tendency!) # assume that related args are also nothing
+    split_tendency_func = if isnothing(implicit_tendency!) # assume that related args are also nothing
         no_tendency!(Yₜ, Y, _, t) = Yₜ .= 0
-        split_tendency_func = SplitFunction(tendency_func, no_tendency!)
+        SplitFunction(tendency_func, no_tendency!)
     else
-        split_tendency_func = SplitFunction(ODEFunction(implicit_tendency!; func_args...), explicit_tendency!)
+        SplitFunction(ODEFunction(implicit_tendency!; func_args...), explicit_tendency!)
     end
     make_prob(func) = ODEProblem(func, Y₀, (FT(0), t_end), nothing)
     IntegratorTestCase(
@@ -307,12 +307,14 @@ function ClimaIntegratorTestCase(;
     jac_prototype = Matrix{FT}(undef, length(Y₀), length(Y₀))
     func_args = (; jac_prototype, Wfact = Wfact!, tgrad = tgrad!)
     tendency_func = ClimaODEFunction(; T_imp! = ODEFunction(tendency!; func_args...))
-    if isnothing(implicit_tendency!) # assume that related args are also nothing
-        split_tendency_func = ClimaODEFunction(; T_imp! = ODEFunction(tendency!; func_args...))
+
+    T_imp! = if isnothing(implicit_tendency!)
+        # assume that related args are also nothing
+        ODEFunction(tendency!; func_args...)
     else
-        split_tendency_func =
-            ClimaODEFunction(; T_exp! = explicit_tendency!, T_imp! = ODEFunction(implicit_tendency!; func_args...))
+        ODEFunction(implicit_tendency!; func_args...)
     end
+    split_tendency_func = ClimaODEFunction(; T_exp! = explicit_tendency!, T_imp!)
     make_prob(func) = ODEProblem(func, Y₀, (FT(0), t_end), nothing)
     IntegratorTestCase(
         test_name,

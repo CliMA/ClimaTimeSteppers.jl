@@ -249,15 +249,13 @@ end
 
 reverse_problem(prob, analytic_sol) = ODEProblem(prob.f, analytic_sol(prob.tspan[2]), reverse(prob.tspan), prob.p)
 
-struct IntegratorTestCase{FT, A, P, IP, SP, SIP}
+struct IntegratorTestCase{FT, A, P, SP}
     test_name::String
     linear_implicit::Bool
     t_end::FT
     analytic_sol::A
     prob::P
-    increment_prob::IP
     split_prob::SP
-    split_increment_prob::SIP
 end
 
 function IntegratorTestCase(;
@@ -267,11 +265,8 @@ function IntegratorTestCase(;
     Y₀,
     analytic_sol,
     tendency!,
-    increment!,
     implicit_tendency! = nothing,
     explicit_tendency! = nothing,
-    implicit_increment! = nothing,
-    explicit_increment! = nothing,
     Wfact!,
     tgrad! = nothing,
 )
@@ -279,18 +274,11 @@ function IntegratorTestCase(;
     jac_prototype = Matrix{FT}(undef, length(Y₀), length(Y₀))
     func_args = (; jac_prototype, Wfact = Wfact!, tgrad = tgrad!)
     tendency_func = ODEFunction(tendency!; func_args...)
-    increment_func = ForwardEulerODEFunction(increment!; func_args...)
     if isnothing(implicit_tendency!) # assume that related args are also nothing
-        no_tendency!(Yₜ, Y, _, t) = Yₜ .= FT(0)
-        no_increment!(Y⁺, Y, _, t, Δt) = Y⁺
+        no_tendency!(Yₜ, Y, _, t) = Yₜ .= 0
         split_tendency_func = SplitFunction(tendency_func, no_tendency!)
-        split_increment_func = SplitFunction(increment_func, ForwardEulerODEFunction(no_increment!))
     else
         split_tendency_func = SplitFunction(ODEFunction(implicit_tendency!; func_args...), explicit_tendency!)
-        split_increment_func = SplitFunction(
-            ForwardEulerODEFunction(implicit_increment!; func_args...),
-            ForwardEulerODEFunction(explicit_increment!),
-        )
     end
     make_prob(func) = ODEProblem(func, Y₀, (FT(0), t_end), nothing)
     IntegratorTestCase(
@@ -299,9 +287,7 @@ function IntegratorTestCase(;
         t_end,
         analytic_sol,
         make_prob(tendency_func),
-        make_prob(increment_func),
         make_prob(split_tendency_func),
-        make_prob(split_increment_func),
     )
 end
 
@@ -312,11 +298,8 @@ function ClimaIntegratorTestCase(;
     Y₀,
     analytic_sol,
     tendency!,
-    increment!,
     implicit_tendency! = nothing,
     explicit_tendency! = nothing,
-    implicit_increment! = nothing,
-    explicit_increment! = nothing,
     Wfact!,
     tgrad! = nothing,
 )
@@ -337,9 +320,7 @@ function ClimaIntegratorTestCase(;
         t_end,
         analytic_sol,
         make_prob(tendency_func),
-        nothing,
         make_prob(split_tendency_func),
-        nothing,
     )
 end
 
@@ -353,7 +334,6 @@ function constant_tendency_test(::Type{FT}) where {FT}
         Y₀ = FT[0, 0, 0],
         analytic_sol = (t) -> tendency .* t,
         tendency! = (Yₜ, Y, _, t) -> Yₜ .= tendency,
-        increment! = (Y⁺, Y, _, t, Δt) -> Y⁺ .+= Δt .* tendency,
         Wfact! = (W, Y, _, Δt, t) -> W .= -1,
     )
 end
@@ -367,7 +347,6 @@ function clima_constant_tendency_test(::Type{FT}) where {FT}
         Y₀ = FT[0, 0, 0],
         analytic_sol = (t) -> tendency .* t,
         tendency! = (Yₜ, Y, _, t) -> Yₜ .= tendency,
-        increment! = (Y⁺, Y, _, t, Δt) -> Y⁺ .+= Δt .* tendency,
         Wfact! = (W, Y, _, Δt, t) -> W .= -1,
     )
 end
@@ -383,11 +362,8 @@ function ark_analytic_test_cts(::Type{FT}) where {FT}
         Y₀ = FT[0],
         analytic_sol = (t) -> [atan(t)],
         tendency! = (Yₜ, Y, _, t) -> Yₜ .= λ .* Y .+ source(t),
-        increment! = (Y⁺, Y, _, t, Δt) -> Y⁺ .+= Δt .* (λ .* Y .+ source(t)),
         implicit_tendency! = (Yₜ, Y, _, t) -> Yₜ .= λ .* Y,
         explicit_tendency! = (Yₜ, Y, _, t) -> Yₜ .= source(t),
-        implicit_increment! = (Y⁺, Y, _, t, Δt) -> Y⁺ .+= (Δt * λ) .* Y,
-        explicit_increment! = (Y⁺, Y, _, t, Δt) -> Y⁺ .+= Δt * source(t),
         Wfact! = (W, Y, _, Δt, t) -> W .= Δt * λ - 1,
         tgrad! = (∂Y∂t, Y, _, t) -> ∂Y∂t .= -(λ + 2 * t + λ * t^2) / (1 + t^2)^2,
     )
@@ -402,7 +378,6 @@ function ark_analytic_nonlin_test_cts(::Type{FT}) where {FT}
         Y₀ = FT[0],
         analytic_sol = (t) -> [log(t^2 / 2 + t + 1)],
         tendency! = (Yₜ, Y, _, t) -> Yₜ .= (t + 1) .* exp.(.-Y),
-        increment! = (Y⁺, Y, _, t, Δt) -> Y⁺ .+= Δt .* ((t + 1) .* exp.(.-Y)),
         Wfact! = (W, Y, _, Δt, t) -> W .= (-Δt * (t + 1) .* exp.(.-Y) .- 1),
         tgrad! = (∂Y∂t, Y, _, t) -> ∂Y∂t .= exp.(.-Y),
     )
@@ -424,7 +399,6 @@ function ark_analytic_sys_test_cts(::Type{FT}) where {FT}
         Y₀,
         analytic_sol = (t) -> V * exp(D * t) * V⁻¹ * Y₀,
         tendency! = (Yₜ, Y, _, t) -> mul!(Yₜ, A, Y),
-        increment! = (Y⁺, Y, _, t, Δt) -> mul!(Y⁺, A, Y, Δt, 1),
         Wfact! = (W, Y, _, Δt, t) -> W .= Δt .* A .- I,
     )
 end

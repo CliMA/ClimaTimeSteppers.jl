@@ -60,7 +60,7 @@ end
 
 function test_convergence_order!(test_case, tab, results = Dict(); refinement_range)
     prob = problem(test_case, tab)
-    alg = algorithm(test_case, tab)
+    alg = algorithm(tab)
     expected_order = default_expected_order(alg, tab)
     cr = OCT.refinement_study(
         prob,

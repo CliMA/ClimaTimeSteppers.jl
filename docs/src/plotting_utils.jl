@@ -87,7 +87,7 @@ function test_algs(
 
     for tab in tableaus
         prob = problem(test_case, tab)
-        alg = algorithm(test_case, tab)
+        alg = algorithm(tab)
         predicted_order = if super_convergence == tab
             CTS.theoretical_convergence_order(tab) + 1
         else

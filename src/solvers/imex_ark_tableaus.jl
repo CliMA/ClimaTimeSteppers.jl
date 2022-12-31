@@ -1,4 +1,3 @@
-export AbstractIMEXARKTableau
 export ARS111, ARS121, ARS122, ARS233, ARS232, ARS222, ARS343, ARS443
 export IMKG232a, IMKG232b, IMKG242a, IMKG242b, IMKG252a, IMKG252b
 export IMKG253a, IMKG253b, IMKG254a, IMKG254b, IMKG254c, IMKG342a, IMKG343a
@@ -230,7 +229,7 @@ end
 imkg_exp(i, j, α, β) = i == j + 1 ? α[j] : (i > 2 && j == 1 ? β[i - 2] : 0)
 imkg_imp(i, j, α̂, β, δ̂) =
     i == j + 1 ? α̂[j] : (i > 2 && j == 1 ? β[i - 2] : (1 < i <= length(α̂) && i == j ? δ̂[i - 1] : 0))
-function make_IMKGAlgorithm(α, α̂, δ̂, β = ntuple(_ -> 0, length(δ̂)))
+function make_IMKGTableau(α, α̂, δ̂, β = ntuple(_ -> 0, length(δ̂)))
     s = length(α̂) + 1
     type = SMatrix{s, s}
     return IMEXARKTableau(;
@@ -241,48 +240,44 @@ end
 
 struct IMKG232a <: AbstractIMEXARKTableau end
 function tableau(::IMKG232a)
-    make_IMKGAlgorithm((1 / 2, 1 / 2, 1), (0, -1 / 2 + √2 / 2, 1), (1 - √2 / 2, 1 - √2 / 2))
+    make_IMKGTableau((1 / 2, 1 / 2, 1), (0, -1 / 2 + √2 / 2, 1), (1 - √2 / 2, 1 - √2 / 2))
 end
 
 struct IMKG232b <: AbstractIMEXARKTableau end
 function tableau(::IMKG232b)
-    make_IMKGAlgorithm((1 / 2, 1 / 2, 1), (0, -1 / 2 - √2 / 2, 1), (1 + √2 / 2, 1 + √2 / 2))
+    make_IMKGTableau((1 / 2, 1 / 2, 1), (0, -1 / 2 - √2 / 2, 1), (1 + √2 / 2, 1 + √2 / 2))
 end
 
 struct IMKG242a <: AbstractIMEXARKTableau end
 function tableau(::IMKG242a)
-    make_IMKGAlgorithm((1 / 4, 1 / 3, 1 / 2, 1), (0, 0, -1 / 2 + √2 / 2, 1), (0, 1 - √2 / 2, 1 - √2 / 2))
+    make_IMKGTableau((1 / 4, 1 / 3, 1 / 2, 1), (0, 0, -1 / 2 + √2 / 2, 1), (0, 1 - √2 / 2, 1 - √2 / 2))
 end
 
 struct IMKG242b <: AbstractIMEXARKTableau end
 function tableau(::IMKG242b)
-    make_IMKGAlgorithm((1 / 4, 1 / 3, 1 / 2, 1), (0, 0, -1 / 2 - √2 / 2, 1), (0, 1 + √2 / 2, 1 + √2 / 2))
+    make_IMKGTableau((1 / 4, 1 / 3, 1 / 2, 1), (0, 0, -1 / 2 - √2 / 2, 1), (0, 1 + √2 / 2, 1 + √2 / 2))
 end
 
 # The paper uses √3/6 for α̂[3], which also seems to work.
 struct IMKG243a <: AbstractIMEXARKTableau end
 function tableau(::IMKG243a)
-    make_IMKGAlgorithm(
-        (1 / 4, 1 / 3, 1 / 2, 1),
-        (0, 1 / 6, -√3 / 6, 1),
-        (1 / 2 + √3 / 6, 1 / 2 + √3 / 6, 1 / 2 + √3 / 6),
-    )
+    make_IMKGTableau((1 / 4, 1 / 3, 1 / 2, 1), (0, 1 / 6, -√3 / 6, 1), (1 / 2 + √3 / 6, 1 / 2 + √3 / 6, 1 / 2 + √3 / 6))
 end
 
 struct IMKG252a <: AbstractIMEXARKTableau end
 function tableau(::IMKG252a)
-    make_IMKGAlgorithm((1 / 4, 1 / 6, 3 / 8, 1 / 2, 1), (0, 0, 0, -1 / 2 + √2 / 2, 1), (0, 0, 1 - √2 / 2, 1 - √2 / 2))
+    make_IMKGTableau((1 / 4, 1 / 6, 3 / 8, 1 / 2, 1), (0, 0, 0, -1 / 2 + √2 / 2, 1), (0, 0, 1 - √2 / 2, 1 - √2 / 2))
 end
 
 struct IMKG252b <: AbstractIMEXARKTableau end
 function tableau(::IMKG252b)
-    make_IMKGAlgorithm((1 / 4, 1 / 6, 3 / 8, 1 / 2, 1), (0, 0, 0, -1 / 2 - √2 / 2, 1), (0, 0, 1 + √2 / 2, 1 + √2 / 2))
+    make_IMKGTableau((1 / 4, 1 / 6, 3 / 8, 1 / 2, 1), (0, 0, 0, -1 / 2 - √2 / 2, 1), (0, 0, 1 + √2 / 2, 1 + √2 / 2))
 end
 
 # The paper uses 0.08931639747704086 for α̂[3], which also seems to work.
 struct IMKG253a <: AbstractIMEXARKTableau end
 function tableau(::IMKG253a)
-    make_IMKGAlgorithm(
+    make_IMKGTableau(
         (1 / 4, 1 / 6, 3 / 8, 1 / 2, 1),
         (0, 0, √3 / 4 * (1 - √3 / 3) * ((1 + √3 / 3)^2 - 2), √3 / 6, 1),
         (0, 1 / 2 - √3 / 6, 1 / 2 - √3 / 6, 1 / 2 - √3 / 6),
@@ -292,7 +287,7 @@ end
 # The paper uses 1.2440169358562922 for α̂[3], which also seems to work.
 struct IMKG253b <: AbstractIMEXARKTableau end
 function tableau(::IMKG253b)
-    make_IMKGAlgorithm(
+    make_IMKGTableau(
         (1 / 4, 1 / 6, 3 / 8, 1 / 2, 1),
         (0, 0, √3 / 4 * (1 + √3 / 3) * ((1 - √3 / 3)^2 - 2), -√3 / 6, 1),
         (0, 1 / 2 + √3 / 6, 1 / 2 + √3 / 6, 1 / 2 + √3 / 6),
@@ -301,23 +296,23 @@ end
 
 struct IMKG254a <: AbstractIMEXARKTableau end
 function tableau(::IMKG254a)
-    make_IMKGAlgorithm((1 / 4, 1 / 6, 3 / 8, 1 / 2, 1), (0, -3 / 10, 5 / 6, -3 / 2, 1), (-1 / 2, 1, 1, 2))
+    make_IMKGTableau((1 / 4, 1 / 6, 3 / 8, 1 / 2, 1), (0, -3 / 10, 5 / 6, -3 / 2, 1), (-1 / 2, 1, 1, 2))
 end
 
 struct IMKG254b <: AbstractIMEXARKTableau end
 function tableau(::IMKG254b)
-    make_IMKGAlgorithm((1 / 4, 1 / 6, 3 / 8, 1 / 2, 1), (0, -1 / 20, 5 / 4, -1 / 2, 1), (-1 / 2, 1, 1, 1))
+    make_IMKGTableau((1 / 4, 1 / 6, 3 / 8, 1 / 2, 1), (0, -1 / 20, 5 / 4, -1 / 2, 1), (-1 / 2, 1, 1, 1))
 end
 
 struct IMKG254c <: AbstractIMEXARKTableau end
 function tableau(::IMKG254c)
-    make_IMKGAlgorithm((1 / 4, 1 / 6, 3 / 8, 1 / 2, 1), (0, 1 / 20, 5 / 36, 1 / 3, 1), (1 / 6, 1 / 6, 1 / 6, 1 / 6))
+    make_IMKGTableau((1 / 4, 1 / 6, 3 / 8, 1 / 2, 1), (0, 1 / 20, 5 / 36, 1 / 3, 1), (1 / 6, 1 / 6, 1 / 6, 1 / 6))
 end
 
 # The paper and HOMME completely disagree on this algorithm. Since the version
 # in the paper is not "342" (it appears to be "332"), the version from HOMME is
 # used here.
-# const IMKG342a = make_IMKGAlgorithm(
+# const IMKG342a = make_IMKGTableau(
 #     (0, 1/3, 1/3, 3/4),
 #     (0, -1/6 - √3/6, -1/6 - √3/6, 3/4),
 #     (0, 1/2 + √3/6, 1/2 + √3/6),
@@ -325,7 +320,7 @@ end
 # )
 struct IMKG342a <: AbstractIMEXARKTableau end
 function tableau(::IMKG342a)
-    make_IMKGAlgorithm(
+    make_IMKGTableau(
         (1 / 4, 2 / 3, 1 / 3, 3 / 4),
         (0, 1 / 6 - √3 / 6, -1 / 6 - √3 / 6, 3 / 4),
         (0, 1 / 2 + √3 / 6, 1 / 2 + √3 / 6),
@@ -335,14 +330,14 @@ end
 
 struct IMKG343a <: AbstractIMEXARKTableau end
 function tableau(::IMKG343a)
-    make_IMKGAlgorithm((1 / 4, 2 / 3, 1 / 3, 3 / 4), (0, -1 / 3, -2 / 3, 3 / 4), (-1 / 3, 1, 1), (0, 1 / 3, 1 / 4))
+    make_IMKGTableau((1 / 4, 2 / 3, 1 / 3, 3 / 4), (0, -1 / 3, -2 / 3, 3 / 4), (-1 / 3, 1, 1), (0, 1 / 3, 1 / 4))
 end
 
 # The paper and HOMME completely disagree on this algorithm, but neither version
 # is "353" (they appear to be "343" and "354", respectively).
 # struct IMKG353a <: AbstractIMEXARKTableau end
 # function tableau(::IMKG353a)
-#     make_IMKGAlgorithm(
+#     make_IMKGTableau(
 #         (1/4, 2/3, 1/3, 3/4),
 #         (0, -359/600, -559/600, 3/4),
 #         (-1.1678009811335388, 253/200, 253/200),
@@ -351,7 +346,7 @@ end
 # end
 # struct IMKG353a <: AbstractIMEXARKTableau end
 # function tableau(::IMKG353a)
-#     make_IMKGAlgorithm(
+#     make_IMKGTableau(
 #         (-0.017391304347826087, -23/25, 5/3, 1/3, 3/4),
 #         (0.3075640504095504, -1.2990164859879263, 751/600, -49/60, 3/4),
 #         (-0.2981612530370581, 83/200, 83/200, 23/20),
@@ -365,7 +360,7 @@ end
 # for IMKG354a is not specified).
 # struct IMKG354a <: AbstractIMEXARKTableau end
 # function tableau(::IMKG354a)
-#     make_IMKGAlgorithm(
+#     make_IMKGTableau(
 #         (1/5, 1/5, 2/3, 1/3, 3/4),
 #         (0, 0, 11/30, -2/3, 3/4),
 #         (0, 2/4, 2/5, 1),

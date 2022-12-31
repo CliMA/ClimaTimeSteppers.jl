@@ -1,17 +1,4 @@
-export ClimaODEFunction, IMEXARKAlgorithm, ARS343
-
-Base.@kwdef struct ClimaODEFunction{TL, TE, TI, L, D, S} <: DiffEqBase.AbstractODEFunction{true}
-    T_lim!::TL = nothing # nothing or (uₜ, u, p, t) -> ...
-    T_exp!::TE = nothing # nothing or (uₜ, u, p, t) -> ...
-    T_imp!::TI = nothing # nothing or (uₜ, u, p, t) -> ...
-    lim!::L = (u, p, t, u_ref) -> nothing
-    dss!::D = (u, p, t) -> nothing
-    stage_callback!::S = (u, p, t) -> nothing
-end
-
-# Don't wrap a ClimaODEFunction in an ODEFunction (makes ODEProblem work).
-DiffEqBase.ODEFunction{iip}(f::ClimaODEFunction) where {iip} = f
-DiffEqBase.ODEFunction(f::ClimaODEFunction) = f
+export IMEXARKAlgorithm
 
 """
     IMEXARKAlgorithm(

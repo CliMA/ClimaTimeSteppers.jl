@@ -1,4 +1,5 @@
 import ODEConvergenceTester as OCT
+import ClimaTimeSteppers as CTS
 import OrdinaryDiffEq as ODE
 
 """
@@ -50,13 +51,8 @@ function convergence_order(prob, sol, method, dts; kwargs...)
     return order_est
 end
 
-function default_expected_order(alg, tab)
-    return if tab isa CTS.AbstractIMEXARKTableau
-        CTS.theoretical_convergence_order(tab)
-    else
-        ODE.alg_order(alg)
-    end
-end
+default_expected_order(alg, tab::CTS.AbstractIMEXARKTableau) = ODE.alg_order(tab)
+# default_expected_order(alg, tab) = ODE.alg_order(alg)
 
 function test_convergence_order!(test_case, tab, results = Dict(); refinement_range)
     prob = problem(test_case, tab)

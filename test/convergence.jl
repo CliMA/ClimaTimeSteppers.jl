@@ -1,6 +1,7 @@
 using ClimaTimeSteppers, LinearAlgebra, Test
 import PrettyTables
 
+include(joinpath(@__DIR__, "convergence_orders.jl"))
 include(joinpath(@__DIR__, "convergence_utils.jl"))
 include(joinpath(@__DIR__, "utils.jl"))
 include(joinpath(@__DIR__, "problems.jl"))

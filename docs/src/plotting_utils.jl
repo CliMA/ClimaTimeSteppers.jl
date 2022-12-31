@@ -1,6 +1,7 @@
 using Test
 import Printf
 import Plots
+import OrdinaryDiffEq as ODE
 
 """
     test_algs(
@@ -89,9 +90,9 @@ function test_algs(
         prob = problem(test_case, tab)
         alg = algorithm(tab)
         predicted_order = if super_convergence == tab
-            CTS.theoretical_convergence_order(tab) + 1
+            ODE.alg_order(tab) + 1
         else
-            CTS.theoretical_convergence_order(tab)
+            ODE.alg_order(tab)
         end
         linestyle = linestyles[(predicted_order - 1) % length(linestyles) + 1]
         alg_name = string(nameof(typeof(tab)))
@@ -114,7 +115,7 @@ function test_algs(
         tendency_end_errs = @. norm(tendency_end_sols - analytic_end_sol)
         _, computed_order = hcat(ones(length(plot2_dts)), log10.(plot2_dts)) \ log10.(tendency_end_errs)
         @test computed_order ≈ predicted_order rtol = 0.1
-        @info "(alg, computed, predicted) = $alg, $computed_order, $predicted_order"
+        # @info "(alg, computed, predicted) = $alg, $computed_order, $predicted_order"
         label = "$alg_name ($(Printf.@sprintf "%.3f" computed_order))"
         Plots.plot!(plot2, plot2_dts, tendency_end_errs; label, linestyle)
     end

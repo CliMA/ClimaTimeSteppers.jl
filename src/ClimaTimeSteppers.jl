@@ -78,14 +78,6 @@ Returns the tableau for a particular algorithm.
 """
 function tableau end
 
-"""
-    theoretical_convergence_order
-
-Returns the theoretical convergence order of an ODE algorithm
-"""
-function theoretical_convergence_order end
-theoretical_convergence_order(tab) = error("No convergence order found for tableau $tab, please open an issue or PR.")
-
 SciMLBase.allowscomplex(alg::DistributedODEAlgorithm) = true
 include("integrators.jl")
 
@@ -108,7 +100,5 @@ include("solvers/wickerskamarock.jl")
 include("solvers/rosenbrock.jl")
 
 include("callbacks.jl")
-
-include("convergence_orders.jl")
 
 end

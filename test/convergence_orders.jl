@@ -33,12 +33,16 @@ const second_order_tableau = [
 #####
 const third_order_tableau = [ARS233, ARS343, ARS443, IMKG342a, IMKG343a, DBM453]
 
+import OrdinaryDiffEq as ODE
+import ClimaTimeSteppers as CTS
+ODE.alg_order(alg::CTS.IMEXARKAlgorithm) = ODE.alg_order(alg.tab)
+
 for m in first_order_tableau
-    @eval theoretical_convergence_order(::$m) = 1
+    @eval ODE.alg_order(::$m) = 1
 end
 for m in second_order_tableau
-    @eval theoretical_convergence_order(::$m) = 2
+    @eval ODE.alg_order(::$m) = 2
 end
 for m in third_order_tableau
-    @eval theoretical_convergence_order(::$m) = 3
+    @eval ODE.alg_order(::$m) = 3
 end

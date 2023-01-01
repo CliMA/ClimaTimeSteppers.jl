@@ -209,19 +209,7 @@ function kpr_sol(u0, param, t)
 end
 
 """
-Test problem (4.2) from RobertsSarsharSandu2018arxiv
-
-# TODO: move this to bibliography
-
-```
-@article{RobertsSarsharSandu2018arxiv,
-    title={Coupled Multirate Infinitesimal GARK Schemes for Stiff Systems with
-            Multiple Time Scales},
-    author={Roberts, Steven and Sarshar, Arash and Sandu, Adrian},
-    journal={arXiv preprint arXiv:1812.00808},
-    year={2019}
-}
-```
+Test problem (4.2) from [RobertsSarsharSandu2018arxiv](@cite)
 
 Note: The actual rates are all over the place with this test and passing largely
         depends on final dt size

@@ -56,11 +56,12 @@ function init_cache(
     L = ntuple(i -> zero(prob.u0), Nstages)
     R = ntuple(i -> zero(prob.u0), Nstages)
 
-    if prob.f isa DiffEqBase.ODEFunction
-        W = EulerOperator(prob.f.jvp, -dt * Aimpl[2, 2], prob.p, prob.tspan[1])
+    f = if prob.f isa DiffEqBase.ODEFunction
+        prob.f.jvp
     elseif prob.f isa DiffEqBase.SplitFunction
-        W = EulerOperator(prob.f.f1, -dt * Aimpl[2, 2], prob.p, prob.tspan[1])
+        prob.f.f1
     end
+    W = EulerOperator(f, -dt * Aimpl[2, 2], prob.p, prob.tspan[1])
     linsolve! = alg.linsolve(Val{:init}, W, prob.u0; kwargs...)
 
     AdditiveRungeKuttaFullCache(U, L, R, tab, W, linsolve!)

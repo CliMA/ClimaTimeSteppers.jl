@@ -18,29 +18,33 @@ The available implementations are:
 """
 abstract type AdditiveRungeKutta <: DistributedODEAlgorithm end
 
-struct AdditiveRungeKuttaTableau{Nstages, Nstages², RT}
-    "RK coefficient vector A (rhs scaling) for the explicit part"
-    Aexpl::SArray{NTuple{2, Nstages}, RT, 2, Nstages²}
-    "RK coefficient vector A (rhs scaling) for the implicit part"
-    Aimpl::SArray{NTuple{2, Nstages}, RT, 2, Nstages²}
-    "RK coefficient vector B (rhs add in scaling)"
-    B::NTuple{Nstages, RT}
-    "RK coefficient vector C (time scaling)"
-    C::NTuple{Nstages, RT}
-end
+const T1TypeARK = NTuple{Nstages, RT} where {Nstages, RT}
+const T2TypeARK = SArray{NTuple{2, Nstages}, RT, 2, Nstages²} where {Nstages, RT, Nstages²}
 
-struct AdditiveRungeKuttaFullCache{Nstages, RT, A, O, L}
+struct AdditiveRungeKuttaTableau{T2 <: T2TypeARK, T1 <: T1TypeARK}
+    "RK coefficient vector A (rhs scaling) for the explicit part"
+    Aexpl::T2
+    "RK coefficient vector A (rhs scaling) for the implicit part"
+    Aimpl::T2
+    "RK coefficient vector B (rhs add in scaling)"
+    B::T1
+    "RK coefficient vector C (time scaling)"
+    C::T1
+end
+n_stages(::AdditiveRungeKuttaTableau{T2, T1}) where {T2, T1} = n_stages_ntuple(T1)
+
+struct AdditiveRungeKuttaFullCache{T1, T, A, O, L}
     "stage value of the state variable"
     U::A #Qstages
     "evaluated linear part of each stage ``f_L(U^{(i)})``"
-    L::NTuple{Nstages, A} #Lstages
+    L::T1 #Lstages
     "evaluated remainder part of each stage ``f_R(U^{(i)})``"
-    R::NTuple{Nstages, A} #Rstages
-    tableau::AdditiveRungeKuttaTableau{Nstages, RT}
+    R::T1 #Rstages
+    tableau::T
     W::O
     linsolve!::L
 end
-
+n_stages(cache::AdditiveRungeKuttaFullCache) = n_stages(cache.tableau)
 
 function init_cache(
     prob::DiffEqBase.AbstractODEProblem{uType, tType, true},
@@ -105,12 +109,13 @@ solve(prob, Rosenbrock23(linsolve=ColumnGMRES))
 # W = M - gamma*J <=> our EulerOperator
 # https://github.com/SciML/OrdinaryDiffEq.jl/blob/f93630317658b0c5460044a5d349f99391bc2f9c/src/derivative_utils.jl#L126
 
-function step_u!(int, cache::AdditiveRungeKuttaFullCache{Nstages}) where {Nstages}
+function step_u!(int, cache::AdditiveRungeKuttaFullCache)
     step_u!(int, cache, int.sol.prob.f)
 end
 
-function step_u!(int, cache::AdditiveRungeKuttaFullCache{Nstages}, f::DiffEqBase.SplitFunction) where {Nstages}
+function step_u!(int, cache::AdditiveRungeKuttaFullCache, f::DiffEqBase.SplitFunction)
 
+    Nstages = n_stages(cache)
     (; C, Aimpl, Aexpl, B) = cache.tableau
     (; U, R, L, W, linsolve) = cache
     (; u, p, t, dt) = int

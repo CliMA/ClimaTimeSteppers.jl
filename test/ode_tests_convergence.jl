@@ -189,14 +189,7 @@ const ArrayType = CuArray
         end
 
         #=
-        Test problem (4.2) from RobertsSarsharSandu2018arxiv
-        @article{RobertsSarsharSandu2018arxiv,
-          title={Coupled Multirate Infinitesimal GARK Schemes for Stiff Systems with
-                 Multiple Time Scales},
-          author={Roberts, Steven and Sarshar, Arash and Sandu, Adrian},
-          journal={arXiv preprint arXiv:1812.00808},
-          year={2019}
-        }
+        Test problem (4.2) from [RobertsSarsharSandu2018arxiv](@cite)
 
         Note: The actual rates are all over the place with this test and passing largely
               depends on final dt size
@@ -356,7 +349,7 @@ const ArrayType = CuArray
             end
         end
 
-        # Simple 3-rate problem based on test of RobertsSarsharSandu2018arxiv
+        # Simple 3-rate problem based on test of [RobertsSarsharSandu2018arxiv](@cite)
         #
         # NOTE: Since we have no theory to say this ODE solver is accurate, the rates
         #      suggest that things are really only 2nd order.
@@ -488,20 +481,7 @@ const ArrayType = CuArray
             end
         end
 
-        #=
-        Test problem (8.2) from Sandu (2019) for MRI-GARK Schemes
-            @article{Sandu2019,
-                title={A class of multirate infinitesimal gark methods},
-                author={Sandu, Adrian},
-                journal={SIAM Journal on Numerical Analysis},
-                volume={57},
-                number={5},
-                pages={2300--2327},
-                year={2019},
-                publisher={SIAM},
-                doi={10.1137/18M1205492}
-            }
-        =#
+        #= Test problem (8.2) from [Sandu2019](@cite) for MRI-GARK Schemes =#
         @testset "2-rate problem" begin
             ω = 20
             λf = -10

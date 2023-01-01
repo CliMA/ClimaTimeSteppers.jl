@@ -11,10 +11,10 @@ JuliaDiffEq terminology:
 
 * _Problem_: Function, initial u, time span, parameters and options
 
-  du/dt = f(u,p,t) = fL(u,p,t)  + fR(u,p,t)
+  `du/dt = f(u,p,t) = fL(u,p,t)  + fR(u,p,t)`
 
-  fR(u,p,t) == f(u.p,t) - fL(u,p,t)
-  fL(u,_,_) == A*u for some `A` (matrix free)
+  `fR(u,p,t) == f(u.p,t) - fL(u,p,t)`
+  `fL(u,_,_) == A*u for some `A` (matrix free)`
 
   SplitODEProlem(fL, fR)
 
@@ -81,16 +81,17 @@ function tableau end
 SciMLBase.allowscomplex(alg::DistributedODEAlgorithm) = true
 include("integrators.jl")
 
-include("solvers/update_signal_handler.jl")
-include("solvers/convergence_condition.jl")
-include("solvers/convergence_checker.jl")
-include("solvers/newtons_method.jl")
-include("solvers/imex_ark_tableaus.jl")
-include("solvers/imex_ark.jl")
+include("utilities/update_signal_handler.jl")
+include("utilities/convergence_condition.jl")
+include("utilities/convergence_checker.jl")
+include("nl_solvers/newtons_method.jl")
+
 
 n_stages_ntuple(::Type{<:NTuple{Nstages}}) where {Nstages} = Nstages
 
 # Include concrete implementations
+include("solvers/imex_ark_tableaus.jl")
+include("solvers/imex_ark.jl")
 include("solvers/multirate.jl")
 include("solvers/lsrk.jl")
 include("solvers/ssprk.jl")
@@ -99,6 +100,6 @@ include("solvers/mis.jl")
 include("solvers/wickerskamarock.jl")
 include("solvers/rosenbrock.jl")
 
-include("callbacks.jl")
+include("Callbacks.jl")
 
 end

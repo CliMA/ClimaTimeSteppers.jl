@@ -89,7 +89,7 @@ function convergence_order_results(tabs, test_cases)
     return results
 end
 
-function tabulate_convergence_orders_new(prob_names, algs, results, expected_orders; tabs = nothing)
+function tabulate_convergence_orders(prob_names, algs, results, expected_orders; tabs = nothing)
     data = hcat(map(prob_names) do name
         map(alg -> results[name, typeof(alg)], algs)
     end...)

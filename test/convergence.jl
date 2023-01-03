@@ -79,7 +79,7 @@ function tabulate_convergence_orders_imex_ark()
     algs = algorithm.(tabs)
     prob_names = map(t -> t.test_name, test_cases)
     expected_orders = ODE.alg_order.(tabs)
-    tabulate_convergence_orders_new(prob_names, algs, results, expected_orders; tabs)
+    tabulate_convergence_orders(prob_names, algs, results, expected_orders; tabs)
     return results
 end
 tabulate_convergence_orders_imex_ark()
@@ -108,7 +108,7 @@ function tabulate_convergence_orders_ark()
     prob_names = first.(names_probs_sols)
     algs = first.(algs_orders)
     expected_orders = last.(algs_orders)
-    tabulate_convergence_orders_new(prob_names, algs, co, expected_orders)
+    tabulate_convergence_orders(prob_names, algs, co, expected_orders)
 end
 
 tabulate_convergence_orders_ark()
@@ -147,7 +147,7 @@ function tabulate_convergence_orders_multirate()
     prob_names = first.(names_probs_sols)
     algs = first.(algs_orders)
     expected_orders = last.(algs_orders)
-    tabulate_convergence_orders_new(prob_names, algs, co, expected_orders)
+    tabulate_convergence_orders(prob_names, algs, co, expected_orders)
 end
 
 tabulate_convergence_orders_multirate()

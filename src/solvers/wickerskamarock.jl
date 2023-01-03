@@ -54,7 +54,8 @@ function update_inner!(innerinteg, outercache::WickerSkamarockRungeKuttaCache, f
     end
 
     innerinteg.t = t
-    innerinteg.tstop = i == N ? t + dt : t + c[i + 1] * dt
+    t_star = i == N ? t + dt : t + c[i + 1] * dt
+    DiffEqBase.add_tstop!(innerinteg, t_star) # TODO: verify correctness
 end
 
 

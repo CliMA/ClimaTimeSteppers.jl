@@ -102,7 +102,7 @@ function update_inner!(innerinteg, outercache::MultirateInfinitesimalStepCache, 
         F,
         innerinteg.u,
         f_offset.x,
-        tab,
+        outercache.tableau, # TODO: verify correctness
         i,
         N,
         dt;
@@ -117,7 +117,7 @@ function update_inner!(innerinteg, outercache::MultirateInfinitesimalStepCache, 
     f_offset.β = (c[i] - c̃[i]) / d[i]
 
     innerinteg.t = zero(t)
-    innerinteg.tstop = d[i] * dt
+    DiffEqBase.add_tstop!(innerinteg, d[i] * dt) # TODO: verify correctness
 end
 
 @kernel function mis_update!(u, ΔU, F, innerinteg_u, f_offset_x, tab, i, N, dt)

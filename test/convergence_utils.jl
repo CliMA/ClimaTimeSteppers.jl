@@ -26,10 +26,11 @@ on the set of `dt` values in `dts`. Extra `kwargs` are passed to `solve`
 `solution` should be a function with a method `solution(u0, p, t)`.
 """
 function convergence_errors(prob, sol, method, dts; kwargs...)
+    hide_warning = (; kwargshandle = DiffEqBase.KeywordArgSilent)
     errs = map(dts) do dt
         # copy the problem so we don't mutate u0
         prob_copy = deepcopy(prob)
-        u = solve(prob_copy, method; dt = dt, saveat = (prob.tspan[2],), kwargs...)
+        u = solve(prob_copy, method; dt = dt, saveat = (prob.tspan[2],), kwargs..., hide_warning...)
         norm(u .- sol(prob.u0, prob.p, prob.tspan[end]))
     end
     return errs
@@ -70,9 +71,8 @@ function test_convergence_order!(test_case, tab, results = Dict(); refinement_ra
     return nothing
 end
 
-distance(theoretic, computed) = abs(computed - theoretic) / theoretic
-pass_conv(theoretic, computed) = distance(theoretic, computed) * 100 < 10
-fail_conv(theoretic, computed) = !pass_conv(computed, theoretic) && !super_conv(theoretic, computed)
+pass_conv(theoretic, computed) = abs(computed - theoretic) / theoretic * 100 < 10 && computed > 0
+fail_conv(theoretic, computed) = !pass_conv(theoretic, computed) && !super_conv(theoretic, computed)
 super_conv(theoretic, computed) = (computed - theoretic) / theoretic * 100 > 10
 
 #= Calls `test_convergence_order!` for each combination of test case
@@ -114,6 +114,42 @@ function tabulate_convergence_orders(test_cases, tabs, results)
     test_case_names = map(test_case -> test_case.test_name, test_cases)
 
     header = (["Tableau (theoretic)", test_case_names...],
+    # ["", ["" for tc in test_case_names]...],
+    )
+
+    PrettyTables.pretty_table(
+        table_data;
+        header_crayon = PrettyTables.crayon"green bold",
+        highlighters = (tab_column_hl, fail_conv_hl, super_conv_hl),
+        title = "Computed convergence orders, red=fail, yellow=super-convergence",
+        header,
+        alignment = :c,
+        crop = :none,
+    )
+end
+
+function tabulate_convergence_orders_new(prob_names, algs, results, expected_orders)
+    data = hcat(map(prob_names) do name
+        map(alg -> results[name, typeof(alg)], algs)
+    end...)
+    alg_names = @. string(nameof(typeof(algs)))
+    summary(result) = last(result)
+    data_summary = map(d -> summary(d), data)
+
+    table_data = hcat(alg_names, data_summary)
+    precentage_fail = sum(fail_conv.(getindex.(data, 1), getindex.(data, 2))) / length(data) * 100
+    @info "Percentage of failed convergence order tests: $precentage_fail"
+    fail_conv_hl = PrettyTables.Highlighter(
+        (data, i, j) -> j ≠ 1 && fail_conv(expected_orders[i], data[i, j]),
+        PrettyTables.crayon"red bold",
+    )
+    super_conv_hl = PrettyTables.Highlighter(
+        (data, i, j) -> j ≠ 1 && super_conv(expected_orders[i], data[i, j]),
+        PrettyTables.crayon"yellow bold",
+    )
+    tab_column_hl = PrettyTables.Highlighter((data, i, j) -> j == 1, PrettyTables.crayon"green bold")
+
+    header = (["Tableau (theoretic)", prob_names...],
     # ["", ["" for tc in test_case_names]...],
     )
 

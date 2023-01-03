@@ -88,6 +88,7 @@ include("nl_solvers/newtons_method.jl")
 
 
 n_stages_ntuple(::Type{<:NTuple{Nstages}}) where {Nstages} = Nstages
+n_stages_ntuple(::Type{<:SVector{Nstages}}) where {Nstages} = Nstages
 
 # Include concrete implementations
 include("solvers/imex_ark_tableaus.jl")

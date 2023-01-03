@@ -61,11 +61,10 @@ function step_u!(int, cache::MultirateCache)
 
         # TODO: make this more generic
         # there are 2 strategies we can use here:
-        #  a. use same fast_dt for all slow stages, use `adjustfinal=true`
+        #  a. use same fast_dt for all slow stages
         #     - problems for ARK (e.g. requires expensive LU factorization)
         #  b. use different fast_dt, cache expensive ops
 
-        innerinteg.adjustfinal = true
         DiffEqBase.solve!(innerinteg)
         innerinteg.dt = fast_dt # reset
     end

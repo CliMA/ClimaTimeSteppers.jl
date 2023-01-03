@@ -76,7 +76,10 @@ function tabulate_convergence_orders_imex_ark()
     tabs = map(t -> t(), tabs)
     test_cases = all_test_cases(Float64)
     results = convergence_order_results(tabs, test_cases)
-    tabulate_convergence_orders(test_cases, tabs, results)
+    algs = algorithm.(tabs)
+    prob_names = map(t -> t.test_name, test_cases)
+    expected_orders = ODE.alg_order.(tabs)
+    tabulate_convergence_orders_new(prob_names, algs, results, expected_orders; tabs)
     return results
 end
 tabulate_convergence_orders_imex_ark()

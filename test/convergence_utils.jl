@@ -67,7 +67,7 @@ function test_convergence_order!(test_case, tab, results = Dict(); refinement_ra
         refinement_range, # ::UnitRange, 2:4 is more fine than 1:3
     )
     computed_order = maximum(cr.computed_order)
-    results[tab, test_case.test_name] = (; expected_order, computed_order)
+    results[test_case.test_name, typeof(alg)] = (; expected_order, computed_order)
     return nothing
 end
 
@@ -89,50 +89,15 @@ function convergence_order_results(tabs, test_cases)
     return results
 end
 
-function tabulate_convergence_orders(test_cases, tabs, results)
-    columns = map(test_cases) do test_case
-        map(tab -> results[tab, test_case.test_name], tabs)
-    end
-    expected_order = map(tab -> default_expected_order(nothing, tab), tabs)
-    tab_names = map(tab -> "$tab ($(default_expected_order(nothing, tab)))", tabs)
-    data = hcat(columns...)
-    summary(result) = result.computed_order
-    data_summary = map(d -> summary(d), data)
-
-    table_data = hcat(tab_names, data_summary)
-    precentage_fail = sum(fail_conv.(getindex.(data, 1), getindex.(data, 2))) / length(data) * 100
-    @info "Percentage of failed convergence order tests: $precentage_fail"
-    fail_conv_hl = PrettyTables.Highlighter(
-        (data, i, j) -> j ≠ 1 && fail_conv(expected_order[i], data[i, j]),
-        PrettyTables.crayon"red bold",
-    )
-    super_conv_hl = PrettyTables.Highlighter(
-        (data, i, j) -> j ≠ 1 && super_conv(expected_order[i], data[i, j]),
-        PrettyTables.crayon"yellow bold",
-    )
-    tab_column_hl = PrettyTables.Highlighter((data, i, j) -> j == 1, PrettyTables.crayon"green bold")
-    test_case_names = map(test_case -> test_case.test_name, test_cases)
-
-    header = (["Tableau (theoretic)", test_case_names...],
-    # ["", ["" for tc in test_case_names]...],
-    )
-
-    PrettyTables.pretty_table(
-        table_data;
-        header_crayon = PrettyTables.crayon"green bold",
-        highlighters = (tab_column_hl, fail_conv_hl, super_conv_hl),
-        title = "Computed convergence orders, red=fail, yellow=super-convergence",
-        header,
-        alignment = :c,
-        crop = :none,
-    )
-end
-
-function tabulate_convergence_orders_new(prob_names, algs, results, expected_orders)
+function tabulate_convergence_orders_new(prob_names, algs, results, expected_orders; tabs = nothing)
     data = hcat(map(prob_names) do name
         map(alg -> results[name, typeof(alg)], algs)
     end...)
-    alg_names = @. string(nameof(typeof(algs)))
+    alg_names = if tabs ≠ nothing
+        @. string(nameof(typeof(tabs)))
+    else
+        @. string(typeof(algs))
+    end
     summary(result) = last(result)
     data_summary = map(d -> summary(d), data)
 

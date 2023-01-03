@@ -3,7 +3,7 @@
 In this section, we compare the solution errors and convergence orders for several test problems and algorithms.
 
 ```@example
-include("algo_comparisons.jl")
+include("report_gen.jl")
 ```
 
 Plots for `ark_analytic`:

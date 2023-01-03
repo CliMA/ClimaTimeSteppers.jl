@@ -26,7 +26,7 @@ pages = [
         "Non-linear solvers" => "api/nl_solvers.md",
         "Callbacks" => "api/callbacks.md",
     ],
-    "Algorithm comparisons" => "algo_comparisons.md",
+    # "Algorithm comparisons" => "algo_comparisons.md", # TODO: fill out
     "Developer docs" => [
         "Types" => "dev/types.md",
         "Report generator" => "dev/report_gen.md",

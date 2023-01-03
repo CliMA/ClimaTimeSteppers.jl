@@ -4,7 +4,7 @@ cts_dir = pkgdir(ClimaTimeSteppers)
 
 ENV["GKSwstype"] = "nul" # avoid displaying plots
 
-include(joinpath(@__DIR__, "plotting_utils.jl"))
+include(joinpath(@__DIR__, "..", "plotting_utils.jl"))
 include(joinpath(cts_dir, "test", "convergence_orders.jl"))
 include(joinpath(cts_dir, "test", "utils.jl"))
 include(joinpath(cts_dir, "test", "problems.jl"))

@@ -62,16 +62,15 @@ function init_inner(prob, outercache::LowStorageRungeKutta2NIncCache, dt)
 end
 function update_inner!(innerinteg, outercache::LowStorageRungeKutta2NIncCache, f_slow, u, p, t, dt, stage)
 
-    (; C, A, B) = cache.tableau
+    (; C, A, B) = outercache.tableau
     f_offset = innerinteg.sol.prob.f
-    tab = outercache.tableau
     N = n_stages(outercache)
 
     τ0 = t + C[stage] * dt
     τ1 = stage == N ? t + dt : t + C[stage + 1] * dt
     f_offset.α = τ0
     innerinteg.t = zero(τ0)
-    innerinteg.tstop = τ1 - τ0
+    DiffEqBase.add_tstop!(innerinteg, τ1 - τ0) # TODO: verify correctness
 
     #  du .= f(u, p, t + C[stage]*dt) .+ A[stage] .* du
     f_slow(f_offset.x, u, p, τ0, 1, A[stage])

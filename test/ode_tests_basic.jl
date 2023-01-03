@@ -109,7 +109,7 @@ Qexact = exactsolution(finaltime, q0, t0)
                 for (n, dt) in enumerate(dts)
                     Q .= Qinit
                     prob = IncrementingODEProblem(rhs!, Q, (t0, finaltime))
-                    solve(prob, method; dt=dt, adjustfinal=true)
+                    solve(prob, method; dt=dt)
                     errors[n] = norm(Q - Qexact)
                 end
                 rates = log2.(errors[1:(end - 1)] ./ errors[2:end])
@@ -129,7 +129,7 @@ Qexact = exactsolution(finaltime, q0, t0)
                 # rhs_arg! =
                 #   split_explicit_implicit ? rhs_nonlinear! : rhs!
                 prob = SplitODEProblem(rhs_linear!, rhs_nonlinear!, Q, (t0, finaltime))
-                solve(prob, method(DirectSolver); dt = dt, adjustfinal = true)
+                solve(prob, method(DirectSolver); dt = dt)
                 errors[n] = norm(Q - Qexact)
                 @show (log2(dt), norm(Q - Qexact))
             end
@@ -160,7 +160,7 @@ Qexact = exactsolution(finaltime, q0, t0)
                 # rhs_arg! =
                 #   split_explicit_implicit ? rhs_nonlinear! : rhs!
                 prob = ODEProblem(ODEFunction(rhs!, jvp = rhs_linear!), Q, (t0, finaltime))
-                solve(prob, method(DirectSolver); dt = dt, adjustfinal = true)
+                solve(prob, method(DirectSolver); dt = dt)
                 errors[n] = norm(Q - Qexact)
                 @show (log2(dt), norm(Q - Qexact))
             end

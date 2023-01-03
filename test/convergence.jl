@@ -45,9 +45,9 @@ end
 
 #=
 using Revise; include("test/convergence.jl")
-results = tabulate_convergence_orders();
+results = tabulate_convergence_orders_imex_ark();
 =#
-function tabulate_convergence_orders()
+function tabulate_convergence_orders_imex_ark()
     tabs = [
         ARS111,
         ARS121,
@@ -76,54 +76,78 @@ function tabulate_convergence_orders()
     tabs = map(t -> t(), tabs)
     test_cases = all_test_cases(Float64)
     results = convergence_order_results(tabs, test_cases)
-    tabulate_convergence_orders(test_cases, tabs, results)
+    algs = algorithm.(tabs)
+    prob_names = map(t -> t.test_name, test_cases)
+    expected_orders = ODE.alg_order.(tabs)
+    tabulate_convergence_orders(prob_names, algs, results, expected_orders; tabs)
     return results
 end
-tabulate_convergence_orders()
+tabulate_convergence_orders_imex_ark()
 
-#=
-if ArrayType == Array
-for (prob, sol) in [
-    imex_autonomous_prob => imex_autonomous_sol,
-    #imex_nonautonomous_prob => imex_nonautonomous_sol,
-]
-# IMEX
-    @test convergence_order(prob, sol, ARK1ForwardBackwardEuler(linsolve=DirectSolver), dts)       ≈ 1 atol=0.1
-    @test convergence_order(prob, sol, ARK2ImplicitExplicitMidpoint(linsolve=DirectSolver), dts)   ≈ 2 atol=0.05
-    @test convergence_order(prob, sol, ARK2GiraldoKellyConstantinescu(linsolve=DirectSolver), dts) ≈ 2 atol=0.05
-    @test convergence_order(prob, sol, ARK2GiraldoKellyConstantinescu(linsolve=DirectSolver; paperversion=true), dts) ≈ 2 atol=0.05
-    @test convergence_order(prob, sol, ARK437L2SA1KennedyCarpenter(linsolve=DirectSolver), dts)    ≈ 4 atol=0.05
-    @test convergence_order(prob, sol, ARK548L2SA2KennedyCarpenter(linsolve=DirectSolver), dts)    ≈ 5 atol=0.05
-end
-end
-for (prob, sol) in [
-    imex_autonomous_prob => imex_autonomous_sol,
-    imex_nonautonomous_prob => imex_nonautonomous_sol,
-    # kpr_multirate_prob => kpr_sol,
-]
-    # Multirate
-    @test convergence_order(prob, sol, Multirate(LSRK54CarpenterKennedy(),LSRK54CarpenterKennedy()), dts;
-        fast_dt = 0.5^12, adjustfinal=true) ≈ 4 atol=0.05
-    # MIS
-    @test convergence_order(prob, sol, Multirate(LSRK54CarpenterKennedy(),MIS2()), dts;
-        fast_dt = 0.5^12, adjustfinal=true) ≈ 2 atol=0.05
-    @test convergence_order(prob, sol, Multirate(LSRK54CarpenterKennedy(),MIS3C()), dts;
-        fast_dt = 0.5^12, adjustfinal=true) ≈ 2 atol=0.05
-    @test convergence_order(prob, sol, Multirate(LSRK54CarpenterKennedy(),MIS4()), dts;
-        fast_dt = 0.5^12, adjustfinal=true) ≈ 3 atol=0.05
-    @test convergence_order(prob, sol, Multirate(LSRK54CarpenterKennedy(),MIS4a()), dts;
-        fast_dt = 0.5^12, adjustfinal=true) ≈ 3 atol=0.05
-    @test convergence_order(prob, sol, Multirate(LSRK54CarpenterKennedy(),TVDMISA()), dts;
-        fast_dt = 0.5^12, adjustfinal=true) ≈ 2 atol=0.05
-    @test convergence_order(prob, sol, Multirate(LSRK54CarpenterKennedy(),TVDMISB()), dts;
-        fast_dt = 0.5^12, adjustfinal=true) ≈ 2 atol=0.05
-
-    # Wicker Skamarock
-    @test convergence_order(prob, sol, Multirate(LSRK54CarpenterKennedy(),WSRK2()), dts;
-        fast_dt = 0.5^12, adjustfinal=true) ≈ 2 atol=0.05
-    @test convergence_order(prob, sol, Multirate(LSRK54CarpenterKennedy(),WSRK3()), dts;
-        fast_dt = 0.5^12, adjustfinal=true) ≈ 2 atol=0.05
-
-
+function tabulate_convergence_orders_ark()
+    # IMEX
+    co = Dict()
+    names_probs_sols = [
+        (:auto, imex_autonomous_prob(Array{Float64}), imex_autonomous_sol),
+        (:nonauto, imex_nonautonomous_prob(Array{Float64}), imex_nonautonomous_sol),
+    ]
+    algs_orders = [
+        (ARK1ForwardBackwardEuler(DirectSolver), 1),
+        (ARK2ImplicitExplicitMidpoint(DirectSolver), 2),
+        (ARK2GiraldoKellyConstantinescu(DirectSolver), 2),
+        (ARK2GiraldoKellyConstantinescu(DirectSolver; paperversion = true), 2),
+        (ARK437L2SA1KennedyCarpenter(DirectSolver), 4),
+        (ARK548L2SA2KennedyCarpenter(DirectSolver), 5),
+    ]
+    dts = 0.5 .^ (4:7)
+    for (name, prob, sol) in names_probs_sols
+        for (alg, ord) in algs_orders
+            co[name, typeof(alg)] = (ord, convergence_order(prob, sol, alg, dts))
+        end
     end
-=#
+    prob_names = first.(names_probs_sols)
+    algs = first.(algs_orders)
+    expected_orders = last.(algs_orders)
+    tabulate_convergence_orders(prob_names, algs, co, expected_orders)
+end
+
+tabulate_convergence_orders_ark()
+
+function tabulate_convergence_orders_multirate()
+
+    co = Dict()
+    names_probs_sols = [
+        (:imex_auto, imex_autonomous_prob(Array{Float64}), imex_autonomous_sol),
+        (:imex_nonauto, imex_nonautonomous_prob(Array{Float64}), imex_nonautonomous_sol),
+        # (:kpr_multirate, kpr_multirate_prob(), kpr_sol),
+    ]
+    dts = 0.5 .^ (4:7)
+
+    algs_orders = [
+        # Multirate
+        (Multirate(LSRK54CarpenterKennedy(), LSRK54CarpenterKennedy()), 4),
+        # MIS
+        (Multirate(LSRK54CarpenterKennedy(), MIS2()), 2),
+        (Multirate(LSRK54CarpenterKennedy(), MIS3C()), 2),
+        (Multirate(LSRK54CarpenterKennedy(), MIS4()), 3),
+        (Multirate(LSRK54CarpenterKennedy(), MIS4a()), 3),
+        (Multirate(LSRK54CarpenterKennedy(), TVDMISA()), 2),
+        (Multirate(LSRK54CarpenterKennedy(), TVDMISB()), 2),
+        # Wicker Skamarock
+        (Multirate(LSRK54CarpenterKennedy(), WSRK2()), 2),
+        (Multirate(LSRK54CarpenterKennedy(), WSRK3()), 2),
+    ]
+
+    for (name, prob, sol) in names_probs_sols
+        for (alg, ord) in algs_orders
+            co[name, typeof(alg)] = (ord, convergence_order(prob, sol, alg, dts; fast_dt = 0.5^12))
+        end
+    end
+
+    prob_names = first.(names_probs_sols)
+    algs = first.(algs_orders)
+    expected_orders = last.(algs_orders)
+    tabulate_convergence_orders(prob_names, algs, co, expected_orders)
+end
+
+tabulate_convergence_orders_multirate()

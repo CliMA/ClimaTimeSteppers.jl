@@ -117,7 +117,7 @@ function step_u!(int, cache::AdditiveRungeKuttaFullCache, f::DiffEqBase.SplitFun
 
     Nstages = n_stages(cache)
     (; C, Aimpl, Aexpl, B) = cache.tableau
-    (; U, R, L, W, linsolve) = cache
+    (; U, R, L, W, linsolve!) = cache
     (; u, p, t, dt) = int
 
     U = U
@@ -177,7 +177,7 @@ end
 function step_u!(int, cache::AdditiveRungeKuttaFullCache{Nstages}, f::DiffEqBase.ODEFunction) where {Nstages}
     (; C, Aimpl, Aexpl, B) = cache.tableau
     (; u, p, t, dt) = int
-    (; U, R, L, W, linsolve) = cache
+    (; U, R, L, W, linsolve!) = cache
     Uhat = R[end] # can be used as work array, as only used in last stage
 
     fL! = f.jvp # linear part
@@ -303,13 +303,15 @@ If the keyword `paperversion=true` is used, the coefficients from the paper are
 used. Otherwise it uses coefficients that make the scheme (much) more stable but less
 accurate
 """
-Base.@kwdef struct ARK2GiraldoKellyConstantinescu{L} <: AdditiveRungeKutta
+Base.@kwdef struct ARK2GiraldoKellyConstantinescu{L, PV} <: AdditiveRungeKutta
     linsolve::L
-    paperversion::Bool = false
 end
+ARK2GiraldoKellyConstantinescu(linsolve; paperversion::Bool = false) =
+    ARK2GiraldoKellyConstantinescu{typeof(linsolve), paperversion}(linsolve)
+paperversion(::ARK2GiraldoKellyConstantinescu{L, PV}) where {L, PV} = PV
 
 function tableau(ark::ARK2GiraldoKellyConstantinescu, RT)
-    a32 = RT(ark.paperversion ? (3 + 2 * sqrt(2)) / 6 : 1 // 2)
+    a32 = RT(paperversion(ark) ? (3 + 2 * sqrt(2)) / 6 : 1 // 2)
     RKA_explicit = @SArray [
         RT(0) RT(0) RT(0)
         RT(2 - sqrt(2)) RT(0) RT(0)

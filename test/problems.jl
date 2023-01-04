@@ -1,4 +1,5 @@
 using DiffEqBase, ClimaTimeSteppers, LinearAlgebra, StaticArrays
+using ClimaCore
 
 """
 Single variable linear ODE
@@ -393,13 +394,153 @@ function ark_analytic_sys_test_cts(::Type{FT}) where {FT}
     )
 end
 
+function onewaycouple_mri_test_cts(::Type{FT}) where {FT}
+    Y₀ = FT[1, 0, 2]
+    function analytic_sol(t)
+        Y = similar(Y₀)
+        Y[1] = cos(50 * t)
+        Y[2] = sin(50 * t)
+        Y[3] = 5051 / 2501 * exp(-t) - 49 / 2501 * cos(50 * t) + 51 / 2501 * sin(50 * t)
+        return Y
+    end
+    L = FT[0 -50 0; 50 0 0; 1 1 -1]
+    I = LinearAlgebra.I(3)
+    ClimaIntegratorTestCase(;
+        test_name = "ark_onewaycouple_mri",
+        linear_implicit = true,
+        t_end = FT(1),
+        Y₀ = FT[1, 0, 2],
+        analytic_sol,
+        tendency! = (Yₜ, Y, _, t) -> mul!(Yₜ, L, Y),
+        Wfact! = (W, Y, _, Δt, t) -> W .= Δt .* L .- I,
+    )
+end
+
+"""
+    climacore_2Dheat_test_cts(::Type{<:AbstractFloat})
+
+2D diffusion test problem. See [`2D diffusion problem`](@ref) for more details.
+"""
+function climacore_2Dheat_test_cts(::Type{FT}) where {FT}
+    dss_tendency = true
+
+    n_elem_x = 2
+    n_elem_y = 2
+    n_poly = 2
+    n_x = 1 # denoted by n above
+    n_y = 1 # denoted by m above
+    f_0 = FT(0) # denoted by f̂₀ above
+    Δλ = FT(1) # denoted by Δλ̂ above
+    t_end = FT(0.05) # denoted by t̂ above
+
+    domain = ClimaCore.Domains.RectangleDomain(
+        ClimaCore.Domains.IntervalDomain(
+            ClimaCore.Geometry.XPoint(FT(0)),
+            ClimaCore.Geometry.XPoint(FT(1)),
+            periodic = true,
+        ),
+        ClimaCore.Domains.IntervalDomain(
+            ClimaCore.Geometry.YPoint(FT(0)),
+            ClimaCore.Geometry.YPoint(FT(1)),
+            periodic = true,
+        ),
+    )
+    mesh = ClimaCore.Meshes.RectilinearMesh(domain, n_elem_x, n_elem_y)
+    topology = ClimaCore.Topologies.Topology2D(mesh)
+    quadrature = ClimaCore.Spaces.Quadratures.GLL{n_poly + 1}()
+    space = ClimaCore.Spaces.SpectralElementSpace2D(topology, quadrature)
+    (; x, y) = ClimaCore.Fields.coordinate_field(space)
+
+    λ = (2 * FT(π))^2 * (n_x^2 + n_y^2)
+    φ_sin_sin = @. sin(2 * FT(π) * n_x * x) * sin(2 * FT(π) * n_y * y)
+
+    init_state = ClimaCore.Fields.FieldVector(; u = φ_sin_sin)
+
+    wdiv = ClimaCore.Operators.WeakDivergence()
+    grad = ClimaCore.Operators.Gradient()
+    function T_exp!(tendency, state, _, t)
+        @. tendency.u = wdiv(grad(state.u)) + f_0 * exp(-(λ + Δλ) * t) * φ_sin_sin
+        dss_tendency && ClimaCore.Spaces.weighted_dss!(tendency.u)
+    end
+
+    function dss!(state, _, t)
+        dss_tendency || ClimaCore.Spaces.weighted_dss!(state.u)
+    end
+
+    function analytic_sol(t)
+        state = similar(init_state)
+        @. state.u = (1 + f_0 / Δλ * (1 - exp(-Δλ * t))) * exp(-λ * t) * φ_sin_sin
+        return state
+    end
+
+    tendency_func = ClimaODEFunction(; T_exp!, dss!)
+    split_tendency_func = tendency_func
+    make_prob(func) = ODEProblem(func, init_state, (FT(0), t_end), nothing)
+    IntegratorTestCase(
+        "2D Heat Equation",
+        false,
+        t_end,
+        analytic_sol,
+        make_prob(tendency_func),
+        make_prob(split_tendency_func),
+    )
+end
+function climacore_1Dheat_test_cts(::Type{FT}) where {FT}
+    n_elem_z = 10
+    n_z = 1
+    f_0 = FT(0) # denoted by f̂₀ above
+    Δλ = FT(1) # denoted by Δλ̂ above
+    t_end = FT(0.1) # denoted by t̂ above
+
+    domain = ClimaCore.Domains.IntervalDomain(
+        ClimaCore.Geometry.ZPoint(FT(0)),
+        ClimaCore.Geometry.ZPoint(FT(1)),
+        boundary_names = (:bottom, :top),
+    )
+    mesh = ClimaCore.Meshes.IntervalMesh(domain, nelems = n_elem_z)
+    space = ClimaCore.Spaces.FaceFiniteDifferenceSpace(mesh)
+    (; z) = ClimaCore.Fields.coordinate_field(space)
+
+    λ = (2 * FT(π) * n_z)^2
+    φ_sin = @. sin(2 * FT(π) * n_z * z)
+
+    init_state = ClimaCore.Fields.FieldVector(; u = φ_sin)
+
+    div = ClimaCore.Operators.DivergenceC2F(;
+        bottom = ClimaCore.Operators.SetDivergence(FT(0)),
+        top = ClimaCore.Operators.SetDivergence(FT(0)),
+    )
+    grad = ClimaCore.Operators.GradientF2C()
+    function T_exp!(tendency, state, _, t)
+        @. tendency.u = div(grad(state.u)) + f_0 * exp(-(λ + Δλ) * t) * φ_sin
+    end
+
+    function analytic_sol(t)
+        state = similar(init_state)
+        @. state.u = (1 + f_0 / Δλ * (1 - exp(-Δλ * t))) * exp(-λ * t) * φ_sin
+        return state
+    end
+
+    tendency_func = ClimaODEFunction(; T_exp!)
+    split_tendency_func = tendency_func
+    make_prob(func) = ODEProblem(func, init_state, (FT(0), t_end), nothing)
+    IntegratorTestCase(
+        "1D Heat Equation",
+        false,
+        t_end,
+        analytic_sol,
+        make_prob(tendency_func),
+        make_prob(split_tendency_func),
+    )
+end
+
 function all_test_cases(::Type{FT}) where {FT}
     return [
         ark_analytic_nonlin_test_cts(FT),
         ark_analytic_sys_test_cts(FT),
         ark_analytic_test_cts(FT),
-        # onewaycouple_mri_test_cts(FT),
-        # climacore_2Dheat_test_cts(FT),
-        # climacore_1Dheat_test_cts(FT),
+        onewaycouple_mri_test_cts(FT),
+        climacore_2Dheat_test_cts(FT),
+        climacore_1Dheat_test_cts(FT),
     ]
 end

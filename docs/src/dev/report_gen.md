@@ -1,6 +1,6 @@
-# Algorithm comparisons
+# Report generator
 
-In this section, we compare the solution errors and convergence orders for several test problems and algorithms.
+In this section, we create a report comparing the solution errors and convergence orders for several test problems and algorithms.
 
 ```@example
 include("report_gen.jl")

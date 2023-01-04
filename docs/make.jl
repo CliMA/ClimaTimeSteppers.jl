@@ -1,8 +1,10 @@
 using Documenter, DocumenterCitations
 using ClimaTimeSteppers
 
-bib = CitationBibliography(joinpath(@__DIR__, "refs.bib"))
+# https://github.com/jheinen/GR.jl/issues/278#issuecomment-587090846
+ENV["GKSwstype"] = "nul"
 
+bib = CitationBibliography(joinpath(@__DIR__, "refs.bib"))
 
 #! format: off
 pages = [
@@ -18,7 +20,7 @@ pages = [
         "Newtons method" => "nl_solvers/newtons_method.md",
     ],
     "Test problems" => [
-        "index.md",
+        "test_problems/index.md",
     ],
     "API docs" => [
         "Algorithms" => "api/algorithms.md",
@@ -35,10 +37,14 @@ pages = [
 ]
 #! format: on
 
+mathengine = MathJax(Dict(:TeX => Dict(:equationNumbers => Dict(:autoNumber => "AMS"), :Macros => Dict())))
+
+format = Documenter.HTML(prettyurls = get(ENV, "CI", nothing) == "true", mathengine = mathengine, collapselevel = 1)
+
 makedocs(
     bib,
     sitename = "ClimaTimeSteppers",
-    format = Documenter.HTML(prettyurls = get(ENV, "CI", nothing) == "true"),
+    format = format,
     modules = [ClimaTimeSteppers],
     checkdocs = :exports,
     clean = true,

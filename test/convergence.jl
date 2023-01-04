@@ -51,7 +51,7 @@ ENV["GKSwstype"] = "nul" # avoid displaying plots
     tab2 = (tab2..., IMKG252a, IMKG252b, IMKG253a, IMKG253b, IMKG254a)
     tab2 = (tab2..., IMKG254b, IMKG254c, HOMMEM1)
     tab3 = (ARS233, ARS343, ARS443, IMKG342a, IMKG343a, DBM453)
-    tableaus = [tab1..., tab2..., tab3...]
+    tableaus = [SSP333c, tab1..., tab2..., tab3...]
     # tableaus = subtypes(CTS.AbstractIMEXARKTableau)
     test_tableaus("IMEX ARK", tableaus, ark_analytic_nonlin_test_cts(Float64), 200)
     test_tableaus("IMEX ARK", tableaus, ark_analytic_sys_test_cts(Float64), 400)

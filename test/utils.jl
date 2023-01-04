@@ -84,7 +84,9 @@ function test_tableaus(
     default_dt = t_end / num_steps
 
     max_iters = linear_implicit ? 1 : 2 # TODO: is 2 enough?
-    algorithm(tableau) = CTS.IMEXARKAlgorithm(tableau(), NewtonsMethod(; max_iters))
+    algorithm(tableau) = tableau isa AbstractIMEXSSPTableau ?
+        CTS.IMEXSSPAlgorithm(tableau(), NewtonsMethod(; max_iters)) :
+        CTS.IMEXARKAlgorithm(tableau(), NewtonsMethod(; max_iters))
 
     ref_sol = if isnothing(numerical_reference_tableau)
         analytic_sol

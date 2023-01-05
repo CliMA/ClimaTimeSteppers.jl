@@ -1,13 +1,16 @@
 # 2D diffusion problem
 
-TODO: cleanup
-
+The dimensional thermal energy equation can be expressed as:
+```math
+c ρ ∂u/∂t = k ∇²u + q
 ```
-Due to conservation of (heat) energy, we know that
-    c * ρ * ∂u/∂t = k * Δu + q,
-where u is the temperature (K), c is the specific heat capacity (J/kg/K), ρ is
-the density (kg/m^3), k is the thermal conductivity (W/m/K), and q is the rate
-at which heat energy is added/removed (W/m^3).
+where
+ - `u` is the temperature (`K`)
+ - `c` is the specific heat capacity (`J/kg/K`)
+ - `ρ` is the density (`kg/m^3`)
+ - `k` is the thermal conductivity (`W/m/K`), and
+ - `q` is the specific at which heat energy is added/removed (W/m^3)
+
 We can simplify this PDE to
     ∂u/∂t = α * Δu + f,
 where α = k/c/ρ is the thermal diffusivity (m^2/s) and f = q/c/ρ is the rate at

@@ -51,7 +51,7 @@ using LinearOperators
 using StaticArrays
 using CUDA
 
-export AbstractIMEXARKTableau
+export AbstractAlgorithmName
 
 array_device(::Union{Array, SArray, MArray}) = CPU()
 array_device(::CuArray) = CUDADevice()
@@ -66,18 +66,7 @@ include("operators.jl")
 
 abstract type DistributedODEAlgorithm <: DiffEqBase.AbstractODEAlgorithm end
 
-abstract type AbstractIMEXARKAlgorithm <: DistributedODEAlgorithm end
-
-abstract type AbstractTableau end
-abstract type AbstractIMEXARKTableau <: AbstractTableau end
-abstract type AbstractIMEXSSPARKTableau <: AbstractTableau end
-
-"""
-    tableau(::DistributedODEAlgorithm)
-
-Returns the tableau for a particular algorithm.
-"""
-function tableau end
+abstract type AbstractAlgorithmName end
 
 SciMLBase.allowscomplex(alg::DistributedODEAlgorithm) = true
 include("integrators.jl")
@@ -92,7 +81,7 @@ n_stages_ntuple(::Type{<:NTuple{Nstages}}) where {Nstages} = Nstages
 n_stages_ntuple(::Type{<:SVector{Nstages}}) where {Nstages} = Nstages
 
 # Include concrete implementations
-include("solvers/imex_ark_tableaus.jl")
+include("solvers/imex_tableaus.jl")
 include("solvers/imex_ark.jl")
 include("solvers/imex_ssp.jl")
 include("solvers/multirate.jl")

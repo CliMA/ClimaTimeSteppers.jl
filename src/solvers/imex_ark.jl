@@ -1,25 +1,3 @@
-export IMEXARKAlgorithm
-
-"""
-    IMEXARKAlgorithm(
-        tabname::AbstractTableau,
-        newtons_method
-    ) <: DistributedODEAlgorithm
-
-A generic implementation of an IMEX ARK algorithm that can handle arbitrary
-Butcher tableaus and problems specified using either `ForwardEulerODEFunction`s
-or regular `ODEFunction`s.
-"""
-struct IMEXARKAlgorithm{T <: IMEXARKTableau, NM} <: DistributedODEAlgorithm
-    tab::T
-    newtons_method::NM
-    function IMEXARKAlgorithm(tabname::AbstractTableau, newtons_method)
-        tab = tableau(tabname)
-        T = typeof(tab)
-        new{T, typeof(newtons_method)}(tab, newtons_method)
-    end
-end
-
 has_jac(T_imp!) =
     hasfield(typeof(T_imp!), :Wfact) &&
     hasfield(typeof(T_imp!), :jac_prototype) &&
@@ -36,11 +14,11 @@ struct IMEXARKCache{SCU, SCE, SCI, T, Γ, NMC}
     newtons_method_cache::NMC
 end
 
-function init_cache(prob::DiffEqBase.AbstractODEProblem, alg::IMEXARKAlgorithm; kwargs...)
+function init_cache(prob::DiffEqBase.AbstractODEProblem, alg::IMEXAlgorithm{ARK}; kwargs...)
     (; u0, f) = prob
     (; T_imp!) = f
-    (; tab, newtons_method) = alg
-    (; a_exp, b_exp, a_imp, b_imp) = tab
+    (; tableaus, newtons_method) = alg
+    (; a_exp, b_exp, a_imp, b_imp) = tableaus
     s = length(b_exp)
     inds = ntuple(i -> i, s)
     inds_T_exp = filter(i -> !all(iszero, a_exp[:, i]) || !iszero(b_exp[i]), inds)
@@ -61,8 +39,8 @@ function step_u!(integrator, cache::IMEXARKCache)
     (; u, p, t, dt, sol, alg) = integrator
     (; f) = sol.prob
     (; T_lim!, T_exp!, T_imp!, lim!, dss!, stage_callback!) = f
-    (; tab, newtons_method) = alg
-    (; a_exp, b_exp, a_imp, b_imp, c_exp, c_imp) = tab
+    (; tableaus, newtons_method) = alg
+    (; a_exp, b_exp, a_imp, b_imp, c_exp, c_imp) = tableaus
     (; U, T_lim, T_exp, T_imp, temp, γ, newtons_method_cache) = cache
     s = length(b_exp)
 

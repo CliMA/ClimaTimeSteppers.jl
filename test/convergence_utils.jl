@@ -53,6 +53,7 @@ function convergence_order(prob, sol, method, dts; kwargs...)
 end
 
 default_expected_order(alg, tab::CTS.AbstractIMEXARKTableau) = ODE.alg_order(tab)
+default_expected_order(alg, tab::CTS.AbstractIMEXSSPARKTableau) = ODE.alg_order(tab)
 # default_expected_order(alg, tab) = ODE.alg_order(alg)
 
 function test_convergence_order!(test_case, tab, results = Dict(); refinement_range)

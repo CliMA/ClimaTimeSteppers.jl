@@ -18,6 +18,7 @@ second_order_tableau() = [
     IMKG232b,
     IMKG242a,
     IMKG242b,
+    IMKG243a,
     IMKG252a,
     IMKG252b,
     IMKG253a,
@@ -26,12 +27,15 @@ second_order_tableau() = [
     IMKG254b,
     IMKG254c,
     HOMMEM1,
+    SSP222,
+    SSP322,
+    SSP332,
 ]
 
 #####
 ##### 3rd order
 #####
-third_order_tableau() = [ARS233, ARS343, ARS443, IMKG342a, IMKG343a, DBM453]
+third_order_tableau() = [ARS233, ARS343, ARS443, IMKG342a, IMKG343a, DBM453, SSP333, SSP433]
 
 import OrdinaryDiffEq as ODE
 import ClimaTimeSteppers as CTS

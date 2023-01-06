@@ -34,6 +34,7 @@ errors with respect to `dt`.
 """
 function test_algs(
     algs_name,
+    get_alg,
     tableaus,
     test_case,
     num_steps;
@@ -88,7 +89,7 @@ function test_algs(
 
     for tab in tableaus
         prob = problem(test_case, tab)
-        alg = algorithm(tab)
+        alg = get_alg(tab, test_case)
         predicted_order = if super_convergence == tab
             ODE.alg_order(tab) + 1
         else

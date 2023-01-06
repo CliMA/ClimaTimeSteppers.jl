@@ -70,6 +70,7 @@ abstract type AbstractIMEXARKAlgorithm <: DistributedODEAlgorithm end
 
 abstract type AbstractTableau end
 abstract type AbstractIMEXARKTableau <: AbstractTableau end
+abstract type AbstractIMEXSSPARKTableau <: AbstractTableau end
 
 """
     tableau(::DistributedODEAlgorithm)
@@ -93,6 +94,7 @@ n_stages_ntuple(::Type{<:SVector{Nstages}}) where {Nstages} = Nstages
 # Include concrete implementations
 include("solvers/imex_ark_tableaus.jl")
 include("solvers/imex_ark.jl")
+include("solvers/imex_ssp.jl")
 include("solvers/multirate.jl")
 include("solvers/lsrk.jl")
 include("solvers/ssprk.jl")

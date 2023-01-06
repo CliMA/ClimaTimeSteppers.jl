@@ -10,6 +10,17 @@ CurrentModule = ClimaTimeSteppers
 ForwardEulerODEFunction
 ```
 
+## IMEX SSP methods
+
+```@docs
+IMEXSSPRKAlgorithm
+SSP433
+SSP222
+SSP332
+SSP333
+SSP322
+```
+
 ## IMEX ARK methods
 
 ```@docs

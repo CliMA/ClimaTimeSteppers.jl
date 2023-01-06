@@ -1,7 +1,8 @@
 export ARS111, ARS121, ARS122, ARS233, ARS232, ARS222, ARS343, ARS443
-export IMKG232a, IMKG232b, IMKG242a, IMKG242b, IMKG252a, IMKG252b
+export IMKG232a, IMKG232b, IMKG242a, IMKG242b, IMKG243a, IMKG252a, IMKG252b
 export IMKG253a, IMKG253b, IMKG254a, IMKG254b, IMKG254c, IMKG342a, IMKG343a
 export DBM453, HOMMEM1
+export SSP222, SSP322, SSP332, SSP333, SSP433
 
 using StaticArrays: @SArray, SMatrix, sacollect
 
@@ -16,7 +17,7 @@ Generates an `IMEXARKTableau` struct from an IMEX ARK Butcher tableau. Only
 values for `c_exp` and `c_imp` assume that the algorithm is internally
 consistent.
 """
-struct IMEXARKTableau{VS <: StaticArrays.StaticArray, MS <: StaticArrays.StaticArray} <: AbstractIMEXARKTableau
+struct IMEXARKTableau{VS <: StaticArrays.StaticArray, MS <: StaticArrays.StaticArray} <: AbstractTableau
     a_exp::MS # matrix of size s×s
     b_exp::VS # vector of length s
     c_exp::VS # vector of length s
@@ -431,5 +432,136 @@ function tableau(::HOMMEM1)
             0 0 0 0 1/2 0
             5/18 5/18 0 0 0 8/18
         ]),
+    )
+end
+
+################################################################################
+
+# IMEX SSP algorithms
+
+"""
+    SSP222
+
+https://link.springer.com/content/pdf/10.1007/BF02728986.pdf, Table II
+"""
+struct SSP222 <: AbstractIMEXSSPARKTableau end
+function tableau(::SSP222)
+    γ = 1 - √2 / 2
+    return IMEXARKTableau(;
+        a_exp = @SArray([
+            0 0
+            1 0
+        ]),
+        b_exp = @SArray([1 / 2, 1 / 2]),
+        a_imp = @SArray([
+            γ 0
+            (1-2γ) γ
+        ]),
+        b_imp = @SArray([1 / 2, 1 / 2]),
+    )
+end
+
+"""
+    SSP322
+
+https://link.springer.com/content/pdf/10.1007/BF02728986.pdf, Table III
+"""
+struct SSP322 <: AbstractIMEXSSPARKTableau end
+function tableau(::SSP322)
+    return IMEXARKTableau(;
+        a_exp = @SArray([
+            0 0 0
+            0 0 0
+            0 1 0
+        ]),
+        b_exp = @SArray([0, 1 / 2, 1 / 2]),
+        a_imp = @SArray([
+            1/2 0 0
+            -1/2 1/2 0
+            0 1/2 1/2
+        ]),
+        b_imp = @SArray([0, 1 / 2, 1 / 2]),
+    )
+end
+
+"""
+    SSP332
+
+https://link.springer.com/content/pdf/10.1007/BF02728986.pdf, Table V
+"""
+struct SSP332 <: AbstractIMEXSSPARKTableau end
+function tableau(::SSP332)
+    γ = 1 - √2 / 2
+    return IMEXARKTableau(;
+        a_exp = @SArray([
+            0 0 0
+            1 0 0
+            1/4 1/4 0
+        ]),
+        b_exp = @SArray([1 / 6, 1 / 6, 2 / 3]),
+        a_imp = @SArray([
+            γ 0 0
+            (1-2γ) γ 0
+            (1 / 2-γ) 0 γ
+        ]),
+        b_imp = @SArray([1 / 6, 1 / 6, 2 / 3]),
+    )
+end
+
+"""
+    SSP333(; β = (3 + sqrt(3)) / 6)
+
+Family of SSP333 algorithms parametrized by the value β, from Section 3.2 of
+https://arxiv.org/pdf/1702.04621.pdf. The default value of β results in an SDIRK
+algorithm, which is also called SSP3(333)c in
+https://gmd.copernicus.org/articles/11/1497/2018/gmd-11-1497-2018.pdf.
+"""
+Base.@kwdef struct SSP333{FT} <: AbstractIMEXSSPARKTableau
+    β::FT = 1 / 2 + √3 / 6
+end
+function tableau((; β)::SSP333)
+    @assert β > 1 / 2
+    γ = (2β^2 - 3β / 2 + 1 / 3) / (2 - 4β)
+    return IMEXARKTableau(;
+        a_exp = @SArray([
+            0 0 0
+            1 0 0
+            1/4 1/4 0
+        ]),
+        b_exp = @SArray([1 / 6, 1 / 6, 2 / 3]),
+        a_imp = @SArray([
+            0 0 0
+            (4γ+2β) (1 - 4γ-2β) 0
+            (1 / 2 - β-γ) γ β
+        ]),
+        b_imp = @SArray([1 / 6, 1 / 6, 2 / 3]),
+    )
+end
+
+"""
+    SSP433
+
+https://link.springer.com/content/pdf/10.1007/BF02728986.pdf, Table VI
+"""
+struct SSP433 <: AbstractIMEXSSPARKTableau end
+function tableau(::SSP433)
+    α = 0.24169426078821
+    β = 0.06042356519705
+    η = 0.12915286960590
+    return IMEXARKTableau(;
+        a_exp = @SArray([
+            0 0 0 0
+            0 0 0 0
+            0 1 0 0
+            0 1/4 1/4 0
+        ]),
+        b_exp = @SArray([0, 1 / 6, 1 / 6, 2 / 3]),
+        a_imp = @SArray([
+            α 0 0 0
+            -α α 0 0
+            0 (1-α) α 0
+            β η (1 / 2 - α - β-η) α
+        ]),
+        b_imp = @SArray([0, 1 / 6, 1 / 6, 2 / 3]),
     )
 end

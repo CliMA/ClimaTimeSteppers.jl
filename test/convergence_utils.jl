@@ -55,9 +55,10 @@ end
 default_expected_order(alg, tab::CTS.AbstractIMEXARKTableau) = ODE.alg_order(tab)
 # default_expected_order(alg, tab) = ODE.alg_order(alg)
 
-function test_convergence_order!(test_case, tab, results = Dict(); refinement_range)
+function test_convergence_order!(test_case, tab, get_alg, results; refinement_range)
+    alg = get_alg(tab, test_case)
+    alg_name = "$(nameof(typeof(alg))){$(nameof(typeof(tab)))}"
     prob = problem(test_case, tab)
-    alg = algorithm(tab)
     expected_order = default_expected_order(alg, tab)
     cr = OCT.refinement_study(
         prob,
@@ -67,7 +68,7 @@ function test_convergence_order!(test_case, tab, results = Dict(); refinement_ra
         refinement_range, # ::UnitRange, 2:4 is more fine than 1:3
     )
     computed_order = maximum(cr.computed_order)
-    results[test_case.test_name, typeof(alg)] = (; expected_order, computed_order)
+    results[test_case.test_name][alg_name] = (; expected_order, computed_order)
     return nothing
 end
 
@@ -77,39 +78,36 @@ super_conv(theoretic, computed) = (computed - theoretic) / theoretic * 100 > 10
 
 #= Calls `test_convergence_order!` for each combination of test case
 and algorithm, returns a `Dict` of the results. =#
-function convergence_order_results(tabs, test_cases)
-    results = Dict()
+function convergence_order_results(tabs, test_cases, get_alg)
+    results = Dict(map(test_case -> test_case.test_name => Dict(), test_cases)...)
     for test_case in test_cases
         @info "------------------ Test case: $(test_case.test_name)"
         for tab in tabs
             # @info "Running refinement study on $(nameof(tab))"
-            test_convergence_order!(test_case, tab, results; refinement_range = 5:9)
+            test_convergence_order!(test_case, tab, get_alg, results; refinement_range = 5:9)
         end
     end
     return results
 end
 
-function tabulate_convergence_orders(prob_names, algs, results, expected_orders; tabs = nothing)
-    data = hcat(map(prob_names) do name
-        map(alg -> results[name, typeof(alg)], algs)
+function tabulate_convergence_orders(results)
+    prob_names = sort(collect(keys(results)))
+    alg_names = sort(collect(keys(results[prob_names[1]])))
+    data = hcat(map(prob_names) do prob_name
+        map(alg_name -> results[prob_name][alg_name], alg_names)
     end...)
-    alg_names = if tabs ≠ nothing
-        @. string(nameof(typeof(tabs)))
-    else
-        @. string(typeof(algs))
-    end
-    summary(result) = last(result)
-    data_summary = map(d -> summary(d), data)
+    expected_data = map(first, data)
+    computed_data = map(last, data)
 
-    table_data = hcat(alg_names, data_summary)
+    table_data = hcat(alg_names, computed_data)
     precentage_fail = sum(fail_conv.(getindex.(data, 1), getindex.(data, 2))) / length(data) * 100
     @info "Percentage of failed convergence order tests: $precentage_fail"
     fail_conv_hl = PrettyTables.Highlighter(
-        (data, i, j) -> j ≠ 1 && fail_conv(expected_orders[i], data[i, j]),
+        (data, i, j) -> j ≠ 1 && fail_conv(expected_data[i, j - 1], data[i, j]),
         PrettyTables.crayon"red bold",
     )
     super_conv_hl = PrettyTables.Highlighter(
-        (data, i, j) -> j ≠ 1 && super_conv(expected_orders[i], data[i, j]),
+        (data, i, j) -> j ≠ 1 && super_conv(expected_data[i, j - 1], data[i, j]),
         PrettyTables.crayon"yellow bold",
     )
     tab_column_hl = PrettyTables.Highlighter((data, i, j) -> j == 1, PrettyTables.crayon"green bold")

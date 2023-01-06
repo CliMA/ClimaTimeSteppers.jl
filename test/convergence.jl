@@ -75,18 +75,16 @@ function tabulate_convergence_orders_imex_ark()
     ]
     tabs = map(t -> t(), tabs)
     test_cases = all_test_cases(Float64)
-    results = convergence_order_results(tabs, test_cases)
-    algs = algorithm.(tabs)
-    prob_names = map(t -> t.test_name, test_cases)
-    expected_orders = ODE.alg_order.(tabs)
-    tabulate_convergence_orders(prob_names, algs, results, expected_orders; tabs)
+    get_alg = (tab, test_case) -> IMEXARKAlgorithm(tab, NewtonsMethod(; max_iters = test_case.linear_implicit ? 1 : 2))
+    results = convergence_order_results(tabs, test_cases, get_alg)
+    tabulate_convergence_orders(results)
     return results
 end
 tabulate_convergence_orders_imex_ark()
 
 function tabulate_convergence_orders_ark()
     # IMEX
-    co = Dict()
+    co = Dict(:auto => Dict(), :nonauto => Dict())
     names_probs_sols = [
         (:auto, imex_autonomous_prob(Array{Float64}), imex_autonomous_sol),
         (:nonauto, imex_nonautonomous_prob(Array{Float64}), imex_nonautonomous_sol),
@@ -102,20 +100,17 @@ function tabulate_convergence_orders_ark()
     dts = 0.5 .^ (4:7)
     for (name, prob, sol) in names_probs_sols
         for (alg, ord) in algs_orders
-            co[name, typeof(alg)] = (ord, convergence_order(prob, sol, alg, dts))
+            co[name][string(typeof(alg))] = (ord, convergence_order(prob, sol, alg, dts))
         end
     end
-    prob_names = first.(names_probs_sols)
-    algs = first.(algs_orders)
-    expected_orders = last.(algs_orders)
-    tabulate_convergence_orders(prob_names, algs, co, expected_orders)
+    tabulate_convergence_orders(co)
 end
 
 tabulate_convergence_orders_ark()
 
 function tabulate_convergence_orders_multirate()
 
-    co = Dict()
+    co = Dict(:imex_auto => Dict(), :imex_nonauto => Dict())
     names_probs_sols = [
         (:imex_auto, imex_autonomous_prob(Array{Float64}), imex_autonomous_sol),
         (:imex_nonauto, imex_nonautonomous_prob(Array{Float64}), imex_nonautonomous_sol),
@@ -140,14 +135,10 @@ function tabulate_convergence_orders_multirate()
 
     for (name, prob, sol) in names_probs_sols
         for (alg, ord) in algs_orders
-            co[name, typeof(alg)] = (ord, convergence_order(prob, sol, alg, dts; fast_dt = 0.5^12))
+            co[name][string(typeof(alg))] = (ord, convergence_order(prob, sol, alg, dts; fast_dt = 0.5^12))
         end
     end
-
-    prob_names = first.(names_probs_sols)
-    algs = first.(algs_orders)
-    expected_orders = last.(algs_orders)
-    tabulate_convergence_orders(prob_names, algs, co, expected_orders)
+    tabulate_convergence_orders(co)
 end
 
 tabulate_convergence_orders_multirate()

@@ -1,26 +1,58 @@
 # 2D diffusion problem
 
-The dimensional thermal energy equation can be expressed as:
+Here, we outline the 2d diffusion test problem.
+
+## Problem statement
+
+We consider the dimensional (denoted by tilde, e.g., ``\tilde{T}``) thermal energy equation:
+
 ```math
-c ρ ∂u/∂t = k ∇²u + q
+\frac{∂\tilde{T}}{∂t̃} = \frac{k}{c ρ} \tilde{∇}²\tilde{T} + \frac{1}{c ρ} Q = α \tilde{∇}²\tilde{T} + q
 ```
 where
- - `u` is the temperature (`K`)
- - `c` is the specific heat capacity (`J/kg/K`)
- - `ρ` is the density (`kg/m^3`)
- - `k` is the thermal conductivity (`W/m/K`), and
- - `q` is the specific at which heat energy is added/removed (W/m^3)
+
+ - ``\tilde{T} = \tilde{T}(x, y, t)`` is the temperature (`K`)
+ - c is the specific heat capacity (`J/kg/K`)
+ - ρ is the density (`kg/m^3`)
+ - k is the thermal conductivity (`W/m/K`), and
+ - Q is the added / removed heat (W/m^3)
+ - q is the specific heat added / removed (`K/s`)
+ - α is the thermal diffusivity (`m^2/s`)
+
+We seek a solution for ``\tilde{T}(x, y, t)`` on a rectangular domain `(x, y) ∈ [0, L_x] × [0, L_y]` for `t̃ > 0`, given initial conditions (ICs) and boundary conditions (BCs).
+
+We non-dimensionalize this PDE using the following transformations:
+
+ - ``\tilde{T} = T / T_c``
+ - ``x = x / L_c``
+ - ``y = y / L_c``
+ - ``t̃ = t / t_c``
+
+Our dimensionless equation is then:
+
+```math
+\frac{T_C ∂T}{t_c ∂t} = \frac{T α}{{L_c}²} ∇²T + \frac{1}{c ρ} Q
+```
+
 
 We can simplify this PDE to
+```math
     ∂u/∂t = α * Δu + f,
-where α = k/c/ρ is the thermal diffusivity (m^2/s) and f = q/c/ρ is the rate at
-which heat energy is added/removed in units of temperature (K/s).
-We will solve this PDE for u(x, y, t) over the domain (x, y) ∈ [0, l] × [0, l]
-and t ≥ 0. For simplicity, we will use periodic boundary conditions:
+```
+
+where `α = k/c/ρ` is the thermal diffusivity (`m^2/s`) and `f = q/c/ρ` is the rate at
+which heat energy is added/removed in units of temperature (`K/s`).
+
+We will solve this PDE for `u(x, y, t)` over the domain `(x, y) ∈ [0, l] × [0, l]`
+and `t ≥ 0`. For simplicity, we will use periodic boundary conditions (BCs):
+
+```math
     u(0, y, t) = u(l, y, t),
     u(x, 0, t) = u(x, l, t),
     ∇u(0, y, t) = ∇u(l, y, t), and
     ∇u(x, 0, t) = ∇u(x, l, t).
+```
+
 Also, for simplicity, we will assume that α is a constant.
 Suppose that
     f = 0 and

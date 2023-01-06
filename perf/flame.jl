@@ -30,7 +30,7 @@ elseif problem_str == "fe"
 else
     error("Bad option")
 end
-algorithm = CTS.IMEXARKAlgorithm(ARS343(), NewtonsMethod(; max_iters = 2))
+algorithm = CTS.IMEXAlgorithm(ARS343(), NewtonsMethod(; max_iters = 2))
 dt = 0.01
 integrator = DiffEqBase.init(prob, algorithm; dt)
 cache = CTS.init_cache(prob, algorithm)

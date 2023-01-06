@@ -2,7 +2,7 @@ export IMEXARKAlgorithm
 
 """
     IMEXARKAlgorithm(
-        tabname::AbstractTableau,
+        algorithm_name::AbstractAlgorithmName,
         newtons_method
     ) <: DistributedODEAlgorithm
 
@@ -10,15 +10,12 @@ A generic implementation of an IMEX ARK algorithm that can handle arbitrary
 Butcher tableaus and problems specified using either `ForwardEulerODEFunction`s
 or regular `ODEFunction`s.
 """
-struct IMEXARKAlgorithm{T <: IMEXARKTableau, NM} <: DistributedODEAlgorithm
+struct IMEXARKAlgorithm{T <: IMEXTableaus, NM} <: DistributedODEAlgorithm
     tab::T
     newtons_method::NM
-    function IMEXARKAlgorithm(tabname::AbstractTableau, newtons_method)
-        tab = tableau(tabname)
-        T = typeof(tab)
-        new{T, typeof(newtons_method)}(tab, newtons_method)
-    end
 end
+IMEXARKAlgorithm(algorithm_name::AbstractAlgorithmName, newtons_method) =
+    IMEXARKAlgorithm(IMEXTableaus(algorithm_name), newtons_method)
 
 has_jac(T_imp!) =
     hasfield(typeof(T_imp!), :Wfact) &&

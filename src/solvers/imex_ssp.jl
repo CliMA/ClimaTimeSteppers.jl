@@ -28,20 +28,20 @@ U[i] = u + ∑_{j = 1}^{i - 1} dt * a_exp[i, j] * T_exp(U[j]) ==>
 
 """
     IMEXSSPRKAlgorithm(
-        tabname::AbstractTableau,
+        algorithm_name::AbstractAlgorithmName,
         newtons_method
     ) <: DistributedODEAlgorithm
 
 A generic implementation of an IMEX SSP RK algorithm that can handle arbitrary
 Butcher tableaus.
 """
-struct IMEXSSPRKAlgorithm{B, T <: IMEXARKTableau, NM} <: DistributedODEAlgorithm
+struct IMEXSSPRKAlgorithm{B, T <: IMEXTableaus, NM} <: DistributedODEAlgorithm
     β::B
     tab::T
     newtons_method::NM
 end
-function IMEXSSPRKAlgorithm(tabname::AbstractTableau, newtons_method)
-    tab = tableau(tabname)
+function IMEXSSPRKAlgorithm(algorithm_name::AbstractAlgorithmName, newtons_method)
+    tab = IMEXTableaus(algorithm_name)
     (; a_exp, b_exp) = tab
     â_exp = vcat(a_exp, b_exp')
     β = diag(â_exp, -1)

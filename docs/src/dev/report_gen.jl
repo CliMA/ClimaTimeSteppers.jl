@@ -9,16 +9,81 @@ include(joinpath(cts_dir, "test", "convergence_orders.jl"))
 include(joinpath(cts_dir, "test", "utils.jl"))
 include(joinpath(cts_dir, "test", "problems.jl"))
 
-@testset "IMEX ARK Algorithms" begin
-    tab1 = (ARS111, ARS121)
-    tab2 = (ARS122, ARS232, ARS222, IMKG232a, IMKG232b, IMKG242a, IMKG242b)
-    tab2 = (tab2..., IMKG252a, IMKG252b, IMKG253a, IMKG253b, IMKG254a)
-    tab2 = (tab2..., IMKG254b, IMKG254c, HOMMEM1)
-    tab3 = (ARS233, ARS343, ARS443, IMKG342a, IMKG343a, DBM453)
-    tabs = [tab1..., tab2..., tab3...]
-    tabs = map(t -> t(), tabs)
-    get_alg = (tab, test_case) -> IMEXAlgorithm(tab, NewtonsMethod(; max_iters = test_case.linear_implicit ? 1 : 2))
-    test_algs("IMEX ARK", get_alg, tabs, ark_analytic_nonlin_test_cts(Float64), 400)
-    test_algs("IMEX ARK", get_alg, tabs, ark_analytic_sys_test_cts(Float64), 60)
-    test_algs("IMEX ARK", get_alg, tabs, ark_analytic_test_cts(Float64), 16000; super_convergence = ARS121())
+@testset "IMEXAlgorithm{ARK}" begin
+    get_algorithm =
+        (algorithm_name, test_case) ->
+            IMEXAlgorithm(algorithm_name, NewtonsMethod(; max_iters = test_case.linear_implicit ? 1 : 2); mode = ARK())
+    algorithm_names = map(type -> type(), [subtypes(IMEXARKAlgorithmName)..., subtypes(IMEXSSPRKAlgorithmName)...])
+    test_algorithms("IMEX ARK", get_algorithm, algorithm_names, ark_analytic_nonlin_test_cts(Float64), 200)
+    test_algorithms("IMEX ARK", get_algorithm, algorithm_names, ark_analytic_sys_test_cts(Float64), 400)
+    test_algorithms(
+        "IMEX ARK",
+        get_algorithm,
+        algorithm_names,
+        ark_analytic_test_cts(Float64),
+        40000;
+        super_convergence = (ARS121(),),
+    )
+    test_algorithms(
+        "IMEX ARK",
+        get_algorithm,
+        algorithm_names,
+        onewaycouple_mri_test_cts(Float64),
+        10000;
+        num_steps_scaling_factor = 5,
+    )
+    test_algorithms(
+        "IMEX ARK",
+        get_algorithm,
+        algorithm_names,
+        climacore_1Dheat_test_cts(Float64),
+        200;
+        num_steps_scaling_factor = 4,
+        numerical_reference_algorithm_name = ARS343(),
+    )
+    test_algorithms(
+        "IMEX ARK",
+        get_algorithm,
+        algorithm_names,
+        climacore_2Dheat_test_cts(Float64),
+        200;
+        num_steps_scaling_factor = 4,
+        numerical_reference_algorithm_name = ARS343(),
+    )
+end
+
+@testset "IMEXAlgorithm{SSPRK}" begin
+    get_algorithm =
+        (algorithm_name, test_case) ->
+            IMEXAlgorithm(algorithm_name, NewtonsMethod(; max_iters = test_case.linear_implicit ? 1 : 2))
+    algorithm_names = map(type -> type(), subtypes(IMEXSSPRKAlgorithmName))
+    test_algorithms("IMEX SSPRK", get_algorithm, algorithm_names, ark_analytic_nonlin_test_cts(Float64), 200)
+    test_algorithms("IMEX SSPRK", get_algorithm, algorithm_names, ark_analytic_sys_test_cts(Float64), 400)
+    test_algorithms("IMEX SSPRK", get_algorithm, algorithm_names, ark_analytic_test_cts(Float64), 40000)
+    test_algorithms(
+        "IMEX SSPRK",
+        get_algorithm,
+        algorithm_names,
+        onewaycouple_mri_test_cts(Float64),
+        10000;
+        num_steps_scaling_factor = 5,
+    )
+    test_algorithms(
+        "IMEX SSPRK",
+        get_algorithm,
+        algorithm_names,
+        climacore_1Dheat_test_cts(Float64),
+        200;
+        num_steps_scaling_factor = 4,
+        numerical_reference_algorithm_name = ARS343(),
+    )
+    test_algorithms(
+        "IMEX SSPRK",
+        get_algorithm,
+        algorithm_names,
+        climacore_2Dheat_test_cts(Float64),
+        200;
+        num_steps_scaling_factor = 4,
+        numerical_reference_algorithm_name = ARS343(),
+    )
 end

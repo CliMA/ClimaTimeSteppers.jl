@@ -38,8 +38,6 @@ second_order_tableau() = [
 third_order_tableau() = [ARS233, ARS343, ARS443, IMKG342a, IMKG343a, DBM453, SSP333, SSP433]
 
 import OrdinaryDiffEq as ODE
-import ClimaTimeSteppers as CTS
-ODE.alg_order(alg::CTS.IMEXARKAlgorithm) = ODE.alg_order(alg.tab)
 
 for m in first_order_tableau()
     @eval ODE.alg_order(::$m) = 1

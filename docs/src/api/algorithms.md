@@ -14,8 +14,7 @@ ForwardEulerODEFunction
 
 ```@docs
 IMEXTableaus
-IMEXARKAlgorithm
-IMEXSSPRKAlgorithm
+IMEXAlgorithm
 ```
 
 ## IMEX SSP methods

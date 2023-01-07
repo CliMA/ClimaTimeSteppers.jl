@@ -1,3 +1,6 @@
+export IMEXARKAlgorithmName, IMEXSSPRKAlgorithmName
+export AbstractAlgorithmMode, ARK, SSPRK
+export IMEXTableaus, IMEXAlgorithm
 export ARS111, ARS121, ARS122, ARS233, ARS232, ARS222, ARS343, ARS443
 export IMKG232a, IMKG232b, IMKG242a, IMKG242b, IMKG243a, IMKG252a, IMKG252b
 export IMKG253a, IMKG253b, IMKG254a, IMKG254b, IMKG254c, IMKG342a, IMKG343a
@@ -8,6 +11,12 @@ using StaticArrays: @SArray, SMatrix, sacollect
 
 abstract type IMEXARKAlgorithmName <: AbstractAlgorithmName end
 abstract type IMEXSSPRKAlgorithmName <: AbstractAlgorithmName end
+
+abstract type AbstractAlgorithmMode end
+struct ARK <: AbstractAlgorithmMode end
+struct SSPRK <: AbstractAlgorithmMode end
+default_mode(::IMEXARKAlgorithmName) = ARK()
+default_mode(::IMEXSSPRKAlgorithmName) = SSPRK()
 
 """
     IMEXTableaus(; a_exp, b_exp, c_exp, a_imp, b_imp, c_imp)
@@ -38,6 +47,23 @@ function IMEXTableaus(;
     b_exp, b_imp, c_exp, c_imp = promote(b_exp, b_imp, c_exp, c_imp)
     return IMEXTableaus(a_exp, b_exp, c_exp, a_imp, b_imp, c_imp)
 end
+
+"""
+    IMEXAlgorithm(name, newtons_method; [mode])
+    IMEXAlgorithm(mode, tableaus, newtons_method)
+
+Runs an IMEXAlgorithm with a particular set of Butcher tableaus in either ARK
+mode or SSPRK mode. The first constructor can be used to automatically determine
+the tableaus and mode from an `AbstractAlgorithmName`, or the second constructor
+can be used to pass a custom set of tableaus.
+"""
+struct IMEXAlgorithm{M <: AbstractAlgorithmMode, T <: IMEXTableaus, N <: NewtonsMethod} <: DistributedODEAlgorithm
+    mode::M
+    tableaus::T
+    newtons_method::N
+end
+IMEXAlgorithm(name::AbstractAlgorithmName, newtons_method::NewtonsMethod; mode = default_mode(name)) =
+    IMEXAlgorithm(mode, IMEXTableaus(name), newtons_method)
 
 ################################################################################
 

@@ -534,6 +534,308 @@ function climacore_1Dheat_test_cts(::Type{FT}) where {FT}
     )
 end
 
+# Monkey patch for ClimaCore so that ρq .* current_wind_vector works
+ClimaCore.RecursiveApply.rmap(fn::F, X::Tuple, Y) where {F} =
+    ClimaCore.RecursiveApply.tuplemap(x -> ClimaCore.RecursiveApply.rmap(fn, x, Y), X)
+ClimaCore.RecursiveApply.rmap(fn::F, X::NamedTuple{names}, Y) where {F, names} =
+    NamedTuple{names}(ClimaCore.RecursiveApply.rmap(fn, Tuple(X), Y))
+
+# "Dynamical Core Model Intercomparison Project (DCMIP) Test Case Document" by 
+# Ullrich et al., Section 1.1
+# (http://www-personal.umich.edu/~cjablono/DCMIP-2012_TestCaseDocument_v1.7.pdf)
+# Implemented in flux form, with an optional limiter and hyperdiffusion.
+# TODO: Use this as an integration test.
+function deformational_flow_test(::Type{FT}; use_limiter = true, use_hyperdiffusion = true) where {FT}
+    # Table III
+    # Note: the paper uses "a" in place of "R"
+    R = FT(6371220)          # radius of Earth [m]
+    g = FT(9.80616)          # gravitational acceleration [m/s^2]
+    R_d = FT(287.0)          # gas constant for dry air [J/kg/K]
+
+    # Table IX
+    # Note: the paper specifies that λ_c1 = 5π/6 ∈ [0, 2π), and that
+    # λ_c2 = 7π/6 ∈ [0, 2π), whereas we use λ_c1, λ_c2 ∈ [-π, π).
+    z_top = FT(12000)         # altitude at model top [m]
+    p_top = FT(25494.4)       # pressure at model top [Pa]
+    T_0 = FT(300)             # isothermal atmospheric temperature [K]
+    p_0 = FT(100000)          # reference pressure [Pa]
+    τ = 60 * 60 * 24 * FT(12) # period of motion (12 days) [s]
+    ω_0 = 23000 * FT(π) / τ   # maximum vertical pressure velocity [Pa/s]
+    b = FT(0.2)               # normalized pressure depth of divergent layer
+    λ_c1 = -FT(π) / 6         # initial longitude of first tracer
+    λ_c2 = FT(π) / 6          # initial longitude of second tracer
+    φ_c = FT(0)               # initial latitude of tracers
+    z_c = FT(5000)            # initial altitude of tracers [m]
+    R_t = R / 2               # horizontal half-width of tracers [m]
+    Z_t = FT(1000)            # vertical half-width of tracers [m]
+
+    # scale height [m] (Equation 3)
+    H = R_d * T_0 / g
+
+    # hyperviscosity coefficient [m^4] (specified in the limiter paper)
+    D₄ = FT(6.6e14)
+
+    centers = ClimaCore.Geometry.LatLongZPoint.(rad2deg(φ_c), rad2deg.((λ_c1, λ_c2)), FT(0))
+
+    # custom discretization (paper's discretization results in a very slow test)
+    vert_nelems = 10
+    horz_nelems = 4
+    horz_npoly = 3
+
+    vert_domain = ClimaCore.Domains.IntervalDomain(
+        ClimaCore.Geometry.ZPoint(FT(0)),
+        ClimaCore.Geometry.ZPoint(z_top);
+        boundary_names = (:bottom, :top),
+    )
+    vert_mesh = ClimaCore.Meshes.IntervalMesh(vert_domain, nelems = vert_nelems)
+    vert_cent_space = ClimaCore.Spaces.CenterFiniteDifferenceSpace(vert_mesh)
+
+    horz_domain = ClimaCore.Domains.SphereDomain(R)
+    horz_mesh = ClimaCore.Meshes.EquiangularCubedSphere(horz_domain, horz_nelems)
+    horz_topology = ClimaCore.Topologies.Topology2D(horz_mesh)
+    horz_quad = ClimaCore.Spaces.Quadratures.GLL{horz_npoly + 1}()
+    horz_space = ClimaCore.Spaces.SpectralElementSpace2D(horz_topology, horz_quad)
+
+    cent_space = ClimaCore.Spaces.ExtrudedFiniteDifferenceSpace(horz_space, vert_cent_space)
+    cent_coords = ClimaCore.Fields.coordinate_field(cent_space)
+    face_space = ClimaCore.Spaces.FaceExtrudedFiniteDifferenceSpace(cent_space)
+
+    # initial density (Equation 8)
+    cent_ρ = @. p_0 / (R_d * T_0) * exp(-cent_coords.z / H)
+
+    # initial tracer concentrations (Equations 28--35)
+    cent_q = map(cent_coords) do coord
+        z = coord.z
+        φ = deg2rad(coord.lat)
+
+        ds = map(centers) do center
+            r = ClimaCore.Geometry.great_circle_distance(coord, center, horz_space.global_geometry)
+            return min(1, (r / R_t)^2 + ((z - z_c) / Z_t)^2)
+        end
+        in_slot = z > z_c && φ_c - FT(0.125) < φ < φ_c + FT(0.125)
+
+        q1 = (1 + cos(FT(π) * ds[1])) / 2 + (1 + cos(FT(π) * ds[2])) / 2
+        q2 = FT(0.9) - FT(0.8) * q1^2
+        q3 = (ds[1] < FT(0.5) || ds[2] < FT(0.5)) && !in_slot ? FT(1) : FT(0.1)
+        q4 = 1 - FT(0.3) * (q1 + q2 + q3)
+        q5 = FT(1)
+        return (; q1, q2, q3, q4, q5)
+    end
+
+    init_state = ClimaCore.Fields.FieldVector(; cent_ρ, cent_ρq = cent_ρ .* cent_q)
+
+    # current wind vector (Equations 15--26)
+    current_cent_wind_vector = ClimaCore.Fields.Field(ClimaCore.Geometry.UVWVector{FT}, cent_space)
+    current_face_wind_vector = ClimaCore.Fields.Field(ClimaCore.Geometry.UVWVector{FT}, face_space)
+    function wind_vector(coord, ρ, t)
+        z = coord.z
+        φ = deg2rad(coord.lat)
+        λ = deg2rad(coord.long)
+
+        p = p_0 * exp(-g * z / (R_d * T_0)) # initial pressure (Equation 1)
+        λ′ = λ - 2 * FT(π) * t / τ
+        k = 10 * R / τ
+
+        u_a = k * sin(λ′)^2 * sin(2 * φ) * cos(FT(π) * t / τ) + 2 * FT(π) * R / τ * cos(φ)
+        u_d =
+            ω_0 * R / (b * p_top) *
+            cos(λ′) *
+            cos(φ)^2 *
+            cos(2 * FT(π) * t / τ) *
+            (-exp((p - p_0) / (b * p_top)) + exp((p_top - p) / (b * p_top)))
+        u = u_a + u_d
+        v = k * sin(2 * λ′) * cos(φ) * cos(FT(π) * t / τ)
+        s = 1 + exp((p_top - p_0) / (b * p_top)) - exp((p - p_0) / (b * p_top)) - exp((p_top - p) / (b * p_top))
+        ω = ω_0 * sin(λ′) * cos(φ) * cos(2 * FT(π) * t / τ) * s
+        w = -ω / (g * ρ)
+
+        return ClimaCore.Geometry.UVWVector(u, v, w)
+    end
+
+    horz_div = ClimaCore.Operators.Divergence()
+    horz_wdiv = ClimaCore.Operators.WeakDivergence()
+    horz_grad = ClimaCore.Operators.Gradient()
+    cent_χ = similar(cent_q)
+    function T_lim!(tendency, state, _, t)
+        @. current_cent_wind_vector = wind_vector(cent_coords, state.cent_ρ, t)
+        @. tendency.cent_ρ = -horz_div(state.cent_ρ * current_cent_wind_vector)
+        @. tendency.cent_ρq = -horz_div(state.cent_ρq * current_cent_wind_vector)
+        use_hyperdiffusion || return nothing
+        @. cent_χ = horz_wdiv(horz_grad(state.cent_ρq / state.cent_ρ))
+        ClimaCore.Spaces.weighted_dss!(cent_χ)
+        @. tendency.cent_ρq += -D₄ * horz_wdiv(state.cent_ρ * horz_grad(cent_χ))
+        return nothing
+    end
+
+    limiter = ClimaCore.Limiters.QuasiMonotoneLimiter(cent_q; rtol = FT(0))
+    function lim!(state, _, t, ref_state)
+        use_limiter || return nothing
+        ClimaCore.Limiters.compute_bounds!(limiter, ref_state.cent_ρq, ref_state.cent_ρ)
+        ClimaCore.Limiters.apply_limiter!(state.cent_ρq, state.cent_ρ, limiter)
+        return nothing
+    end
+
+    vert_div = ClimaCore.Operators.DivergenceF2C()
+    vert_interp = ClimaCore.Operators.InterpolateC2F(
+        top = ClimaCore.Operators.Extrapolate(),
+        bottom = ClimaCore.Operators.Extrapolate(),
+    )
+    function T_exp!(tendency, state, _, t)
+        @. current_face_wind_vector = wind_vector(face_coords, vert_interp(state.cent_ρ), t)
+        @. tendency.cent_ρ = -vert_div(vert_interp(state.cent_ρ) * current_face_wind_vector)
+        @. tendency.cent_ρq = -vert_div(vert_interp(state.cent_ρq) * current_face_wind_vector)
+    end
+
+    function dss!(state, _, t)
+        ClimaCore.Spaces.weighted_dss!(state.q)
+    end
+
+    function analytic_sol(t)
+        t ∈ (0, τ) || error("Analytic solution only defined at start and end")
+        return copy(init_state)
+    end
+
+    tendency_func = ClimaODEFunction(; T_lim!, T_exp!, lim!, dss!)
+    split_tendency_func = tendency_func
+    make_prob(func) = ODEProblem(func, init_state, (FT(0), τ), nothing)
+    IntegratorTestCase(
+        "Deformational Flow",
+        false,
+        τ,
+        analytic_sol,
+        make_prob(tendency_func),
+        make_prob(split_tendency_func),
+    )
+end
+
+# "A standard test case suite for two-dimensional linear transport on the
+# sphere" by Lauritzen et al.
+# (https://gmd.copernicus.org/articles/5/887/2012/gmd-5-887-2012.pdf)
+# Implemented in flux form, with an optional limiter and hyperdiffusion.
+function horizontal_deformational_flow_test(::Type{FT}; use_limiter = true, use_hyperdiffusion = true) where {FT}
+    # constants (using the same notation as deformational_flow_test)
+    R = FT(6371220)           # radius of Earth [m]
+    τ = 60 * 60 * 24 * FT(12) # period of motion (12 days) [s]
+    λ_c1 = -FT(π) / 6         # initial longitude of first tracer
+    λ_c2 = FT(π) / 6          # initial longitude of second tracer
+    φ_c = FT(0)               # initial latitude of tracers
+    R_t = R / 2               # horizontal half-width of tracers [m]
+    D₄ = FT(6.6e14)           # hyperviscosity coefficient [m^4] (specified in the limiter paper)
+
+    centers = ClimaCore.Geometry.LatLongPoint.(rad2deg(φ_c), rad2deg.((λ_c1, λ_c2)))
+
+    # 1.5° resolution on the equator: 360° / (4 * nelems * npoly) = 1.5°
+    nelems = 20
+    npoly = 3
+
+    domain = ClimaCore.Domains.SphereDomain(R)
+    mesh = ClimaCore.Meshes.EquiangularCubedSphere(domain, nelems)
+    topology = ClimaCore.Topologies.Topology2D(mesh)
+    quad = ClimaCore.Spaces.Quadratures.GLL{npoly + 1}()
+    space = ClimaCore.Spaces.SpectralElementSpace2D(topology, quad)
+    coords = ClimaCore.Fields.coordinate_field(space)
+
+    # initial conditions (Section 2.2)
+    ρ = ones(space)
+    q = map(coords) do coord
+        φ = deg2rad(coord.lat)
+        λ = deg2rad(coord.long)
+
+        hs = map(centers) do center
+            center′ = ClimaCore.Geometry.CartesianPoint(center, space.global_geometry)
+            coord′ = ClimaCore.Geometry.CartesianPoint(coord, space.global_geometry)
+            dist_squared = (coord′.x1 - center′.x1)^2 + (coord′.x2 - center′.x2)^2 + (coord′.x3 - center′.x3)^2
+            # Note: the paper doesn't divide by R^2, which only works if R = 1
+            return FT(0.95) * exp(-5 * dist_squared / R^2)
+        end
+        gaussian_hills = hs[1] + hs[2]
+        rs = map(centers) do center
+            return ClimaCore.Geometry.great_circle_distance(coord, center, space.global_geometry)
+        end
+        cosine_bells = if rs[1] < R_t
+            FT(0.1) + FT(0.9) * (1 + cos(FT(π) * rs[1] / R_t)) / 2
+        elseif rs[2] < R_t
+            FT(0.1) + FT(0.9) * (1 + cos(FT(π) * rs[2] / R_t)) / 2
+        else
+            FT(0.1)
+        end
+        slotted_cylinders =
+            if (
+                (rs[1] <= R_t && abs(λ - λ_c1) >= R_t / 6R) ||
+                (rs[2] <= R_t && abs(λ - λ_c2) >= R_t / 6R) ||
+                (rs[1] <= R_t && abs(λ - λ_c1) < R_t / 6R && φ - φ_c < -5R_t / 12R) ||
+                (rs[2] <= R_t && abs(λ - λ_c2) < R_t / 6R && φ - φ_c > 5R_t / 12R)
+            )
+                FT(1)
+            else
+                FT(0.1)
+            end
+
+        return (; gaussian_hills, cosine_bells, slotted_cylinders)
+    end
+    init_state = ClimaCore.Fields.FieldVector(; ρ, ρq = ρ .* q)
+
+    # current wind vector (Section 2.3)
+    current_wind_vector = ClimaCore.Fields.Field(ClimaCore.Geometry.UVVector{FT}, space)
+    function wind_vector(coord, t)
+        φ = deg2rad(coord.lat)
+        λ = deg2rad(coord.long)
+
+        λ′ = λ - 2 * FT(π) * t / τ
+        k = 10 * R / τ
+
+        u = k * sin(λ′)^2 * sin(2 * φ) * cos(FT(π) * t / τ) + 2 * FT(π) * R / τ * cos(φ)
+        v = k * sin(2 * λ′) * cos(φ) * cos(FT(π) * t / τ)
+
+        return ClimaCore.Geometry.UVVector(u, v)
+    end
+
+    div = ClimaCore.Operators.Divergence()
+    wdiv = ClimaCore.Operators.WeakDivergence()
+    grad = ClimaCore.Operators.Gradient()
+    χ = similar(q)
+    function T_lim!(tendency, state, _, t)
+        @. current_wind_vector = wind_vector(coords, t)
+        @. tendency.ρ = -div(state.ρ * current_wind_vector)
+        @. tendency.ρq = -div(state.ρq * current_wind_vector)
+        use_hyperdiffusion || return nothing
+        @. χ = wdiv(grad(state.ρq / state.ρ))
+        ClimaCore.Spaces.weighted_dss!(χ)
+        @. tendency.ρq += -D₄ * wdiv(state.ρ * grad(χ))
+        return nothing
+    end
+
+    limiter = ClimaCore.Limiters.QuasiMonotoneLimiter(q; rtol = FT(0))
+    function lim!(state, _, t, ref_state)
+        use_limiter || return nothing
+        ClimaCore.Limiters.compute_bounds!(limiter, ref_state.ρq, ref_state.ρ)
+        ClimaCore.Limiters.apply_limiter!(state.ρq, state.ρ, limiter)
+        return nothing
+    end
+
+    function dss!(state, _, t)
+        ClimaCore.Spaces.weighted_dss!(state.ρ)
+        ClimaCore.Spaces.weighted_dss!(state.ρq)
+    end
+
+    function analytic_sol(t)
+        t ∈ (0, τ) || error("Analytic solution only defined at start and end")
+        return copy(init_state)
+    end
+
+    tendency_func = ClimaODEFunction(; T_lim!, lim!, dss!)
+    split_tendency_func = tendency_func
+    make_prob(func) = ODEProblem(func, init_state, (FT(0), τ), nothing)
+    IntegratorTestCase(
+        "Horizontal Deformational Flow",
+        false,
+        τ,
+        analytic_sol,
+        make_prob(tendency_func),
+        make_prob(split_tendency_func),
+    )
+end
+
 function all_test_cases(::Type{FT}) where {FT}
     return [
         ark_analytic_nonlin_test_cts(FT),

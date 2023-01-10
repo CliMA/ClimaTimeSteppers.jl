@@ -1,7 +1,9 @@
-import Plots
+import Plots, Markdown
+using ClimaCorePlots
 using Distributions: quantile, TDist
 using Printf: @sprintf
 using LaTeXStrings: latexstring
+using PrettyTables: pretty_table, ft_printf
 
 """
     predicted_convergence_order(algorithm_name, ode_function)
@@ -82,7 +84,7 @@ function convergence_order(dts, errs, confidence)
     return order, order_uncertainty
 end
 
-function test_imex_algorithms(
+function verify_convergence(
     title,
     algorithm_names,
     test_case,
@@ -95,6 +97,8 @@ function test_imex_algorithms(
     full_history_algorithm_name = nothing,
     average_function = array -> norm(array) / sqrt(length(array)),
     average_function_str = "RMS",
+    only_endpoints = false,
+    verbose = false,
 )
     (; test_name, t_end, linear_implicit, analytic_sol) = test_case
     prob = test_case.split_prob
@@ -106,8 +110,11 @@ function test_imex_algorithms(
         analytic_sol
     else
         ref_alg = IMEXAlgorithm(numerical_reference_algorithm_name, newtons_method)
+        ref_alg_str = string(nameof(typeof(numerical_reference_algorithm_name)))
         ref_dt = t_end / numerical_reference_num_steps
-        solve(deepcopy(prob), ref_alg; dt = ref_dt, save_everystep = true)
+        verbose &&
+            @info "Generating numerical reference solution for $test_name with $ref_alg_str (dt = $ref_dt)..."
+        solve(deepcopy(prob), ref_alg; dt = ref_dt, save_everystep = !only_endpoints)
     end
 
     cur_avg_err(u, t) = average_function(abs.(u .- ref_sol(t)))
@@ -127,6 +134,7 @@ function test_imex_algorithms(
     cur_avg_err_str = "\\textrm{current}\\_$net_avg_err_str"
 
     linestyles = (:solid, :dash, :dot, :dashdot, :dashdotdot)
+    marker_kwargs = (; markershape = :circle, markeralpha = 0.5, markerstrokewidth = 0)
     plot_kwargs = (;
         legendposition = :outerright,
         legendtitlefontpointsize = 8,
@@ -170,16 +178,18 @@ function test_imex_algorithms(
         predicted_order = predicted_convergence_order(algorithm_name, prob.f)
         linestyle = linestyles[(predicted_order - 1) % length(linestyles) + 1]
 
+        verbose && @info "Running $test_name with $alg_str..."
         plot1_net_avg_errs = map(plot1_dts) do plot1_dt
             cur_avg_errs =
                 solve(
                     deepcopy(prob),
                     alg;
                     dt = plot1_dt,
-                    save_everystep = true,
+                    save_everystep = !only_endpoints,
                     save_func = cur_avg_err,
                     kwargshandle = DiffEqBase.KeywordArgSilent,
                 ).u
+            verbose && @info "RMS_error(dt = $plot1_dt) = $(average_function(cur_avg_errs))"
             return average_function(cur_avg_errs)
         end
         order, order_uncertainty = convergence_order(plot1_dts, plot1_net_avg_errs, order_confidence_percent / 100)
@@ -190,22 +200,14 @@ function test_imex_algorithms(
         else
             plot1_label = "$alg_str: \$$order_str\$"
         end
+        verbose && @info "Order = $order ± $order_uncertainty"
         if abs(order - predicted_order) > order_uncertainty
             @warn "Predicted order outside error bars for $alg_str ($test_name)"
         end
         if order_uncertainty > predicted_order / 10
             @warn "Order uncertainty too large for $alg_str ($test_name)"
         end
-        Plots.plot!(
-            plot1,
-            plot1_dts,
-            plot1_net_avg_errs;
-            label = latexstring(plot1_label),
-            markershape = :circle,
-            markeralpha = 0.5,
-            markerstrokewidth = 0,
-            linestyle,
-        )
+        Plots.plot!(plot1, plot1_dts, plot1_net_avg_errs; label = latexstring(plot1_label), linestyle, marker_kwargs...)
 
         # Remove all 0s from plot2_cur_avg_errs because they cannot be plotted on a
         # logarithmic scale. Record the extrema of plot2_cur_avg_errs to set ylim.
@@ -213,7 +215,7 @@ function test_imex_algorithms(
             deepcopy(prob),
             alg;
             dt = default_dt,
-            save_everystep = true,
+            save_everystep = !only_endpoints,
             save_func = cur_avg_sol_and_err,
             kwargshandle = DiffEqBase.KeywordArgSilent,
         )
@@ -231,6 +233,7 @@ function test_imex_algorithms(
             plot2_cur_avg_sols;
             label = latexstring("$alg_str: \$$(si_str(plot2_net_avg_sol))\$"),
             linestyle,
+            (only_endpoints ? marker_kwargs : (;))...,
         )
         Plots.plot!(
             plot2b,
@@ -238,6 +241,7 @@ function test_imex_algorithms(
             plot2_cur_avg_errs;
             label = latexstring("$alg_str: \$$(si_str(plot2_net_avg_err))\$"),
             linestyle,
+            (only_endpoints ? marker_kwargs : (;))...,
         )
     end
 
@@ -252,7 +256,7 @@ function test_imex_algorithms(
             deepcopy(prob),
             history_alg;
             dt = default_dt,
-            save_everystep = true,
+            save_everystep = !only_endpoints,
             save_func = (u, t) -> u .- ref_sol(t),
             kwargshandle = DiffEqBase.KeywordArgSilent,
         )
@@ -285,7 +289,6 @@ function test_imex_algorithms(
             \$$net_avg_sol_str = $net_avg_sol_def_str\$
             \$$net_avg_err_str = $net_avg_err_def_str\$"""
     if !isnothing(numerical_reference_algorithm_name)
-        ref_alg_name = string(nameof(typeof(numerical_reference_algorithm_name)))
         ref_cur_avg_errs = map(ref_sol.u, ref_sol.t) do u, t
             average_function(abs.(u .- analytic_sol(t)))
         end
@@ -294,7 +297,7 @@ function test_imex_algorithms(
             avg_def_str("|Y_{ref}(t)[\\textrm{index}] - Y_{analytic}(t)[\\textrm{index}]|", "\\textrm{index}")
         ref_net_avg_err_def_str = avg_def_str(ref_cur_avg_err_def_str, "t")
         footnote = "$footnote\n\n\nNote: The \"reference solution\" \$Y_{ref}\$ was \
-                    computed using $ref_alg_name with\n\$dt = $(pow_str(ref_dt)),\\ \
+                    computed using $ref_alg_str with\n\$dt = $(pow_str(ref_dt)),\\ \
                     \\textrm{and}\\ $ref_net_avg_err_def_str = \
                     $(si_str(ref_net_avg_err))\$"
     end
@@ -320,4 +323,96 @@ function test_imex_algorithms(
     mkpath("output")
     file_suffix = lowercase(replace(test_name * ' ' * title, " " => "_"))
     Plots.savefig(plot, joinpath("output", "convergence_$file_suffix.png"))
+end
+
+# Generates the Table 1 from
+# "Optimization-based limiters for the spectral element method" by Guba et al.,
+# and also plots the values used to generate the table.
+function limiter_summary(::Type{FT}, algorithm_names, test_case_type, num_steps) where {FT}
+    to_title(name) = titlecase(replace(string(name), '_' => ' '))
+    table_rows = []
+    for algorithm_name in algorithm_names
+        alg_str = string(nameof(typeof(algorithm_name)))
+        plots = []
+        plot_kwargs = (;
+            clims = (0, 1),
+            color = :diverging_rainbow_bgymr_45_85_c67_n256,
+            colorbar = false,
+            guide = "",
+            margin = 10Plots.px,
+        )
+        for use_limiter in (false, true), use_hyperdiffusion in (false, true)
+            test_case = test_case_type(FT; use_limiter, use_hyperdiffusion)
+            prob = test_case.split_prob
+            dt = test_case.t_end / num_steps
+            algorithm = IMEXAlgorithm(algorithm_name, NewtonsMethod())
+            solution = solve(deepcopy(prob), algorithm; dt).u
+            initial_q = solution[1].ρq ./ solution[1].ρ
+            final_q = solution[end].ρq ./ solution[end].ρ
+            names = propertynames(initial_q)
+
+            if isempty(plots)
+                for name in names
+                    push!(plots, Plots.plot(initial_q.:($name); plot_kwargs..., title = to_title(name)))
+                end
+            end
+            for name in names
+                push!(plots, Plots.plot(final_q.:($name); plot_kwargs..., title = ""))
+            end
+
+            for name in names
+                ϕ₀ = initial_q.:($name)
+                ϕ = final_q.:($name)
+                Δϕ₀ = maximum(ϕ₀) - minimum(ϕ₀)
+                ϕ_error = ϕ .- ϕ₀
+                table_row = [
+                    alg_str;;
+                    string(use_limiter);;
+                    string(use_hyperdiffusion);;
+                    to_title(name);;
+                    max(0, -(minimum(ϕ) - minimum(ϕ₀)) / Δϕ₀);;
+                    max(0, (maximum(ϕ) - maximum(ϕ₀)) / Δϕ₀);;
+                    map(p -> norm(ϕ_error, p) / norm(ϕ₀, p), (1, 2, Inf))...
+                ]
+                push!(table_rows, table_row)
+            end
+        end
+        colorbar_plot = Plots.scatter(
+            [0];
+            plot_kwargs...,
+            colorbar = true,
+            framestyle = :none,
+            legend_position = :none,
+            margin = 0Plots.px,
+            markeralpha = 0,
+            zcolor = [0],
+        )
+        plot = Plots.plot(
+            plots...,
+            colorbar_plot;
+            layout = (Plots.@layout [Plots.grid(5, 3) a{0.1w}]),
+            plot_title = "Tracer specific humidity for $alg_str (Initial, \
+                          Final, Final w/ Hyperdiffusion, Final w/ Limiter, \
+                          Final w/ Hyperdiffusion & Limiter)",
+            size = (1600, 2000),
+        )
+        Plots.savefig(plot, joinpath("output", "limiter_summary_$alg_str.png"))
+    end
+    table = pretty_table(
+        vcat(table_rows...);
+        header = [
+            "Algorithm",
+            "Limiter",
+            "Hyperdiffusion",
+            "Tracer Name",
+            "Max Undershoot",
+            "Max Overshoot",
+            "1-Norm Error",
+            "2-Norm Error",
+            "∞-Norm Error",
+        ],
+        body_hlines = collect(3:3:(length(table_rows) - 1)),
+        formatters = ft_printf("%.4e"),
+    )
+    println(table)
 end

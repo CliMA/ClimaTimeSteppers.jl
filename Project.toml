@@ -1,7 +1,7 @@
 name = "ClimaTimeSteppers"
 uuid = "595c0a79-7f3d-439a-bc5a-b232dc3bde79"
 authors = ["Climate Modeling Alliance"]
-version = "0.6.0"
+version = "0.7.0"
 
 [deps]
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"

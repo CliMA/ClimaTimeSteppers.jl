@@ -51,7 +51,7 @@ using LinearOperators
 using StaticArrays
 using CUDA
 
-export AbstractIMEXARKTableau
+export AbstractAlgorithmName, AbstractAlgorithmConstraint, Unconstrained, SSPConstrained
 
 array_device(::Union{Array, SArray, MArray}) = CPU()
 array_device(::CuArray) = CUDADevice()
@@ -66,18 +66,38 @@ include("operators.jl")
 
 abstract type DistributedODEAlgorithm <: DiffEqBase.AbstractODEAlgorithm end
 
-abstract type AbstractIMEXARKAlgorithm <: DistributedODEAlgorithm end
-
-abstract type AbstractTableau end
-abstract type AbstractIMEXARKTableau <: AbstractTableau end
-abstract type AbstractIMEXSSPARKTableau <: AbstractTableau end
+abstract type AbstractAlgorithmName end
 
 """
-    tableau(::DistributedODEAlgorithm)
+    AbstractAlgorithmConstraint
 
-Returns the tableau for a particular algorithm.
+A mechanism for restricting which operations can be performed by an algorithm
+for solving ODEs.
+
+For example, an unconstrained algorithm might compute a Runge-Kutta stage by
+taking linear combinations of tendencies; i.e., by adding quantities of the form
+`dt * tendency(state)`. On the other hand, a "strong stability preserving"
+algorithm can only take linear combinations of "incremented states"; i.e., it
+only adds quantities of the form `state + dt * coefficient * tendency(state)`.
 """
-function tableau end
+abstract type AbstractAlgorithmConstraint end
+
+"""
+    Unconstrained
+
+Indicates that an algorithm may perform any supported operations.
+"""
+struct Unconstrained <: AbstractAlgorithmConstraint end
+
+"""
+    SSPConstrained
+
+Indicates that an algorithm must be "strong stability preserving", which makes
+it easier to guarantee that the algorithm will preserve monotonicity properties
+satisfied by the initial state. For example, this ensures that the algorithm
+will be able to use limiters in a mathematically consistent way.
+"""
+struct SSPConstrained <: AbstractAlgorithmConstraint end
 
 SciMLBase.allowscomplex(alg::DistributedODEAlgorithm) = true
 include("integrators.jl")
@@ -92,7 +112,7 @@ n_stages_ntuple(::Type{<:NTuple{Nstages}}) where {Nstages} = Nstages
 n_stages_ntuple(::Type{<:SVector{Nstages}}) where {Nstages} = Nstages
 
 # Include concrete implementations
-include("solvers/imex_ark_tableaus.jl")
+include("solvers/imex_tableaus.jl")
 include("solvers/imex_ark.jl")
 include("solvers/imex_ssp.jl")
 include("solvers/multirate.jl")

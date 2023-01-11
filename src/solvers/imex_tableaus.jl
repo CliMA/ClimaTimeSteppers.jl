@@ -1,3 +1,4 @@
+export IMEXTableau, IMEXAlgorithm
 export ARS111, ARS121, ARS122, ARS233, ARS232, ARS222, ARS343, ARS443
 export IMKG232a, IMKG232b, IMKG242a, IMKG242b, IMKG243a, IMKG252a, IMKG252b
 export IMKG253a, IMKG253b, IMKG254a, IMKG254b, IMKG254c, IMKG342a, IMKG343a
@@ -6,18 +7,24 @@ export SSP222, SSP322, SSP332, SSP333, SSP433
 
 using StaticArrays: @SArray, SMatrix, sacollect
 
-################################################################################
+abstract type IMEXAlgorithmName <: AbstractAlgorithmName end
+abstract type IMEXSSPRKAlgorithmName <: IMEXAlgorithmName end
+default_constraint(::IMEXAlgorithmName) = Unconstrained()
+default_constraint(::IMEXSSPRKAlgorithmName) = SSPConstrained()
 
 """
-    IMEXARKTableau(; a_exp, b_exp, c_exp, a_imp, b_imp, c_imp)
+    IMEXTableau(; a_exp, b_exp, c_exp, a_imp, b_imp, c_imp)
 
-Generates an `IMEXARKTableau` struct from an IMEX ARK Butcher tableau. Only
-`a_exp` and `a_imp` are required arguments; the default values for `b_exp` and
-`b_imp` assume that the algorithm is FSAL (first same as last), and the default
-values for `c_exp` and `c_imp` assume that the algorithm is internally
-consistent.
+A wrapper for an IMEX Butcher tableau (or, more accurately, a pair of Butcher
+tableaus, one for explicit tendencies and the other for implicit tendencies).
+Only `a_exp` and `a_imp` are required arguments; the default values for `b_exp`
+and `b_imp` assume that the algorithm is FSAL (first same as last), and the
+default values for `c_exp` and `c_imp` assume that it is internally consistent.
+
+The explicit tableau must be strictly lower triangular, and the implicit tableau
+must be lower triangular (only DIRK algorithms are currently supported).
 """
-struct IMEXARKTableau{VS <: StaticArrays.StaticArray, MS <: StaticArrays.StaticArray} <: AbstractTableau
+struct IMEXTableau{VS <: StaticArrays.StaticArray, MS <: StaticArrays.StaticArray}
     a_exp::MS # matrix of size s×s
     b_exp::VS # vector of length s
     c_exp::VS # vector of length s
@@ -25,7 +32,7 @@ struct IMEXARKTableau{VS <: StaticArrays.StaticArray, MS <: StaticArrays.StaticA
     b_imp::VS # vector of length s
     c_imp::VS # vector of length s
 end
-function IMEXARKTableau(;
+function IMEXTableau(;
     a_exp,
     b_exp = a_exp[end, :],
     c_exp = vec(sum(a_exp; dims = 2)),
@@ -33,11 +40,54 @@ function IMEXARKTableau(;
     b_imp = a_imp[end, :],
     c_imp = vec(sum(a_imp; dims = 2)),
 )
+    @assert all(iszero, UpperTriangular(a_exp))
+    @assert all(iszero, UpperTriangular(a_imp) - Diagonal(a_imp))
+
     # TODO: add generic promote_eltype
     a_exp, a_imp = promote(a_exp, a_imp)
     b_exp, b_imp, c_exp, c_imp = promote(b_exp, b_imp, c_exp, c_imp)
-    return IMEXARKTableau(a_exp, b_exp, c_exp, a_imp, b_imp, c_imp)
+    return IMEXTableau(a_exp, b_exp, c_exp, a_imp, b_imp, c_imp)
 end
+
+"""
+    IMEXAlgorithm(tableau, newtons_method, [constraint])
+    IMEXAlgorithm(name, newtons_method, [constraint])
+    [Name](newtons_method)
+
+Constructs an IMEX algorithm for solving ODEs, with an optional name and
+constraint. The first constructor accepts any `IMEXTableau` and an optional
+constraint, leaving the algorithm unnamed. The second constructor automatically
+determines the tableau and the default constraint from the algorithm name, which
+must be an `IMEXAlgorithmName`.
+
+The last constructor matches the notation of `OrdinaryDiffEq.jl`; it dispatches
+to the second constructor by returning `IMEXAlgorithm(Name(), newtons_method)`.
+"""
+struct IMEXAlgorithm{
+    C <: AbstractAlgorithmConstraint,
+    N <: Union{Nothing, IMEXAlgorithmName},
+    T <: IMEXTableau,
+    NM <: NewtonsMethod,
+} <: DistributedODEAlgorithm
+    constraint::C
+    name::N
+    tableau::T
+    newtons_method::NM
+end
+IMEXAlgorithm(tableau::IMEXTableau, newtons_method, constraint = Unconstrained()) =
+    IMEXAlgorithm(constraint, nothing, tableau, newtons_method)
+IMEXAlgorithm(name::IMEXAlgorithmName, newtons_method, constraint = default_constraint(name)) =
+    IMEXAlgorithm(constraint, name, IMEXTableau(name), newtons_method)
+
+# If all AbstractAlgorithmNames were singletons, we could make type-based
+# functors, but some AbstractAlgorithmNames have parameters (e.g., SSP333)
+
+# (::Type{Name})(newtons_method::NewtonsMethod) where {Name <: IMEXAlgorithmName} = IMEXAlgorithm(Name(), newtons_method)
+
+#= Convenience constructor =#
+(name::IMEXAlgorithmName)(newtons_method::NewtonsMethod) = IMEXAlgorithm(name, newtons_method)
+
+################################################################################
 
 # ARS algorithms
 
@@ -57,10 +107,10 @@ The Forward-Backward (1,1,1) implicit-explicit (IMEX) Runge-Kutta scheme of
 
 This is equivalent to the `OrdinaryDiffEq.IMEXEuler` algorithm.
 """
-struct ARS111 <: AbstractIMEXARKTableau end
+struct ARS111 <: IMEXAlgorithmName end
 
-function tableau(::ARS111)
-    IMEXARKTableau(; a_exp = @SArray([0 0; 1 0]), a_imp = @SArray([0 0; 0 1]))
+function IMEXTableau(::ARS111)
+    IMEXTableau(; a_exp = @SArray([0 0; 1 0]), a_imp = @SArray([0 0; 0 1]))
 end
 
 """
@@ -71,15 +121,15 @@ The Forward-Backward (1,2,1) implicit-explicit (IMEX) Runge-Kutta scheme of
 
 This is equivalent to the `OrdinaryDiffEq.IMEXEulerARK` algorithm.
 """
-struct ARS121 <: AbstractIMEXARKTableau end
+struct ARS121 <: IMEXAlgorithmName end
 
-function tableau(::ARS121)
-    IMEXARKTableau(; a_exp = @SArray([0 0; 1 0]), b_exp = @SArray([0, 1]), a_imp = @SArray([0 0; 0 1]))
+function IMEXTableau(::ARS121)
+    IMEXTableau(; a_exp = @SArray([0 0; 1 0]), b_exp = @SArray([0, 1]), a_imp = @SArray([0 0; 0 1]))
 end
 
-struct ARS122 <: AbstractIMEXARKTableau end
-function tableau(::ARS122)
-    IMEXARKTableau(;
+struct ARS122 <: IMEXAlgorithmName end
+function IMEXTableau(::ARS122)
+    IMEXTableau(;
         a_exp = @SArray([0 0; 1/2 0]),
         b_exp = @SArray([0, 1]),
         a_imp = @SArray([0 0; 0 1/2]),
@@ -87,10 +137,10 @@ function tableau(::ARS122)
     )
 end
 
-struct ARS233 <: AbstractIMEXARKTableau end
-function tableau(::ARS233)
+struct ARS233 <: IMEXAlgorithmName end
+function IMEXTableau(::ARS233)
     γ = 1 / 2 + √3 / 6
-    IMEXARKTableau(;
+    IMEXTableau(;
         a_exp = @SArray([
             0 0 0
             γ 0 0
@@ -112,11 +162,11 @@ end
 The Forward-Backward (2,3,2) implicit-explicit (IMEX) Runge-Kutta scheme of
 [ARS1997](@cite), section 2.5.
 """
-struct ARS232 <: AbstractIMEXARKTableau end
-function tableau(::ARS232)
+struct ARS232 <: IMEXAlgorithmName end
+function IMEXTableau(::ARS232)
     γ = 1 - √2 / 2
     δ = -2√2 / 3
-    IMEXARKTableau(;
+    IMEXTableau(;
         a_exp = @SArray([
             0 0 0
             γ 0 0
@@ -131,11 +181,11 @@ function tableau(::ARS232)
     )
 end
 
-struct ARS222 <: AbstractIMEXARKTableau end
-function tableau(::ARS222)
+struct ARS222 <: IMEXAlgorithmName end
+function IMEXTableau(::ARS222)
     γ = 1 - √2 / 2
     δ = 1 - 1 / 2γ
-    IMEXARKTableau(; a_exp = @SArray([
+    IMEXTableau(; a_exp = @SArray([
         0 0 0
         γ 0 0
         δ (1-δ) 0
@@ -152,8 +202,8 @@ end
 The L-stable, third-order (3,4,3) implicit-explicit (IMEX) Runge-Kutta scheme of
 [ARS1997](@cite), section 2.7.
 """
-struct ARS343 <: AbstractIMEXARKTableau end
-function tableau(::ARS343)
+struct ARS343 <: IMEXAlgorithmName end
+function IMEXTableau(::ARS343)
     γ = 0.4358665215084590
     a42 = 0.5529291480359398
     a43 = a42
@@ -165,7 +215,7 @@ function tableau(::ARS343)
         (-1 + 9 / 2 * γ - 3 / 2 * γ^2) * a42 + (-11 / 4 + 21 / 2 * γ - 15 / 4 * γ^2) * a43 + 4 - 25 / 2 * γ +
         9 / 2 * γ^2
     a41 = 1 - a42 - a43
-    return IMEXARKTableau(;
+    IMEXTableau(;
         a_exp = @SArray([
             0 0 0 0
             γ 0 0 0
@@ -182,9 +232,9 @@ function tableau(::ARS343)
     )
 end
 
-struct ARS443 <: AbstractIMEXARKTableau end
-function tableau(::ARS443)
-    IMEXARKTableau(;
+struct ARS443 <: IMEXAlgorithmName end
+function IMEXTableau(::ARS443)
+    IMEXTableau(;
         a_exp = @SArray([
             0 0 0 0 0
             1/2 0 0 0 0
@@ -230,55 +280,55 @@ end
 imkg_exp(i, j, α, β) = i == j + 1 ? α[j] : (i > 2 && j == 1 ? β[i - 2] : 0)
 imkg_imp(i, j, α̂, β, δ̂) =
     i == j + 1 ? α̂[j] : (i > 2 && j == 1 ? β[i - 2] : (1 < i <= length(α̂) && i == j ? δ̂[i - 1] : 0))
-function make_IMKGTableau(α, α̂, δ̂, β = ntuple(_ -> 0, length(δ̂)))
+function IMKGTableau(α, α̂, δ̂, β = ntuple(_ -> 0, length(δ̂)))
     s = length(α̂) + 1
     type = SMatrix{s, s}
-    return IMEXARKTableau(;
+    return IMEXTableau(;
         a_exp = sacollect(type, imkg_exp(i, j, α, β) for i in 1:s, j in 1:s),
         a_imp = sacollect(type, imkg_imp(i, j, α̂, β, δ̂) for i in 1:s, j in 1:s),
     )
 end
 
-struct IMKG232a <: AbstractIMEXARKTableau end
-function tableau(::IMKG232a)
-    make_IMKGTableau((1 / 2, 1 / 2, 1), (0, -1 / 2 + √2 / 2, 1), (1 - √2 / 2, 1 - √2 / 2))
+struct IMKG232a <: IMEXAlgorithmName end
+function IMEXTableau(::IMKG232a)
+    IMKGTableau((1 / 2, 1 / 2, 1), (0, -1 / 2 + √2 / 2, 1), (1 - √2 / 2, 1 - √2 / 2))
 end
 
-struct IMKG232b <: AbstractIMEXARKTableau end
-function tableau(::IMKG232b)
-    make_IMKGTableau((1 / 2, 1 / 2, 1), (0, -1 / 2 - √2 / 2, 1), (1 + √2 / 2, 1 + √2 / 2))
+struct IMKG232b <: IMEXAlgorithmName end
+function IMEXTableau(::IMKG232b)
+    IMKGTableau((1 / 2, 1 / 2, 1), (0, -1 / 2 - √2 / 2, 1), (1 + √2 / 2, 1 + √2 / 2))
 end
 
-struct IMKG242a <: AbstractIMEXARKTableau end
-function tableau(::IMKG242a)
-    make_IMKGTableau((1 / 4, 1 / 3, 1 / 2, 1), (0, 0, -1 / 2 + √2 / 2, 1), (0, 1 - √2 / 2, 1 - √2 / 2))
+struct IMKG242a <: IMEXAlgorithmName end
+function IMEXTableau(::IMKG242a)
+    IMKGTableau((1 / 4, 1 / 3, 1 / 2, 1), (0, 0, -1 / 2 + √2 / 2, 1), (0, 1 - √2 / 2, 1 - √2 / 2))
 end
 
-struct IMKG242b <: AbstractIMEXARKTableau end
-function tableau(::IMKG242b)
-    make_IMKGTableau((1 / 4, 1 / 3, 1 / 2, 1), (0, 0, -1 / 2 - √2 / 2, 1), (0, 1 + √2 / 2, 1 + √2 / 2))
+struct IMKG242b <: IMEXAlgorithmName end
+function IMEXTableau(::IMKG242b)
+    IMKGTableau((1 / 4, 1 / 3, 1 / 2, 1), (0, 0, -1 / 2 - √2 / 2, 1), (0, 1 + √2 / 2, 1 + √2 / 2))
 end
 
 # The paper uses √3/6 for α̂[3], which also seems to work.
-struct IMKG243a <: AbstractIMEXARKTableau end
-function tableau(::IMKG243a)
-    make_IMKGTableau((1 / 4, 1 / 3, 1 / 2, 1), (0, 1 / 6, -√3 / 6, 1), (1 / 2 + √3 / 6, 1 / 2 + √3 / 6, 1 / 2 + √3 / 6))
+struct IMKG243a <: IMEXAlgorithmName end
+function IMEXTableau(::IMKG243a)
+    IMKGTableau((1 / 4, 1 / 3, 1 / 2, 1), (0, 1 / 6, -√3 / 6, 1), (1 / 2 + √3 / 6, 1 / 2 + √3 / 6, 1 / 2 + √3 / 6))
 end
 
-struct IMKG252a <: AbstractIMEXARKTableau end
-function tableau(::IMKG252a)
-    make_IMKGTableau((1 / 4, 1 / 6, 3 / 8, 1 / 2, 1), (0, 0, 0, -1 / 2 + √2 / 2, 1), (0, 0, 1 - √2 / 2, 1 - √2 / 2))
+struct IMKG252a <: IMEXAlgorithmName end
+function IMEXTableau(::IMKG252a)
+    IMKGTableau((1 / 4, 1 / 6, 3 / 8, 1 / 2, 1), (0, 0, 0, -1 / 2 + √2 / 2, 1), (0, 0, 1 - √2 / 2, 1 - √2 / 2))
 end
 
-struct IMKG252b <: AbstractIMEXARKTableau end
-function tableau(::IMKG252b)
-    make_IMKGTableau((1 / 4, 1 / 6, 3 / 8, 1 / 2, 1), (0, 0, 0, -1 / 2 - √2 / 2, 1), (0, 0, 1 + √2 / 2, 1 + √2 / 2))
+struct IMKG252b <: IMEXAlgorithmName end
+function IMEXTableau(::IMKG252b)
+    IMKGTableau((1 / 4, 1 / 6, 3 / 8, 1 / 2, 1), (0, 0, 0, -1 / 2 - √2 / 2, 1), (0, 0, 1 + √2 / 2, 1 + √2 / 2))
 end
 
 # The paper uses 0.08931639747704086 for α̂[3], which also seems to work.
-struct IMKG253a <: AbstractIMEXARKTableau end
-function tableau(::IMKG253a)
-    make_IMKGTableau(
+struct IMKG253a <: IMEXAlgorithmName end
+function IMEXTableau(::IMKG253a)
+    IMKGTableau(
         (1 / 4, 1 / 6, 3 / 8, 1 / 2, 1),
         (0, 0, √3 / 4 * (1 - √3 / 3) * ((1 + √3 / 3)^2 - 2), √3 / 6, 1),
         (0, 1 / 2 - √3 / 6, 1 / 2 - √3 / 6, 1 / 2 - √3 / 6),
@@ -286,42 +336,42 @@ function tableau(::IMKG253a)
 end
 
 # The paper uses 1.2440169358562922 for α̂[3], which also seems to work.
-struct IMKG253b <: AbstractIMEXARKTableau end
-function tableau(::IMKG253b)
-    make_IMKGTableau(
+struct IMKG253b <: IMEXAlgorithmName end
+function IMEXTableau(::IMKG253b)
+    IMKGTableau(
         (1 / 4, 1 / 6, 3 / 8, 1 / 2, 1),
         (0, 0, √3 / 4 * (1 + √3 / 3) * ((1 - √3 / 3)^2 - 2), -√3 / 6, 1),
         (0, 1 / 2 + √3 / 6, 1 / 2 + √3 / 6, 1 / 2 + √3 / 6),
     )
 end
 
-struct IMKG254a <: AbstractIMEXARKTableau end
-function tableau(::IMKG254a)
-    make_IMKGTableau((1 / 4, 1 / 6, 3 / 8, 1 / 2, 1), (0, -3 / 10, 5 / 6, -3 / 2, 1), (-1 / 2, 1, 1, 2))
+struct IMKG254a <: IMEXAlgorithmName end
+function IMEXTableau(::IMKG254a)
+    IMKGTableau((1 / 4, 1 / 6, 3 / 8, 1 / 2, 1), (0, -3 / 10, 5 / 6, -3 / 2, 1), (-1 / 2, 1, 1, 2))
 end
 
-struct IMKG254b <: AbstractIMEXARKTableau end
-function tableau(::IMKG254b)
-    make_IMKGTableau((1 / 4, 1 / 6, 3 / 8, 1 / 2, 1), (0, -1 / 20, 5 / 4, -1 / 2, 1), (-1 / 2, 1, 1, 1))
+struct IMKG254b <: IMEXAlgorithmName end
+function IMEXTableau(::IMKG254b)
+    IMKGTableau((1 / 4, 1 / 6, 3 / 8, 1 / 2, 1), (0, -1 / 20, 5 / 4, -1 / 2, 1), (-1 / 2, 1, 1, 1))
 end
 
-struct IMKG254c <: AbstractIMEXARKTableau end
-function tableau(::IMKG254c)
-    make_IMKGTableau((1 / 4, 1 / 6, 3 / 8, 1 / 2, 1), (0, 1 / 20, 5 / 36, 1 / 3, 1), (1 / 6, 1 / 6, 1 / 6, 1 / 6))
+struct IMKG254c <: IMEXAlgorithmName end
+function IMEXTableau(::IMKG254c)
+    IMKGTableau((1 / 4, 1 / 6, 3 / 8, 1 / 2, 1), (0, 1 / 20, 5 / 36, 1 / 3, 1), (1 / 6, 1 / 6, 1 / 6, 1 / 6))
 end
 
 # The paper and HOMME completely disagree on this algorithm. Since the version
 # in the paper is not "342" (it appears to be "332"), the version from HOMME is
 # used here.
-# const IMKG342a = make_IMKGTableau(
+# const IMKG342a = IMKGTableau(
 #     (0, 1/3, 1/3, 3/4),
 #     (0, -1/6 - √3/6, -1/6 - √3/6, 3/4),
 #     (0, 1/2 + √3/6, 1/2 + √3/6),
 #     (1/3, 1/3, 1/4),
 # )
-struct IMKG342a <: AbstractIMEXARKTableau end
-function tableau(::IMKG342a)
-    make_IMKGTableau(
+struct IMKG342a <: IMEXAlgorithmName end
+function IMEXTableau(::IMKG342a)
+    IMKGTableau(
         (1 / 4, 2 / 3, 1 / 3, 3 / 4),
         (0, 1 / 6 - √3 / 6, -1 / 6 - √3 / 6, 3 / 4),
         (0, 1 / 2 + √3 / 6, 1 / 2 + √3 / 6),
@@ -329,25 +379,25 @@ function tableau(::IMKG342a)
     )
 end
 
-struct IMKG343a <: AbstractIMEXARKTableau end
-function tableau(::IMKG343a)
-    make_IMKGTableau((1 / 4, 2 / 3, 1 / 3, 3 / 4), (0, -1 / 3, -2 / 3, 3 / 4), (-1 / 3, 1, 1), (0, 1 / 3, 1 / 4))
+struct IMKG343a <: IMEXAlgorithmName end
+function IMEXTableau(::IMKG343a)
+    IMKGTableau((1 / 4, 2 / 3, 1 / 3, 3 / 4), (0, -1 / 3, -2 / 3, 3 / 4), (-1 / 3, 1, 1), (0, 1 / 3, 1 / 4))
 end
 
 # The paper and HOMME completely disagree on this algorithm, but neither version
 # is "353" (they appear to be "343" and "354", respectively).
-# struct IMKG353a <: AbstractIMEXARKTableau end
-# function tableau(::IMKG353a)
-#     make_IMKGTableau(
+# struct IMKG353a <: IMEXAlgorithmName end
+# function IMEXTableau(::IMKG353a)
+#     IMKGTableau(
 #         (1/4, 2/3, 1/3, 3/4),
 #         (0, -359/600, -559/600, 3/4),
 #         (-1.1678009811335388, 253/200, 253/200),
 #         (0, 1/3, 1/4),
 #     )
 # end
-# struct IMKG353a <: AbstractIMEXARKTableau end
-# function tableau(::IMKG353a)
-#     make_IMKGTableau(
+# struct IMKG353a <: IMEXAlgorithmName end
+# function IMEXTableau(::IMKG353a)
+#     IMKGTableau(
 #         (-0.017391304347826087, -23/25, 5/3, 1/3, 3/4),
 #         (0.3075640504095504, -1.2990164859879263, 751/600, -49/60, 3/4),
 #         (-0.2981612530370581, 83/200, 83/200, 23/20),
@@ -359,9 +409,9 @@ end
 # "253"), and this algorithm is missing from HOMME (or, more precisely, the
 # tableau for IMKG353a is mistakenly used to define IMKG354a, and the tableau
 # for IMKG354a is not specified).
-# struct IMKG354a <: AbstractIMEXARKTableau end
-# function tableau(::IMKG354a)
-#     make_IMKGTableau(
+# struct IMKG354a <: IMEXAlgorithmName end
+# function IMEXTableau(::IMKG354a)
+#     IMKGTableau(
 #         (1/5, 1/5, 2/3, 1/3, 3/4),
 #         (0, 0, 11/30, -2/3, 3/4),
 #         (0, 2/4, 2/5, 1),
@@ -378,10 +428,10 @@ end
 
 # The algorithm has 4 implicit stages, 5 overall stages, and 3rd order accuracy.
 
-struct DBM453 <: AbstractIMEXARKTableau end
-function tableau(::DBM453)
+struct DBM453 <: IMEXAlgorithmName end
+function IMEXTableau(::DBM453)
     γ = 0.32591194130117247
-    IMEXARKTableau(;
+    IMEXTableau(;
         a_exp = @SArray(
             [
                 0 0 0 0 0
@@ -413,9 +463,9 @@ end
 
 # The algorithm has 5 implicit stages, 6 overall stages, and 2rd order accuracy.
 
-struct HOMMEM1 <: AbstractIMEXARKTableau end
-function tableau(::HOMMEM1)
-    IMEXARKTableau(;
+struct HOMMEM1 <: IMEXAlgorithmName end
+function IMEXTableau(::HOMMEM1)
+    IMEXTableau(;
         a_exp = @SArray([
             0 0 0 0 0 0
             1/5 0 0 0 0 0
@@ -444,10 +494,10 @@ end
 
 https://link.springer.com/content/pdf/10.1007/BF02728986.pdf, Table II
 """
-struct SSP222 <: AbstractIMEXSSPARKTableau end
-function tableau(::SSP222)
+struct SSP222 <: IMEXSSPRKAlgorithmName end
+function IMEXTableau(::SSP222)
     γ = 1 - √2 / 2
-    return IMEXARKTableau(;
+    return IMEXTableau(;
         a_exp = @SArray([
             0 0
             1 0
@@ -466,9 +516,9 @@ end
 
 https://link.springer.com/content/pdf/10.1007/BF02728986.pdf, Table III
 """
-struct SSP322 <: AbstractIMEXSSPARKTableau end
-function tableau(::SSP322)
-    return IMEXARKTableau(;
+struct SSP322 <: IMEXSSPRKAlgorithmName end
+function IMEXTableau(::SSP322)
+    return IMEXTableau(;
         a_exp = @SArray([
             0 0 0
             0 0 0
@@ -489,10 +539,10 @@ end
 
 https://link.springer.com/content/pdf/10.1007/BF02728986.pdf, Table V
 """
-struct SSP332 <: AbstractIMEXSSPARKTableau end
-function tableau(::SSP332)
+struct SSP332 <: IMEXSSPRKAlgorithmName end
+function IMEXTableau(::SSP332)
     γ = 1 - √2 / 2
-    return IMEXARKTableau(;
+    return IMEXTableau(;
         a_exp = @SArray([
             0 0 0
             1 0 0
@@ -509,20 +559,20 @@ function tableau(::SSP332)
 end
 
 """
-    SSP333(; β = (3 + sqrt(3)) / 6)
+    SSP333([β])
 
 Family of SSP333 algorithms parametrized by the value β, from Section 3.2 of
-https://arxiv.org/pdf/1702.04621.pdf. The default value of β results in an SDIRK
-algorithm, which is also called SSP3(333)c in
+https://arxiv.org/pdf/1702.04621.pdf. The default value of β, 1/2 + √3/6,
+results in an SDIRK algorithm, which is also called SSP3(333)c in
 https://gmd.copernicus.org/articles/11/1497/2018/gmd-11-1497-2018.pdf.
 """
-Base.@kwdef struct SSP333{FT} <: AbstractIMEXSSPARKTableau
+Base.@kwdef struct SSP333{FT <: AbstractFloat} <: IMEXSSPRKAlgorithmName
     β::FT = 1 / 2 + √3 / 6
 end
-function tableau((; β)::SSP333)
+function IMEXTableau((; β)::SSP333)
     @assert β > 1 / 2
     γ = (2β^2 - 3β / 2 + 1 / 3) / (2 - 4β)
-    return IMEXARKTableau(;
+    return IMEXTableau(;
         a_exp = @SArray([
             0 0 0
             1 0 0
@@ -543,12 +593,12 @@ end
 
 https://link.springer.com/content/pdf/10.1007/BF02728986.pdf, Table VI
 """
-struct SSP433 <: AbstractIMEXSSPARKTableau end
-function tableau(::SSP433)
+struct SSP433 <: IMEXSSPRKAlgorithmName end
+function IMEXTableau(::SSP433)
     α = 0.24169426078821
     β = 0.06042356519705
     η = 0.12915286960590
-    return IMEXARKTableau(;
+    return IMEXTableau(;
         a_exp = @SArray([
             0 0 0 0
             0 0 0 0

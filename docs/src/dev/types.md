@@ -19,5 +19,5 @@ import AbstractTrees as AT
 import InteractiveUtils as IU
 import ClimaTimeSteppers as CTS
 AT.children(x::Type) = IU.subtypes(x)
-AT.print_tree(CTS.AbstractTableau)
+AT.print_tree(CTS.AbstractAlgorithmName)
 ```

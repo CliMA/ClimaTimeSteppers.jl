@@ -281,12 +281,12 @@ end
 
 
     algorithms = (
-        CTS.IMEXARKAlgorithm(ARS111(), NewtonsMethod(; max_iters = 1)),
-        CTS.IMEXARKAlgorithm(ARS121(), NewtonsMethod(; max_iters = 1)),
-        CTS.IMEXARKAlgorithm(ARS122(), NewtonsMethod(; max_iters = 1)),
-        CTS.IMEXARKAlgorithm(ARS232(), NewtonsMethod(; max_iters = 1)),
-        CTS.IMEXARKAlgorithm(ARS222(), NewtonsMethod(; max_iters = 1)),
-        CTS.IMEXARKAlgorithm(ARS343(), NewtonsMethod(; max_iters = 1)),
+        CTS.IMEXAlgorithm(ARS111(), NewtonsMethod(; max_iters = 1)),
+        CTS.IMEXAlgorithm(ARS121(), NewtonsMethod(; max_iters = 1)),
+        CTS.IMEXAlgorithm(ARS122(), NewtonsMethod(; max_iters = 1)),
+        CTS.IMEXAlgorithm(ARS232(), NewtonsMethod(; max_iters = 1)),
+        CTS.IMEXAlgorithm(ARS222(), NewtonsMethod(; max_iters = 1)),
+        CTS.IMEXAlgorithm(ARS343(), NewtonsMethod(; max_iters = 1)),
     )
     reference_sol_norm = [
         860.2745315698107

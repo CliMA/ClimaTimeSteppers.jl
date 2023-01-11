@@ -4,14 +4,14 @@ Here, we outline the 2d diffusion test problem.
 
 ## Problem statement
 
-We consider the dimensional (denoted by tilde, e.g., ``\tilde{T}``) thermal energy equation:
+We consider the dimensional (denoted by tilde, e.g., ``T``) thermal energy equation:
 
 ```math
-\frac{∂\tilde{T}}{∂t̃} = \frac{k}{c ρ} \tilde{∇}²\tilde{T} + \frac{1}{c ρ} Q = α \tilde{∇}²\tilde{T} + q
+\frac{∂T}{∂t̃} = \frac{k}{c ρ} ∇²T + \frac{1}{c ρ} Q = α ∇²T + q
 ```
 where
 
- - ``\tilde{T} = \tilde{T}(x, y, t)`` is the temperature (`K`)
+ - ``T = T(x, y, t)`` is the temperature (`K`)
  - ``c`` is the specific heat capacity (`J/kg/K`)
  - ``ρ`` is the density (`kg/m^3`)
  - ``k`` is the thermal conductivity (`W/m/K`), and
@@ -20,44 +20,46 @@ where
  - ``α`` is the thermal diffusivity (`m^2/s`)
  - ``t`` is dimensional time (`s`)
 
-We seek a solution for ``\tilde{T}(x, y, t)`` on a rectangular domain ``(x, y) ∈ [0, L_x] × [0, L_y]`` for ``\tilde{t} > 0``, given initial conditions (ICs) and boundary conditions (BCs). To simplify the analysis, we non-dimensionalize this PDE using the following transformations:
+We seek a solution for ``T(x, y, t)`` on a rectangular domain ``(x, y) ∈ [0, L_x] × [0, L_y]`` for ``T > 0``, given initial conditions (ICs) and boundary conditions (BCs).
 
- - ``T = \tilde{T} / T_c``
- - ``x = \tilde{x} / L_c``
- - ``y = \tilde{y} / L_c``
- - ``t = \tilde{t} / t_c``
-
-Our dimensionless equation is then:
-
-```math
-\frac{T_C ∂T}{t_c ∂t} = \frac{T_C α}{{L_c}²} ∇²T + \frac{1}{c ρ} Q
-```
-or
-```math
-\frac{∂T}{∂t} = \frac{t_c α}{{L_c}²} ∇²T + \frac{t_c}{T_C c ρ} Q
-```
-
-Let ``t_c = L_c^2/\alpha`` (the diffusive timescale), and we have
-```math
-\frac{∂T}{∂t} = ∇²T + \beta Q, \qquad \beta = \frac{L^2}{k T_C}
-```
-
-We can simplify this PDE to
-```math
-    ∂u/∂t = α * Δu + f,
-```
-
-where `α = k/c/ρ` is the thermal diffusivity (`m^2/s`) and `f = q/c/ρ` is the rate at
-which heat energy is added/removed in units of temperature (`K/s`).
 
 We will solve this PDE for `u(x, y, t)` over the domain `(x, y) ∈ [0, l] × [0, l]`
 and `t ≥ 0`. For simplicity, we will use periodic boundary conditions (BCs):
 
 ```math
-    u(0, y, t) = u(l, y, t),
-    u(x, 0, t) = u(x, l, t),
-    ∇u(0, y, t) = ∇u(l, y, t), and
-    ∇u(x, 0, t) = ∇u(x, l, t).
+    u(0, y, t) = u(L_x, y, t), and
+    u(x, 0, t) = u(x, L_y, t).
+```
+
+## Solution derivation
+
+First, we find the solution to the homogeneous solution (for which ``q = 0``). Let's assume we can solve using separation of variables, we have
+
+```math
+T(x,y,t) = F(x) G(y) Q(t)
+```
+
+Plugging into the governing equations, we have:
+
+```math
+F(x) G(y) Q′(t) = α Q(t) (F′(x) G(y) + F(x) G′(y)) \\
+\frac{Q′(t)}{Q(t)} = α \left(\frac{F′(x)}{F(x)} + \frac{G′(y)}{G(y)}\right) \\
+\frac{Q′(t)}{Q(t)} - α \left(\frac{F′(x)}{F(x)} + \frac{G′(y)}{G(y)}\right) = λ
+```
+
+Let's solve for ``F(x)`` and ``G(y)`` first, and assume ``F(x) = Ae^{β x}`` and ``G(y) = Be^{γ y}``:
+
+```math
+\frac{F(x)}{F′(x)} = λ - \frac{G(x)}{G′(x)} = ξ
+\frac{}{F′(x)} = λ - \frac{G(x)}{G′(x)} = ξ
+G(y) = Be^{γ y}
+Q(t) = Ce^{ζ t}
+```
+Plugging into the governing equations, we have:
+
+```math
+ζ T \frac{∂T}{∂t} = α (β^2 + γ^2) T ∇² T \\
+ζ \frac{∂T}{∂t} = α (β^2 + γ^2) T ∇² T
 ```
 
 ```
@@ -184,3 +186,9 @@ Our solution then becomes
         (1 + f̂₀ / Δλ̂ * (1 - exp(-Δλ̂ * t̂))) * exp(-λ̂ₙₘ * t̂) * φ̂ˢˢₙₘ(x̂, ŷ).
 In order to improve readability, we will drop the hats from all variable names.
 ```
+
+```@example
+include("diffusion_2d.jl")
+```
+
+![]("sol.png")

@@ -2,7 +2,7 @@
 
 julia_version = "1.8.3"
 manifest_format = "2.0"
-project_hash = "fdba3a81b91dddc1ce3920a7fc73c9a97ed8d393"
+project_hash = "f6817d1b80508d0cb74d00592b68bcd9debda1b9"
 
 [[deps.AMD]]
 deps = ["Libdl", "LinearAlgebra", "SparseArrays", "Test"]
@@ -185,15 +185,21 @@ version = "0.1.4"
 
 [[deps.ClimaComms]]
 deps = ["CUDA", "StaticArrays"]
-git-tree-sha1 = "e7d6ba1456471e18cb5af155e7bb46532a6d4258"
+git-tree-sha1 = "5ab2642608e411eaf96d5d59c49ae4ab3bcdf2df"
 uuid = "3a4d1b5c-c61d-41fd-a00a-5873ba7a1b0d"
-version = "0.3.3"
+version = "0.3.4"
 
 [[deps.ClimaCore]]
 deps = ["Adapt", "BlockArrays", "CUDA", "ClimaComms", "CubedSphere", "DataStructures", "DiffEqBase", "DocStringExtensions", "ForwardDiff", "GaussQuadrature", "GilbertCurves", "HDF5", "InteractiveUtils", "IntervalSets", "LinearAlgebra", "PkgVersion", "RecursiveArrayTools", "RootSolvers", "Rotations", "SparseArrays", "Static", "StaticArrays", "Statistics", "UnPack"]
 git-tree-sha1 = "ba403ef47480ab31edb6b02d499538574b321c74"
 uuid = "d414da3d-4745-48bb-8d80-42e94e092884"
 version = "0.10.23"
+
+[[deps.ClimaCorePlots]]
+deps = ["ClimaCore", "RecipesBase", "StaticArrays", "TriplotBase"]
+git-tree-sha1 = "2fb63d2573c4ba4aff1ed7829a6c91032be5d488"
+uuid = "cf7c7e5a-b407-4c48-9047-11a94a308626"
+version = "0.2.4"
 
 [[deps.ClimaTimeSteppers]]
 deps = ["CUDA", "ClimaComms", "DataStructures", "DiffEqBase", "DiffEqCallbacks", "KernelAbstractions", "Krylov", "LinearAlgebra", "LinearOperators", "SciMLBase", "StaticArrays"]
@@ -1487,6 +1493,11 @@ version = "0.1.16"
 git-tree-sha1 = "6bac775f2d42a611cdfcd1fb217ee719630c4175"
 uuid = "410a4b4d-49e4-4fbc-ab6d-cb71b17b3775"
 version = "0.1.6"
+
+[[deps.TriplotBase]]
+git-tree-sha1 = "4d4ed7f294cda19382ff7de4c137d24d16adc89b"
+uuid = "981d1d27-644d-49a2-9326-4793e63143c3"
+version = "0.1.0"
 
 [[deps.URIs]]
 git-tree-sha1 = "ac00576f90d8a259f2c9d823e91d1de3fd44d348"

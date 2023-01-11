@@ -1,5 +1,6 @@
 using DiffEqBase, ClimaTimeSteppers, LinearAlgebra, StaticArrays
 using ClimaCore
+using ClimaComms
 
 """
 Single variable linear ODE

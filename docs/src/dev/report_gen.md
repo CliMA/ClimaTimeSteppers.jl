@@ -2,9 +2,6 @@
 
 In this section, we create a report comparing the solution errors and convergence orders for several test problems and algorithms.
 
-```@example
-include("report_gen.jl")
-```
 
 Plots for `ark_analytic`:
 ![](output/solutions_ark_analytic_imex_ark.png)

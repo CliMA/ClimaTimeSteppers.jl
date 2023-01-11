@@ -21,7 +21,8 @@ pages = [
     # ],
     "Test problems" => [
         "test_problems/index.md",
-        "test_problems/diffusion_2d.md",
+        # "test_problems/diffusion_2d.md",
+        "test_problems/diffusion_2d_dimensional.md",
     ],
     # "API docs" => [
     #     "Algorithms" => "api/algorithms.md",
@@ -51,7 +52,7 @@ makedocs(
     clean = true,
     strict = true,
     pages = pages,
-    draft = true, # , skips expensive parts of makedocs, for drafting in local use
+    # draft = true, # , skips expensive parts of makedocs, for drafting in local use
 )
 
 # Documenter can also automatically deploy documentation to gh-pages.

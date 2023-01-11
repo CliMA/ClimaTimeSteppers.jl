@@ -78,7 +78,14 @@ IMEXAlgorithm(tableau::IMEXTableau, newtons_method, constraint = Unconstrained()
     IMEXAlgorithm(constraint, nothing, tableau, newtons_method)
 IMEXAlgorithm(name::IMEXAlgorithmName, newtons_method, constraint = default_constraint(name)) =
     IMEXAlgorithm(constraint, name, IMEXTableau(name), newtons_method)
-(::Type{Name})(newtons_method::NewtonsMethod) where {Name <: IMEXAlgorithmName} = IMEXAlgorithm(Name(), newtons_method)
+
+# If all AbstractAlgorithmNames were singletons, we could make type-based
+# functors, but some AbstractAlgorithmNames have parameters (e.g., SSP333)
+
+# (::Type{Name})(newtons_method::NewtonsMethod) where {Name <: IMEXAlgorithmName} = IMEXAlgorithm(Name(), newtons_method)
+
+#= Convenience constructor =#
+(name::IMEXAlgorithmName)(newtons_method::NewtonsMethod) = IMEXAlgorithm(name, newtons_method)
 
 ################################################################################
 
@@ -559,9 +566,8 @@ https://arxiv.org/pdf/1702.04621.pdf. The default value of β, 1/2 + √3/6,
 results in an SDIRK algorithm, which is also called SSP3(333)c in
 https://gmd.copernicus.org/articles/11/1497/2018/gmd-11-1497-2018.pdf.
 """
-struct SSP333{FT} <: IMEXSSPRKAlgorithmName
-    β::FT
-    SSP333(β::AbstractFloat = 1 / 2 + √3 / 6) = new{typeof(β)}(β)
+Base.@kwdef struct SSP333{FT <: AbstractFloat} <: IMEXSSPRKAlgorithmName
+    β::FT = 1 / 2 + √3 / 6
 end
 function IMEXTableau((; β)::SSP333)
     @assert β > 1 / 2

@@ -117,9 +117,17 @@ steps:
       queue: central
       slurm_ntasks: 1
 
-  - label: "GPU"
+  # - label: "GPU"
+  #   command:
+  #     - "julia --project=test test/runtests.jl CuArray"
+  #   agents:
+  #     slurm_gres: "gpu:1"
+  #     queue: central
+  #     slurm_ntasks: 1
+
+  - label: "Simple GPU"
     command:
-      - "julia --project=test test/runtests.jl CuArray"
+      - "julia --project=test test/simple_gpu.jl"
     agents:
       slurm_gres: "gpu:1"
       queue: central

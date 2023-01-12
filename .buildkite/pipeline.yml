@@ -15,17 +15,13 @@ steps:
       - julia -e 'using Pkg; Pkg.add("MPIPreferences"); using MPIPreferences; use_system_binary()'
 
       - echo "--- Instantiate project"
-      - "julia --project -e 'using Pkg; Pkg.instantiate(;verbose=true)'"
-      - "julia --project -e 'using Pkg; Pkg.precompile(;strict=true)'"
+      - "julia --project -e 'using Pkg; Pkg.instantiate(;verbose=true); Pkg.precompile(;strict=true)'"
 
       - echo "--- Instantiate test"
-      - "julia --project=test -e 'using Pkg; Pkg.develop(path=\".\")'"
-      - "julia --project=test -e 'using Pkg; Pkg.instantiate(;verbose=true)'"
-      - "julia --project=test -e 'using Pkg; Pkg.precompile(;strict=true)'"
+      - "julia --project=test -e 'using Pkg; Pkg.develop(path=\".\"); Pkg.instantiate(;verbose=true); Pkg.precompile(;strict=true)'"
 
       - echo "--- Instantiate perf"
-      - "julia --project=perf -e 'using Pkg; Pkg.instantiate(;verbose=true)'"
-      - "julia --project=perf -e 'using Pkg; Pkg.precompile(;strict=true)'"
+      - "julia --project=perf -e 'using Pkg; Pkg.instantiate(;verbose=true); Pkg.precompile(;strict=true)'"
 
       - echo "--- Package status"
       - "julia --project -e 'using Pkg; Pkg.status()'"
@@ -42,17 +38,13 @@ steps:
   #     - julia -e 'using Pkg; Pkg.add("MPIPreferences"); using MPIPreferences; use_system_binary()'
 
   #     - echo "--- Instantiate project"
-  #     - "julia --project -e 'using Pkg; Pkg.instantiate(;verbose=true)'"
-  #     - "julia --project -e 'using Pkg; Pkg.precompile(;strict=true)'"
+  #     - "julia --project -e 'using Pkg; Pkg.instantiate(;verbose=true); Pkg.precompile(;strict=true)'"
 
   #     - echo "--- Instantiate test"
-  #     - "julia --project=test -e 'using Pkg; Pkg.develop(path=\".\")'"
-  #     - "julia --project=test -e 'using Pkg; Pkg.instantiate(;verbose=true)'"
-  #     - "julia --project=test -e 'using Pkg; Pkg.precompile()'"
+  #     - "julia --project=test -e 'using Pkg; Pkg.develop(path=\".\"); Pkg.instantiate(;verbose=true); Pkg.precompile()'"
 
   #     - echo "--- Initialize CUDA runtime"
-  #     - "julia --project -e 'using CUDA; CUDA.precompile_runtime()'"
-  #     - "julia --project -e 'using CUDA; CUDA.versioninfo()'"
+  #     - "julia --project -e 'using CUDA; CUDA.precompile_runtime(); CUDA.versioninfo()'"
 
   #     - echo "--- Package status"
   #     - "julia --project -e 'using Pkg; Pkg.status()'"

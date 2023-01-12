@@ -1,5 +1,6 @@
 using DiffEqBase, ClimaTimeSteppers, LinearAlgebra, StaticArrays
 using ClimaCore
+import ClimaCore.Device as Device
 import ClimaCore.Domains as Domains
 import ClimaCore.Geometry as Geometry
 import ClimaCore.Meshes as Meshes
@@ -428,8 +429,15 @@ end
 
 2D diffusion test problem. See [`2D diffusion problem`](@ref) for more details.
 """
-function climacore_2Dheat_test_cts(::Type{FT}) where {FT}
+function climacore_2Dheat_test_cts(::Type{FT}; print_arr_type = false) where {FT}
     dss_tendency = true
+
+    device = Device.device()
+    context = ClimaComms.SingletonCommsContext(device)
+
+    if print_arr_type
+        @info "Array type: $(Device.device_array_type(device))"
+    end
 
     n_elem_x = 2
     n_elem_y = 2
@@ -445,13 +453,17 @@ function climacore_2Dheat_test_cts(::Type{FT}) where {FT}
         Domains.IntervalDomain(Geometry.YPoint(FT(0)), Geometry.YPoint(FT(1)), periodic = true),
     )
     mesh = Meshes.RectilinearMesh(domain, n_elem_x, n_elem_y)
-    topology = Topologies.Topology2D(mesh)
+    topology = Topologies.Topology2D(context, mesh)
     quadrature = Spaces.Quadratures.GLL{n_poly + 1}()
     space = Spaces.SpectralElementSpace2D(topology, quadrature)
     (; x, y) = Fields.coordinate_field(space)
 
     λ = (2 * FT(π))^2 * (n_x^2 + n_y^2)
-    φ_sin_sin = @. sin(2 * FT(π) * n_x * x) * sin(2 * FT(π) * n_y * y)
+
+    # Revert once https://github.com/CliMA/ClimaCore.jl/issues/1097
+    # is fixed
+    # φ_sin_sin = @. sin(2 * FT(π) * n_x * x) * sin(2 * FT(π) * n_y * y)
+    φ_sin_sin = @. sin(2 * π * n_x * x) * sin(2 * π * n_y * y)
 
     init_state = Fields.FieldVector(; u = φ_sin_sin)
 

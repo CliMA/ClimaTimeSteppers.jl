@@ -1,5 +1,12 @@
 using DiffEqBase, ClimaTimeSteppers, LinearAlgebra, StaticArrays
 using ClimaCore
+import ClimaCore.Domains as Domains
+import ClimaCore.Geometry as Geometry
+import ClimaCore.Meshes as Meshes
+import ClimaCore.Topologies as Topologies
+import ClimaCore.Spaces as Spaces
+import ClimaCore.Fields as Fields
+import ClimaCore.Operators as Operators
 
 """
 Single variable linear ODE
@@ -433,38 +440,30 @@ function climacore_2Dheat_test_cts(::Type{FT}) where {FT}
     Δλ = FT(1) # denoted by Δλ̂ above
     t_end = FT(0.05) # denoted by t̂ above
 
-    domain = ClimaCore.Domains.RectangleDomain(
-        ClimaCore.Domains.IntervalDomain(
-            ClimaCore.Geometry.XPoint(FT(0)),
-            ClimaCore.Geometry.XPoint(FT(1)),
-            periodic = true,
-        ),
-        ClimaCore.Domains.IntervalDomain(
-            ClimaCore.Geometry.YPoint(FT(0)),
-            ClimaCore.Geometry.YPoint(FT(1)),
-            periodic = true,
-        ),
+    domain = Domains.RectangleDomain(
+        Domains.IntervalDomain(Geometry.XPoint(FT(0)), Geometry.XPoint(FT(1)), periodic = true),
+        Domains.IntervalDomain(Geometry.YPoint(FT(0)), Geometry.YPoint(FT(1)), periodic = true),
     )
-    mesh = ClimaCore.Meshes.RectilinearMesh(domain, n_elem_x, n_elem_y)
-    topology = ClimaCore.Topologies.Topology2D(mesh)
-    quadrature = ClimaCore.Spaces.Quadratures.GLL{n_poly + 1}()
-    space = ClimaCore.Spaces.SpectralElementSpace2D(topology, quadrature)
-    (; x, y) = ClimaCore.Fields.coordinate_field(space)
+    mesh = Meshes.RectilinearMesh(domain, n_elem_x, n_elem_y)
+    topology = Topologies.Topology2D(mesh)
+    quadrature = Spaces.Quadratures.GLL{n_poly + 1}()
+    space = Spaces.SpectralElementSpace2D(topology, quadrature)
+    (; x, y) = Fields.coordinate_field(space)
 
     λ = (2 * FT(π))^2 * (n_x^2 + n_y^2)
     φ_sin_sin = @. sin(2 * FT(π) * n_x * x) * sin(2 * FT(π) * n_y * y)
 
-    init_state = ClimaCore.Fields.FieldVector(; u = φ_sin_sin)
+    init_state = Fields.FieldVector(; u = φ_sin_sin)
 
-    wdiv = ClimaCore.Operators.WeakDivergence()
-    grad = ClimaCore.Operators.Gradient()
+    wdiv = Operators.WeakDivergence()
+    grad = Operators.Gradient()
     function T_exp!(tendency, state, _, t)
         @. tendency.u = wdiv(grad(state.u)) + f_0 * exp(-(λ + Δλ) * t) * φ_sin_sin
-        dss_tendency && ClimaCore.Spaces.weighted_dss!(tendency.u)
+        dss_tendency && Spaces.weighted_dss!(tendency.u)
     end
 
     function dss!(state, _, t)
-        dss_tendency || ClimaCore.Spaces.weighted_dss!(state.u)
+        dss_tendency || Spaces.weighted_dss!(state.u)
     end
 
     function analytic_sol(t)
@@ -492,25 +491,18 @@ function climacore_1Dheat_test_cts(::Type{FT}) where {FT}
     Δλ = FT(1) # denoted by Δλ̂ above
     t_end = FT(0.1) # denoted by t̂ above
 
-    domain = ClimaCore.Domains.IntervalDomain(
-        ClimaCore.Geometry.ZPoint(FT(0)),
-        ClimaCore.Geometry.ZPoint(FT(1)),
-        boundary_names = (:bottom, :top),
-    )
-    mesh = ClimaCore.Meshes.IntervalMesh(domain, nelems = n_elem_z)
-    space = ClimaCore.Spaces.FaceFiniteDifferenceSpace(mesh)
-    (; z) = ClimaCore.Fields.coordinate_field(space)
+    domain = Domains.IntervalDomain(Geometry.ZPoint(FT(0)), Geometry.ZPoint(FT(1)), boundary_names = (:bottom, :top))
+    mesh = Meshes.IntervalMesh(domain, nelems = n_elem_z)
+    space = Spaces.FaceFiniteDifferenceSpace(mesh)
+    (; z) = Fields.coordinate_field(space)
 
     λ = (2 * FT(π) * n_z)^2
     φ_sin = @. sin(2 * FT(π) * n_z * z)
 
-    init_state = ClimaCore.Fields.FieldVector(; u = φ_sin)
+    init_state = Fields.FieldVector(; u = φ_sin)
 
-    div = ClimaCore.Operators.DivergenceC2F(;
-        bottom = ClimaCore.Operators.SetDivergence(FT(0)),
-        top = ClimaCore.Operators.SetDivergence(FT(0)),
-    )
-    grad = ClimaCore.Operators.GradientF2C()
+    div = Operators.DivergenceC2F(; bottom = Operators.SetDivergence(FT(0)), top = Operators.SetDivergence(FT(0)))
+    grad = Operators.GradientF2C()
     function T_exp!(tendency, state, _, t)
         @. tendency.u = div(grad(state.u)) + f_0 * exp(-(λ + Δλ) * t) * φ_sin
     end

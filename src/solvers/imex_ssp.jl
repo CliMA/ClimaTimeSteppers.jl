@@ -80,7 +80,7 @@ function step_u!(integrator, cache::IMEXSSPRKCache)
         elseif !iszero(β[i - 1])
             if !isnothing(T_lim!)
                 @. U_lim = U_exp + dt * T_lim
-                lim!(U_lim, p, U_exp)
+                lim!(U_lim, p, t_exp, U_exp)
                 @. U_exp = U_lim
             end
             if !isnothing(T_exp!)
@@ -151,7 +151,7 @@ function step_u!(integrator, cache::IMEXSSPRKCache)
     if !iszero(β[s])
         if !isnothing(T_lim!)
             @. U_lim = U_exp + dt * T_lim
-            lim!(U_lim, p, U_exp)
+            lim!(U_lim, p, t_final, U_exp)
             @. U_exp = U_lim
         end
         if !isnothing(T_exp!)

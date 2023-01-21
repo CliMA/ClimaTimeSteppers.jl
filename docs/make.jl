@@ -10,6 +10,7 @@ bib = CitationBibliography(joinpath(@__DIR__, "refs.bib"))
 pages = [
     "index.md",
     "Algorithm formulations" => [
+        "algo_formulations/index.md",
         "algo_formulations/lsrk.md",
         "algo_formulations/ssprk.md",
         "algo_formulations/ark.md",

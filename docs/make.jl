@@ -9,15 +9,15 @@ bib = CitationBibliography(joinpath(@__DIR__, "refs.bib"))
 #! format: off
 pages = [
     "index.md",
+    "Background Information" => [
+        "ODE Solvers" => "background/ode_solvers.md",
+        "Newtons Method" => "background/newtons_method.md",
+    ],
     "Algorithm formulations" => [
         "algo_formulations/lsrk.md",
         "algo_formulations/ssprk.md",
         "algo_formulations/ark.md",
         "algo_formulations/mrrk.md",
-    ],
-    "Non-linear solvers" => [
-        "Formulation" => "nl_solvers/formulation.md",
-        "Newtons method" => "nl_solvers/newtons_method.md",
     ],
     "Test problems" => [
         "test_problems/index.md",

@@ -45,7 +45,7 @@ end
 function step_u!(integrator, cache::IMEXARKCache)
     (; u, p, t, dt, sol, alg) = integrator
     (; f) = sol.prob
-    (; T_lim!, T_exp!, T_imp!, lim!, dss!, stage_callback!) = f
+    (; T_lim!, T_exp!, T_imp!, lim!, dss!) = f
     (; name, tableau, newtons_method) = alg
     (; a_exp, b_exp, a_imp, b_imp, c_exp, c_imp) = tableau
     (; U, T_lim, T_exp, T_imp, temp, γ, newtons_method_cache) = cache
@@ -124,8 +124,6 @@ function step_u!(integrator, cache::IMEXARKCache)
                 end
             end
         end
-
-        stage_callback!(U[i], p, t_exp)
 
         if !all(iszero, a_exp[:, i]) || !iszero(b_exp[i])
             if !isnothing(T_lim!)

@@ -54,7 +54,7 @@ end
 function step_u!(integrator, cache::IMEXSSPRKCache)
     (; u, p, t, dt, sol, alg) = integrator
     (; f) = sol.prob
-    (; T_lim!, T_exp!, T_imp!, lim!, dss!, stage_callback!) = f
+    (; T_lim!, T_exp!, T_imp!, lim!, dss!) = f
     (; name, tableau, newtons_method) = alg
     (; a_imp, b_imp, c_exp, c_imp) = tableau
     (; U, U_lim, U_exp, T_lim, T_exp, T_imp, temp, β, γ, newtons_method_cache) = cache
@@ -133,8 +133,6 @@ function step_u!(integrator, cache::IMEXSSPRKCache)
                 end
             end
         end
-
-        stage_callback!(U, p, t_exp)
 
         if !iszero(β[i])
             if !isnothing(T_lim!)

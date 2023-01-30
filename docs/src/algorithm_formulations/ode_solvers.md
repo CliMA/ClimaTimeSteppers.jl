@@ -152,7 +152,7 @@ Not only does this approach not maintain the convergence properties of the IMEX 
 [^2]: \
     By [Godunov's theorem](https://en.wikipedia.org/wiki/Godunov%27s_theorem), no monotonicity-preserving linear numerical method can have an order greater than 1. Since ``\textrm{lim}_{u_0}`` will usually be a nonlinear function, this is not a linear numerical method. However, it is a rough approximation of the unmodified ARK method, so it is likely that Godunov's theorem will still apply; i.e., we do not expect to observe an order greater than 1 when using a limiter.
 
-In order to use the limiter "more correctly", we restrict the ERK Butcher tableau coefficients to have the following form:
+In order to use the limiter "more correctly", we constrain the ERK Butcher tableau coefficients to have the following form:
 
 ```math
 \begin{array}{c|c c c c c} \tilde{c}_1 & 0 & 0 & \cdots & 0 & 0 \\ \tilde{c}_2 & \beta_1 & 0 & \cdots & 0 & 0 \\ \tilde{c}_3 & \beta_1 \beta_2 & \beta_2 & \cdots & 0 & 0 \\ \vdots & \vdots & \vdots & \ddots & \vdots & \vdots \\ \tilde{c}_s & \beta_1 \beta_2 \ldots \beta_{s - 1} & \beta_2 \ldots \beta_{s - 1} & \cdots & \beta_{s - 1} & 0 \\ \hline & \beta_1 \beta_2 \ldots \beta_{s - 1} \beta_s & \beta_2 \ldots \beta_{s - 1} \beta_s & \cdots & \beta_{s - 1} \beta_s & \beta_s \end{array}
@@ -181,7 +181,7 @@ and to rewrite the equation for ``U_i`` as
 \tilde{U}_i + \Delta t \sum_{j = 1}^{i - 1} a_{i,j} T_{\text{imp}}(U_j, t_0 + \Delta t c_j) + \Delta t a_{i,i} T_{\text{imp}}(U_i, t_0 + \Delta t c_i) - U_i = 0.
 ```
 
-If we restrict the IMEX ARK method to an IMEX SSPRK method, we can express ``\tilde{b}_i`` as
+If we constrain the IMEX ARK method to an IMEX SSPRK method, we can express ``\tilde{b}_i`` as
 
 ```math
 \tilde{b}_i = \begin{cases} \beta_s \tilde{a}_{s,i} & i < s \\ \beta_s & i = s \end{cases},
@@ -205,7 +205,7 @@ which means that
 \begin{aligned} \tilde{U}_i ={} & u_0 + \Delta t \sum_{j = 1}^{i - 2} \tilde{a}_{i,j} T_{\text{exp}}(U_j, t_0 + \Delta t \tilde{c}_j) + \Delta t \tilde{a}_{i,i - 1} T_{\text{exp}}(U_{i - 1}, t_0 + \Delta t \tilde{c}_{i - 1}) = \\ & u_0 + \Delta t \beta_{i - 1} \sum_{j = 1}^{i - 2} \tilde{a}_{i - 1,j} T_{\text{exp}}(U_j, t_0 + \Delta t \tilde{c}_j) + \Delta t \beta_{i - 1} T_{\text{exp}}(U_{i - 1}, t_0 + \Delta t \tilde{c}_{i - 1}) = \\ & (1 - \beta_{i - 1}) u_0 + \beta_{i - 1} \left(\tilde{U}_{i - 1} + \Delta t T_{\text{exp}}(U_{i - 1}, t_0 + \Delta t \tilde{c}_{i - 1})\right). \end{aligned}
 ```
 
-Since ``\tilde{U}_1 = u_0``, restricting the IMEX ARK method to an IMEX SSPRK method allows us to express ``\tilde{U}_i`` as
+Since ``\tilde{U}_1 = u_0``, constraining the IMEX ARK method to an IMEX SSPRK method allows us to express ``\tilde{U}_i`` as
 
 ```math
 \tilde{U}_i = \begin{cases} u_0 & i = 1 \\ (1 - \beta_{i - 1}) u_0 + \beta_{i - 1} \left(\tilde{U}_{i - 1} + \Delta t T_{\text{exp}}(U_{i - 1}, t_0 + \Delta t \tilde{c}_{i - 1})\right) & i > 1 \end{cases}.

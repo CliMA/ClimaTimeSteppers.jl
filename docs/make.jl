@@ -9,23 +9,18 @@ bib = CitationBibliography(joinpath(@__DIR__, "refs.bib"))
 #! format: off
 pages = [
     "index.md",
-    "Background Information" => [
-        "ODE Solvers" => "background/ode_solvers.md",
-        "Newtons Method" => "background/newtons_method.md",
-    ],
-    "Algorithm formulations" => [
-        "algo_formulations/lsrk.md",
-        "algo_formulations/ssprk.md",
-        "algo_formulations/ark.md",
-        "algo_formulations/mrrk.md",
+    "Algorithm Formulations" => [
+        "ODE Solvers" => "algorithm_formulations/ode_solvers.md",
+        "Newtons Method" => "algorithm_formulations/newtons_method.md",
+        "Old LSRK Formulations" => "algorithm_formulations/lsrk.md",
+        "Old MRRK Formulations" => "algorithm_formulations/mrrk.md",
     ],
     "Test problems" => [
         "test_problems/index.md",
     ],
     "API docs" => [
-        "Algorithms" => "api/algorithms.md",
-        "Tableaus" => "api/tableaus.md",
-        "Non-linear solvers" => "api/nl_solvers.md",
+        "ODE Solvers" => "api/ode_solvers.md",
+        "Newtons Method" => "api/newtons_method.md",
         "Callbacks" => "api/callbacks.md",
     ],
     # "Algorithm comparisons" => "algo_comparisons.md", # TODO: fill out

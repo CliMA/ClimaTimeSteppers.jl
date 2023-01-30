@@ -45,13 +45,18 @@ imex_convergence_orders(::Union{IMKG253a, IMKG253b}) = (2, 2, 2)
 imex_convergence_orders(::Union{IMKG254a, IMKG254b, IMKG254c}) = (2, 2, 2)
 imex_convergence_orders(::IMKG342a) = (3, 4, 3)
 imex_convergence_orders(::IMKG343a) = (3, 4, 3)
-imex_convergence_orders(::DBM453) = (3, 3, 3)
-imex_convergence_orders(::HOMMEM1) = (2, 3, 2)
 imex_convergence_orders(::SSP222) = (2, 2, 2)
 imex_convergence_orders(::SSP322) = (2, 2, 2)
 imex_convergence_orders(::SSP332) = (2, 3, 2)
 imex_convergence_orders(::SSP333) = (3, 3, 3)
 imex_convergence_orders(::SSP433) = (3, 3, 3)
+imex_convergence_orders(::DBM453) = (3, 3, 3)
+imex_convergence_orders(::HOMMEM1) = (2, 3, 2)
+imex_convergence_orders(::ARK2GKC) = (2, 2, 2)
+imex_convergence_orders(::ARK437L2SA1) = (4, 4, 4)
+imex_convergence_orders(::ARK548L2SA2) = (5, 5, 5)
+imex_convergence_orders(::SSP22Heuns) = (2, 2, 2)
+imex_convergence_orders(::SSP33ShuOsher) = (3, 3, 3)
 
 # Compute a confidence interval for the convergence order, returning the
 # estimated convergence order and its uncertainty.
@@ -104,12 +109,15 @@ function verify_convergence(
     prob = test_case.split_prob
     FT = typeof(t_end)
     default_dt = t_end / num_steps
-    newtons_method = NewtonsMethod(; max_iters = linear_implicit ? 1 : 2)
+
+    algorithm(algorithm_name::ClimaTimeSteppers.ERKAlgorithmName) = ExplicitAlgorithm(algorithm_name)
+    algorithm(algorithm_name::ClimaTimeSteppers.IMEXARKAlgorithmName) =
+        IMEXAlgorithm(algorithm_name, NewtonsMethod(; max_iters = linear_implicit ? 1 : 2))
 
     ref_sol = if isnothing(numerical_reference_algorithm_name)
         analytic_sol
     else
-        ref_alg = IMEXAlgorithm(numerical_reference_algorithm_name, newtons_method)
+        ref_alg = algorithm(numerical_reference_algorithm_name)
         ref_alg_str = string(nameof(typeof(numerical_reference_algorithm_name)))
         ref_dt = t_end / numerical_reference_num_steps
         verbose &&
@@ -173,7 +181,7 @@ function verify_convergence(
     )
 
     for algorithm_name in algorithm_names
-        alg = IMEXAlgorithm(algorithm_name, newtons_method)
+        alg = algorithm(algorithm_name)
         alg_str = string(nameof(typeof(algorithm_name)))
         predicted_order = predicted_convergence_order(algorithm_name, prob.f)
         linestyle = linestyles[(predicted_order - 1) % length(linestyles) + 1]
@@ -250,7 +258,7 @@ function verify_convergence(
     plots = (plot1, plot2a, plot2b)
 
     if !isnothing(full_history_algorithm_name)
-        history_alg = IMEXAlgorithm(full_history_algorithm_name, newtons_method)
+        history_alg = algorithm(full_history_algorithm_name)
         history_alg_name = string(nameof(typeof(full_history_algorithm_name)))
         history_solve_results = solve(
             deepcopy(prob),
@@ -345,7 +353,9 @@ function limiter_summary(::Type{FT}, algorithm_names, test_case_type, num_steps)
             test_case = test_case_type(FT; use_limiter, use_hyperdiffusion)
             prob = test_case.split_prob
             dt = test_case.t_end / num_steps
-            algorithm = IMEXAlgorithm(algorithm_name, NewtonsMethod())
+            algorithm =
+                algorithm_name isa ClimaTimeSteppers.IMEXARKAlgorithmName ?
+                IMEXAlgorithm(algorithm_name, NewtonsMethod()) : ExplicitAlgorithm(algorithm_name)
             solution = solve(deepcopy(prob), algorithm; dt).u
             initial_q = solution[1].ρq ./ solution[1].ρ
             final_q = solution[end].ρq ./ solution[end].ρ

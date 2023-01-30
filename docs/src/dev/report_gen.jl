@@ -9,9 +9,10 @@ include(joinpath(pkgdir(ClimaTimeSteppers), "test", "problems.jl"))
 
 all_subtypes(::Type{T}) where {T} = isabstracttype(T) ? vcat(all_subtypes.(subtypes(T))...) : [T]
 
-let # IMEX Algorithm convergence
-    title = "IMEX Algorithms"
-    algorithm_names = map(T -> T(), all_subtypes(ClimaTimeSteppers.IMEXAlgorithmName))
+let # Convergence
+    title = "All Algorithms"
+    algorithm_names = map(T -> T(), all_subtypes(ClimaTimeSteppers.AbstractAlgorithmName))
+    algorithm_names = filter(name -> !(name isa ARK437L2SA1 || name isa ARK548L2SA2), algorithm_names) # too high order
     verify_convergence(title, algorithm_names, ark_analytic_nonlin_test_cts(Float64), 200)
     verify_convergence(title, algorithm_names, ark_analytic_sys_test_cts(Float64), 400)
     verify_convergence(title, algorithm_names, ark_analytic_test_cts(Float64), 40000; super_convergence = (ARS121(),))
@@ -34,7 +35,7 @@ let # IMEX Algorithm convergence
     )
 end
 
-let # Unconstrained vs SSPConstrained results without limiters
+let # Unconstrained vs SSP results without limiters
     algorithm_names = map(T -> T(), all_subtypes(ClimaTimeSteppers.IMEXSSPRKAlgorithmName))
     for (test_case, num_steps) in (
         (ark_analytic_nonlin_test_cts(Float64), 200),
@@ -54,7 +55,7 @@ let # Unconstrained vs SSPConstrained results without limiters
             reference_solution = solve(deepcopy(prob), reference_algorithm; dt).u[end]
             if norm(solution .- reference_solution) / norm(reference_solution) > 30 * eps(Float64)
                 alg_str = string(nameof(typeof(algorithm_name)))
-                @warn "Unconstrained and SSPConstrained versions of $alg_str \
+                @warn "Unconstrained and SSP versions of $alg_str \
                        give different results for $(test_case.test_name)"
             end
         end

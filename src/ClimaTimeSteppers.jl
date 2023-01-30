@@ -51,7 +51,7 @@ using LinearOperators
 using StaticArrays
 using CUDA
 
-export AbstractAlgorithmName, AbstractAlgorithmConstraint, Unconstrained, SSPConstrained
+export AbstractAlgorithmName, AbstractAlgorithmConstraint, Unconstrained, SSP
 
 array_device(::Union{Array, SArray, MArray}) = CPU()
 array_device(::CuArray) = CUDADevice()
@@ -71,7 +71,7 @@ abstract type AbstractAlgorithmName end
 """
     AbstractAlgorithmConstraint
 
-A mechanism for restricting which operations can be performed by an algorithm
+A mechanism for constraining which operations can be performed by an algorithm
 for solving ODEs.
 
 For example, an unconstrained algorithm might compute a Runge-Kutta stage by
@@ -89,15 +89,17 @@ Indicates that an algorithm may perform any supported operations.
 """
 struct Unconstrained <: AbstractAlgorithmConstraint end
 
+default_constraint(::AbstractAlgorithmName) = Unconstrained()
+
 """
-    SSPConstrained
+    SSP
 
 Indicates that an algorithm must be "strong stability preserving", which makes
 it easier to guarantee that the algorithm will preserve monotonicity properties
 satisfied by the initial state. For example, this ensures that the algorithm
 will be able to use limiters in a mathematically consistent way.
 """
-struct SSPConstrained <: AbstractAlgorithmConstraint end
+struct SSP <: AbstractAlgorithmConstraint end
 
 SciMLBase.allowscomplex(alg::DistributedODEAlgorithm) = true
 include("integrators.jl")
@@ -113,12 +115,11 @@ n_stages_ntuple(::Type{<:SVector{Nstages}}) where {Nstages} = Nstages
 
 # Include concrete implementations
 include("solvers/imex_tableaus.jl")
+include("solvers/explicit_tableaus.jl")
 include("solvers/imex_ark.jl")
-include("solvers/imex_ssp.jl")
+include("solvers/imex_ssprk.jl")
 include("solvers/multirate.jl")
 include("solvers/lsrk.jl")
-include("solvers/ssprk.jl")
-include("solvers/ark.jl")
 include("solvers/mis.jl")
 include("solvers/wickerskamarock.jl")
 include("solvers/rosenbrock.jl")

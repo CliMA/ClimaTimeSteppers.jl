@@ -38,7 +38,8 @@ function init_cache(prob::DiffEqBase.AbstractODEProblem, alg::IMEXAlgorithm{Unco
     γs = unique(filter(!iszero, diag(a_imp)))
     γ = length(γs) == 1 ? γs[1] : nothing # TODO: This could just be a constant.
     jac_prototype = has_jac(T_imp!) ? T_imp!.jac_prototype : nothing
-    newtons_method_cache = isnothing(T_imp!) ? nothing : allocate_cache(newtons_method, u0, jac_prototype)
+    newtons_method_cache =
+        isnothing(T_imp!) || isnothing(newtons_method) ? nothing : allocate_cache(newtons_method, u0, jac_prototype)
     return IMEXARKCache(U, T_lim, T_exp, T_imp, temp, γ, newtons_method_cache)
 end
 
@@ -51,7 +52,7 @@ function step_u!(integrator, cache::IMEXARKCache)
     (; U, T_lim, T_exp, T_imp, temp, γ, newtons_method_cache) = cache
     s = length(b_exp)
 
-    if !isnothing(T_imp!)
+    if !isnothing(T_imp!) && !isnothing(newtons_method)
         update!(
             newtons_method,
             newtons_method_cache,
@@ -91,6 +92,7 @@ function step_u!(integrator, cache::IMEXARKCache)
         dss!(U[i], p, t_exp)
 
         if !isnothing(T_imp!) && !iszero(a_imp[i, i]) # Implicit solve
+            @assert !isnothing(newtons_method)
             @. temp = U[i]
             # TODO: can/should we remove these closures?
             implicit_equation_residual! = (residual, Ui) -> begin

@@ -5,10 +5,14 @@ include("integrator_utils.jl")
 include("problems.jl")
 
 @testset "integrator save times" begin
-    test_case = constant_tendency_test(Float64)
-    (; prob, analytic_sol) = test_case
-    for alg in (SSPRK33ShuOsher(), OrdinaryDiffEq.SSPRK33()), reverse_prob in (false, true), n_dt_steps in (10, 10000)
+    for (alg, test_case) in (
+            (ExplicitAlgorithm(SSP33ShuOsher()), clima_constant_tendency_test(Float64)),
+            (OrdinaryDiffEq.SSPRK33(), constant_tendency_test(Float64)),
+        ),
+        reverse_prob in (false, true),
+        n_dt_steps in (10, 10000)
 
+        (; prob, analytic_sol) = test_case
         if reverse_prob
             prob = reverse_problem(prob, analytic_sol)
         end
@@ -109,8 +113,8 @@ end
 @testset "integrator save times with reinit!" begin
     # OrdinaryDiffEq does not save at t0′ after reinit! unless erase_sol is
     # true, so this test does not include a comparison with OrdinaryDiffEq.
-    alg = SSPRK33ShuOsher()
-    test_case = constant_tendency_test(Float64)
+    alg = ExplicitAlgorithm(SSP33ShuOsher())
+    test_case = clima_constant_tendency_test(Float64)
     (; prob, analytic_sol) = test_case
     for reverse_prob in (false, true)
         if reverse_prob
@@ -150,8 +154,8 @@ end
 end
 
 @testset "integrator step past end time" begin
-    alg = SSPRK33ShuOsher()
-    test_case = constant_tendency_test(Float64)
+    alg = ExplicitAlgorithm(SSP33ShuOsher())
+    test_case = clima_constant_tendency_test(Float64)
     (; prob, analytic_sol) = test_case
     t0, tf = prob.tspan
     dt = tf - t0

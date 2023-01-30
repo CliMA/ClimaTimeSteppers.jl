@@ -11,7 +11,7 @@ struct IMEXSSPRKCache{U, SCI, B, Γ, NMC}
     newtons_method_cache::NMC
 end
 
-function init_cache(prob::DiffEqBase.AbstractODEProblem, alg::IMEXAlgorithm{SSPConstrained}; kwargs...)
+function init_cache(prob::DiffEqBase.AbstractODEProblem, alg::IMEXAlgorithm{SSP}; kwargs...)
     (; u0, f) = prob
     (; T_imp!) = f
     (; tableau, newtons_method) = alg
@@ -30,7 +30,7 @@ function init_cache(prob::DiffEqBase.AbstractODEProblem, alg::IMEXAlgorithm{SSPC
     β = diag(â_exp, -1)
     for i in 1:length(β)
         if â_exp[(i + 1):end, i] != cumprod(β[i:end])
-            error("The SSPConstrained IMEXAlgorithm currently only supports an \
+            error("The SSP IMEXAlgorithm currently only supports an \
                    IMEXTableau that specifies a \"low-storage\" IMEX SSPRK \
                    algorithm, where the canonical Shu-Osher representation of \
                    the i-th explicit stage for i > 1 must have the form U[i] = \
@@ -47,7 +47,8 @@ function init_cache(prob::DiffEqBase.AbstractODEProblem, alg::IMEXAlgorithm{SSPC
     γs = unique(filter(!iszero, diag(a_imp)))
     γ = length(γs) == 1 ? γs[1] : nothing # TODO: This could just be a constant.
     jac_prototype = has_jac(T_imp!) ? T_imp!.jac_prototype : nothing
-    newtons_method_cache = isnothing(T_imp!) ? nothing : allocate_cache(newtons_method, u0, jac_prototype)
+    newtons_method_cache =
+        isnothing(T_imp!) || isnothing(newtons_method) ? nothing : allocate_cache(newtons_method, u0, jac_prototype)
     return IMEXSSPRKCache(U, U_exp, U_lim, T_lim, T_exp, T_imp, temp, β, γ, newtons_method_cache)
 end
 
@@ -60,7 +61,7 @@ function step_u!(integrator, cache::IMEXSSPRKCache)
     (; U, U_lim, U_exp, T_lim, T_exp, T_imp, temp, β, γ, newtons_method_cache) = cache
     s = length(b_imp)
 
-    if !isnothing(T_imp!)
+    if !isnothing(T_imp!) && !isnothing(newtons_method)
         update!(
             newtons_method,
             newtons_method_cache,
@@ -100,6 +101,7 @@ function step_u!(integrator, cache::IMEXSSPRKCache)
         end
 
         if !isnothing(T_imp!) && !iszero(a_imp[i, i]) # Implicit solve
+            @assert !isnothing(newtons_method)
             @. temp = U
             # TODO: can/should we remove these closures?
             implicit_equation_residual! = (residual, Ui) -> begin

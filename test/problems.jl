@@ -21,16 +21,21 @@ u(t) = u_0 e^{αt}
 
 This is an in-place variant of the one from DiffEqProblemLibrary.jl.
 """
-function linear_prob()
+function linear_prob(::Type{ArrayType} = Array) where {ArrayType}
     ODEProblem(
         IncrementingODEFunction{true}((du, u, p, t, α = true, β = false) -> (du .= α .* p .* u .+ β .* du)),
-        [1 / 2],
+        ArrayType([1 / 2]),
         (0.0, 1.0),
         1.01,
     )
 end
-function linear_prob_fe()
-    ODEProblem(ForwardEulerODEFunction((un, u, p, t, dt) -> (un .= u .+ dt .* p .* u)), [1.0], (0.0, 1.0), -0.2)
+function linear_prob_fe(::Type{ArrayType} = Array) where {ArrayType}
+    ODEProblem(
+        ForwardEulerODEFunction((un, u, p, t, dt) -> (un .= u .+ dt .* p .* u)),
+        ArrayType([1.0]),
+        (0.0, 1.0),
+        -0.2,
+    )
 end
 
 function linear_prob_wfactt()
@@ -96,19 +101,19 @@ with initial condition ``u_0=[0,1]``, parameter ``α=2``, and solution
 u(t) = [cos(αt) sin(αt); -sin(αt) cos(αt) ] u_0
 ```
 """
-function sincos_prob()
+function sincos_prob(::Type{ArrayType} = Array) where {ArrayType}
     ODEProblem(
         IncrementingODEFunction{true}((du, u, p, t, α = true, β = false) -> (du[1] = α * p * u[2] + β * du[1];
         du[2] = -α * p * u[1] + β * du[2])),
-        [0.0, 1.0],
+        ArrayType([0.0, 1.0]),
         (0.0, 1.0),
         2.0,
     )
 end
-function sincos_prob_fe()
+function sincos_prob_fe(::Type{ArrayType} = Array) where {ArrayType}
     ODEProblem(
         ForwardEulerODEFunction((un, u, p, t, dt) -> (un[1] = u[1] + dt * p * u[2]; un[2] = u[2] - dt * p * u[1])),
-        [0.0, 1.0],
+        ArrayType([0.0, 1.0]),
         (0.0, 1.0),
         2.0,
     )
@@ -116,7 +121,9 @@ end
 
 function sincos_sol(u0, p, t)
     s, c = sincos(p * t)
-    [c s; -s c] * u0
+    SC = similar(u0, (2, 2))
+    copyto!(SC, [c s; -s c])
+    return SC * u0
 end
 
 """

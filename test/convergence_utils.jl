@@ -1,6 +1,8 @@
 import ODEConvergenceTester as OCT
 import ClimaTimeSteppers as CTS
 import OrdinaryDiffEq as ODE
+import PrettyTables
+
 
 """
     DirectSolver

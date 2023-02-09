@@ -4,22 +4,28 @@ env:
   OPENMPI_VERSION: "4.1.1"
   OPENBLAS_NUM_THREADS: 1
   CLIMATEMACHINE_SETTINGS_FIX_RNG_SEED: "true"
+  JULIA_DEPOT_PATH: "${BUILDKITE_BUILD_PATH}/${BUILDKITE_PIPELINE_SLUG}/depot/cpu"
 
 steps:
   - label: "init cpu env"
     key: "init_cpu_env"
     command:
+      - "echo $$JULIA_DEPOT_PATH"
       - echo "--- Configure MPI"
       - julia -e 'using Pkg; Pkg.add("MPIPreferences"); using MPIPreferences; use_system_binary()'
 
       - echo "--- Instantiate project"
-      - "julia --project -e 'using Pkg; Pkg.instantiate(;verbose=true); Pkg.precompile(;strict=true)'"
+      - "julia --project -e 'using Pkg; Pkg.instantiate(;verbose=true)'"
+      - "julia --project -e 'using Pkg; Pkg.precompile(;strict=true)'"
 
       - echo "--- Instantiate test"
-      - "julia --project=test -e 'using Pkg; Pkg.develop(path=\".\"); Pkg.instantiate(;verbose=true); Pkg.precompile(;strict=true)'"
+      - "julia --project=test -e 'using Pkg; Pkg.develop(path=\".\")'"
+      - "julia --project=test -e 'using Pkg; Pkg.instantiate(;verbose=true)'"
+      - "julia --project=test -e 'using Pkg; Pkg.precompile(;strict=true)'"
 
       - echo "--- Instantiate perf"
-      - "julia --project=perf -e 'using Pkg; Pkg.instantiate(;verbose=true); Pkg.precompile(;strict=true)'"
+      - "julia --project=perf -e 'using Pkg; Pkg.instantiate(;verbose=true)'"
+      - "julia --project=perf -e 'using Pkg; Pkg.precompile(;strict=true)'"
 
       - echo "--- Package status"
       - "julia --project -e 'using Pkg; Pkg.status()'"
@@ -36,13 +42,17 @@ steps:
   #     - julia -e 'using Pkg; Pkg.add("MPIPreferences"); using MPIPreferences; use_system_binary()'
 
   #     - echo "--- Instantiate project"
-  #     - "julia --project -e 'using Pkg; Pkg.instantiate(;verbose=true); Pkg.precompile(;strict=true)'"
+  #     - "julia --project -e 'using Pkg; Pkg.instantiate(;verbose=true)'"
+  #     - "julia --project -e 'using Pkg; Pkg.precompile(;strict=true)'"
 
   #     - echo "--- Instantiate test"
-  #     - "julia --project=test -e 'using Pkg; Pkg.develop(path=\".\"); Pkg.instantiate(;verbose=true); Pkg.precompile()'"
+  #     - "julia --project=test -e 'using Pkg; Pkg.develop(path=\".\")'"
+  #     - "julia --project=test -e 'using Pkg; Pkg.instantiate(;verbose=true)'"
+  #     - "julia --project=test -e 'using Pkg; Pkg.precompile()'"
 
   #     - echo "--- Initialize CUDA runtime"
-  #     - "julia --project -e 'using CUDA; CUDA.precompile_runtime(); CUDA.versioninfo()'"
+  #     - "julia --project -e 'using CUDA; CUDA.precompile_runtime()'"
+  #     - "julia --project -e 'using CUDA; CUDA.versioninfo()'"
 
   #     - echo "--- Package status"
   #     - "julia --project -e 'using Pkg; Pkg.status()'"
@@ -73,10 +83,19 @@ steps:
   #     slurm_ntasks: 1
   #     slurm_gres: "gpu:1"
 
-  - label: "Flame graph (1D diffusion)"
+  - label: "Flame graph (ode fun)"
     command:
-      - "julia --project=perf perf/flame.jl --job_id diffusion_1D"
-    artifact_paths: "diffusion_1D/*"
+      - "julia --project=perf perf/flame.jl --job_id ode_fun --problem ode_fun"
+    artifact_paths: "ode_fun/*"
+    agents:
+      config: cpu
+      queue: central
+      slurm_ntasks: 1
+
+  - label: "Flame graph (forward euler)"
+    command:
+      - "julia --project=perf perf/flame.jl --job_id forward_euler --problem fe"
+    artifact_paths: "forward_euler/*"
     agents:
       config: cpu
       queue: central

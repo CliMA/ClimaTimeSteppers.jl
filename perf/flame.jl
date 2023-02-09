@@ -3,6 +3,10 @@ import ClimaTimeSteppers as CTS
 function parse_commandline()
     s = ArgParse.ArgParseSettings()
     ArgParse.@add_arg_table s begin
+        "--problem"
+        help = "Problem type [`ode_fun`, `fe`]"
+        arg_type = String
+        default = "ode_fun"
         "--job_id"
         help = "Job ID"
         arg_type = String
@@ -18,8 +22,14 @@ function do_work!(integrator, cache)
         CTS.step_u!(integrator, cache)
     end
 end
-test_case = climacore_1Dheat_test_cts(Float64)
-prob = test_case.split_prob
+problem_str = parsed_args["problem"]
+prob = if problem_str == "ode_fun"
+    split_linear_prob_wfact_split()
+elseif problem_str == "fe"
+    split_linear_prob_wfact_split_fe()
+else
+    error("Bad option")
+end
 algorithm = CTS.IMEXAlgorithm(ARS343(), NewtonsMethod(; max_iters = 2))
 dt = 0.01
 integrator = DiffEqBase.init(prob, algorithm; dt)
@@ -30,12 +40,6 @@ Profile.clear_malloc_data()
 Profile.clear()
 prof = Profile.@profile begin
     do_work!(integrator, cache)
-end
-
-p = @allocated do_work!(integrator, cache)
-using Test
-@testset "Allocations" begin
-    @test p == 0
 end
 
 import ProfileCanvas

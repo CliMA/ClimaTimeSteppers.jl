@@ -62,7 +62,6 @@ import DiffEqBase, SciMLBase, LinearAlgebra, DiffEqCallbacks, Krylov
 
 include("sparse_containers.jl")
 include("functions.jl")
-include("operators.jl")
 
 abstract type DistributedODEAlgorithm <: DiffEqBase.AbstractODEAlgorithm end
 

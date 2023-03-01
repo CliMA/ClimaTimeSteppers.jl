@@ -1,6 +1,8 @@
 import ODEConvergenceTester as OCT
 import ClimaTimeSteppers as CTS
 import OrdinaryDiffEq as ODE
+import PrettyTables
+
 
 """
     DirectSolver
@@ -31,7 +33,7 @@ function convergence_errors(prob, sol, method, dts; kwargs...)
         # copy the problem so we don't mutate u0
         prob_copy = deepcopy(prob)
         u = solve(prob_copy, method; dt = dt, saveat = (prob.tspan[2],), kwargs..., hide_warning...)
-        norm(u .- sol(prob.u0, prob.p, prob.tspan[end]))
+        norm(Array(u) .- sol(Array(prob.u0), prob.p, prob.tspan[end]))
     end
     return errs
 end

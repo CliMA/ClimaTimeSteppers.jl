@@ -1,7 +1,7 @@
 name = "ClimaTimeSteppers"
 uuid = "595c0a79-7f3d-439a-bc5a-b232dc3bde79"
 authors = ["Climate Modeling Alliance"]
-version = "0.7.2"
+version = "0.7.3"
 
 [deps]
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
@@ -17,7 +17,7 @@ SciMLBase = "0bca4576-84f4-4d90-8ffe-ffa030f20462"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
 [compat]
-CUDA = "3"
+CUDA = "3, 4"
 ClimaComms = "0.3.1"
 DataStructures = "0.18"
 DiffEqBase = "6"

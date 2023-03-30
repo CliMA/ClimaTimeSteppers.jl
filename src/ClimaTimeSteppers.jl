@@ -44,8 +44,6 @@ JuliaDiffEq terminology:
 module ClimaTimeSteppers
 
 
-using KernelAbstractions
-using KernelAbstractions.Extras: @unroll
 using LinearAlgebra
 using LinearOperators
 using StaticArrays

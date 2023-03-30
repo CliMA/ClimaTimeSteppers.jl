@@ -146,18 +146,28 @@ function dostep!(Q, mrigark::MRIGARKExplicit, param, time::Real)
         if param isa MRIParam
             # fraction of the step slower stage increment we are on
             τ = (ts - param.ts) / param.Δts
-            event = Event(array_device(Q))
-            event = mri_update_rate!(array_device(Q), groupsize)(
-                realview(Rs[s]),
-                τ,
-                param.γs,
-                param.Rs;
-                ndrange = length(realview(Rs[s])),
-                dependencies = (event,),
-            )
-            wait(array_device(Q), event)
+            if isdefined(KernelAbstractions, :Event)
+                event = Event(array_device(Q))
+                event = mri_update_rate!(array_device(Q), groupsize)(
+                    realview(Rs[s]),
+                    τ,
+                    param.γs,
+                    param.Rs;
+                    ndrange = length(realview(Rs[s])),
+                    dependencies = (event,),
+                )
+                wait(array_device(Q), event)
+            else
+                mri_update_rate!(array_device(Q), groupsize)(
+                    realview(Rs[s]),
+                    τ,
+                    param.γs,
+                    param.Rs;
+                    ndrange = length(realview(Rs[s])),
+                )
+                KernelAbstractions.synchronize(array_device(Q))
+            end
         end
-
         γs = ntuple(k -> ntuple(j -> Γs[k][s, j], s), NΓ)
         mriparam = MRIParam(param, γs, realview.(Rs[1:s]), ts, dts)
         updatetime!(mrigark.fastsolver, ts)

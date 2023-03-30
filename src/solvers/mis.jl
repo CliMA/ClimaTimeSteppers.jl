@@ -95,21 +95,37 @@ function update_inner!(innerinteg, outercache::MultirateInfinitesimalStepCache, 
     innerinteg.u = i == N ? u : ΔU[i]
 
     groupsize = 256
-    event = Event(array_device(u))
-    event = mis_update!(array_device(u), groupsize)(
-        u,
-        ΔU,
-        F,
-        innerinteg.u,
-        f_offset.x,
-        outercache.tableau, # TODO: verify correctness
-        i,
-        N,
-        dt;
-        ndrange = length(u),
-        dependencies = (event,),
-    )
-    wait(array_device(u), event)
+    if isdefined(KernelAbstractions, :Event)
+        event = Event(array_device(u))
+        event = mis_update!(array_device(u), groupsize)(
+            u,
+            ΔU,
+            F,
+            innerinteg.u,
+            f_offset.x,
+            outercache.tableau, # TODO: verify correctness
+            i,
+            N,
+            dt;
+            ndrange = length(u),
+            dependencies = (event,),
+        )
+        wait(array_device(u), event)
+    else
+        mis_update!(array_device(u), groupsize)(
+            u,
+            ΔU,
+            F,
+            innerinteg.u,
+            f_offset.x,
+            outercache.tableau, # TODO: verify correctness
+            i,
+            N,
+            dt;
+            ndrange = length(u),
+        )
+        KernelAbstractions.synchronize(array_device(u))
+    end
 
     # KW2014 (9)
     # evaluate f_fast(z(τ), p, t + c̃[i]*dt + (c[i]-c̃[i])/d[i] * τ)

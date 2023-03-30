@@ -113,7 +113,7 @@ function IMEXTableau(::ARS122)
         a_exp = @SArray([0 0; 1/2 0]),
         b_exp = @SArray([0, 1]),
         a_imp = @SArray([0 0; 0 1/2]),
-        b_imp = @SArray([0, 1]),
+        b_imp = @SArray([0, 1])
     )
 end
 
@@ -138,7 +138,7 @@ function IMEXTableau(::ARS233)
             0 γ 0
             0 (1-2γ) γ
         ]),
-        b_imp = @SArray([0, 1 / 2, 1 / 2]),
+        b_imp = @SArray([0, 1 / 2, 1 / 2])
     )
 end
 
@@ -163,7 +163,7 @@ function IMEXTableau(::ARS232)
             0 0 0
             0 γ 0
             0 (1-γ) γ
-        ]),
+        ])
     )
 end
 
@@ -220,7 +220,7 @@ function IMEXTableau(::ARS343)
             0 γ 0 0
             0 (1 - γ)/2 γ 0
             0 b1 b2 γ
-        ]),
+        ])
     )
 end
 
@@ -246,7 +246,7 @@ function IMEXTableau(::ARS443)
             0 1/6 1/2 0 0
             0 -1/2 1/2 1/2 0
             0 3/2 -3/2 1/2 1/2
-        ]),
+        ])
     )
 end
 
@@ -521,7 +521,7 @@ function IMEXTableau(::SSP222)
             γ 0
             (1-2γ) γ
         ]),
-        b_imp = @SArray([1 / 2, 1 / 2]),
+        b_imp = @SArray([1 / 2, 1 / 2])
     )
 end
 
@@ -545,7 +545,7 @@ function IMEXTableau(::SSP322)
             -1/2 1/2 0
             0 1/2 1/2
         ]),
-        b_imp = @SArray([0, 1 / 2, 1 / 2]),
+        b_imp = @SArray([0, 1 / 2, 1 / 2])
     )
 end
 
@@ -570,7 +570,7 @@ function IMEXTableau(::SSP332)
             (1-2γ) γ 0
             (1 / 2-γ) 0 γ
         ]),
-        b_imp = @SArray([1 / 6, 1 / 6, 2 / 3]),
+        b_imp = @SArray([1 / 6, 1 / 6, 2 / 3])
     )
 end
 
@@ -600,7 +600,7 @@ function IMEXTableau((; β)::SSP333)
             (4γ+2β) (1 - 4γ-2β) 0
             (1 / 2 - β-γ) γ β
         ]),
-        b_imp = @SArray([1 / 6, 1 / 6, 2 / 3]),
+        b_imp = @SArray([1 / 6, 1 / 6, 2 / 3])
     )
 end
 
@@ -629,7 +629,7 @@ function IMEXTableau(::SSP433)
             0 (1-α) α 0
             β η (1 / 2 - α - β-η) α
         ]),
-        b_imp = @SArray([0, 1 / 6, 1 / 6, 2 / 3]),
+        b_imp = @SArray([0, 1 / 6, 1 / 6, 2 / 3])
     )
 end
 
@@ -665,7 +665,7 @@ function IMEXTableau(::DBM453)
                 -0.46509906651927421 0.81063103116959553 0.61036726756832357 γ 0
                 0.87795339639076675 -0.72692641526151547 0.7520413715737272 -0.22898029400415088 γ
             ]
-        ),
+        )
     )
 end
 
@@ -693,7 +693,7 @@ function IMEXTableau(::HOMMEM1)
             0 0 0 1/3 0 0
             0 0 0 0 1/2 0
             5/18 5/18 0 0 0 8/18
-        ]),
+        ])
     )
 end
 
@@ -721,7 +721,7 @@ function IMEXTableau((; paper_version)::ARK2GKC)
             0 0 0
             (1-√2 / 2) (1-√2 / 2) 0
             √2/4 √2/4 (1-√2 / 2)
-        ]),
+        ])
     )
 end
 

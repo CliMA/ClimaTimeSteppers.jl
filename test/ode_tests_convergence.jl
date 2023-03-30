@@ -506,9 +506,14 @@ const ArrayType = CuArray
                         dQ[1] += Ω[1, 1] * gf + Ω[1, 2] * gs - ω * sin(ω * t) / 2yf
                     end
                 end
-                event = Event(array_device(Q))
-                event = knl!(array_device(Q), 1)(dQ, Q, t, increment; ndrange = 1, dependencies = (event,))
-                wait(array_device(Q), event)
+                if isdefined(KernelAbstractions, :Event)
+                    event = Event(array_device(Q))
+                    event = knl!(array_device(Q), 1)(dQ, Q, t, increment; ndrange = 1, dependencies = (event,))
+                    wait(array_device(Q), event)
+                else
+                    knl!(array_device(Q), 1)(dQ, Q, t, increment; ndrange = 1)
+                    KernelAbstractions.synchronize(array_device(Q))
+                end
             end
 
 
@@ -523,9 +528,14 @@ const ArrayType = CuArray
                         dQ[2] += Ω[2, 1] * gf + Ω[2, 2] * gs - sin(t) / 2ys
                     end
                 end
-                event = Event(array_device(Q))
-                event = knl!(array_device(Q), 1)(dQ, Q, t, increment; ndrange = 1, dependencies = (event,))
-                wait(array_device(Q), event)
+                if isdefined(KernelAbstractions, :Event)
+                    event = Event(array_device(Q))
+                    event = knl!(array_device(Q), 1)(dQ, Q, t, increment; ndrange = 1, dependencies = (event,))
+                    wait(array_device(Q), event)
+                else
+                    knl!(array_device(Q), 1)(dQ, Q, t, increment; ndrange = 1)
+                    KernelAbstractions.synchronize(array_device(Q))
+                end
             end
 
             struct ODETestConvNonLinBE <: AbstractBackwardEulerSolver end
@@ -546,9 +556,14 @@ const ArrayType = CuArray
                         Q[2] = (-b + sqrt(b^2 - 4 * a * c)) / (2a)
                     end
                 end
-                event = Event(array_device(Q))
-                event = knl!(array_device(Q), 1)(Q, Qhat, α, p, t; ndrange = 1, dependencies = (event,))
-                wait(array_device(Q), event)
+                if isdefined(KernelAbstractions, :Event)
+                    event = Event(array_device(Q))
+                    event = knl!(array_device(Q), 1)(Q, Qhat, α, p, t; ndrange = 1, dependencies = (event,))
+                    wait(array_device(Q), event)
+                else
+                    knl!(array_device(Q), 1)(Q, Qhat, α, p, t; ndrange = 1)
+                    KernelAbstractions.synchronize(array_device(Q))
+                end
             end
 
             exactsolution(t) = ArrayType([sqrt(3 + cos(ω * t)); sqrt(2 + cos(t))])
@@ -657,9 +672,14 @@ const ArrayType = CuArray
                         dQ[1] += Ω[1, :]' * g - ω1 * sin(ω1 * t) / 2y1
                     end
                 end
-                event = Event(array_device(Q))
-                event = knl!(array_device(Q), 1)(dQ, Q, t, increment; ndrange = 1, dependencies = (event,))
-                wait(array_device(Q), event)
+                if isdefined(KernelAbstractions, :Event)
+                    event = Event(array_device(Q))
+                    event = knl!(array_device(Q), 1)(dQ, Q, t, increment; ndrange = 1, dependencies = (event,))
+                    wait(array_device(Q), event)
+                else
+                    knl!(array_device(Q), 1)(dQ, Q, t, increment; ndrange = 1)
+                    KernelAbstractions.synchronize(array_device(Q))
+                end
             end
             function rhs2!(dQ, Q, param, t; increment)
                 @kernel function knl!(dQ, Q, t, increment)
@@ -674,9 +694,14 @@ const ArrayType = CuArray
                         dQ[2] += Ω[2, :]' * g - ω2 * sin(ω2 * t) / 2y2
                     end
                 end
-                event = Event(array_device(Q))
-                event = knl!(array_device(Q), 1)(dQ, Q, t, increment; ndrange = 1, dependencies = (event,))
-                wait(array_device(Q), event)
+                if isdefined(KernelAbstractions, :Event)
+                    event = Event(array_device(Q))
+                    event = knl!(array_device(Q), 1)(dQ, Q, t, increment; ndrange = 1, dependencies = (event,))
+                    wait(array_device(Q), event)
+                else
+                    knl!(array_device(Q), 1)(dQ, Q, t, increment; ndrange = 1)
+                    KernelAbstractions.synchronize(array_device(Q))
+                end
             end
             function rhs3!(dQ, Q, param, t; increment)
                 @kernel function knl!(dQ, Q, t, increment)
@@ -691,9 +716,14 @@ const ArrayType = CuArray
                         dQ[3] += Ω[3, :]' * g - ω3 * sin(ω3 * t) / 2y3
                     end
                 end
-                event = Event(array_device(Q))
-                event = knl!(array_device(Q), 1)(dQ, Q, t, increment; ndrange = 1, dependencies = (event,))
-                wait(array_device(Q), event)
+                if isdefined(KernelAbstractions, :Event)
+                    event = Event(array_device(Q))
+                    event = knl!(array_device(Q), 1)(dQ, Q, t, increment; ndrange = 1, dependencies = (event,))
+                    wait(array_device(Q), event)
+                else
+                    knl!(array_device(Q), 1)(dQ, Q, t, increment; ndrange = 1)
+                    KernelAbstractions.synchronize(array_device(Q))
+                end
             end
             struct ODETestConvNonLinBE3Rate <: AbstractBackwardEulerSolver end
             ClimaTimeSteppers.Δt_is_adjustable(::ODETestConvNonLinBE3Rate) = true
@@ -714,9 +744,14 @@ const ArrayType = CuArray
                         Q[3] = (-b + sqrt(b^2 - 4 * a * c)) / (2a)
                     end
                 end
-                event = Event(array_device(Q))
-                event = knl!(array_device(Q), 1)(Q, Qhat, α, p, t; ndrange = 1, dependencies = (event,))
-                wait(array_device(Q), event)
+                if isdefined(KernelAbstractions, :Event)
+                    event = Event(array_device(Q))
+                    event = knl!(array_device(Q), 1)(Q, Qhat, α, p, t; ndrange = 1, dependencies = (event,))
+                    wait(array_device(Q), event)
+                else
+                    knl!(array_device(Q), 1)(Q, Qhat, α, p, t; ndrange = 1)
+                    KernelAbstractions.synchronize(array_device(Q))
+                end
             end
 
             exactsolution(t) = ArrayType([sqrt(β1 + cos(ω1 * t)), sqrt(β2 + cos(ω2 * t)), sqrt(β3 + cos(ω3 * t))])

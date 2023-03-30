@@ -180,17 +180,27 @@ function dostep!(Q, mrigark::MRIGARKDecoupledImplicit, param, time::Real)
         # (Divide by k arises from the integration γ_{ij}(τ) in Sandu (2019);
         # see Equation (2.2b) and Definition 2.2
         γs = ntuple(k -> ntuple(j -> dt * Γs[k][2s, j] / k, s), NΓ)
-        event = Event(array_device(Q))
-        event = mri_create_Qhat!(array_device(Q), groupsize)(
-            realview(Qhat),
-            realview(Q),
-            γs,
-            mriparam.Rs;
-            ndrange = length(realview(Q)),
-            dependencies = (event,),
-        )
-        wait(array_device(Q), event)
-
+        if isdefined(KernelAbstractions, :Event)
+            event = Event(array_device(Q))
+            event = mri_create_Qhat!(array_device(Q), groupsize)(
+                realview(Qhat),
+                realview(Q),
+                γs,
+                mriparam.Rs;
+                ndrange = length(realview(Q)),
+                dependencies = (event,),
+            )
+            wait(array_device(Q), event)
+        else
+            mri_create_Qhat!(array_device(Q), groupsize)(
+                realview(Qhat),
+                realview(Q),
+                γs,
+                mriparam.Rs;
+                ndrange = length(realview(Q)),
+            )
+            KernelAbstractions.synchronize(array_device(Q))
+        end
         # Solve: Q = Qhat + α fslow(Q, stage_end_time)
         α = dt * Γs[1][2s, s + 1]
         besolver!(Q, Qhat, α, param, stage_end_time)

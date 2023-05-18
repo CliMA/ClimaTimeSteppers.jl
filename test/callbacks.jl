@@ -1,9 +1,10 @@
 using Test
-using ClimaComms, ClimaCommsMPI
+using ClimaComms
 using ClimaTimeSteppers, DiffEqBase
 using ClimaTimeSteppers.Callbacks
 
-comm_ctx = ClimaCommsMPI.MPICommsContext()
+device = ClimaComms.CPUDevice()
+comm_ctx = ClimaComms.MPICommsContext(device)
 
 ClimaComms.init(comm_ctx)
 

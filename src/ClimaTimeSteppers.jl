@@ -50,6 +50,7 @@ using LinearAlgebra
 using LinearOperators
 using StaticArrays
 using CUDA
+import ClimaComms
 
 export AbstractAlgorithmName, AbstractAlgorithmConstraint, Unconstrained, SSP
 

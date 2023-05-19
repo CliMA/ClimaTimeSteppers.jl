@@ -415,6 +415,12 @@ end
 
 solver_type(::KrylovMethod{Val{T}}) where {T} = T
 
+# TODO: should we make ClimaCore depend on Krylov.jl and overload
+# Krylov.ktypeof for `FieldVector`s?
+ct_ktypeof(x) = #= x::ClimaCore.Fields.FieldVector =#
+    ClimaComms.array_type(x){eltype(parent(x))}
+ct_ktypeof(x::Vector) = Krylov.ktypeof(x)
+
 function allocate_cache(alg::KrylovMethod, x_prototype)
     (; jacobian_free_jvp, forcing_term, args, kwargs, debugger) = alg
     type = solver_type(alg)
@@ -423,7 +429,7 @@ function allocate_cache(alg::KrylovMethod, x_prototype)
         jacobian_free_jvp_cache = isnothing(jacobian_free_jvp) ? nothing :
                                   allocate_cache(jacobian_free_jvp, x_prototype),
         forcing_term_cache = allocate_cache(forcing_term, x_prototype),
-        solver = type(l, l, args..., Krylov.ktypeof(x_prototype); kwargs...),
+        solver = type(l, l, args..., ct_ktypeof(x_prototype); kwargs...),
         debugger_cache = isnothing(debugger) ? nothing : allocate_cache(debugger, x_prototype),
     )
 end

@@ -1,5 +1,6 @@
 using DiffEqBase, ClimaTimeSteppers, LinearAlgebra, StaticArrays
 using ClimaCore
+using ClimaComms
 import ClimaCore.Domains as Domains
 import ClimaCore.Geometry as Geometry
 import ClimaCore.Meshes as Meshes
@@ -7,6 +8,9 @@ import ClimaCore.Topologies as Topologies
 import ClimaCore.Spaces as Spaces
 import ClimaCore.Fields as Fields
 import ClimaCore.Operators as Operators
+
+import Krylov
+Krylov.ktypeof(x::Fields.FieldVector) = ClimaComms.array_type(x){eltype(parent(x)), 1}
 
 """
 Single variable linear ODE

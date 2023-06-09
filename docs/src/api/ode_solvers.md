@@ -58,6 +58,7 @@ ARK548L2SA2
 ```@docs
 SSP22Heuns
 SSP33ShuOsher
+RK4
 ```
 
 ## Old LSRK Interface

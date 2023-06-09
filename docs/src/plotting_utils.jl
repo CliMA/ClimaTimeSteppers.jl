@@ -57,6 +57,7 @@ imex_convergence_orders(::ARK437L2SA1) = (4, 4, 4)
 imex_convergence_orders(::ARK548L2SA2) = (5, 5, 5)
 imex_convergence_orders(::SSP22Heuns) = (2, 2, 2)
 imex_convergence_orders(::SSP33ShuOsher) = (3, 3, 3)
+imex_convergence_orders(::RK4) = (4, 4, 4)
 
 # Compute a confidence interval for the convergence order, returning the
 # estimated convergence order and its uncertainty.

@@ -1,5 +1,5 @@
 export ExplicitTableau, ExplicitAlgorithm
-export SSP22Heuns, SSP33ShuOsher
+export SSP22Heuns, SSP33ShuOsher, RK4
 
 abstract type ERKAlgorithmName <: AbstractAlgorithmName end
 
@@ -76,4 +76,20 @@ function ExplicitTableau(::SSP33ShuOsher)
         1 0 0
         1/4 1/4 0
     ]), b = @SArray([1 / 6, 1 / 6, 2 / 3]))
+end
+
+"""
+    RK4
+
+The RK4 algorithm from [SM2003](@cite), a Runge-Kutta method with
+4 stages and 4th order accuracy.
+"""
+struct RK4 <: ERKAlgorithmName end
+function ExplicitTableau(::RK4)
+    return ExplicitTableau(; a = @SArray([
+        0 0 0 0
+        1/2 0 0 0
+        0 1/2 0 0
+        0 0 1 0
+    ]), b = @SArray([1 / 6, 1 / 3, 1 / 3, 1 / 6]))
 end

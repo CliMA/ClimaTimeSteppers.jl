@@ -3,7 +3,7 @@ using ClimaComms
 using ClimaTimeSteppers, DiffEqBase
 using ClimaTimeSteppers.Callbacks
 
-device = ClimaComms.CPUDevice()
+device = device = isdefined(ClimaComms, :CPUDevice) ? ClimaComms.CPUDevice() : ClimaComms.CPUSingleThreaded()
 comm_ctx = ClimaComms.MPICommsContext(device)
 
 ClimaComms.init(comm_ctx)

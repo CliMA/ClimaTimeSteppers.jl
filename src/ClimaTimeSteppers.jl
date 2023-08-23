@@ -104,6 +104,7 @@ struct SSP <: AbstractAlgorithmConstraint end
 SciMLBase.allowscomplex(alg::DistributedODEAlgorithm) = true
 include("integrators.jl")
 
+include("utilities/nvtx.jl")
 include("utilities/update_signal_handler.jl")
 include("utilities/convergence_condition.jl")
 include("utilities/convergence_checker.jl")

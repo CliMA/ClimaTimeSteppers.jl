@@ -1,3 +1,5 @@
+import NVTX
+
 has_jac(T_imp!) =
     hasfield(typeof(T_imp!), :Wfact) &&
     hasfield(typeof(T_imp!), :jac_prototype) &&
@@ -53,86 +55,120 @@ function step_u!(integrator, cache::IMEXARKCache)
     s = length(b_exp)
 
     if !isnothing(T_imp!) && !isnothing(newtons_method)
-        update!(
-            newtons_method,
-            newtons_method_cache,
-            NewTimeStep(t),
-            jacobian -> isnothing(γ) ? sdirk_error(name) : T_imp!.Wfact(jacobian, u, p, dt * γ, t),
-        )
+        NVTX.@range "update!" color = colorant"yellow" begin
+            update!(
+                newtons_method,
+                newtons_method_cache,
+                NewTimeStep(t),
+                jacobian -> isnothing(γ) ? sdirk_error(name) : T_imp!.Wfact(jacobian, u, p, dt * γ, t),
+            )
+        end
     end
 
     for i in 1:s
-        t_exp = t + dt * c_exp[i]
-        t_imp = t + dt * c_imp[i]
+        NVTX.@range "stage" payload = i begin
+            t_exp = t + dt * c_exp[i]
+            t_imp = t + dt * c_imp[i]
 
-        @. U[i] = u
-
-        if !isnothing(T_lim!) # Update based on limited tendencies from previous stages
-            for j in 1:(i - 1)
-                iszero(a_exp[i, j]) && continue
-                @. U[i] += dt * a_exp[i, j] * T_lim[j]
+            NVTX.@range "assign U" color = colorant"yellow" begin
+                @. U[i] = u
             end
-            lim!(U[i], p, t_exp, u)
-        end
 
-        if !isnothing(T_exp!) # Update based on explicit tendencies from previous stages
-            for j in 1:(i - 1)
-                iszero(a_exp[i, j]) && continue
-                @. U[i] += dt * a_exp[i, j] * T_exp[j]
-            end
-        end
-
-        if !isnothing(T_imp!) # Update based on implicit tendencies from previous stages
-            for j in 1:(i - 1)
-                iszero(a_imp[i, j]) && continue
-                @. U[i] += dt * a_imp[i, j] * T_imp[j]
-            end
-        end
-
-        dss!(U[i], p, t_exp)
-
-        if !isnothing(T_imp!) && !iszero(a_imp[i, i]) # Implicit solve
-            @assert !isnothing(newtons_method)
-            @. temp = U[i]
-            # TODO: can/should we remove these closures?
-            implicit_equation_residual! = (residual, Ui) -> begin
-                T_imp!(residual, Ui, p, t_imp)
-                @. residual = temp + dt * a_imp[i, i] * residual - Ui
-            end
-            implicit_equation_jacobian! = (jacobian, Ui) -> T_imp!.Wfact(jacobian, Ui, p, dt * a_imp[i, i], t_imp)
-            solve_newton!(
-                newtons_method,
-                newtons_method_cache,
-                U[i],
-                implicit_equation_residual!,
-                implicit_equation_jacobian!,
-            )
-        end
-
-        # We do not need to DSS U[i] again because the implicit solve should
-        # give the same results for redundant columns (as long as the implicit
-        # tendency only acts in the vertical direction).
-
-        if !all(iszero, a_imp[:, i]) || !iszero(b_imp[i])
-            if !isnothing(T_imp!)
-                if iszero(a_imp[i, i])
-                    # If its coefficient is 0, T_imp[i] is effectively being
-                    # treated explicitly.
-                    T_imp!(T_imp[i], U[i], p, t_imp)
-                else
-                    # If T_imp[i] is being treated implicitly, ensure that it
-                    # exactly satisfies the implicit equation.
-                    @. T_imp[i] = (U[i] - temp) / (dt * a_imp[i, i])
+            if !isnothing(T_lim!) # Update based on limited tendencies from previous stages
+                for j in 1:(i - 1)
+                    iszero(a_exp[i, j]) && continue
+                    NVTX.@range "lim update" color = colorant"yellow" begin
+                        @. U[i] += dt * a_exp[i, j] * T_lim[j]
+                    end
+                end
+                NVTX.@range "lim" color = colorant"yellow" begin
+                    lim!(U[i], p, t_exp, u)
                 end
             end
-        end
 
-        if !all(iszero, a_exp[:, i]) || !iszero(b_exp[i])
-            if !isnothing(T_lim!)
-                T_lim!(T_lim[i], U[i], p, t_exp)
+            if !isnothing(T_exp!) # Update based on explicit tendencies from previous stages
+                for j in 1:(i - 1)
+                    iszero(a_exp[i, j]) && continue
+                    NVTX.@range "exp update" color = colorant"yellow" begin
+                        @. U[i] += dt * a_exp[i, j] * T_exp[j]
+                    end
+                end
             end
-            if !isnothing(T_exp!)
-                T_exp!(T_exp[i], U[i], p, t_exp)
+
+            if !isnothing(T_imp!) # Update based on implicit tendencies from previous stages
+                for j in 1:(i - 1)
+                    iszero(a_imp[i, j]) && continue
+                    NVTX.@range "imp update" color = colorant"yellow" begin
+                        @. U[i] += dt * a_imp[i, j] * T_imp[j]
+                    end
+                end
+            end
+
+            NVTX.@range "dss!" color = colorant"yellow" begin
+                dss!(U[i], p, t_exp)
+            end
+
+            if !isnothing(T_imp!) && !iszero(a_imp[i, i]) # Implicit solve
+                @assert !isnothing(newtons_method)
+                NVTX.@range "assign temp" color = colorant"yellow" begin
+                    @. temp = U[i]
+                end
+                # TODO: can/should we remove these closures?
+                implicit_equation_residual! =
+                    (residual, Ui) -> begin
+                        NVTX.@range "call T_imp!" color = colorant"yellow" begin
+                            T_imp!(residual, Ui, p, t_imp)
+                        end
+                        NVTX.@range "residual" color = colorant"yellow" begin
+                            @. residual = temp + dt * a_imp[i, i] * residual - Ui
+                        end
+                    end
+                implicit_equation_jacobian! = (jacobian, Ui) -> T_imp!.Wfact(jacobian, Ui, p, dt * a_imp[i, i], t_imp)
+
+                NVTX.@range "solve_newton!" color = colorant"yellow" begin
+                    solve_newton!(
+                        newtons_method,
+                        newtons_method_cache,
+                        U[i],
+                        implicit_equation_residual!,
+                        implicit_equation_jacobian!,
+                    )
+                end
+            end
+
+            # We do not need to DSS U[i] again because the implicit solve should
+            # give the same results for redundant columns (as long as the implicit
+            # tendency only acts in the vertical direction).
+
+            if !all(iszero, a_imp[:, i]) || !iszero(b_imp[i])
+                if !isnothing(T_imp!)
+                    if iszero(a_imp[i, i])
+                        # If its coefficient is 0, T_imp[i] is effectively being
+                        # treated explicitly.
+                        NVTX.@range "call T_imp!" color = colorant"yellow" begin
+                            T_imp!(T_imp[i], U[i], p, t_imp)
+                        end
+                    else
+                        # If T_imp[i] is being treated implicitly, ensure that it
+                        # exactly satisfies the implicit equation.
+                        NVTX.@range "back out T_imp!" color = colorant"yellow" begin
+                            @. T_imp[i] = (U[i] - temp) / (dt * a_imp[i, i])
+                        end
+                    end
+                end
+            end
+
+            if !all(iszero, a_exp[:, i]) || !iszero(b_exp[i])
+                if !isnothing(T_lim!)
+                    NVTX.@range "call T_lim!" color = colorant"yellow" begin
+                        T_lim!(T_lim[i], U[i], p, t_exp)
+                    end
+                end
+                if !isnothing(T_exp!)
+                    NVTX.@range "call T_exp!" color = colorant"yellow" begin
+                        T_exp!(T_exp[i], U[i], p, t_exp)
+                    end
+                end
             end
         end
     end
@@ -140,30 +176,42 @@ function step_u!(integrator, cache::IMEXARKCache)
     t_final = t + dt
 
     if !isnothing(T_lim!) # Update based on limited tendencies from previous stages
-        @. temp = u
+        NVTX.@range "assign temp" color = colorant"yellow" begin
+            @. temp = u
+        end
         for j in 1:s
             iszero(b_exp[j]) && continue
-            @. temp += dt * b_exp[j] * T_lim[j]
+            NVTX.@range "update temp" color = colorant"yellow" begin
+                @. temp += dt * b_exp[j] * T_lim[j]
+            end
         end
-        lim!(temp, p, t_final, u)
+        NVTX.@range "call lim!" color = colorant"yellow" begin
+            lim!(temp, p, t_final, u)
+        end
         @. u = temp
     end
 
     if !isnothing(T_exp!) # Update based on explicit tendencies from previous stages
         for j in 1:s
             iszero(b_exp[j]) && continue
-            @. u += dt * b_exp[j] * T_exp[j]
+            NVTX.@range "increment u (exp)" color = colorant"yellow" begin
+                @. u += dt * b_exp[j] * T_exp[j]
+            end
         end
     end
 
     if !isnothing(T_imp!) # Update based on implicit tendencies from previous stages
         for j in 1:s
             iszero(b_imp[j]) && continue
-            @. u += dt * b_imp[j] * T_imp[j]
+            NVTX.@range "increment u (imp)" color = colorant"yellow" begin
+                @. u += dt * b_imp[j] * T_imp[j]
+            end
         end
     end
 
-    dss!(u, p, t_final)
+    NVTX.@range "dss!" color = colorant"yellow" begin
+        dss!(u, p, t_final)
+    end
 
     return u
 end

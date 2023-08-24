@@ -51,6 +51,8 @@ using LinearOperators
 using StaticArrays
 using CUDA
 import ClimaComms
+using Colors
+using NVTX
 
 export AbstractAlgorithmName, AbstractAlgorithmConstraint, Unconstrained, SSP
 

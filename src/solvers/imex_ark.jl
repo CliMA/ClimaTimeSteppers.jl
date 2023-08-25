@@ -48,7 +48,8 @@ end
 function step_u!(integrator, cache::IMEXARKCache)
     (; u, p, t, dt, sol, alg) = integrator
     (; f) = sol.prob
-    (; T_lim!, T_exp!, T_imp!, lim!, dss!) = f
+    (; T_lim!, T_exp!, T_imp!, lim!, apply_filter!) = f
+    (; post_stage_callback!) = f
     (; name, tableau, newtons_method) = alg
     (; a_exp, b_exp, a_imp, b_imp, c_exp, c_imp) = tableau
     (; U, T_lim, T_exp, T_imp, temp, γ, newtons_method_cache) = cache
@@ -104,8 +105,11 @@ function step_u!(integrator, cache::IMEXARKCache)
                 end
             end
 
-            NVTX.@range "dss!" color = colorant"yellow" begin
-                dss!(U[i], p, t_exp)
+            NVTX.@range "apply_filter! (exp)" color = colorant"yellow" begin
+                apply_filter!(U[i], p, t_exp)
+            end
+            NVTX.@range "post_stage_callback! (exp)" color = colorant"yellow" begin
+                post_stage_callback!(U[i], p, t_exp)
             end
 
             if !isnothing(T_imp!) && !iszero(a_imp[i, i]) # Implicit solve
@@ -124,6 +128,9 @@ function step_u!(integrator, cache::IMEXARKCache)
                         end
                     end
                 implicit_equation_jacobian! = (jacobian, Ui) -> T_imp!.Wfact(jacobian, Ui, p, dt * a_imp[i, i], t_imp)
+                # double check that we want to call post_stage_callback! and not apply_filter!
+                # call_apply_filter! = Ui -> apply_filter!(Ui, p, t_imp)
+                call_post_stage_callback! = Ui -> post_stage_callback!(Ui, p, t_imp)
 
                 NVTX.@range "solve_newton!" color = colorant"yellow" begin
                     solve_newton!(
@@ -132,11 +139,12 @@ function step_u!(integrator, cache::IMEXARKCache)
                         U[i],
                         implicit_equation_residual!,
                         implicit_equation_jacobian!,
+                        call_post_stage_callback!,
                     )
                 end
             end
 
-            # We do not need to DSS U[i] again because the implicit solve should
+            # We do not need to filter U[i] again because the implicit solve should
             # give the same results for redundant columns (as long as the implicit
             # tendency only acts in the vertical direction).
 
@@ -156,6 +164,12 @@ function step_u!(integrator, cache::IMEXARKCache)
                         end
                     end
                 end
+            end
+            NVTX.@range "apply_filter! (imp)" color = colorant"yellow" begin
+                apply_filter!(U[i], p, t_imp)
+            end
+            NVTX.@range "post_stage_callback! (imp)" color = colorant"yellow" begin
+                post_stage_callback!(U[i], p, t_imp)
             end
 
             if !all(iszero, a_exp[:, i]) || !iszero(b_exp[i])
@@ -209,8 +223,11 @@ function step_u!(integrator, cache::IMEXARKCache)
         end
     end
 
-    NVTX.@range "dss!" color = colorant"yellow" begin
-        dss!(u, p, t_final)
+    NVTX.@range "apply_filter!" color = colorant"yellow" begin
+        apply_filter!(u, p, t_final)
+    end
+    NVTX.@range "post_stage_callback!" color = colorant"yellow" begin
+        post_stage_callback!(u, p, t_final)
     end
 
     return u

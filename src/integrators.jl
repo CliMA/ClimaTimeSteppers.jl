@@ -117,6 +117,12 @@ function DiffEqBase.__init(
         init_cache(prob, alg; dt, kwargs...),
         sol,
     )
+    if prob.f isa ClimaODEFunction
+        (; post_stage_callback!) = prob.f
+        if !isnothing(post_stage_callback!)
+            post_stage_callback!(u0, p, t0)
+        end
+    end
     DiffEqBase.initialize!(callback, u0, t0, integrator)
     return integrator
 end

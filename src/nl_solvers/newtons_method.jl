@@ -475,11 +475,11 @@ end
 
 Solves the equation `f(x) = 0`, using the Jacobian (or an approximation of the
 Jacobian) `j(x) = f'(x)` if it is available. This is done by calling
-`solve_newton!(::NewtonsMethod, cache, x, f!, j! = nothing)`, where `f!(f, x)` is a
-function that sets `f(x)` in-place and, if it is specified, `j!(j, x)` is a
-function that sets `j(x)` in-place. The `x` passed to Newton's method is
-modified in-place, and its initial value is used as a starting guess for the
-root. The `cache` can be obtained with
+`solve_newton!(::NewtonsMethod, cache, x, f!, j! = nothing, post_stage_callback! = nothing)`,
+where `f!(f, x)` is a function that sets `f(x)` in-place and, if it is specified,
+`j!(j, x)` is a function that sets `j(x)` in-place. The `x` passed to Newton's
+method is modified in-place, and its initial value is used as a starting guess
+for the root. The `cache` can be obtained with
 `allocate_cache(::NewtonsMethod, x_prototype, j_prototype = nothing)`, where
 `x_prototype` is `similar` to `x` and `f(x)`, and, if it is specified,
 `j_prototype` is `similar` to `j(x)`. In order for `j(x)` to be invertible, it
@@ -568,7 +568,7 @@ function allocate_cache(alg::NewtonsMethod, x_prototype, j_prototype = nothing)
     )
 end
 
-function solve_newton!(alg::NewtonsMethod, cache, x, f!, j! = nothing)
+function solve_newton!(alg::NewtonsMethod, cache, x, f!, j! = nothing, post_stage_callback! = nothing)
     (; max_iters, update_j, krylov_method, convergence_checker, verbose) = alg
     (; update_j_cache, krylov_method_cache, convergence_checker_cache) = cache
     (; Δx, f, j) = cache
@@ -577,7 +577,12 @@ function solve_newton!(alg::NewtonsMethod, cache, x, f!, j! = nothing)
     end
     for n in 0:max_iters
         # Update x[n] with Δx[n - 1], and exit the loop if Δx[n] is not needed.
-        n > 0 && (x .-= Δx)
+        if n > 0
+            x .-= Δx
+            if !isnothing(post_stage_callback!)
+                post_stage_callback!(x)
+            end
+        end
         if n == max_iters && isnothing(convergence_checker)
             is_verbose(verbose) && @info "Newton iteration $n: ‖x‖ = $(norm(x)), ‖Δx‖ = N/A"
             break

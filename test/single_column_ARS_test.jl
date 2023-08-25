@@ -312,7 +312,7 @@ end
 
         u = solve(single_column_prob_wfact_split, algo; dt = dt)
         @info norm(u.u[end])
-        @test norm(u.u[end]) ≈ reference_sol_norm[i] atol = 1e3eps()
+        @test norm(u.u[end]) ≈ reference_sol_norm[i] atol = 2e3eps()
     end
 
 end

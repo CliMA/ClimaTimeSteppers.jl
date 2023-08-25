@@ -55,7 +55,8 @@ end
 function step_u!(integrator, cache::IMEXSSPRKCache)
     (; u, p, t, dt, sol, alg) = integrator
     (; f) = sol.prob
-    (; T_lim!, T_exp!, T_imp!, lim!, dss!) = f
+    (; T_lim!, T_exp!, T_imp!, lim!, apply_filter!) = f
+    (; post_stage_callback!) = f
     (; name, tableau, newtons_method) = alg
     (; a_imp, b_imp, c_exp, c_imp) = tableau
     (; U, U_lim, U_exp, T_lim, T_exp, T_imp, temp, β, γ, newtons_method_cache) = cache
@@ -90,7 +91,8 @@ function step_u!(integrator, cache::IMEXSSPRKCache)
             @. U_exp = (1 - β[i - 1]) * u + β[i - 1] * U_exp
         end
 
-        dss!(U_exp, p, t_exp)
+        apply_filter!(U_exp, p, t_exp)
+        post_stage_callback!(U_exp, p, t_exp)
 
         @. U = U_exp
         if !isnothing(T_imp!) # Update based on implicit tendencies from previous stages
@@ -109,16 +111,18 @@ function step_u!(integrator, cache::IMEXSSPRKCache)
                 @. residual = temp + dt * a_imp[i, i] * residual - Ui
             end
             implicit_equation_jacobian! = (jacobian, Ui) -> T_imp!.Wfact(jacobian, Ui, p, dt * a_imp[i, i], t_imp)
+            call_post_stage_callback! = Ui -> post_stage_callback!(Ui, p, t_imp)
             solve_newton!(
                 newtons_method,
                 newtons_method_cache,
                 U,
                 implicit_equation_residual!,
                 implicit_equation_jacobian!,
+                call_post_stage_callback!,
             )
         end
 
-        # We do not need to DSS U again because the implicit solve should
+        # We do not need to filter U again because the implicit solve should
         # give the same results for redundant columns (as long as the implicit
         # tendency only acts in the vertical direction).
 
@@ -144,6 +148,9 @@ function step_u!(integrator, cache::IMEXSSPRKCache)
                 T_exp!(T_exp, U, p, t_exp)
             end
         end
+        apply_filter!(U, p, t_imp)
+        post_stage_callback!(U, p, t_imp)
+
     end
 
     t_final = t + dt
@@ -167,7 +174,8 @@ function step_u!(integrator, cache::IMEXSSPRKCache)
         end
     end
 
-    dss!(u, p, t_final)
+    apply_filter!(u, p, t_final)
+    post_stage_callback!(u, p, t_final)
 
     return u
 end

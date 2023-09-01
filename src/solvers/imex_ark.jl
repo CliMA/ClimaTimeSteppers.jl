@@ -46,10 +46,12 @@ function init_cache(prob::DiffEqBase.AbstractODEProblem, alg::IMEXAlgorithm{Unco
 end
 
 function step_u!(integrator, cache::IMEXARKCache)
+    println("************** Started step_u!")
     (; u, p, t, dt, sol, alg) = integrator
     (; f) = sol.prob
     (; T_lim!, T_exp!, T_imp!, lim!, apply_filter!) = f
-    (; post_stage_callback!) = f
+    (; post_explicit_stage_callback!) = f
+    (; post_implicit_stage_callback!) = f
     (; name, tableau, newtons_method) = alg
     (; a_exp, b_exp, a_imp, b_imp, c_exp, c_imp) = tableau
     (; U, T_lim, T_exp, T_imp, temp, γ, newtons_method_cache) = cache
@@ -57,12 +59,14 @@ function step_u!(integrator, cache::IMEXARKCache)
 
     if !isnothing(T_imp!) && !isnothing(newtons_method)
         NVTX.@range "update!" color = colorant"yellow" begin
+            println("------ started calling update!")
             update!(
                 newtons_method,
                 newtons_method_cache,
                 NewTimeStep(t),
                 jacobian -> isnothing(γ) ? sdirk_error(name) : T_imp!.Wfact(jacobian, u, p, dt * γ, t),
             )
+            println("------ finished calling update!")
         end
     end
 
@@ -106,10 +110,10 @@ function step_u!(integrator, cache::IMEXARKCache)
             end
 
             NVTX.@range "apply_filter! (exp)" color = colorant"yellow" begin
-                apply_filter!(U[i], p, t_exp)
+                apply_filter!(U[i], p, t_exp, :exp)
             end
-            NVTX.@range "post_stage_callback! (exp)" color = colorant"yellow" begin
-                post_stage_callback!(U[i], p, t_exp)
+            NVTX.@range "post_explicit_stage_callback!" color = colorant"yellow" begin
+                post_explicit_stage_callback!(U[i], p, t_exp, :exp)
             end
 
             if !isnothing(T_imp!) && !iszero(a_imp[i, i]) # Implicit solve
@@ -128,9 +132,9 @@ function step_u!(integrator, cache::IMEXARKCache)
                         end
                     end
                 implicit_equation_jacobian! = (jacobian, Ui) -> T_imp!.Wfact(jacobian, Ui, p, dt * a_imp[i, i], t_imp)
-                # double check that we want to call post_stage_callback! and not apply_filter!
+                # double check that we want to call post_implicit_stage_callback! and not apply_filter!
                 # call_apply_filter! = Ui -> apply_filter!(Ui, p, t_imp)
-                call_post_stage_callback! = Ui -> post_stage_callback!(Ui, p, t_imp)
+                call_post_stage_callback! = Ui -> post_implicit_stage_callback!(Ui, p, t_imp, :imp_closure)
 
                 NVTX.@range "solve_newton!" color = colorant"yellow" begin
                     solve_newton!(
@@ -165,12 +169,12 @@ function step_u!(integrator, cache::IMEXARKCache)
                     end
                 end
             end
-            NVTX.@range "apply_filter! (imp)" color = colorant"yellow" begin
-                apply_filter!(U[i], p, t_imp)
-            end
-            NVTX.@range "post_stage_callback! (imp)" color = colorant"yellow" begin
-                post_stage_callback!(U[i], p, t_imp)
-            end
+            # NVTX.@range "apply_filter! (imp)" color = colorant"yellow" begin
+            #     apply_filter!(U[i], p, t_imp, :imp)
+            # end
+            # NVTX.@range "post_explicit_stage_callback!" color = colorant"yellow" begin
+            #     post_explicit_stage_callback!(U[i], p, t_imp, :imp)
+            # end
 
             if !all(iszero, a_exp[:, i]) || !iszero(b_exp[i])
                 if !isnothing(T_lim!)
@@ -224,11 +228,12 @@ function step_u!(integrator, cache::IMEXARKCache)
     end
 
     NVTX.@range "apply_filter!" color = colorant"yellow" begin
-        apply_filter!(u, p, t_final)
+        apply_filter!(u, p, t_final, :final)
     end
-    NVTX.@range "post_stage_callback!" color = colorant"yellow" begin
-        post_stage_callback!(u, p, t_final)
+    NVTX.@range "post_explicit_stage_callback!" color = colorant"yellow" begin
+        post_explicit_stage_callback!(u, p, t_final, :final)
     end
+    println("************** Finished step_u!")
 
     return u
 end

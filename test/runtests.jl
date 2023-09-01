@@ -28,6 +28,9 @@ end
 @safetestset "Integrator tests" begin
     include("integrator.jl")
 end
+@safetestset "Consistency" begin
+    include("ars_consistency.jl")
+end
 @safetestset "Algorithm convergence" begin
     include("convergence.jl")
 end

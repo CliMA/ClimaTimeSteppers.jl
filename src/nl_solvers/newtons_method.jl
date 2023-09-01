@@ -575,6 +575,8 @@ function solve_newton!(alg::NewtonsMethod, cache, x, f!, j! = nothing, post_stag
     if (!isnothing(j)) && needs_update!(update_j, update_j_cache, NewNewtonSolve())
         j!(j, x)
     end
+    n_iters_performed = 0
+    println("----- starting newton iterations")
     for n in 0:max_iters
         # Update x[n] with Δx[n - 1], and exit the loop if Δx[n] is not needed.
         if n > 0
@@ -582,6 +584,7 @@ function solve_newton!(alg::NewtonsMethod, cache, x, f!, j! = nothing, post_stag
             if !isnothing(post_stage_callback!)
                 post_stage_callback!(x)
             end
+            n_iters_performed+=1
         end
         if n == max_iters && isnothing(convergence_checker)
             is_verbose(verbose) && @info "Newton iteration $n: ‖x‖ = $(norm(x)), ‖Δx‖ = N/A"
@@ -610,6 +613,7 @@ function solve_newton!(alg::NewtonsMethod, cache, x, f!, j! = nothing, post_stag
             n == max_iters && @warn "Newton's method did not converge within $n iterations"
         end
     end
+    println("----- finished newton iterations")
 end
 
 function update!(alg::NewtonsMethod, cache, signal::UpdateSignal, j!)

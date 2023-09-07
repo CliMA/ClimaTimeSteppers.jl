@@ -45,7 +45,15 @@ function init_cache(prob::DiffEqBase.AbstractODEProblem, alg::IMEXAlgorithm{Unco
     return IMEXARKCache(U, T_lim, T_exp, T_imp, temp, γ, newtons_method_cache)
 end
 
-function step_u!(integrator, cache::IMEXARKCache)
+
+step_u!(integrator, cache::IMEXARKCache) =
+    step_u!(integrator, cache, integrator.alg.name)
+
+# function step_u!(integrator, cache::IMEXARKCache, ::ARS343)
+#     ...
+# end
+
+function step_u!(integrator, cache::IMEXARKCache, name)
     println("************** Started step_u!")
     (; u, p, t, dt, sol, alg) = integrator
     (; f) = sol.prob
@@ -72,6 +80,7 @@ function step_u!(integrator, cache::IMEXARKCache)
     end
 
     for i in 1:s
+        logger isa DebugLogger && println("========== starting stage $i")
         NVTX.@range "stage" payload = i begin
             t_exp = t + dt * c_exp[i]
             t_imp = t + dt * c_imp[i]

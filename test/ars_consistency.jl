@@ -143,7 +143,7 @@ prob = ODE.ODEProblem(f, u₀, tspan, p; dt)
 integrator = ODE.init(
     prob,
     CTS.IMEXAlgorithm(CTS.ARS343(),
-        CTS.NewtonsMethod(;max_iters=3)),
+        CTS.NewtonsMethod(;max_iters=1)),
     p,
     tspan;
     callback

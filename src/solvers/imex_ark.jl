@@ -56,12 +56,16 @@ function step_u!(integrator, cache::IMEXARKCache)
 
     if !isnothing(T_imp!) && !isnothing(newtons_method)
         NVTX.@range "update!" color = colorant"yellow" begin
-            update!(
-                newtons_method,
-                newtons_method_cache,
-                NewTimeStep(t),
-                jacobian -> isnothing(γ) ? sdirk_error(name) : T_imp!.Wfact(jacobian, u, p, dt * γ, t),
-            )
+            (; update_j) = newtons_method
+            (; update_j_cache) = newtons_method_cache
+            jacobian = newtons_method_cache.j
+            if (!isnothing(jacobian)) && needs_update!(update_j, update_j_cache, NewTimeStep(t))
+                if γ isa Nothing
+                    sdirk_error(name)
+                else
+                    T_imp!.Wfact(jacobian, u, p, dt * γ, t)
+                end
+            end
         end
     end
 

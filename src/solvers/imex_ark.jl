@@ -70,35 +70,35 @@ function step_u!(integrator, cache::IMEXARKCache)
             t_exp = t + dt * c_exp[i]
             t_imp = t + dt * c_imp[i]
 
-            NVTX.@range "assign U" color = colorant"yellow" begin
+            NVTX.@range "U[i] = u" color = colorant"yellow" begin
                 @. U[i] = u
             end
 
             if !isnothing(T_lim!) # Update based on limited tendencies from previous stages
-                for j in 1:(i - 1)
-                    iszero(a_exp[i, j]) && continue
-                    NVTX.@range "lim update" color = colorant"yellow" begin
+                NVTX.@range "U+=dt*a_exp*T_lim" color = colorant"yellow" begin
+                    for j in 1:(i - 1)
+                        iszero(a_exp[i, j]) && continue
                         @. U[i] += dt * a_exp[i, j] * T_lim[j]
                     end
                 end
-                NVTX.@range "lim" color = colorant"yellow" begin
+                NVTX.@range "lim!" color = colorant"yellow" begin
                     lim!(U[i], p, t_exp, u)
                 end
             end
 
             if !isnothing(T_exp!) # Update based on explicit tendencies from previous stages
-                for j in 1:(i - 1)
-                    iszero(a_exp[i, j]) && continue
-                    NVTX.@range "exp update" color = colorant"yellow" begin
+                NVTX.@range "U+=dt*a_exp*T_exp" color = colorant"yellow" begin
+                    for j in 1:(i - 1)
+                        iszero(a_exp[i, j]) && continue
                         @. U[i] += dt * a_exp[i, j] * T_exp[j]
                     end
                 end
             end
 
             if !isnothing(T_imp!) # Update based on implicit tendencies from previous stages
-                for j in 1:(i - 1)
-                    iszero(a_imp[i, j]) && continue
-                    NVTX.@range "imp update" color = colorant"yellow" begin
+                NVTX.@range "U+=dt*a_imp*T_imp" color = colorant"yellow" begin
+                    for j in 1:(i - 1)
+                        iszero(a_imp[i, j]) && continue
                         @. U[i] += dt * a_imp[i, j] * T_imp[j]
                     end
                 end
@@ -110,16 +110,16 @@ function step_u!(integrator, cache::IMEXARKCache)
 
             if !isnothing(T_imp!) && !iszero(a_imp[i, i]) # Implicit solve
                 @assert !isnothing(newtons_method)
-                NVTX.@range "assign temp" color = colorant"yellow" begin
+                NVTX.@range "temp = U[i]" color = colorant"yellow" begin
                     @. temp = U[i]
                 end
                 # TODO: can/should we remove these closures?
                 implicit_equation_residual! =
                     (residual, Ui) -> begin
-                        NVTX.@range "call T_imp!" color = colorant"yellow" begin
+                        NVTX.@range "T_imp!" color = colorant"yellow" begin
                             T_imp!(residual, Ui, p, t_imp)
                         end
-                        NVTX.@range "residual" color = colorant"yellow" begin
+                        NVTX.@range "residual=temp+dt*a_imp*residual-Ui" color = colorant"yellow" begin
                             @. residual = temp + dt * a_imp[i, i] * residual - Ui
                         end
                     end
@@ -145,13 +145,13 @@ function step_u!(integrator, cache::IMEXARKCache)
                     if iszero(a_imp[i, i])
                         # If its coefficient is 0, T_imp[i] is effectively being
                         # treated explicitly.
-                        NVTX.@range "call T_imp!" color = colorant"yellow" begin
+                        NVTX.@range "T_imp!" color = colorant"yellow" begin
                             T_imp!(T_imp[i], U[i], p, t_imp)
                         end
                     else
                         # If T_imp[i] is being treated implicitly, ensure that it
                         # exactly satisfies the implicit equation.
-                        NVTX.@range "back out T_imp!" color = colorant"yellow" begin
+                        NVTX.@range "T_imp=(U-temp)/(dt*a_imp)" color = colorant"yellow" begin
                             @. T_imp[i] = (U[i] - temp) / (dt * a_imp[i, i])
                         end
                     end
@@ -160,12 +160,12 @@ function step_u!(integrator, cache::IMEXARKCache)
 
             if !all(iszero, a_exp[:, i]) || !iszero(b_exp[i])
                 if !isnothing(T_lim!)
-                    NVTX.@range "call T_lim!" color = colorant"yellow" begin
+                    NVTX.@range "T_lim!" color = colorant"yellow" begin
                         T_lim!(T_lim[i], U[i], p, t_exp)
                     end
                 end
                 if !isnothing(T_exp!)
-                    NVTX.@range "call T_exp!" color = colorant"yellow" begin
+                    NVTX.@range "T_exp!" color = colorant"yellow" begin
                         T_exp!(T_exp[i], U[i], p, t_exp)
                     end
                 end
@@ -176,34 +176,36 @@ function step_u!(integrator, cache::IMEXARKCache)
     t_final = t + dt
 
     if !isnothing(T_lim!) # Update based on limited tendencies from previous stages
-        NVTX.@range "assign temp" color = colorant"yellow" begin
+        NVTX.@range "temp=u" color = colorant"yellow" begin
             @. temp = u
         end
-        for j in 1:s
-            iszero(b_exp[j]) && continue
-            NVTX.@range "update temp" color = colorant"yellow" begin
+        NVTX.@range "temp+=dt*b_exp*T_lim" color = colorant"yellow" begin
+            for j in 1:s
+                iszero(b_exp[j]) && continue
                 @. temp += dt * b_exp[j] * T_lim[j]
             end
         end
-        NVTX.@range "call lim!" color = colorant"yellow" begin
+        NVTX.@range "lim!" color = colorant"yellow" begin
             lim!(temp, p, t_final, u)
         end
-        @. u = temp
+        NVTX.@range "u=temp" color = colorant"yellow" begin
+            @. u = temp
+        end
     end
 
     if !isnothing(T_exp!) # Update based on explicit tendencies from previous stages
-        for j in 1:s
-            iszero(b_exp[j]) && continue
-            NVTX.@range "increment u (exp)" color = colorant"yellow" begin
+        NVTX.@range "u+=dt*b_exp*T_exp" color = colorant"yellow" begin
+            for j in 1:s
+                iszero(b_exp[j]) && continue
                 @. u += dt * b_exp[j] * T_exp[j]
             end
         end
     end
 
     if !isnothing(T_imp!) # Update based on implicit tendencies from previous stages
-        for j in 1:s
-            iszero(b_imp[j]) && continue
-            NVTX.@range "increment u (imp)" color = colorant"yellow" begin
+        NVTX.@range "u+=dt*b_imp*T_imp" color = colorant"yellow" begin
+            for j in 1:s
+                iszero(b_imp[j]) && continue
                 @. u += dt * b_imp[j] * T_imp[j]
             end
         end

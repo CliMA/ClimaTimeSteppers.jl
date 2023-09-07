@@ -120,7 +120,7 @@ function DiffEqBase.__init(
     if prob.f isa ClimaODEFunction
         (; post_explicit_stage_callback!) = prob.f
         if !isnothing(post_explicit_stage_callback!)
-            post_explicit_stage_callback!(u0, p, t0, :init)
+            post_explicit_stage_callback!(AlgMeta(:init), u0, p, t0)
         end
     end
     DiffEqBase.initialize!(callback, u0, t0, integrator)

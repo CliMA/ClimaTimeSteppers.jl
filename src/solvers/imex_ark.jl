@@ -52,6 +52,7 @@ function step_u!(integrator, cache::IMEXARKCache)
     (; T_lim!, T_exp!, T_imp!, lim!, apply_filter!) = f
     (; post_explicit_stage_callback!) = f
     (; post_implicit_stage_callback!) = f
+    (; logger) = f
     (; name, tableau, newtons_method) = alg
     (; a_exp, b_exp, a_imp, b_imp, c_exp, c_imp) = tableau
     (; U, T_lim, T_exp, T_imp, temp, γ, newtons_method_cache) = cache
@@ -59,14 +60,14 @@ function step_u!(integrator, cache::IMEXARKCache)
 
     if !isnothing(T_imp!) && !isnothing(newtons_method)
         NVTX.@range "update!" color = colorant"yellow" begin
-            println("------ started calling update!")
+            logger isa DebugLogger && println("------ started calling update!")
             update!(
                 newtons_method,
                 newtons_method_cache,
                 NewTimeStep(t),
-                jacobian -> isnothing(γ) ? sdirk_error(name) : T_imp!.Wfact(jacobian, u, p, dt * γ, t),
+                jacobian -> isnothing(γ) ? sdirk_error(name) : T_imp!.Wfact(AlgMeta(:pre_stage), jacobian, u, p, dt * γ, t),
             )
-            println("------ finished calling update!")
+            logger isa DebugLogger && println("------ finished calling update!")
         end
     end
 
@@ -83,11 +84,12 @@ function step_u!(integrator, cache::IMEXARKCache)
                 for j in 1:(i - 1)
                     iszero(a_exp[i, j]) && continue
                     NVTX.@range "lim update" color = colorant"yellow" begin
+                        logger isa DebugLogger && println("~~update U from T_lim")
                         @. U[i] += dt * a_exp[i, j] * T_lim[j]
                     end
                 end
                 NVTX.@range "lim" color = colorant"yellow" begin
-                    lim!(U[i], p, t_exp, u)
+                    lim!(AlgMeta(:stage), U[i], p, t_exp, u)
                 end
             end
 
@@ -95,6 +97,7 @@ function step_u!(integrator, cache::IMEXARKCache)
                 for j in 1:(i - 1)
                     iszero(a_exp[i, j]) && continue
                     NVTX.@range "exp update" color = colorant"yellow" begin
+                    logger isa DebugLogger && println("~~update U from T_exp")
                         @. U[i] += dt * a_exp[i, j] * T_exp[j]
                     end
                 end
@@ -104,16 +107,17 @@ function step_u!(integrator, cache::IMEXARKCache)
                 for j in 1:(i - 1)
                     iszero(a_imp[i, j]) && continue
                     NVTX.@range "imp update" color = colorant"yellow" begin
+                        logger isa DebugLogger && println("~~update U from T_imp")
                         @. U[i] += dt * a_imp[i, j] * T_imp[j]
                     end
                 end
             end
 
             NVTX.@range "apply_filter! (exp)" color = colorant"yellow" begin
-                apply_filter!(U[i], p, t_exp, :exp)
+                apply_filter!(AlgMeta(:exp_stage), U[i], p, t_exp)
             end
             NVTX.@range "post_explicit_stage_callback!" color = colorant"yellow" begin
-                post_explicit_stage_callback!(U[i], p, t_exp, :exp)
+                post_explicit_stage_callback!(AlgMeta(:stage), U[i], p, t_exp)
             end
 
             if !isnothing(T_imp!) && !iszero(a_imp[i, i]) # Implicit solve
@@ -125,16 +129,17 @@ function step_u!(integrator, cache::IMEXARKCache)
                 implicit_equation_residual! =
                     (residual, Ui) -> begin
                         NVTX.@range "call T_imp!" color = colorant"yellow" begin
-                            T_imp!(residual, Ui, p, t_imp)
+                            T_imp!(AlgMeta(:stage), residual, Ui, p, t_imp)
                         end
                         NVTX.@range "residual" color = colorant"yellow" begin
+                            logger isa DebugLogger && println("computing residual")
                             @. residual = temp + dt * a_imp[i, i] * residual - Ui
                         end
                     end
-                implicit_equation_jacobian! = (jacobian, Ui) -> T_imp!.Wfact(jacobian, Ui, p, dt * a_imp[i, i], t_imp)
+                implicit_equation_jacobian! = (jacobian, Ui) -> T_imp!.Wfact(AlgMeta(:stage), jacobian, Ui, p, dt * a_imp[i, i], t_imp)
                 # double check that we want to call post_implicit_stage_callback! and not apply_filter!
-                # call_apply_filter! = Ui -> apply_filter!(Ui, p, t_imp)
-                call_post_stage_callback! = Ui -> post_implicit_stage_callback!(Ui, p, t_imp, :imp_closure)
+                # call_apply_filter! = Ui -> apply_filter!(AlgMeta(:newton_solve), Ui, p, t_imp)
+                call_post_stage_callback! = Ui -> post_implicit_stage_callback!(AlgMeta(:newton_solve), Ui, p, t_imp)
 
                 NVTX.@range "solve_newton!" color = colorant"yellow" begin
                     solve_newton!(
@@ -158,7 +163,7 @@ function step_u!(integrator, cache::IMEXARKCache)
                         # If its coefficient is 0, T_imp[i] is effectively being
                         # treated explicitly.
                         NVTX.@range "call T_imp!" color = colorant"yellow" begin
-                            T_imp!(T_imp[i], U[i], p, t_imp)
+                            T_imp!(AlgMeta(:stage), T_imp[i], U[i], p, t_imp)
                         end
                     else
                         # If T_imp[i] is being treated implicitly, ensure that it
@@ -169,22 +174,16 @@ function step_u!(integrator, cache::IMEXARKCache)
                     end
                 end
             end
-            # NVTX.@range "apply_filter! (imp)" color = colorant"yellow" begin
-            #     apply_filter!(U[i], p, t_imp, :imp)
-            # end
-            # NVTX.@range "post_explicit_stage_callback!" color = colorant"yellow" begin
-            #     post_explicit_stage_callback!(U[i], p, t_imp, :imp)
-            # end
 
             if !all(iszero, a_exp[:, i]) || !iszero(b_exp[i])
                 if !isnothing(T_lim!)
                     NVTX.@range "call T_lim!" color = colorant"yellow" begin
-                        T_lim!(T_lim[i], U[i], p, t_exp)
+                        T_lim!(AlgMeta(:stage), T_lim[i], U[i], p, t_exp)
                     end
                 end
                 if !isnothing(T_exp!)
                     NVTX.@range "call T_exp!" color = colorant"yellow" begin
-                        T_exp!(T_exp[i], U[i], p, t_exp)
+                        T_exp!(AlgMeta(:stage), T_exp[i], U[i], p, t_exp)
                     end
                 end
             end
@@ -204,7 +203,7 @@ function step_u!(integrator, cache::IMEXARKCache)
             end
         end
         NVTX.@range "call lim!" color = colorant"yellow" begin
-            lim!(temp, p, t_final, u)
+            lim!(AlgMeta(:t_final), temp, p, t_final, u)
         end
         @. u = temp
     end
@@ -213,6 +212,7 @@ function step_u!(integrator, cache::IMEXARKCache)
         for j in 1:s
             iszero(b_exp[j]) && continue
             NVTX.@range "increment u (exp)" color = colorant"yellow" begin
+                logger isa DebugLogger && println("~~Update u from T_exp")
                 @. u += dt * b_exp[j] * T_exp[j]
             end
         end
@@ -222,18 +222,19 @@ function step_u!(integrator, cache::IMEXARKCache)
         for j in 1:s
             iszero(b_imp[j]) && continue
             NVTX.@range "increment u (imp)" color = colorant"yellow" begin
+                logger isa DebugLogger && println("~~Update u from T_imp")
                 @. u += dt * b_imp[j] * T_imp[j]
             end
         end
     end
 
     NVTX.@range "apply_filter!" color = colorant"yellow" begin
-        apply_filter!(u, p, t_final, :final)
+        apply_filter!(AlgMeta(:t_final), u, p, t_final)
     end
     NVTX.@range "post_explicit_stage_callback!" color = colorant"yellow" begin
-        post_explicit_stage_callback!(u, p, t_final, :final)
+        post_explicit_stage_callback!(AlgMeta(:t_final), u, p, t_final)
     end
-    println("************** Finished step_u!")
+    logger isa DebugLogger && println("************** Finished step_u!")
 
     return u
 end

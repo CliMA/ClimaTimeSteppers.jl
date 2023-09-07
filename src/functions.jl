@@ -1,15 +1,67 @@
 import DiffEqBase
 export ClimaODEFunction, ForwardEulerODEFunction
 
-Base.@kwdef struct ClimaODEFunction{TL, TE, TI, L, D, PESCB, PISCB} <: DiffEqBase.AbstractODEFunction{true}
-    T_lim!::TL = nothing # nothing or (uₜ, u, p, t) -> ...
-    T_exp!::TE = nothing # nothing or (uₜ, u, p, t) -> ...
-    T_imp!::TI = nothing # nothing or (uₜ, u, p, t) -> ...
-    lim!::L = (u, p, t, u_ref) -> nothing
-    apply_filter!::D = (u, p, t) -> nothing
-    post_explicit_stage_callback!::PESCB = (u, p, t) -> nothing
-    post_implicit_stage_callback!::PISCB = (u, p, t) -> nothing
+abstract type AbstractClimaTimeSteppersLogger end
+struct NullLogger <: AbstractClimaTimeSteppersLogger end
+struct DebugLogger <: AbstractClimaTimeSteppersLogger end
+
+struct AlgMeta{M}
+    meta::M
 end
+Base.show(io::IO, am::AlgMeta) = Base.show(io, am.meta)
+
+abstract type AbstractMetaFunc end
+
+# Drop meta object by default when called
+# our test suit defines a new AbstractMetaFunc
+# where `meta_tuple(...) = (meta, )`.
+@inline function (f::AbstractMetaFunc)(meta::AlgMeta, args...)
+    f.f(meta_tuple(f, meta)..., args...)
+end
+
+struct MetaFunc{F} <: AbstractMetaFunc; f::F; end
+MetaFunc(x::Nothing) = x
+meta_tuple(::MetaFunc, meta) = ()
+
+struct ClimaODEFunction{TL, TE, TI, L, D, PESCB, PISCB, LO} <: DiffEqBase.AbstractODEFunction{true}
+    T_lim!::TL
+    T_exp!::TE
+    T_imp!::TI
+    lim!::L
+    apply_filter!::D
+    post_explicit_stage_callback!::PESCB
+    post_implicit_stage_callback!::PISCB
+    logger::LO
+end
+function ClimaODEFunction(;
+    T_lim! = nothing, # nothing or (uₜ, u, p, t) -> ...
+    T_exp! = nothing, # nothing or (uₜ, u, p, t) -> ...
+    T_imp! = nothing, # nothing or (uₜ, u, p, t) -> ...
+    lim! = (u, p, t, u_ref) -> nothing,
+    apply_filter! = (u, p, t) -> nothing,
+    post_explicit_stage_callback! = (u, p, t) -> nothing,
+    post_implicit_stage_callback! = (u, p, t) -> nothing,
+    logger = CTS.NullLogger()
+)
+    ClimaODEFunction(
+        MetaFunc(T_lim!),
+        MetaFunc(T_exp!),
+        MetaFunc(T_imp!),
+        MetaFunc(lim!),
+        MetaFunc(apply_filter!),
+        MetaFunc(post_explicit_stage_callback!),
+        MetaFunc(post_implicit_stage_callback!),
+        logger
+    )
+end
+
+import SciMLBase
+# Wrap incoming functions in MetaFunc structs.
+SciMLBase.ODEFunction(
+    T_imp!::Function;
+    Wfact::Function,
+    kwargs...,
+) = SciMLBase.ODEFunction(MetaFunc(T_imp!); Wfact=MetaFunc(Wfact), kwargs...)
 
 # Don't wrap a ClimaODEFunction in an ODEFunction (makes ODEProblem work).
 DiffEqBase.ODEFunction{iip}(f::ClimaODEFunction) where {iip} = f

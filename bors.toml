@@ -1,7 +1,7 @@
 status = [
-  "test-os (1.8, ubuntu-latest)",
-  "test-os (1.8, windows-latest)",
-  "test-os (1.8, macos-latest)",
+  "test-os (1.9, ubuntu-latest)",
+  "test-os (1.9, windows-latest)",
+  "test-os (1.9, macos-latest)",
   "buildkite/climatimesteppers-ci",
   "format",
   "docbuild"

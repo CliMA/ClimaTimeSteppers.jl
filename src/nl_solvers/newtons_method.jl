@@ -2,7 +2,6 @@ export NewtonsMethod, KrylovMethod
 export JacobianFreeJVP, ForwardDiffJVP, ForwardDiffStepSize
 export ForwardDiffStepSize1, ForwardDiffStepSize2, ForwardDiffStepSize3
 export ForcingTerm, ConstantForcing, EisenstatWalkerForcing
-export Verbosity
 
 # TODO: Implement AutoDiffJVP after ClimaAtmos's cache is moved from f! to x (so
 #       that we only need to define Dual.(x), and not also make_dual(f!)).

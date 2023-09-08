@@ -606,11 +606,3 @@ function solve_newton!(alg::NewtonsMethod, cache, x, f!, j! = nothing)
         end
     end
 end
-
-function update!(alg::NewtonsMethod, cache, signal::UpdateSignal, j!)
-    (; update_j) = alg
-    (; update_j_cache, j) = cache
-    if (!isnothing(j)) && needs_update!(update_j, update_j_cache, signal)
-        j!(j)
-    end
-end

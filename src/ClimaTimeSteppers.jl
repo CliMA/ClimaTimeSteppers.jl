@@ -120,11 +120,6 @@ include("solvers/imex_tableaus.jl")
 include("solvers/explicit_tableaus.jl")
 include("solvers/imex_ark.jl")
 include("solvers/imex_ssprk.jl")
-include("solvers/multirate.jl")
-include("solvers/lsrk.jl")
-include("solvers/mis.jl")
-include("solvers/wickerskamarock.jl")
-include("solvers/rosenbrock.jl")
 
 include("Callbacks.jl")
 

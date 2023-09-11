@@ -58,8 +58,6 @@ export AbstractAlgorithmName, AbstractAlgorithmConstraint, Unconstrained, SSP
 
 array_device(::Union{Array, SArray, MArray}) = CPU()
 array_device(::CuArray) = CUDADevice()
-realview(x::Union{Array, SArray, MArray}) = x
-realview(x::CuArray) = x
 
 import DiffEqBase, SciMLBase, LinearAlgebra, DiffEqCallbacks, Krylov
 

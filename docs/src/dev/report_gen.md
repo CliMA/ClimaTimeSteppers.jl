@@ -30,6 +30,7 @@ In order to verify the correctness of our algorithms with a limiter, we recreate
 
 ```@example
 using ClimaTimeSteppers # hide
+include(joinpath(pkgdir(ClimaTimeSteppers), "test", "rapplypatch.jl")) # hide
 ENV["GKSwstype"] = "nul" # hide
 include(joinpath(@__DIR__, "..", "plotting_utils.jl")) # hide
 include(joinpath(pkgdir(ClimaTimeSteppers), "test", "problems.jl")) # hide

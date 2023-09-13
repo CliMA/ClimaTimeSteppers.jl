@@ -274,5 +274,5 @@ function NonInterpolatingSavingCallback(save_func, saved_values, save_everystep)
     end
     initialize(cb, u, t, integrator) = condition(u, t, integrator) && affect!(integrator)
     finalize(cb, u, t, integrator) = !save_everystep && !isempty(integrator.saveat) && affect!(integrator)
-    DiffEqBase.DiscreteCallback(condition, affect!; initialize, finalize)
+    SciMLBase.DiscreteCallback(condition, affect!; initialize, finalize)
 end

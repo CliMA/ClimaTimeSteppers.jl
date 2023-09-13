@@ -1,6 +1,7 @@
 #####
 ##### 1st order
 #####
+import SciMLBase
 
 # TODO: is it better to use `first_order_tableau = Union{ARS111,ARS121}`? to
 #       reduce the number of methods?
@@ -37,14 +38,12 @@ second_order_tableau() = [
 #####
 third_order_tableau() = [ARS233, ARS343, ARS443, IMKG342a, IMKG343a, DBM453, SSP333, SSP433]
 
-import OrdinaryDiffEq as ODE
-
 for m in first_order_tableau()
-    @eval ODE.alg_order(::$m) = 1
+    @eval SciMLBase.alg_order(::$m) = 1
 end
 for m in second_order_tableau()
-    @eval ODE.alg_order(::$m) = 2
+    @eval SciMLBase.alg_order(::$m) = 2
 end
 for m in third_order_tableau()
-    @eval ODE.alg_order(::$m) = 3
+    @eval SciMLBase.alg_order(::$m) = 3
 end

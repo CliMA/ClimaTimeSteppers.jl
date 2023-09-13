@@ -1,14 +1,12 @@
+import ClimaTimeSteppers as CTS
 using ClimaTimeSteppers, Test
-import OrdinaryDiffEq
+import SciMLBase
 
 include("integrator_utils.jl")
 include("problems.jl")
 
 @testset "integrator save times" begin
-    for (alg, test_case) in (
-            (ExplicitAlgorithm(SSP33ShuOsher()), clima_constant_tendency_test(Float64)),
-            (OrdinaryDiffEq.SSPRK33(), constant_tendency_test(Float64)),
-        ),
+    for (alg, test_case) in ((ExplicitAlgorithm(SSP33ShuOsher()), clima_constant_tendency_test(Float64)),),
         reverse_prob in (false, true),
         n_dt_steps in (10, 10000)
 
@@ -42,7 +40,7 @@ include("problems.jl")
             isnothing(next_saving_time_index) && return
             add_tstop!(integrator, save_dt_times[next_saving_time_index])
         end
-        adding_callback = DiffEqBase.DiscreteCallback(
+        adding_callback = SciMLBase.DiscreteCallback(
             (u, t, integrator) -> true,
             adding_function!;
             initialize = (cb, u, t, integrator) -> adding_function!(integrator),
@@ -50,7 +48,7 @@ include("problems.jl")
         )
 
         setting_function!(integrator) = ClimaTimeSteppers.set_dt!(integrator, 2 * DiffEqBase.get_dt(integrator))
-        setting_callback = DiffEqBase.DiscreteCallback((u, t, integrator) -> true, setting_function!)
+        setting_callback = SciMLBase.DiscreteCallback((u, t, integrator) -> true, setting_function!)
         n_set_steps = floor(Int, log2(1 + abs(tf - t0) / dt)) - 1
         setting_times = [accumulate(+, [t0, (tdir * dt * 2 .^ (0:n_set_steps))...])..., tf]
 

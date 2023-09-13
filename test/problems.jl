@@ -530,12 +530,6 @@ function climacore_1Dheat_test_cts(::Type{FT}) where {FT}
     )
 end
 
-# Monkey patch for ClimaCore so that ρq .* current_wind_vector works
-ClimaCore.RecursiveApply.rmap(fn::F, X::Tuple, Y) where {F} =
-    ClimaCore.RecursiveApply.tuplemap(x -> ClimaCore.RecursiveApply.rmap(fn, x, Y), X)
-ClimaCore.RecursiveApply.rmap(fn::F, X::NamedTuple{names}, Y) where {F, names} =
-    NamedTuple{names}(ClimaCore.RecursiveApply.rmap(fn, Tuple(X), Y))
-
 # "Dynamical Core Model Intercomparison Project (DCMIP) Test Case Document" by 
 # Ullrich et al., Section 1.1
 # (http://www-personal.umich.edu/~cjablono/DCMIP-2012_TestCaseDocument_v1.7.pdf)

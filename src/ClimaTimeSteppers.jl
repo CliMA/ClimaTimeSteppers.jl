@@ -19,7 +19,7 @@ JuliaDiffEq terminology:
   SplitODEProlem(fL, fR)
 
 
-  * `ODEProblem` from OrdinaryDiffEq.jl
+  * `ODEProblem` from SciMLBase.jl
     - use `jac` option to `ODEFunction` for linear + full IMEX (https://docs.sciml.ai/latest/features/performance_overloads/#ode_explicit_jac-1)
   * `SplitODEProblem` for linear + remainder IMEX
   * `MultirateODEProblem` for true multirate
@@ -45,7 +45,6 @@ module ClimaTimeSteppers
 
 
 using KernelAbstractions
-using KernelAbstractions.Extras: @unroll
 using LinearAlgebra
 using LinearOperators
 using StaticArrays

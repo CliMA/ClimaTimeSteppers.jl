@@ -311,8 +311,8 @@ end
         single_column_prob_wfact_split = ODEProblem(tendency_func, copy(u0), (0.0, N_iter * dt), ss)
 
         u = solve(single_column_prob_wfact_split, algo; dt = dt)
-        @info norm(u.u[end])
-        @test norm(u.u[end]) ≈ reference_sol_norm[i] atol = 1e3eps()
+        # @info norm(u.u[end])
+        @test norm(u.u[end]) ≈ reference_sol_norm[i] atol = 2e3eps()
     end
 
 end

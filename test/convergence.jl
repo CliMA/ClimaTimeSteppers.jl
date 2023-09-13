@@ -1,5 +1,6 @@
 using ClimaTimeSteppers, LinearAlgebra, Test
 import PrettyTables
+import SciMLBase
 
 include(joinpath(@__DIR__, "convergence_orders.jl"))
 include(joinpath(@__DIR__, "convergence_utils.jl"))
@@ -55,7 +56,7 @@ function tabulate_convergence_orders_imex_ark()
     results = convergence_order_results(tabs, test_cases)
     algs = algorithm.(tabs)
     prob_names = map(t -> t.test_name, test_cases)
-    expected_orders = ODE.alg_order.(tabs)
+    expected_orders = SciMLBase.alg_order.(tabs)
     tabulate_convergence_orders(prob_names, algs, results, expected_orders; tabs)
     return results
 end
@@ -68,7 +69,7 @@ function tabulate_convergence_orders_imex_ssp()
     results = convergence_order_results(tabs, test_cases)
     algs = algorithm.(tabs)
     prob_names = map(t -> t.test_name, test_cases)
-    expected_orders = ODE.alg_order.(tabs)
+    expected_orders = SciMLBase.alg_order.(tabs)
 
     tabulate_convergence_orders(prob_names, algs, results, expected_orders; tabs)
     return results

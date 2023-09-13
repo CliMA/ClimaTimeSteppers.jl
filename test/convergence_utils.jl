@@ -1,6 +1,5 @@
 import ODEConvergenceTester as OCT
 import ClimaTimeSteppers as CTS
-import OrdinaryDiffEq as ODE
 
 """
     DirectSolver
@@ -52,8 +51,8 @@ function convergence_order(prob, sol, method, dts; kwargs...)
     return order_est
 end
 
-default_expected_order(alg, tab::CTS.AbstractAlgorithmName) = ODE.alg_order(tab)
-# default_expected_order(alg, tab) = ODE.alg_order(alg)
+default_expected_order(alg, tab::CTS.AbstractAlgorithmName) = SciMLBase.alg_order(tab)
+# default_expected_order(alg, tab) = SciMLBase.alg_order(alg)
 
 function test_convergence_order!(test_case, tab, results = Dict(); refinement_range)
     prob = problem(test_case, tab)

@@ -557,7 +557,6 @@ function allocate_cache(alg::NewtonsMethod, x_prototype, j_prototype = nothing)
     (; update_j, krylov_method, convergence_checker) = alg
     @assert !(isnothing(j_prototype) && (isnothing(krylov_method) || isnothing(krylov_method.jacobian_free_jvp)))
     return (;
-        update_j_cache = allocate_cache(update_j, eltype(x_prototype)),
         krylov_method_cache = isnothing(krylov_method) ? nothing : allocate_cache(krylov_method, x_prototype),
         convergence_checker_cache = isnothing(convergence_checker) ? nothing :
                                     allocate_cache(convergence_checker, x_prototype),
@@ -569,9 +568,9 @@ end
 
 function solve_newton!(alg::NewtonsMethod, cache, x, f!, j! = nothing)
     (; max_iters, update_j, krylov_method, convergence_checker, verbose) = alg
-    (; update_j_cache, krylov_method_cache, convergence_checker_cache) = cache
+    (; krylov_method_cache, convergence_checker_cache) = cache
     (; Δx, f, j) = cache
-    if (!isnothing(j)) && needs_update!(update_j, update_j_cache, NewNewtonSolve())
+    if (!isnothing(j)) && needs_update!(update_j, NewNewtonSolve())
         j!(j, x)
     end
     for n in 0:max_iters
@@ -583,7 +582,7 @@ function solve_newton!(alg::NewtonsMethod, cache, x, f!, j! = nothing)
         end
 
         # Compute Δx[n].
-        if (!isnothing(j)) && needs_update!(update_j, update_j_cache, NewNewtonIteration())
+        if (!isnothing(j)) && needs_update!(update_j, NewNewtonIteration())
             j!(j, x)
         end
         f!(f, x)

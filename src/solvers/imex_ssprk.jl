@@ -63,9 +63,8 @@ function step_u!(integrator, cache::IMEXSSPRKCache)
 
     if !isnothing(T_imp!) && !isnothing(newtons_method)
         (; update_j) = newtons_method
-        (; update_j_cache) = newtons_method_cache
         jacobian = newtons_method_cache.j
-        if (!isnothing(jacobian)) && needs_update!(update_j, update_j_cache, NewTimeStep(t))
+        if (!isnothing(jacobian)) && needs_update!(update_j, NewTimeStep(t))
             if γ isa Nothing
                 sdirk_error(name)
             else

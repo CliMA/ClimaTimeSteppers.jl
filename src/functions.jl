@@ -1,7 +1,10 @@
 import DiffEqBase
+export AbstractClimaODEFunction
 export ClimaODEFunction, ForwardEulerODEFunction
 
-Base.@kwdef struct ClimaODEFunction{TL, TE, TI, L, D, PE, PI} <: DiffEqBase.AbstractODEFunction{true}
+abstract type AbstractClimaODEFunction <: DiffEqBase.AbstractODEFunction{true} end
+
+Base.@kwdef struct ClimaODEFunction{TL, TE, TI, L, D, PE, PI} <: AbstractClimaODEFunction
     T_lim!::TL = nothing # nothing or (uₜ, u, p, t) -> ...
     T_exp!::TE = nothing # nothing or (uₜ, u, p, t) -> ...
     T_imp!::TI = nothing # nothing or (uₜ, u, p, t) -> ...
@@ -11,9 +14,9 @@ Base.@kwdef struct ClimaODEFunction{TL, TE, TI, L, D, PE, PI} <: DiffEqBase.Abst
     post_implicit!::PI = (u, p, t) -> nothing
 end
 
-# Don't wrap a ClimaODEFunction in an ODEFunction (makes ODEProblem work).
-DiffEqBase.ODEFunction{iip}(f::ClimaODEFunction) where {iip} = f
-DiffEqBase.ODEFunction(f::ClimaODEFunction) = f
+# Don't wrap a AbstractClimaODEFunction in an ODEFunction (makes ODEProblem work).
+DiffEqBase.ODEFunction{iip}(f::AbstractClimaODEFunction) where {iip} = f
+DiffEqBase.ODEFunction(f::AbstractClimaODEFunction) = f
 
 """
     ForwardEulerODEFunction(f; jac_prototype, Wfact, tgrad)

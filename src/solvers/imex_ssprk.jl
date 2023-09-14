@@ -52,11 +52,13 @@ function init_cache(prob::DiffEqBase.AbstractODEProblem, alg::IMEXAlgorithm{SSP}
     return IMEXSSPRKCache(U, U_exp, U_lim, T_lim, T_exp, T_imp, temp, β, γ, newtons_method_cache)
 end
 
-function step_u!(integrator, cache::IMEXSSPRKCache)
+step_u!(integrator, cache::IMEXSSPRKCache) = step_u!(integrator, cache, integrator.alg.name)
+
+function step_u!(integrator, cache::IMEXSSPRKCache, name)
     (; u, p, t, dt, sol, alg) = integrator
     (; f) = sol.prob
     (; T_lim!, T_exp!, T_imp!, lim!, dss!) = f
-    (; name, tableau, newtons_method) = alg
+    (; tableau, newtons_method) = alg
     (; a_imp, b_imp, c_exp, c_imp) = tableau
     (; U, U_lim, U_exp, T_lim, T_exp, T_imp, temp, β, γ, newtons_method_cache) = cache
     s = length(b_imp)

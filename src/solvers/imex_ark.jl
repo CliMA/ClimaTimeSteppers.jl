@@ -45,11 +45,13 @@ function init_cache(prob::DiffEqBase.AbstractODEProblem, alg::IMEXAlgorithm{Unco
     return IMEXARKCache(U, T_lim, T_exp, T_imp, temp, γ, newtons_method_cache)
 end
 
-function step_u!(integrator, cache::IMEXARKCache)
+step_u!(integrator, cache::IMEXARKCache) = step_u!(integrator, cache, integrator.alg.name)
+
+function step_u!(integrator, cache::IMEXARKCache, name)
     (; u, p, t, dt, sol, alg) = integrator
     (; f) = sol.prob
     (; T_lim!, T_exp!, T_imp!, lim!, dss!) = f
-    (; name, tableau, newtons_method) = alg
+    (; tableau, newtons_method) = alg
     (; a_exp, b_exp, a_imp, b_imp, c_exp, c_imp) = tableau
     (; U, T_lim, T_exp, T_imp, temp, γ, newtons_method_cache) = cache
     s = length(b_exp)

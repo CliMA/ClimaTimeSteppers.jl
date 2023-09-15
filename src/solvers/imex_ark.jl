@@ -32,11 +32,11 @@ function init_cache(prob::DiffEqBase.AbstractODEProblem, alg::IMEXAlgorithm{Unco
     inds = ntuple(i -> i, s)
     inds_T_exp = filter(i -> !all(iszero, a_exp[:, i]) || !iszero(b_exp[i]), inds)
     inds_T_imp = filter(i -> !all(iszero, a_imp[:, i]) || !iszero(b_imp[i]), inds)
-    U = SparseContainer(map(i -> similar(u0), collect(1:length(inds))), inds)
-    T_lim = SparseContainer(map(i -> similar(u0), collect(1:length(inds_T_exp))), inds_T_exp)
-    T_exp = SparseContainer(map(i -> similar(u0), collect(1:length(inds_T_exp))), inds_T_exp)
-    T_imp = SparseContainer(map(i -> similar(u0), collect(1:length(inds_T_imp))), inds_T_imp)
-    temp = similar(u0)
+    U = SparseContainer(map(i -> zero(u0), collect(1:length(inds))), inds)
+    T_lim = SparseContainer(map(i -> zero(u0), collect(1:length(inds_T_exp))), inds_T_exp)
+    T_exp = SparseContainer(map(i -> zero(u0), collect(1:length(inds_T_exp))), inds_T_exp)
+    T_imp = SparseContainer(map(i -> zero(u0), collect(1:length(inds_T_imp))), inds_T_imp)
+    temp = zero(u0)
     γs = unique(filter(!iszero, diag(a_imp)))
     γ = length(γs) == 1 ? γs[1] : nothing # TODO: This could just be a constant.
     jac_prototype = has_jac(T_imp!) ? T_imp!.jac_prototype : nothing
@@ -47,6 +47,8 @@ end
 
 step_u!(integrator, cache::IMEXARKCache) = step_u!(integrator, cache, integrator.alg.name)
 
+include("hard_coded_ars343.jl")
+# generic fallback
 function step_u!(integrator, cache::IMEXARKCache, name)
     (; u, p, t, dt, sol, alg) = integrator
     (; f) = sol.prob

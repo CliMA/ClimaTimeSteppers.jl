@@ -566,6 +566,8 @@ function allocate_cache(alg::NewtonsMethod, x_prototype, j_prototype = nothing)
     )
 end
 
+solve_newton!(alg::NewtonsMethod, cache::Nothing, x, f!, j! = nothing) = nothing
+
 function solve_newton!(alg::NewtonsMethod, cache, x, f!, j! = nothing)
     (; max_iters, update_j, krylov_method, convergence_checker, verbose) = alg
     (; krylov_method_cache, convergence_checker_cache) = cache

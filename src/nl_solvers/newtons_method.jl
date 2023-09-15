@@ -566,9 +566,9 @@ function allocate_cache(alg::NewtonsMethod, x_prototype, j_prototype = nothing)
     )
 end
 
-solve_newton!(alg::NewtonsMethod, cache::Nothing, x, f!, j! = nothing) = nothing
+solve_newton!(alg::NewtonsMethod, cache::Nothing, x, f!, j! = nothing, post_implicit! = nothing) = nothing
 
-function solve_newton!(alg::NewtonsMethod, cache, x, f!, j! = nothing)
+function solve_newton!(alg::NewtonsMethod, cache, x, f!, j! = nothing, post_implicit! = nothing)
     (; max_iters, update_j, krylov_method, convergence_checker, verbose) = alg
     (; krylov_method_cache, convergence_checker_cache) = cache
     (; Δx, f, j) = cache
@@ -577,7 +577,10 @@ function solve_newton!(alg::NewtonsMethod, cache, x, f!, j! = nothing)
     end
     for n in 0:max_iters
         # Update x[n] with Δx[n - 1], and exit the loop if Δx[n] is not needed.
-        n > 0 && (x .-= Δx)
+        if n > 0
+            x .-= Δx
+            isnothing(post_implicit!) || post_implicit!(x)
+        end
         if n == max_iters && isnothing(convergence_checker)
             is_verbose(verbose) && @info "Newton iteration $n: ‖x‖ = $(norm(x)), ‖Δx‖ = N/A"
             break

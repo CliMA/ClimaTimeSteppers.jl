@@ -2,6 +2,7 @@ function step_u!(integrator, cache::IMEXARKCache, ::ARS343)
     (; u, p, t, dt, sol, alg) = integrator
     (; f) = sol.prob
     (; T_imp!, lim!, dss!) = f
+    (; post_explicit!, post_implicit!) = f
     (; tableau, newtons_method) = alg
     (; a_exp, b_exp, a_imp, b_imp, c_exp, c_imp) = tableau
     (; U, T_lim, T_exp, T_imp, temp, γ, newtons_method_cache) = cache
@@ -52,16 +53,20 @@ function step_u!(integrator, cache::IMEXARKCache, ::ARS343)
         NVTX.@range "dss!" color = colorant"green" begin
             dss!(U[i], p, t_exp)
         end
+        NVTX.@range "post_explicit!" color = colorant"green" begin
+            post_explicit!(U[i], p, t_exp)
+        end
     end
     NVTX.@range "Stage 2" color = colorant"brown" begin
         NVTX.@range "temp = U[i]" begin
             @. temp = U[i] # used in closures
         end
         let i = i
+            t_imp = t + dt * c_imp[i]
             implicit_equation_residual! =
                 (residual, Ui) -> begin
                     NVTX.@range "T_imp!" color = colorant"pink" begin
-                        T_imp!(residual, Ui, p, t + dt * c_imp[i]) #= t_imp =#
+                        T_imp!(residual, Ui, p, t_imp)
                     end
                     NVTX.@range "residual=temp+dt*a_imp*residual-Ui" begin
                         @. residual = temp + dt * a_imp[i, i] * residual - Ui
@@ -70,15 +75,21 @@ function step_u!(integrator, cache::IMEXARKCache, ::ARS343)
             implicit_equation_jacobian! =
                 (jacobian, Ui) -> begin
                     NVTX.@range "Wfact" color = colorant"orange" begin
-                        T_imp!.Wfact(jacobian, Ui, p, dt * a_imp[i, i], t + dt * c_imp[i]) #= t_imp =#
+                        T_imp!.Wfact(jacobian, Ui, p, dt * a_imp[i, i], t_imp)
                     end
                 end
+            call_post_implicit! = Ui -> begin
+                NVTX.@range "post_implicit!" color = colorant"white" begin
+                    post_implicit!(Ui, p, t_imp)
+                end
+            end
             solve_newton!(
                 newtons_method,
                 newtons_method_cache,
                 U[i],
                 implicit_equation_residual!,
                 implicit_equation_jacobian!,
+                call_post_implicit!,
             )
         end
 
@@ -107,6 +118,9 @@ function step_u!(integrator, cache::IMEXARKCache, ::ARS343)
         NVTX.@range "dss!" color = colorant"green" begin
             dss!(U[i], p, t_exp)
         end
+        NVTX.@range "post_explicit!" color = colorant"green" begin
+            post_explicit!(U[i], p, t_exp)
+        end
     end
 
     NVTX.@range "Stage 3" color = colorant"brown" begin
@@ -114,10 +128,11 @@ function step_u!(integrator, cache::IMEXARKCache, ::ARS343)
             @. temp = U[i] # used in closures
         end
         let i = i
+            t_imp = t + dt * c_imp[i]
             implicit_equation_residual! =
                 (residual, Ui) -> begin
                     NVTX.@range "T_imp!" color = colorant"pink" begin
-                        T_imp!(residual, Ui, p, t + dt * c_imp[i]) #= t_imp =#
+                        T_imp!(residual, Ui, p, t_imp)
                     end
                     NVTX.@range "residual=temp+dt*a_imp*residual-Ui" begin
                         @. residual = temp + dt * a_imp[i, i] * residual - Ui
@@ -126,15 +141,21 @@ function step_u!(integrator, cache::IMEXARKCache, ::ARS343)
             implicit_equation_jacobian! =
                 (jacobian, Ui) -> begin
                     NVTX.@range "Wfact" color = colorant"orange" begin
-                        T_imp!.Wfact(jacobian, Ui, p, dt * a_imp[i, i], t + dt * c_imp[i]) #= t_imp =#
+                        T_imp!.Wfact(jacobian, Ui, p, dt * a_imp[i, i], t_imp)
                     end
                 end
+            call_post_implicit! = Ui -> begin
+                NVTX.@range "post_implicit!" color = colorant"white" begin
+                    post_implicit!(Ui, p, t_imp)
+                end
+            end
             solve_newton!(
                 newtons_method,
                 newtons_method_cache,
                 U[i],
                 implicit_equation_residual!,
                 implicit_equation_jacobian!,
+                call_post_implicit!,
             )
         end
 
@@ -167,16 +188,20 @@ function step_u!(integrator, cache::IMEXARKCache, ::ARS343)
         NVTX.@range "dss!" color = colorant"green" begin
             dss!(U[i], p, t_exp)
         end
+        NVTX.@range "post_explicit!" color = colorant"green" begin
+            post_explicit!(U[i], p, t_exp)
+        end
     end
     NVTX.@range "Stage 4" color = colorant"brown" begin
         NVTX.@range "temp = U[i]" begin
             @. temp = U[i] # used in closures
         end
         let i = i
+            t_imp = t + dt * c_imp[i]
             implicit_equation_residual! =
                 (residual, Ui) -> begin
                     NVTX.@range "T_imp!" color = colorant"pink" begin
-                        T_imp!(residual, Ui, p, t + dt * c_imp[i]) #= t_imp =#
+                        T_imp!(residual, Ui, p, t_imp)
                     end
                     NVTX.@range "residual=temp+dt*a_imp*residual-Ui" begin
                         @. residual = temp + dt * a_imp[i, i] * residual - Ui
@@ -185,15 +210,21 @@ function step_u!(integrator, cache::IMEXARKCache, ::ARS343)
             implicit_equation_jacobian! =
                 (jacobian, Ui) -> begin
                     NVTX.@range "Wfact" color = colorant"orange" begin
-                        T_imp!.Wfact(jacobian, Ui, p, dt * a_imp[i, i], t + dt * c_imp[i]) #= t_imp =#
+                        T_imp!.Wfact(jacobian, Ui, p, dt * a_imp[i, i], t_imp)
                     end
                 end
+            call_post_implicit! = Ui -> begin
+                NVTX.@range "post_implicit!" color = colorant"white" begin
+                    post_implicit!(Ui, p, t_imp)
+                end
+            end
             solve_newton!(
                 newtons_method,
                 newtons_method_cache,
                 U[i],
                 implicit_equation_residual!,
                 implicit_equation_jacobian!,
+                call_post_implicit!,
             )
         end
 
@@ -230,6 +261,9 @@ function step_u!(integrator, cache::IMEXARKCache, ::ARS343)
         end
         NVTX.@range "dss!" color = colorant"green" begin
             dss!(u, p, t_final)
+        end
+        NVTX.@range "post_explicit!" color = colorant"green" begin
+            post_explicit!(u, p, t_final)
         end
     end
     return u

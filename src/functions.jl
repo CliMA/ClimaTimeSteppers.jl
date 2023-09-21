@@ -1,12 +1,14 @@
 import DiffEqBase
 export ClimaODEFunction, ForwardEulerODEFunction
 
-Base.@kwdef struct ClimaODEFunction{TL, TE, TI, L, D} <: DiffEqBase.AbstractODEFunction{true}
+Base.@kwdef struct ClimaODEFunction{TL, TE, TI, L, D, PE, PI} <: DiffEqBase.AbstractODEFunction{true}
     T_lim!::TL = nothing # nothing or (uₜ, u, p, t) -> ...
     T_exp!::TE = nothing # nothing or (uₜ, u, p, t) -> ...
     T_imp!::TI = nothing # nothing or (uₜ, u, p, t) -> ...
     lim!::L = (u, p, t, u_ref) -> nothing
     dss!::D = (u, p, t) -> nothing
+    post_explicit!::PE = (u, p, t) -> nothing
+    post_implicit!::PI = (u, p, t) -> nothing
 end
 
 # Don't wrap a ClimaODEFunction in an ODEFunction (makes ODEProblem work).

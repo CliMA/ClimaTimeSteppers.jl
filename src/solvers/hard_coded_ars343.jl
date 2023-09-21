@@ -156,38 +156,3 @@ function step_u!(integrator, cache::IMEXARKCache, ::ARS343)
     post_explicit!(u, p, t_final)
     return u
 end
-
-function solve_newton_ars!(alg::NewtonsMethod, cache, x, f!, j! = nothing)
-    (; max_iters, update_j, krylov_method, convergence_checker, verbose) = alg
-    (; krylov_method_cache, convergence_checker_cache) = cache
-    (; Δx, f, j) = cache
-    if (!isnothing(j)) && needs_update!(update_j, NewNewtonSolve())
-        j!(j, x)
-    end
-    for n in 0:max_iters
-        # Update x[n] with Δx[n - 1], and exit the loop if Δx[n] is not needed.
-        n > 0 && (x .-= Δx)
-        if n == max_iters && isnothing(convergence_checker)
-            is_verbose(verbose) && @info "Newton iteration $n: ‖x‖ = $(norm(x)), ‖Δx‖ = N/A"
-            break
-        end
-
-        # Compute Δx[n].
-        if (!isnothing(j)) && needs_update!(update_j, NewNewtonIteration())
-            j!(j, x)
-        end
-        f!(f, x)
-        if isnothing(krylov_method)
-            ldiv!(Δx, j, f)
-        else
-            solve_krylov!(krylov_method, krylov_method_cache, Δx, x, f!, f, n, j)
-        end
-        is_verbose(verbose) && @info "Newton iteration $n: ‖x‖ = $(norm(x)), ‖Δx‖ = $(norm(Δx))"
-
-        # Check for convergence if necessary.
-        if !isnothing(convergence_checker)
-            check_convergence!(convergence_checker, convergence_checker_cache, x, Δx, n) && break
-            n == max_iters && @warn "Newton's method did not converge within $n iterations"
-        end
-    end
-end

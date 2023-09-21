@@ -159,15 +159,15 @@ function step_u!(integrator, cache::IMEXARKCache, name)
         NVTX.@range "update U" color = colorant"green" begin
             U .= u
             for j in 1:Nstage_exp
-                iszero(a_exp[Nstage_exp + 1, j]) && continue
-                @. U += dt * a_exp[Nstage_exp + 1, j] * T_lim[j]
+                iszero(b_exp[j]) && continue
+                @. U += dt * b_exp[j] * T_lim[j]
             end
             isnothing(lim!) || NVTX.@range "apply limiter" color = colorant"yellow" begin
                 lim!(U, p, t_final, u)
             end
             for j in 1:Nstage_exp
-                iszero(a_exp[Nstage_exp + 1, j]) && continue
-                @. U += dt * a_exp[Nstage_exp, j] * T_exp[j]
+                iszero(b_exp[j]) && continue
+                @. U += dt * b_exp[j] * T_exp[j]
             end
             # TODO: convert to generic explicit callback
             isnothing(dss!) || NVTX.@range "dss!" color = colorant"yellow" begin

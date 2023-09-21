@@ -104,7 +104,7 @@ function step_u!(integrator, cache::IMEXARKCache, name)
                 end
                 for j in 1:stage
                     iszero(a_exp[stage + 1, j]) && continue
-                    @. U += dt * a_exp[stage, j] * T_exp[j]
+                    @. U += dt * a_exp[stage + 1, j] * T_exp[j]
                 end
                 # TODO: convert to generic explicit callback
                 NVTX.@range "dss!" color = colorant"yellow" begin

@@ -74,26 +74,32 @@ function step_u!(integrator, cache::IMEXARKCache, name)
 
     U .= u
 
-    for stage = 1:Nstages
+    for stage in 1:Nstages
         NVTX.@range "explicit update" begin
             t_exp = t + dt * c_exp[stage]
-            NVTX.@range "compute limited tendency" color = colorant"yellow" begin
-                T_lim!(T_lim[stage], U, p, t_exp)
+            if !isnothing(T_lim!)
+                NVTX.@range "compute limited tendency" color = colorant"yellow" begin
+                    T_lim!(T_lim[stage], U, p, t_exp)
+                end
             end
-            NVTX.@range "compute remaining tendency" color = colorant"blue" begin
-                T_exp!(T_exp[stage], U, p, t_exp)
+            if !isnothing(T_exp!)
+                NVTX.@range "compute remaining tendency" color = colorant"blue" begin
+                    T_exp!(T_exp[stage], U, p, t_exp)
+                end
             end
             NVTX.@range "update U" color = colorant"green" begin
                 U .= u
                 for j in 1:stage
-                    iszero(a_exp[stage+1, j]) && continue
-                    @. U += dt * a_exp[stage+1, j] * T_lim[j]
+                    iszero(a_exp[stage + 1, j]) && continue
+                    @. U += dt * a_exp[stage + 1, j] * T_lim[j]
                 end
-                NVTX.@range "apply limiter" color = colorant"yellow" begin
-                    lim!(U, p, t_final, u)
+                if !isnothing(lim!)
+                    NVTX.@range "apply limiter" color = colorant"yellow" begin
+                        lim!(U, p, t_final, u)
+                    end
                 end
                 for j in 1:stage
-                    iszero(a_exp[stage+1, j]) && continue
+                    iszero(a_exp[stage + 1, j]) && continue
                     @. U += dt * a_exp[stage, j] * T_exp[j]
                 end
                 # TODO: convert to generic explicit callback
@@ -103,13 +109,13 @@ function step_u!(integrator, cache::IMEXARKCache, name)
             end
         end
 
-        NVTX.@range "implicit update" begin            
-            t_imp = t + dt * c_imp[stage+1]
+        NVTX.@range "implicit update" begin
+            t_imp = t + dt * c_imp[stage + 1]
             if iszero(a_imp[stage + 1, stage + 1]) # Implicit solve
                 @assert !isnothing(newtons_method)
                 @. temp = U
                 # TODO: can/should we remove these closures?
-                function implicit_equation_residual!(residual, U)                
+                function implicit_equation_residual!(residual, U)
                     NVTX.@range "T_imp!" color = colorant"yellow" begin
                         T_imp!(residual, U, p, t_imp)
                     end
@@ -131,7 +137,7 @@ function step_u!(integrator, cache::IMEXARKCache, name)
                         implicit_equation_jacobian!,
                     )
                 end
-                @. T_imp[stage] = (U - temp) / (dt * a_imp[stage+1, stage+1])
+                @. T_imp[stage] = (U - temp) / (dt * a_imp[stage + 1, stage + 1])
             else
                 T_imp!(T_imp[stage], U, p, t_imp)
             end
@@ -141,22 +147,22 @@ function step_u!(integrator, cache::IMEXARKCache, name)
     NVTX.@range "final explicit update" begin
         t_final = t + dt
         NVTX.@range "compute limited tendency" color = colorant"yellow" begin
-            T_lim!(T_lim[Nstages+1], U, p, t_final)
+            T_lim!(T_lim[Nstages + 1], U, p, t_final)
         end
         NVTX.@range "compute remaining tendency" color = colorant"blue" begin
-            T_exp!(T_exp[Nstages+1], U, p, t_final)
+            T_exp!(T_exp[Nstages + 1], U, p, t_final)
         end
         NVTX.@range "update U" color = colorant"green" begin
             U .= u
             for j in 1:stage
-                iszero(a_exp[stage+1, j]) && continue
-                @. U += dt * a_exp[stage+1, j] * T_lim[j]
+                iszero(a_exp[stage + 1, j]) && continue
+                @. U += dt * a_exp[stage + 1, j] * T_lim[j]
             end
             NVTX.@range "apply limiter" color = colorant"yellow" begin
                 lim!(U, p, t_final, u)
             end
             for j in 1:stage
-                iszero(a_exp[stage+1, j]) && continue
+                iszero(a_exp[stage + 1, j]) && continue
                 @. U += dt * a_exp[stage, j] * T_exp[j]
             end
             # TODO: convert to generic explicit callback

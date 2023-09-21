@@ -95,7 +95,7 @@ function step_u!(integrator, cache::IMEXARKCache, name)
                 end
                 if !isnothing(lim!)
                     NVTX.@range "apply limiter" color = colorant"yellow" begin
-                        lim!(U, p, t_final, u)
+                        lim!(U, p, t_exp, u)
                     end
                 end
                 for j in 1:stage

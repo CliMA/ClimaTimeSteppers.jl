@@ -33,9 +33,12 @@ function init_cache(prob::DiffEqBase.AbstractODEProblem, alg::IMEXAlgorithm{Unco
     inds_T_exp = filter(i -> !all(iszero, a_exp[:, i]) || !iszero(b_exp[i]), inds)
     inds_T_imp = filter(i -> !all(iszero, a_imp[:, i]) || !iszero(b_imp[i]), inds)
     U = zero(u0)
-    T_lim = SparseContainer(map(i -> zero(u0), collect(1:length(inds_T_exp))), inds_T_exp)
-    T_exp = SparseContainer(map(i -> zero(u0), collect(1:length(inds_T_exp))), inds_T_exp)
-    T_imp = SparseContainer(map(i -> zero(u0), collect(1:length(inds_T_imp))), inds_T_imp)
+
+    Nstage_exp = length(b_exp)
+    Nstage_imp = Nstage_exp - 1
+    T_lim = ntuple(i -> zero(u0), Nstage_exp)
+    T_exp = ntuple(i -> zero(u0), Nstage_exp)
+    T_imp = ntuple(i -> zero(u0), Nstage_imp)
     temp = zero(u0)
     γs = unique(filter(!iszero, diag(a_imp)))
     γ = length(γs) == 1 ? γs[1] : nothing # TODO: This could just be a constant.
@@ -56,7 +59,8 @@ function step_u!(integrator, cache::IMEXARKCache, name)
     (; tableau, newtons_method) = alg
     (; a_exp, b_exp, a_imp, b_imp, c_exp, c_imp) = tableau
     (; U, T_lim, T_exp, T_imp, temp, γ, newtons_method_cache) = cache
-    Nstages = length(b_exp) - 1
+    Nstage_exp = length(b_exp)
+    Nstage_imp = Nstage_exp - 1
 
     if !isnothing(T_imp!) && !isnothing(newtons_method)
         NVTX.@range "update!" color = colorant"yellow" begin
@@ -74,7 +78,7 @@ function step_u!(integrator, cache::IMEXARKCache, name)
 
     U .= u
 
-    for stage in 1:Nstages
+    for stage in 1:Nstage_imp
         NVTX.@range "explicit update" begin
             t_exp = t + dt * c_exp[stage]
             if !isnothing(T_lim!)
@@ -147,10 +151,10 @@ function step_u!(integrator, cache::IMEXARKCache, name)
     NVTX.@range "final explicit update" begin
         t_final = t + dt
         NVTX.@range "compute limited tendency" color = colorant"yellow" begin
-            T_lim!(T_lim[Nstages + 1], U, p, t_final)
+            T_lim!(T_lim[Nstage_exp], U, p, t_final)
         end
         NVTX.@range "compute remaining tendency" color = colorant"blue" begin
-            T_exp!(T_exp[Nstages + 1], U, p, t_final)
+            T_exp!(T_exp[Nstage_exp], U, p, t_final)
         end
         NVTX.@range "update U" color = colorant"green" begin
             U .= u

@@ -150,10 +150,10 @@ function step_u!(integrator, cache::IMEXARKCache, name)
 
     NVTX.@range "final explicit update" begin
         t_final = t + dt
-        NVTX.@range "compute limited tendency" color = colorant"yellow" begin
+        isnothing(T_lim!) || NVTX.@range "compute limited tendency" color = colorant"yellow" begin
             T_lim!(T_lim[Nstage_exp], U, p, t_final)
         end
-        NVTX.@range "compute remaining tendency" color = colorant"blue" begin
+        isnothing(T_exp!) || NVTX.@range "compute remaining tendency" color = colorant"blue" begin
             T_exp!(T_exp[Nstage_exp], U, p, t_final)
         end
         NVTX.@range "update U" color = colorant"green" begin
@@ -162,7 +162,7 @@ function step_u!(integrator, cache::IMEXARKCache, name)
                 iszero(a_exp[stage + 1, j]) && continue
                 @. U += dt * a_exp[stage + 1, j] * T_lim[j]
             end
-            NVTX.@range "apply limiter" color = colorant"yellow" begin
+            isnothing(lim!) || NVTX.@range "apply limiter" color = colorant"yellow" begin
                 lim!(U, p, t_final, u)
             end
             for j in 1:stage
@@ -170,7 +170,7 @@ function step_u!(integrator, cache::IMEXARKCache, name)
                 @. U += dt * a_exp[stage, j] * T_exp[j]
             end
             # TODO: convert to generic explicit callback
-            NVTX.@range "dss!" color = colorant"yellow" begin
+            isnothing(dss!) || NVTX.@range "dss!" color = colorant"yellow" begin
                 dss!(U, p, t_final)
             end
         end

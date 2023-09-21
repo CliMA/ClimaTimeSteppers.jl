@@ -33,10 +33,6 @@ prof = Profile.@profile begin
 end
 
 p = @allocated do_work!(integrator, cache)
-using Test
-@testset "Allocations" begin
-    @test p == 0
-end
 
 import ProfileCanvas
 
@@ -46,4 +42,9 @@ if haskey(ENV, "BUILDKITE_COMMIT") || haskey(ENV, "BUILDKITE_BRANCH")
     ProfileCanvas.html_file(joinpath(output_dir, "flame.html"))
 else
     ProfileCanvas.view(Profile.fetch())
+end
+
+using Test
+@testset "Allocations" begin
+    @test p == 0
 end

@@ -106,6 +106,10 @@ function step_u!(integrator, cache::IMEXARKCache, name)
                     iszero(a_exp[stage + 1, j]) && continue
                     @. U += dt * a_exp[stage + 1, j] * T_exp[j]
                 end
+                for j in 2:stage
+                    iszero(a_imp[stage + 1, j]) && continue
+                    @. U += dt * a_imp[stage + 1, j] * T_imp[j - 1]
+                end
                 # TODO: convert to generic explicit callback
                 NVTX.@range "dss!" color = colorant"yellow" begin
                     dss!(U, p, t_exp)
@@ -169,6 +173,11 @@ function step_u!(integrator, cache::IMEXARKCache, name)
                 iszero(b_exp[j]) && continue
                 @. U += dt * b_exp[j] * T_exp[j]
             end
+            for j in 2:(Nstage_imp + 1)
+                iszero(b_imp[j]) && continue
+                @. U += dt * b_imp[j] * T_imp[j - 1]
+            end
+
             # TODO: convert to generic explicit callback
             isnothing(dss!) || NVTX.@range "dss!" color = colorant"yellow" begin
                 dss!(U, p, t_final)

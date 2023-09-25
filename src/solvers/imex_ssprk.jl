@@ -97,9 +97,7 @@ function step_u!(integrator, cache::IMEXSSPRKCache, name)
         end
 
         dss!(U_exp, p, t_exp)
-        NVTX.@range "post_explicit!" color = colorant"yellow" begin
-            post_explicit!(U_exp, p, t_exp)
-        end
+        post_explicit!(U_exp, p, t_exp)
 
         @. U = U_exp
         if !isnothing(T_imp!) # Update based on implicit tendencies from previous stages
@@ -120,9 +118,7 @@ function step_u!(integrator, cache::IMEXSSPRKCache, name)
             implicit_equation_jacobian! = (jacobian, Ui) -> T_imp!.Wfact(jacobian, Ui, p, dt * a_imp[i, i], t_imp)
 
             call_post_implicit! = Ui -> begin
-                NVTX.@range "post_implicit!" color = colorant"yellow" begin
-                    post_implicit!(Ui, p, t_imp)
-                end
+                post_implicit!(Ui, p, t_imp)
             end
 
             solve_newton!(
@@ -185,9 +181,7 @@ function step_u!(integrator, cache::IMEXSSPRKCache, name)
     end
 
     dss!(u, p, t_final)
-    NVTX.@range "post_explicit!" color = colorant"yellow" begin
-        post_explicit!(u, p, t_final)
-    end
+    post_explicit!(u, p, t_final)
 
     return u
 end

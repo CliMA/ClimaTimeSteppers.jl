@@ -575,17 +575,7 @@ function solve_newton!(alg::NewtonsMethod, cache, x, f!, j! = nothing, post_impl
     if (!isnothing(j)) && needs_update!(update_j, NewNewtonSolve())
         j!(j, x)
     end
-    for n in 0:max_iters
-        # Update x[n] with Δx[n - 1], and exit the loop if Δx[n] is not needed.
-        if n > 0
-            x .-= Δx
-            isnothing(post_implicit!) || post_implicit!(x)
-        end
-        if n == max_iters && isnothing(convergence_checker)
-            is_verbose(verbose) && @info "Newton iteration $n: ‖x‖ = $(norm(x)), ‖Δx‖ = N/A"
-            break
-        end
-
+    for n in 1:max_iters
         # Compute Δx[n].
         if (!isnothing(j)) && needs_update!(update_j, NewNewtonIteration())
             j!(j, x)
@@ -602,10 +592,15 @@ function solve_newton!(alg::NewtonsMethod, cache, x, f!, j! = nothing, post_impl
         end
         is_verbose(verbose) && @info "Newton iteration $n: ‖x‖ = $(norm(x)), ‖Δx‖ = $(norm(Δx))"
 
+        x .-= Δx
+        isnothing(post_implicit!) || post_implicit!(x)
+        # Update x[n] with Δx[n - 1], and exit the loop if Δx[n] is not needed.
         # Check for convergence if necessary.
-        if !isnothing(convergence_checker)
-            check_convergence!(convergence_checker, convergence_checker_cache, x, Δx, n) && break
-            n == max_iters && @warn "Newton's method did not converge within $n iterations"
+        if is_converged!(convergence_checker, convergence_checker_cache, x, Δx, n)
+            break
+        end
+        if is_verbose(verbose) && n == max_iters
+            @warn "Newton's method did not converge within $n iterations: ‖x‖ = $(norm(x)), ‖Δx‖ = $(norm(Δx))"
         end
     end
 end

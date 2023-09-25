@@ -17,9 +17,9 @@ import ClimaTimeSteppers as CTS
         cache = CTS.allocate_cache(checker, val_func(0))
         for (err_func, last_iter) in ((err_func1, last_iter1), (err_func2, last_iter2))
             for iter in 0:(last_iter - 1)
-                CTS.check_convergence!(checker, cache, val_func(iter), err_func(iter), iter) && return false
+                CTS.is_converged!(checker, cache, val_func(iter), err_func(iter), iter) && return false
             end
-            CTS.check_convergence!(checker, cache, val_func(last_iter), err_func(last_iter), last_iter) || return false
+            CTS.is_converged!(checker, cache, val_func(last_iter), err_func(last_iter), last_iter) || return false
         end
         return true
     end

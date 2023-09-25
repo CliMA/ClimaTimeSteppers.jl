@@ -12,7 +12,7 @@ using LinearAlgebra: norm
 
 Checks whether a sequence `val[0], val[1], val[2], ...` has converged to some
 limit `L`, given the errors `err[iter] = val[iter] .- L`. This is done by
-calling `check_convergence!(::ConvergenceChecker, cache, val, err, iter)`, where
+calling `is_converged!(::ConvergenceChecker, cache, val, err, iter)`, where
 `val = val[iter]` and `err = err[iter]`. If the value of `L` is not known, `err`
 can be an approximation of `err[iter]`. The `cache` for a `ConvergenceChecker`
 can be obtained with `allocate_cache(::ConvergenceChecker, val_prototype)`,
@@ -68,7 +68,9 @@ function has_component_converged(alg, cache, val, err, iter)
     return all(component_bools)
 end
 
-function check_convergence!(alg::ConvergenceChecker, cache, val, err, iter)
+is_converged!(alg::Nothing, cache, val, err, iter) = false
+
+function is_converged!(alg::ConvergenceChecker, cache, val, err, iter)
     (; norm_condition, component_condition, condition_combiner, norm) = alg
     (; norm_cache, component_cache) = cache
     if isnothing(norm_condition)

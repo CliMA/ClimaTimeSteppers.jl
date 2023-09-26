@@ -54,7 +54,7 @@ end
 
 step_u!(integrator, cache::IMEXSSPRKCache) = step_u!(integrator, cache, integrator.alg.name)
 
-include("hard_coded_ssp333.jl")
+# include("hard_coded_ssp333.jl")
 function step_u!(integrator, cache::IMEXSSPRKCache, name)
     (; u, p, t, dt, sol, alg) = integrator
     (; f) = sol.prob
@@ -105,8 +105,8 @@ function step_u!(integrator, cache::IMEXSSPRKCache, name)
                 iszero(a_imp[i, j]) && continue
                 @. U += dt * a_imp[i, j] * T_imp[j]
             end
-            i ≠ 1 && post_explicit!(U, p, t_exp)
         end
+        i ≠ 1 && post_explicit!(U, p, t_exp)
 
         if !isnothing(T_imp!) && !iszero(a_imp[i, i]) # Implicit solve
             @assert !isnothing(newtons_method)

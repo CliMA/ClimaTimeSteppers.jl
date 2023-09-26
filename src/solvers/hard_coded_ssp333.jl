@@ -47,9 +47,9 @@ function step_u!(integrator, cache::IMEXSSPRKCache, ::SSP333)
     @. U_exp = (1 - β[i - 1]) * u + β[i - 1] * U_exp
 
     dss!(U_exp, p, t_exp)
-    post_explicit!(U_exp, p, t_exp)
-
     @. U = U_exp
+    @. U += dt * a_imp[i, 1] * T_imp[1]
+    post_explicit!(U, p, t_exp)
 
     @assert !isnothing(newtons_method)
     @. temp = U

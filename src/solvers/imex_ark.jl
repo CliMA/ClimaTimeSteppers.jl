@@ -47,7 +47,7 @@ end
 
 step_u!(integrator, cache::IMEXARKCache) = step_u!(integrator, cache, integrator.alg.name)
 
-include("hard_coded_ars343.jl")
+# include("hard_coded_ars343.jl")
 # generic fallback
 function step_u!(integrator, cache::IMEXARKCache, name)
     (; u, p, t, dt, sol, alg) = integrator

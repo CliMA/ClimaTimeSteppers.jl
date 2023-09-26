@@ -54,10 +54,12 @@ end
 
 step_u!(integrator, cache::IMEXSSPRKCache) = step_u!(integrator, cache, integrator.alg.name)
 
+include("hard_coded_ssp333.jl")
 function step_u!(integrator, cache::IMEXSSPRKCache, name)
     (; u, p, t, dt, sol, alg) = integrator
     (; f) = sol.prob
     (; T_lim!, T_exp!, T_imp!, lim!, dss!) = f
+    (; post_explicit!, post_implicit!) = f
     (; tableau, newtons_method) = alg
     (; a_imp, b_imp, c_exp, c_imp) = tableau
     (; U, U_lim, U_exp, T_lim, T_exp, T_imp, temp, β, γ, newtons_method_cache) = cache
@@ -103,6 +105,7 @@ function step_u!(integrator, cache::IMEXSSPRKCache, name)
                 iszero(a_imp[i, j]) && continue
                 @. U += dt * a_imp[i, j] * T_imp[j]
             end
+            i ≠ 1 && post_explicit!(U, p, t_exp)
         end
 
         if !isnothing(T_imp!) && !iszero(a_imp[i, i]) # Implicit solve
@@ -114,12 +117,16 @@ function step_u!(integrator, cache::IMEXSSPRKCache, name)
                 @. residual = temp + dt * a_imp[i, i] * residual - Ui
             end
             implicit_equation_jacobian! = (jacobian, Ui) -> T_imp!.Wfact(jacobian, Ui, p, dt * a_imp[i, i], t_imp)
+            call_post_implicit! = Ui -> begin
+                post_implicit!(Ui, p, t_imp)
+            end
             solve_newton!(
                 newtons_method,
                 newtons_method_cache,
                 U,
                 implicit_equation_residual!,
                 implicit_equation_jacobian!,
+                call_post_implicit!,
             )
         end
 
@@ -173,6 +180,7 @@ function step_u!(integrator, cache::IMEXSSPRKCache, name)
     end
 
     dss!(u, p, t_final)
+    post_explicit!(u, p, t_final)
 
     return u
 end

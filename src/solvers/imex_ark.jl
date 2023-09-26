@@ -53,6 +53,7 @@ function step_u!(integrator, cache::IMEXARKCache, name)
     (; u, p, t, dt, sol, alg) = integrator
     (; f) = sol.prob
     (; T_lim!, T_exp!, T_imp!, lim!, dss!) = f
+    (; post_explicit!, post_implicit!) = f
     (; tableau, newtons_method) = alg
     (; a_exp, b_exp, a_imp, b_imp, c_exp, c_imp) = tableau
     (; U, T_lim, T_exp, T_imp, temp, γ, newtons_method_cache) = cache
@@ -114,6 +115,7 @@ function step_u!(integrator, cache::IMEXARKCache, name)
             NVTX.@range "dss!" color = colorant"yellow" begin
                 dss!(U, p, t_exp)
             end
+            post_explicit!(U, p, t_exp)
 
             if !isnothing(T_imp!) && !iszero(a_imp[i, i]) # Implicit solve
                 @assert !isnothing(newtons_method)
@@ -131,6 +133,9 @@ function step_u!(integrator, cache::IMEXARKCache, name)
                         end
                     end
                 implicit_equation_jacobian! = (jacobian, Ui) -> T_imp!.Wfact(jacobian, Ui, p, dt * a_imp[i, i], t_imp)
+                call_post_implicit! = Ui -> begin
+                    post_implicit!(Ui, p, t_imp)
+                end
 
                 NVTX.@range "solve_newton!" color = colorant"yellow" begin
                     solve_newton!(
@@ -139,6 +144,7 @@ function step_u!(integrator, cache::IMEXARKCache, name)
                         U,
                         implicit_equation_residual!,
                         implicit_equation_jacobian!,
+                        call_post_implicit!,
                     )
                 end
             end
@@ -221,6 +227,7 @@ function step_u!(integrator, cache::IMEXARKCache, name)
     NVTX.@range "dss!" color = colorant"yellow" begin
         dss!(u, p, t_final)
     end
+    post_explicit!(u, p, t_final)
 
     return u
 end

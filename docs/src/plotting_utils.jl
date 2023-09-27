@@ -11,7 +11,7 @@ using PrettyTables: pretty_table, ft_printf
 Return the predicted convergence order of the algorithm for the given ODE
 function (assuming that the algorithm converges).
 """
-function predicted_convergence_order(algorithm_name::AbstractAlgorithmName, ode_function::ClimaODEFunction)
+function predicted_convergence_order(algorithm_name::AbstractAlgorithmName, ode_function::AbstractClimaODEFunction)
     (imp_order, exp_order, combined_order) = imex_convergence_orders(algorithm_name)
     has_imp = !isnothing(ode_function.T_imp!)
     has_exp = !isnothing(ode_function.T_exp!) || !isnothing(ode_function.T_lim!)

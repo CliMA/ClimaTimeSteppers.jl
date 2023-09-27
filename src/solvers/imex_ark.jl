@@ -45,13 +45,12 @@ function init_cache(prob::DiffEqBase.AbstractODEProblem, alg::IMEXAlgorithm{Unco
     return IMEXARKCache(U, T_lim, T_exp, T_imp, temp, γ, newtons_method_cache)
 end
 
-step_u!(integrator, cache::IMEXARKCache) = step_u!(integrator, cache, integrator.alg.name)
+step_u!(integrator, cache::IMEXARKCache) = step_u!(integrator, cache, integrator.sol.prob.f, integrator.alg.name)
 
 include("hard_coded_ars343.jl")
 # generic fallback
-function step_u!(integrator, cache::IMEXARKCache, name)
-    (; u, p, t, dt, sol, alg) = integrator
-    (; f) = sol.prob
+function step_u!(integrator, cache::IMEXARKCache, f, name)
+    (; u, p, t, dt, alg) = integrator
     (; T_lim!, T_exp!, T_imp!, lim!, dss!) = f
     (; tableau, newtons_method) = alg
     (; a_exp, b_exp, a_imp, b_imp, c_exp, c_imp) = tableau

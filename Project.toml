@@ -19,7 +19,7 @@ SciMLBase = "0bca4576-84f4-4d90-8ffe-ffa030f20462"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
 [compat]
-CUDA = "3, 4"
+CUDA = "3, 4, 5"
 ClimaComms = "0.4, 0.5"
 Colors = "0.12"
 DataStructures = "0.18"

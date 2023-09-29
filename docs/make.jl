@@ -36,14 +36,13 @@ mathengine = MathJax(Dict(:TeX => Dict(:equationNumbers => Dict(:autoNumber => "
 
 format = Documenter.HTML(prettyurls = get(ENV, "CI", nothing) == "true", mathengine = mathengine, collapselevel = 1)
 
-makedocs(
-    bib,
+makedocs(;
+    plugins = [bib],
     sitename = "ClimaTimeSteppers",
     format = format,
     modules = [ClimaTimeSteppers],
     checkdocs = :exports,
     clean = true,
-    strict = true,
     pages = pages,
 )
 

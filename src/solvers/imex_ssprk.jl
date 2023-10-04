@@ -56,6 +56,7 @@ step_u!(integrator, cache::IMEXSSPRKCache) = step_u!(integrator, cache, integrat
 
 function step_u!(integrator, cache::IMEXSSPRKCache, f, name)
     (; u, p, t, dt, alg) = integrator
+    (; post_explicit!, post_implicit!) = f
     (; T_lim!, T_exp!, T_imp!, lim!, dss!) = f
     (; tableau, newtons_method) = alg
     (; a_imp, b_imp, c_exp, c_imp) = tableau
@@ -104,21 +105,39 @@ function step_u!(integrator, cache::IMEXSSPRKCache, f, name)
             end
         end
 
-        if !isnothing(T_imp!) && !iszero(a_imp[i, i]) # Implicit solve
+        if !(!isnothing(T_imp!) && !iszero(a_imp[i, i])) # Implicit solve
+            post_explicit!(U, p, t_imp)
+        else
             @assert !isnothing(newtons_method)
             @. temp = U
+            post_explicit!(U, p, t_imp)
             # TODO: can/should we remove these closures?
             implicit_equation_residual! = (residual, Ui) -> begin
                 T_imp!(residual, Ui, p, t_imp)
                 @. residual = temp + dt * a_imp[i, i] * residual - Ui
             end
             implicit_equation_jacobian! = (jacobian, Ui) -> T_imp!.Wfact(jacobian, Ui, p, dt * a_imp[i, i], t_imp)
+            call_post_implicit! = Ui -> begin
+                post_implicit!(Ui, p, t_imp)
+            end
+            call_post_implicit_last! =
+                Ui -> begin
+                    if (!all(iszero, a_imp[:, i]) || !iszero(b_imp[i])) && !iszero(a_imp[i, i])
+                        # If T_imp[i] is being treated implicitly, ensure that it
+                        # exactly satisfies the implicit equation.
+                        @. T_imp[i] = (Ui - temp) / (dt * a_imp[i, i])
+                    end
+                    post_implicit!(Ui, p, t_imp)
+                end
+
             solve_newton!(
                 newtons_method,
                 newtons_method_cache,
                 U,
                 implicit_equation_residual!,
                 implicit_equation_jacobian!,
+                call_post_implicit!,
+                call_post_implicit_last!,
             )
         end
 
@@ -127,16 +146,10 @@ function step_u!(integrator, cache::IMEXSSPRKCache, f, name)
         # tendency only acts in the vertical direction).
 
         if !all(iszero, a_imp[:, i]) || !iszero(b_imp[i])
-            if !isnothing(T_imp!)
-                if iszero(a_imp[i, i])
-                    # If its coefficient is 0, T_imp[i] is effectively being
-                    # treated explicitly.
-                    T_imp!(T_imp[i], U, p, t_imp)
-                else
-                    # If T_imp[i] is being treated implicitly, ensure that it
-                    # exactly satisfies the implicit equation.
-                    @. T_imp[i] = (U - temp) / (dt * a_imp[i, i])
-                end
+            if iszero(a_imp[i, i]) && !isnothing(T_imp!)
+                # If its coefficient is 0, T_imp[i] is effectively being
+                # treated explicitly.
+                T_imp!(T_imp[i], U, p, t_imp)
             end
         end
 

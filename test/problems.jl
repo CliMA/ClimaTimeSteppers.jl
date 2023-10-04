@@ -427,6 +427,22 @@ function onewaycouple_mri_test_cts(::Type{FT}) where {FT}
     )
 end
 
+# Used only for inference
+struct DummySchurComplementW{T}
+    temp1::T
+    temp2::T
+end
+DummySchurComplementW(Y::T) where {T} = DummySchurComplementW{T}(similar(Y), similar(Y))
+Base.similar(w::DummySchurComplementW) = w
+function LinearAlgebra.ldiv!(x, A::DummySchurComplementW, b)
+    A.temp1 .= b
+    LinearAlgebra.ldiv!(A.temp2, A, A.temp1)
+    x .= A.temp2
+end
+LinearAlgebra.ldiv!(x::Fields.FieldVector, A::DummySchurComplementW, b::Fields.FieldVector) = nothing
+
+Wfact!(W, Y, p, dtγ, t) = nothing
+
 """
     climacore_2Dheat_test_cts(::Type{<:AbstractFloat})
 
@@ -476,7 +492,19 @@ function climacore_2Dheat_test_cts(::Type{FT}) where {FT}
         return state
     end
 
-    tendency_func = ClimaODEFunction(; T_exp!, dss!)
+    # we add implicit pieces here for inference analysis
+    T_lim! = (Yₜ, u, _, t) -> nothing
+    post_implicit! = (u, _, t) -> nothing
+    post_explicit! = (u, _, t) -> nothing
+
+    T_imp! = SciMLBase.ODEFunction(
+        (Yₜ, u, _, t) -> nothing;
+        jac_prototype = DummySchurComplementW(init_state),
+        Wfact = Wfact!,
+        tgrad = (∂Y∂t, Y, p, t) -> (∂Y∂t .= 0),
+    )
+
+    tendency_func = ClimaODEFunction(; T_exp!, T_imp!, dss!, post_implicit!, post_explicit!)
     split_tendency_func = tendency_func
     make_prob(func) = ODEProblem(func, init_state, (FT(0), t_end), nothing)
     IntegratorTestCase(

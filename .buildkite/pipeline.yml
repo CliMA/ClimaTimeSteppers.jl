@@ -99,6 +99,14 @@ steps:
       queue: central
       slurm_ntasks: 1
 
+  - label: "Jet (clima diffusion 2D)"
+    command:
+      - "julia --project=perf perf/jet.jl --problem diffusion2d"
+    agents:
+      config: cpu
+      queue: central
+      slurm_ntasks: 1
+
   - label: "Benchmark"
     command:
       - "julia --project=perf perf/benchmark.jl"

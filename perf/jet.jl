@@ -6,7 +6,7 @@ function parse_commandline()
         "--problem"
         help = "Problem type [`ode_fun`, `fe`]"
         arg_type = String
-        default = "ode_fun"
+        default = "diffusion2d"
     end
     parsed_args = ArgParse.parse_args(ARGS, s)
     return (s, parsed_args)
@@ -14,6 +14,7 @@ end
 (s, parsed_args) = parse_commandline()
 cts = joinpath(dirname(@__DIR__));
 include(joinpath(cts, "test", "problems.jl"))
+config_integrators(itc::IntegratorTestCase) = config_integrators(itc.prob)
 function config_integrators(problem)
     algorithm = CTS.IMEXAlgorithm(ARS343(), NewtonsMethod(; max_iters = 2))
     dt = 0.01
@@ -21,7 +22,9 @@ function config_integrators(problem)
     integrator.cache = CTS.init_cache(problem, algorithm)
     return (; integrator)
 end
-prob = if parsed_args["problem"] == "ode_fun"
+prob = if parsed_args["problem"] == "diffusion2d"
+    climacore_2Dheat_test_cts(Float64)
+elseif parsed_args["problem"] == "ode_fun"
     split_linear_prob_wfact_split()
 elseif parsed_args["problem"] == "fe"
     split_linear_prob_wfact_split_fe()
@@ -30,4 +33,11 @@ else
 end
 (; integrator) = config_integrators(prob)
 
-JET.@test_opt CTS.step_u!(integrator, integrator.cache)
+CTS.step_u!(integrator, integrator.cache) # compile first, and make sure it runs
+step_allocs = @allocated CTS.step_u!(integrator, integrator.cache)
+@show step_allocs
+if parsed_args["problem"] == "diffusion2d"
+    JET.@test_opt broken = true CTS.step_u!(integrator, integrator.cache)
+else
+    JET.@test_opt CTS.step_u!(integrator, integrator.cache)
+end

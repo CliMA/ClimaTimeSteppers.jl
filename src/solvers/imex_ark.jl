@@ -45,12 +45,10 @@ function init_cache(prob::DiffEqBase.AbstractODEProblem, alg::IMEXAlgorithm{Unco
     return IMEXARKCache(U, T_lim, T_exp, T_imp, temp, γ, newtons_method_cache)
 end
 
-step_u!(integrator, cache::IMEXARKCache) = step_u!(integrator, cache, integrator.sol.prob.f, integrator.alg.name)
-
-# include("hard_coded_ars343.jl")
 # generic fallback
-function step_u!(integrator, cache::IMEXARKCache, f, name)
+function step_u!(integrator, cache::IMEXARKCache)
     (; u, p, t, dt, alg) = integrator
+    (; f) = integrator.sol.prob
     (; post_explicit!, post_implicit!) = f
     (; T_lim!, T_exp!, T_imp!, lim!, dss!) = f
     (; tableau, newtons_method) = alg
@@ -107,11 +105,10 @@ function step_u!(integrator, cache::IMEXARKCache, f, name)
             @. temp = U
             post_explicit!(U, p, t_imp)
             # TODO: can/should we remove these closures?
-            implicit_equation_residual! =
-                (residual, Ui) -> begin
-                    T_imp!(residual, Ui, p, t_imp)
-                    @. residual = temp + dt * a_imp[i, i] * residual - Ui
-                end
+            implicit_equation_residual! = (residual, Ui) -> begin
+                T_imp!(residual, Ui, p, t_imp)
+                @. residual = temp + dt * a_imp[i, i] * residual - Ui
+            end
             implicit_equation_jacobian! = (jacobian, Ui) -> T_imp!.Wfact(jacobian, Ui, p, dt * a_imp[i, i], t_imp)
             call_post_implicit! = Ui -> begin
                 post_implicit!(Ui, p, t_imp)

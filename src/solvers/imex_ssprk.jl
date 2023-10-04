@@ -185,6 +185,7 @@ function step_u!(integrator, cache::IMEXSSPRKCache, f, name)
     end
 
     dss!(u, p, t_final)
+    post_explicit!(u, p, t_final)
 
     return u
 end

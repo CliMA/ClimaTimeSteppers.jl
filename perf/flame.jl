@@ -35,7 +35,7 @@ end
 p = @allocated do_work!(integrator, cache)
 using Test
 @testset "Allocations" begin
-    @test_broken p == 0
+    @test p == 0
 end
 
 import ProfileCanvas

@@ -104,9 +104,9 @@ function step_u!(integrator, cache::IMEXSSPRKCache)
             end
         end
 
-        if !(!isnothing(T_imp!) && !iszero(a_imp[i, i])) # Implicit solve
-            post_explicit!(U, p, t_imp)
-        else
+        if !(!isnothing(T_imp!) && !iszero(a_imp[i, i]))
+            i ≠ 1 && post_explicit!(U, p, t_imp)
+        else # Implicit solve
             @assert !isnothing(newtons_method)
             @. temp = U
             post_explicit!(U, p, t_imp)

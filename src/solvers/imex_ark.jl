@@ -96,7 +96,7 @@ function step_u!(integrator, cache::IMEXARKCache)
             end
         end
 
-        dss!(U, p, t_exp)
+        i ≠ 1 && dss!(U, p, t_exp)
 
         if !(!isnothing(T_imp!) && !iszero(a_imp[i, i])) # Implicit solve
             post_explicit!(U, p, t_imp)

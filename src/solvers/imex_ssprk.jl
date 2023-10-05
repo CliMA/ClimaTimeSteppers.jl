@@ -94,7 +94,7 @@ function step_u!(integrator, cache::IMEXSSPRKCache)
             @. U_exp = (1 - β[i - 1]) * u + β[i - 1] * U_exp
         end
 
-        dss!(U_exp, p, t_exp)
+        i ≠ 1 && dss!(U_exp, p, t_exp)
 
         @. U = U_exp
         if !isnothing(T_imp!) # Update based on implicit tendencies from previous stages

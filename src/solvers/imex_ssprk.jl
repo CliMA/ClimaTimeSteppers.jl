@@ -19,13 +19,13 @@ function init_cache(prob::DiffEqBase.AbstractODEProblem, alg::IMEXAlgorithm{SSP}
     s = length(b_exp)
     inds = ntuple(i -> i, s)
     inds_T_imp = filter(i -> !all(iszero, a_imp[:, i]) || !iszero(b_imp[i]), inds)
-    U = similar(u0)
-    U_exp = similar(u0)
-    T_lim = similar(u0)
-    T_exp = similar(u0)
-    U_lim = similar(u0)
-    T_imp = SparseContainer(map(i -> similar(u0), collect(1:length(inds_T_imp))), inds_T_imp)
-    temp = similar(u0)
+    U = zero(u0)
+    U_exp = zero(u0)
+    T_lim = zero(u0)
+    T_exp = zero(u0)
+    U_lim = zero(u0)
+    T_imp = SparseContainer(map(i -> zero(u0), collect(1:length(inds_T_imp))), inds_T_imp)
+    temp = zero(u0)
     â_exp = vcat(a_exp, b_exp')
     β = diag(â_exp, -1)
     for i in 1:length(β)
@@ -83,14 +83,10 @@ function step_u!(integrator, cache::IMEXSSPRKCache)
         if i == 1
             @. U_exp = u
         elseif !iszero(β[i - 1])
-            if !isnothing(T_lim!)
-                @. U_lim = U_exp + dt * T_lim
-                lim!(U_lim, p, t_exp, U_exp)
-                @. U_exp = U_lim
-            end
-            if !isnothing(T_exp!)
-                @. U_exp += dt * T_exp
-            end
+            @. U_lim = U_exp + dt * T_lim
+            lim!(U_lim, p, t_exp, U_exp)
+            @. U_exp = U_lim
+            @. U_exp += dt * T_exp
             @. U_exp = (1 - β[i - 1]) * u + β[i - 1] * U_exp
         end
 
@@ -153,26 +149,18 @@ function step_u!(integrator, cache::IMEXSSPRKCache)
         end
 
         if !iszero(β[i])
-            if !isnothing(T_lim!)
-                T_lim!(T_lim, U, p, t_exp)
-            end
-            if !isnothing(T_exp!)
-                T_exp!(T_exp, U, p, t_exp)
-            end
+            T_lim!(T_lim, U, p, t_exp)
+            T_exp!(T_exp, U, p, t_exp)
         end
     end
 
     t_final = t + dt
 
     if !iszero(β[s])
-        if !isnothing(T_lim!)
-            @. U_lim = U_exp + dt * T_lim
-            lim!(U_lim, p, t_final, U_exp)
-            @. U_exp = U_lim
-        end
-        if !isnothing(T_exp!)
-            @. U_exp += dt * T_exp
-        end
+        @. U_lim = U_exp + dt * T_lim
+        lim!(U_lim, p, t_final, U_exp)
+        @. U_exp = U_lim
+        @. U_exp += dt * T_exp
         @. u = (1 - β[s]) * u + β[s] * U_exp
     end
 

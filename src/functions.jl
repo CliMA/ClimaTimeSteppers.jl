@@ -4,14 +4,32 @@ export ClimaODEFunction, ForwardEulerODEFunction
 
 abstract type AbstractClimaODEFunction <: DiffEqBase.AbstractODEFunction{true} end
 
-Base.@kwdef struct ClimaODEFunction{TL, TE, TI, L, D, PE, PI} <: AbstractClimaODEFunction
-    T_lim!::TL = nothing # nothing or (uₜ, u, p, t) -> ...
-    T_exp!::TE = nothing # nothing or (uₜ, u, p, t) -> ...
-    T_imp!::TI = nothing # nothing or (uₜ, u, p, t) -> ...
-    lim!::L = (u, p, t, u_ref) -> nothing
-    dss!::D = (u, p, t) -> nothing
-    post_explicit!::PE = (u, p, t) -> nothing
-    post_implicit!::PI = (u, p, t) -> nothing
+struct ClimaODEFunction{TL, TE, TI, L, D, PE, PI} <: AbstractClimaODEFunction
+    T_lim!::TL
+    T_exp!::TE
+    T_imp!::TI
+    lim!::L
+    dss!::D
+    post_explicit!::PE
+    post_implicit!::PI
+end
+function ClimaODEFunction(;
+    T_lim! = nothing,
+    T_exp! = nothing,
+    T_imp! = nothing,
+    lim! = nothing,
+    dss! = nothing,
+    post_explicit! = nothing,
+    post_implicit! = nothing,
+)
+    isnothing(T_lim!) && (T_lim! = (uₜ, u, p, t) -> nothing)
+    isnothing(T_exp!) && (T_exp! = (uₜ, u, p, t) -> nothing)
+    T_imp! = nothing
+    isnothing(lim!) && (lim! = (u, p, t, u_ref) -> nothing)
+    isnothing(dss!) && (dss! = (u, p, t) -> nothing)
+    isnothing(post_explicit!) && (post_explicit! = (u, p, t) -> nothing)
+    isnothing(post_implicit!) && (post_implicit! = (u, p, t) -> nothing)
+    return ClimaODEFunction(T_lim!, T_exp!, T_imp!, lim!, dss!, post_explicit!, post_implicit!)
 end
 
 # Don't wrap a AbstractClimaODEFunction in an ODEFunction (makes ODEProblem work).

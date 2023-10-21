@@ -79,7 +79,7 @@ function step_u!(integrator, cache::IMEXARKCache)
                 iszero(a_exp[i, j]) && continue
                 @. U += dt * a_exp[i, j] * T_lim[j]
             end
-            lim!(U, p, t_exp, u)
+            i ≠ 1 && lim!(U, p, t_exp, u)
         end
 
         if !isnothing(T_exp!) # Update based on explicit tendencies from previous stages

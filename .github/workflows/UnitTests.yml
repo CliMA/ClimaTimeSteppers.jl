@@ -3,12 +3,6 @@ name: Unit Tests
 on:
   pull_request:
 
-  push:
-    branches:
-      - main
-      - trying
-      - staging
-
 jobs:
   test-os:
     timeout-minutes: 120

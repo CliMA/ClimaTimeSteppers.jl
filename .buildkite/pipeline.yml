@@ -22,6 +22,7 @@ steps:
   - label: "init cpu env"
     key: "init_cpu_env"
     command:
+      - "echo $$JULIA_DEPOT_PATH"
       # - echo "--- Configure MPI"
       # - julia -e 'using Pkg; Pkg.add("MPIPreferences"); using MPIPreferences; use_system_binary()'
 
@@ -69,14 +70,16 @@ steps:
 
   - wait
 
-  - label: "CPU tests"
-    command:
-      - "julia --project=test --check-bounds=yes test/runtests.jl"
-    artifact_paths: "output/*"
-    agents:
-      config: cpu
-      queue: central
-      slurm_ntasks: 1
+  - group: "Unit tests"
+    steps:
+      - label: "CPU tests"
+        command:
+          - "julia --project=test --check-bounds=yes test/runtests.jl"
+        artifact_paths: "output/*"
+        agents:
+          config: cpu
+          queue: central
+          slurm_ntasks: 1
 
   # - label: "GPU tests"
   #   command:
@@ -88,35 +91,38 @@ steps:
   #     slurm_ntasks: 1
   #     slurm_gres: "gpu:1"
 
-  - label: "Flame graph (1D diffusion)"
-    command:
-      - "julia --project=perf perf/flame.jl --job_id diffusion_1D"
-    artifact_paths: "diffusion_1D/*"
-    agents:
-      config: cpu
-      queue: central
-      slurm_ntasks: 1
+  - group: "Performance"
+    steps:
 
-  - label: "Jet graph (ode fun)"
-    command:
-      - "julia --project=perf perf/jet.jl --problem ode_fun"
-    agents:
-      config: cpu
-      queue: central
-      slurm_ntasks: 1
+    - label: "Flame graph (1D diffusion)"
+      command:
+        - "julia --project=perf perf/flame.jl --job_id diffusion_1D"
+      artifact_paths: "diffusion_1D/*"
+      agents:
+        config: cpu
+        queue: central
+        slurm_ntasks: 1
 
-  - label: "Jet (forward euler)"
-    command:
-      - "julia --project=perf perf/jet.jl --problem fe"
-    agents:
-      config: cpu
-      queue: central
-      slurm_ntasks: 1
+    - label: "Jet graph (ode fun)"
+      command:
+        - "julia --project=perf perf/jet.jl --problem ode_fun"
+      agents:
+        config: cpu
+        queue: central
+        slurm_ntasks: 1
 
-  - label: "Benchmark"
-    command:
-      - "julia --project=perf perf/benchmark.jl"
-    agents:
-      config: cpu
-      queue: central
-      slurm_ntasks: 1
+    - label: "Jet (forward euler)"
+      command:
+        - "julia --project=perf perf/jet.jl --problem fe"
+      agents:
+        config: cpu
+        queue: central
+        slurm_ntasks: 1
+
+    - label: "Benchmark"
+      command:
+        - "julia --project=perf perf/benchmark.jl"
+      agents:
+        config: cpu
+        queue: central
+        slurm_ntasks: 1

@@ -42,6 +42,9 @@ steps:
       config: cpu
       queue: central
       slurm_ntasks: 1
+    env:
+      JULIA_NUM_PRECOMPILE_TASKS: 8
+      JULIA_MAX_NUM_PRECOMPILE_FILES: 50
 
   # - label: "init gpu env"
   #   key: "init_gpu_env"

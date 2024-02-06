@@ -1,6 +1,5 @@
 [deps]
 Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
-CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 ClimaComms = "3a4d1b5c-c61d-41fd-a00a-5873ba7a1b0d"
 ClimaCore = "d414da3d-4745-48bb-8d80-42e94e092884"
 ClimaTimeSteppers = "595c0a79-7f3d-439a-bc5a-b232dc3bde79"
@@ -25,7 +24,6 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [compat]
 Aqua = "0.6"
-CUDA = "3, 4, 5"
 ClimaComms = "0.4, 0.5"
 ClimaCore = "0.10"
 DataStructures = "0.18"

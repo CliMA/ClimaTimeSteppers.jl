@@ -159,7 +159,7 @@ function DiffEqBase.__solve(prob::DiffEqBase.AbstractODEProblem, alg::Distribute
 end
 
 # either called directly (after init), or by DiffEqBase.solve (via __solve)
-function DiffEqBase.solve!(integrator::DistributedODEIntegrator)
+NVTX.@annotate function DiffEqBase.solve!(integrator::DistributedODEIntegrator)
     while !isempty(integrator.tstops) && integrator.step != integrator.stepstop
         __step!(integrator)
     end
@@ -230,7 +230,9 @@ function __step!(integrator)
 end
 
 # solvers need to define this interface
-step_u!(integrator) = step_u!(integrator, integrator.cache)
+NVTX.@annotate function step_u!(integrator)
+    step_u!(integrator, integrator.cache)
+end
 
 DiffEqBase.get_dt(integrator::DistributedODEIntegrator) = integrator._dt
 function set_dt!(integrator::DistributedODEIntegrator, dt)

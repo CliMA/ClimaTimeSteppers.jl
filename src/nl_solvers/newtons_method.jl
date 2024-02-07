@@ -428,7 +428,7 @@ function allocate_cache(alg::KrylovMethod, x_prototype)
     )
 end
 
-function solve_krylov!(alg::KrylovMethod, cache, Δx, x, f!, f, n, post_implicit!, j = nothing)
+NVTX.@annotate function solve_krylov!(alg::KrylovMethod, cache, Δx, x, f!, f, n, post_implicit!, j = nothing)
     (; jacobian_free_jvp, forcing_term, solve_kwargs) = alg
     (; disable_preconditioner, debugger) = alg
     type = solver_type(alg)
@@ -577,7 +577,7 @@ solve_newton!(
     post_implicit_last! = nothing,
 ) = nothing
 
-function solve_newton!(
+NVTX.@annotate function solve_newton!(
     alg::NewtonsMethod,
     cache,
     x,

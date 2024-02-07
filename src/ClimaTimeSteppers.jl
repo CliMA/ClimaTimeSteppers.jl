@@ -48,7 +48,6 @@ using KernelAbstractions
 using LinearAlgebra
 using LinearOperators
 using StaticArrays
-using CUDA
 import ClimaComms
 using Colors
 using NVTX
@@ -56,7 +55,7 @@ using NVTX
 export AbstractAlgorithmName, AbstractAlgorithmConstraint, Unconstrained, SSP
 
 array_device(::Union{Array, SArray, MArray}) = CPU()
-array_device(::CuArray) = CUDADevice()
+array_device(x) = CUDADevice() # assume CUDA
 
 import DiffEqBase, SciMLBase, LinearAlgebra, DiffEqCallbacks, Krylov
 

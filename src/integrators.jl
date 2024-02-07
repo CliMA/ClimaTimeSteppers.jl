@@ -217,9 +217,11 @@ function __step!(integrator)
 
     # apply callbacks
     discrete_callbacks = integrator.callback.discrete_callbacks
-    for callback in discrete_callbacks
+    for (ncb, callback) in enumerate(discrete_callbacks)
         if callback.condition(integrator.u, integrator.t, integrator)
-            callback.affect!(integrator)
+            NVTX.@range "Callback $ncb of $(length(discrete_callbacks))" color = colorant"yellow" begin
+                callback.affect!(integrator)
+            end
         end
     end
 

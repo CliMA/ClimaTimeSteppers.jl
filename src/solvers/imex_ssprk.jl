@@ -26,10 +26,10 @@ function init_cache(prob::DiffEqBase.AbstractODEProblem, alg::IMEXAlgorithm{SSP}
     U_lim = similar(u0)
     T_imp = SparseContainer(map(i -> similar(u0), collect(1:length(inds_T_imp))), inds_T_imp)
     temp = similar(u0)
-    â_exp = vcat(a_exp, b_exp')
-    β = diag(â_exp, -1)
+    â_exp = SparseCoeffs(vcat(a_exp.coeffs, b_exp.coeffs'))
+    β = SparseCoeffs(diag(â_exp, -1))
     for i in 1:length(β)
-        if â_exp[(i + 1):end, i] != cumprod(β[i:end])
+        if â_exp.coeffs[(i + 1):end, i] != cumprod(β.coeffs[i:end])
             error("The SSP IMEXAlgorithm currently only supports an \
                    IMEXTableau that specifies a \"low-storage\" IMEX SSPRK \
                    algorithm, where the canonical Shu-Osher representation of \

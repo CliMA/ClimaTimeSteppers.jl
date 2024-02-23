@@ -1,5 +1,5 @@
 """
-    fused_increment(u, dt, sc::SparseCoeffs{S}, tend, ::Val{i}) where {i, S}
+    fused_increment(u, dt, sc::SparseCoeffs, tend, ::Val{i}) where {i}
 
 Returns a broadcasted object in the form
 
@@ -35,38 +35,79 @@ function fused_increment end
 
 @inline fused_increment(u, dt, sc, tend, v) = fused_increment(u, dt, sc, tend, v, get_S(sc))
 
-# ij case (S::NTuple{2})
-@generated function fused_increment(u, dt, sc::T, tend, ::Val{i}, ::NTuple{2}) where {i, S, T <: SparseCoeffs{S}}
-    i ≤ 1 && return :(u)
-    terms = []
-    for j in 1:(i - 1)
-        zero_coeff(T, i, j) && continue
-        push!(terms, :(Base.Broadcast.broadcasted(*, dt * sc[$i, $j], tend[$j])))
-    end
-    isempty(terms) && return :(u)
-    expr = Meta.parse(join(terms, ","))
-    if length(terms) == 1
-        return :(Base.Broadcast.broadcasted(+, u, $expr))
+# =================================================== ij case (S::NTuple{2})
+# recursion: _rfused_increment_j always returns a Tuple
+@inline _rfused_increment_ij(js::Tuple{}, i, u, dt, sc::SparseCoeffs, tend) = ()
+
+@inline _rfused_increment_ij(js::Tuple{Int}, i, u, dt, sc::T, tend) where {T <: SparseCoeffs} =
+    _rfused_increment_ij(js[1], i, u, dt, sc, tend)
+
+@inline _rfused_increment_ij(j::Int, i, u, dt, sc::T, tend) where {T <: SparseCoeffs} =
+    if zero_coeff(T, i, j)
+        ()
     else
-        return :(Base.Broadcast.broadcasted(+, u, $expr...))
+        (Base.Broadcast.broadcasted(*, dt * sc[i, j], tend[j]),)
+    end
+
+@inline _rfused_increment_ij(js::Tuple, i, u, dt, sc::T, tend) where {T <: SparseCoeffs} =
+    (_rfused_increment_ij(first(js), i, u, dt, sc, tend)..., _rfused_increment_ij(Base.tail(js), i, u, dt, sc, tend)...)
+
+# top-level function
+@inline function _fused_increment_ij(js::Tuple, i, u, dt, sc::T, tend) where {T <: SparseCoeffs}
+    return if all(j -> zero_coeff(T, i, j), js)
+        u
+    else
+        Base.Broadcast.broadcasted(
+            +,
+            u,
+            _rfused_increment_ij(js, i, u, dt, sc, tend)..., # recurse...
+        )
     end
 end
 
-# j case (S::NTuple{1})
-@generated function fused_increment(u, dt, sc::T, tend, ::Val{s}, ::NTuple{1}) where {s, S, T <: SparseCoeffs{S}}
-    all(j -> zero_coeff(T, j), 1:s) && return :(u)
-    terms = []
-    for j in 1:s
-        zero_coeff(T, j) && continue
-        push!(terms, :(Base.Broadcast.broadcasted(*, dt * sc[$j], tend[$j])))
-    end
-    expr = Meta.parse(join(terms, ","))
-    if length(terms) == 1
-        return :(Base.Broadcast.broadcasted(+, u, $expr))
+# top-level function, if the tuple is empty, just return u
+@inline _fused_increment_ij(js::Tuple{}, i, u, dt, sc::SparseCoeffs, tend) = u
+
+# wrapper ij case (S::NTuple{2})
+@inline fused_increment(u, dt, sc::SparseCoeffs, tend, ::Val{i}, ::NTuple{2}) where {i} =
+    _fused_increment_ij(ntuple(j -> j, Val(i - 1)), i, u, dt, sc, tend)
+
+# =================================================== j case (S::NTuple{1})
+# recursion: _rfused_increment_j always returns a Tuple
+@inline _rfused_increment_j(js::Tuple{}, u, dt, sc::SparseCoeffs, tend) = ()
+
+@inline _rfused_increment_j(js::Tuple{Int}, u, dt, sc::T, tend) where {T <: SparseCoeffs} =
+    _rfused_increment_j(js[1], u, dt, sc, tend)
+
+@inline _rfused_increment_j(j::Int, u, dt, sc::T, tend) where {T <: SparseCoeffs} =
+    if zero_coeff(T, j)
+        ()
     else
-        return :(Base.Broadcast.broadcasted(+, u, $expr...))
+        (Base.Broadcast.broadcasted(*, dt * sc[j], tend[j]),)
+    end
+
+@inline _rfused_increment_j(js::Tuple, u, dt, sc::T, tend) where {T <: SparseCoeffs} =
+    (_rfused_increment_j(first(js), u, dt, sc, tend)..., _rfused_increment_j(Base.tail(js), u, dt, sc, tend)...)
+
+# top-level function
+@inline function _fused_increment_j(js::Tuple, u, dt, sc::T, tend) where {T <: SparseCoeffs}
+    return if all(j -> zero_coeff(T, j), js)
+        u
+    else
+        Base.Broadcast.broadcasted(
+            +,
+            u,
+            _rfused_increment_j(js, u, dt, sc, tend)..., # recurse...
+        )
     end
 end
+
+# top-level function, if the tuple is empty, just return u
+@inline _fused_increment_j(js::Tuple{}, u, dt, sc::SparseCoeffs, tend) = u
+
+# wrapper j case (S::NTuple{1})
+@inline fused_increment(u, dt, sc::SparseCoeffs, tend, ::Val{s}, ::NTuple{1}) where {s} =
+    _fused_increment_j(ntuple(i -> i, s), u, dt, sc, tend)
 
 """
     fused_increment!(u, dt, sc, tend, v)

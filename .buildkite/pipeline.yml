@@ -23,16 +23,16 @@ steps:
     key: "init_cpu_env"
     command:
       - echo "--- Instantiate project"
-      - "julia --project -e 'using Pkg; Pkg.instantiate(;verbose=true); Pkg.precompile(;strict=true)'"
+      - "julia --project -e 'import InteractiveUtils; @show(InteractiveUtils.versioninfo()); using Pkg; Pkg.instantiate(;verbose=true); Pkg.precompile(;strict=true)'"
 
       - echo "--- Instantiate test"
-      - "julia --project=test -e 'using Pkg; Pkg.develop(path=\".\"); Pkg.instantiate(;verbose=true); Pkg.precompile(;strict=true)'"
+      - "julia --project=test -e 'import InteractiveUtils; @show(InteractiveUtils.versioninfo()); using Pkg; Pkg.develop(path=\".\"); Pkg.instantiate(;verbose=true); Pkg.precompile(;strict=true)'"
 
       - echo "--- Instantiate perf"
-      - "julia --project=perf -e 'using Pkg; Pkg.instantiate(;verbose=true); Pkg.precompile(;strict=true)'"
+      - "julia --project=perf -e 'import InteractiveUtils; @show(InteractiveUtils.versioninfo()); using Pkg; Pkg.instantiate(;verbose=true); Pkg.precompile(;strict=true)'"
 
       - echo "--- Package status"
-      - "julia --project -e 'using Pkg; Pkg.status()'"
+      - "julia --project -e 'import InteractiveUtils; @show(InteractiveUtils.versioninfo()); using Pkg; Pkg.status()'"
 
     agents:
       config: cpu

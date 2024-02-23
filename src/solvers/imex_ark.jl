@@ -72,29 +72,16 @@ function step_u!(integrator, cache::IMEXARKCache)
         t_exp = t + dt * c_exp[i]
         t_imp = t + dt * c_imp[i]
 
-        @. U = u
-
         if !isnothing(T_lim!) # Update based on limited tendencies from previous stages
-            for j in 1:(i - 1)
-                iszero(a_exp[i, j]) && continue
-                @. U += dt * a_exp[i, j] * T_lim[j]
-            end
+            assign_fused_increment!(U, u, dt, a_exp, T_lim, Val(i))
             i ≠ 1 && lim!(U, p, t_exp, u)
+        else
+            @. U = u
         end
 
-        if !isnothing(T_exp!) # Update based on explicit tendencies from previous stages
-            for j in 1:(i - 1)
-                iszero(a_exp[i, j]) && continue
-                @. U += dt * a_exp[i, j] * T_exp[j]
-            end
-        end
-
-        if !isnothing(T_imp!) # Update based on implicit tendencies from previous stages
-            for j in 1:(i - 1)
-                iszero(a_imp[i, j]) && continue
-                @. U += dt * a_imp[i, j] * T_imp[j]
-            end
-        end
+        # Update based on tendencies from previous stages
+        isnothing(T_exp!) || fused_increment!(U, dt, a_exp, T_exp, Val(i))
+        isnothing(T_imp!) || fused_increment!(U, dt, a_imp, T_imp, Val(i))
 
         i ≠ 1 && dss!(U, p, t_exp)
 
@@ -147,40 +134,22 @@ function step_u!(integrator, cache::IMEXARKCache)
         end
 
         if !all(iszero, a_exp[:, i]) || !iszero(b_exp[i])
-            if !isnothing(T_lim!)
-                T_lim!(T_lim[i], U, p, t_exp)
-            end
-            if !isnothing(T_exp!)
-                T_exp!(T_exp[i], U, p, t_exp)
-            end
+            isnothing(T_lim!) || T_lim!(T_lim[i], U, p, t_exp)
+            isnothing(T_exp!) || T_exp!(T_exp[i], U, p, t_exp)
         end
     end
 
     t_final = t + dt
 
     if !isnothing(T_lim!) # Update based on limited tendencies from previous stages
-        @. temp = u
-        for j in 1:s
-            iszero(b_exp[j]) && continue
-            @. temp += dt * b_exp[j] * T_lim[j]
-        end
+        assign_fused_increment!(temp, u, dt, b_exp, T_lim, Val(s))
         lim!(temp, p, t_final, u)
         @. u = temp
     end
 
-    if !isnothing(T_exp!) # Update based on explicit tendencies from previous stages
-        for j in 1:s
-            iszero(b_exp[j]) && continue
-            @. u += dt * b_exp[j] * T_exp[j]
-        end
-    end
-
-    if !isnothing(T_imp!) # Update based on implicit tendencies from previous stages
-        for j in 1:s
-            iszero(b_imp[j]) && continue
-            @. u += dt * b_imp[j] * T_imp[j]
-        end
-    end
+    # Update based on tendencies from previous stages
+    isnothing(T_exp!) || fused_increment!(u, dt, b_exp, T_exp, Val(s))
+    isnothing(T_imp!) || fused_increment!(u, dt, b_imp, T_imp, Val(s))
 
     dss!(u, p, t_final)
     post_explicit!(u, p, t_final)

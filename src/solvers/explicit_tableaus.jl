@@ -11,11 +11,12 @@ default value for `b` assumes that the algorithm is FSAL (first same as last),
 and the default value for `c` assumes that it is internally consistent. The
 matrix `a` must be strictly lower triangular.
 """
-struct ExplicitTableau{VS <: StaticArrays.StaticArray, MS <: StaticArrays.StaticArray}
-    a::MS # matrix of size s×s
-    b::VS # vector of length s
-    c::VS # vector of length s
+struct ExplicitTableau{A <: SPCO, B <: SPCO, C <: SPCO}
+    a::A # matrix of size s×s
+    b::B # vector of length s
+    c::C # vector of length s
 end
+ExplicitTableau(args...) = ExplicitTableau(map(x -> SparseCoeffs(x), args)...)
 function ExplicitTableau(; a, b = a[end, :], c = vec(sum(a; dims = 2)))
     @assert all(iszero, UpperTriangular(a))
     b, c = promote(b, c) # TODO: add generic promote_eltype

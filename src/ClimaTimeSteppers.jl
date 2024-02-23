@@ -59,6 +59,8 @@ array_device(x) = CUDADevice() # assume CUDA
 
 import DiffEqBase, SciMLBase, LinearAlgebra, DiffEqCallbacks, Krylov
 
+include(joinpath("utilities", "sparse_coeffs.jl"))
+include(joinpath("utilities", "fused_increment.jl"))
 include("sparse_containers.jl")
 include("functions.jl")
 
@@ -112,6 +114,8 @@ n_stages_ntuple(::Type{<:NTuple{Nstages}}) where {Nstages} = Nstages
 n_stages_ntuple(::Type{<:SVector{Nstages}}) where {Nstages} = Nstages
 
 # Include concrete implementations
+const SPCO = SparseCoeffs
+
 include("solvers/imex_tableaus.jl")
 include("solvers/explicit_tableaus.jl")
 include("solvers/imex_ark.jl")

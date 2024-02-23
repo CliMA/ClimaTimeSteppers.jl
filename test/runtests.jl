@@ -13,6 +13,9 @@ end
 @safetestset "SparseContainers" begin
     include("sparse_containers.jl")
 end
+@safetestset "Fused incrememnt" begin
+    include("fused_increment.jl")
+end
 @safetestset "Newtons method" begin
     include("test_newtons_method.jl")
 end

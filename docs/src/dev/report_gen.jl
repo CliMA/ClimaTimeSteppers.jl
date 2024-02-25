@@ -21,7 +21,7 @@ let # Convergence
         title,
         algorithm_names,
         climacore_1Dheat_test_cts(Float64),
-        200;
+        400;
         num_steps_scaling_factor = 4,
         numerical_reference_algorithm_name = ARS343(),
     )
@@ -29,7 +29,7 @@ let # Convergence
         title,
         algorithm_names,
         climacore_2Dheat_test_cts(Float64),
-        200;
+        600;
         num_steps_scaling_factor = 4,
         numerical_reference_algorithm_name = ARS343(),
     )

@@ -36,8 +36,4 @@ end
 CTS.step_u!(integrator, integrator.cache) # compile first, and make sure it runs
 step_allocs = @allocated CTS.step_u!(integrator, integrator.cache)
 @show step_allocs
-if parsed_args["problem"] == "diffusion2d"
-    JET.@test_opt broken = true CTS.step_u!(integrator, integrator.cache)
-else
-    JET.@test_opt CTS.step_u!(integrator, integrator.cache)
-end
+JET.@test_opt CTS.step_u!(integrator, integrator.cache)

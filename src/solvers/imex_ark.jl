@@ -81,108 +81,57 @@ function step_u!(integrator, cache::IMEXARKCache, name)
     for stage in 1:Nstage_imp
         NVTX.@range "explicit update" begin
             t_exp = t + dt * c_exp[stage]
-            if !isnothing(T_lim!)
-                NVTX.@range "compute limited tendency" color = colorant"yellow" begin
-                    T_lim!(T_lim[stage], U, p, t_exp)
-                end
-            end
-            if !isnothing(T_exp!)
-                NVTX.@range "compute remaining tendency" color = colorant"blue" begin
-                    T_exp!(T_exp[stage], U, p, t_exp)
-                end
-            end
+            isnothing(T_lim!) || T_lim!(T_lim[stage], U, p, t_exp)
+            isnothing(T_exp!) || T_exp!(T_exp[stage], U, p, t_exp)
             NVTX.@range "update U" color = colorant"green" begin
-                U .= u
-                for j in 1:stage
-                    iszero(a_exp[stage + 1, j]) && continue
-                    @. U += dt * a_exp[stage + 1, j] * T_lim[j]
-                end
-                if !isnothing(lim!)
-                    NVTX.@range "apply limiter" color = colorant"yellow" begin
-                        lim!(U, p, t_exp, u)
-                    end
-                end
-                for j in 1:stage
-                    iszero(a_exp[stage + 1, j]) && continue
-                    @. U += dt * a_exp[stage + 1, j] * T_exp[j]
-                end
-                for j in 2:stage
-                    iszero(a_imp[stage + 1, j]) && continue
-                    @. U += dt * a_imp[stage + 1, j] * T_imp[j - 1]
-                end
+                assign_fused_increment_sp1!(U, u, dt, a_exp, T_lim, Val(stage))
+                isnothing(lim!) || lim!(U, p, t_exp, u)
+                fused_increment_sp1!(U, dt, a_exp, T_exp, Val(stage))
+                fused_increment_sp1_jm1!(U, dt, a_imp, T_imp, Val(stage))
                 # TODO: convert to generic explicit callback
-                NVTX.@range "dss!" color = colorant"yellow" begin
-                    dss!(U, p, t_exp)
-                end
+                dss!(U, p, t_exp)
             end
         end
 
-        NVTX.@range "implicit update" begin
-            t_imp = t + dt * c_imp[stage + 1]
-            if iszero(a_imp[stage + 1, stage + 1]) # Implicit solve
-                @assert !isnothing(newtons_method)
-                @. temp = U
-                # TODO: can/should we remove these closures?
-                function implicit_equation_residual!(residual, U)
-                    NVTX.@range "T_imp!" color = colorant"yellow" begin
-                        T_imp!(residual, U, p, t_imp)
-                    end
-                    NVTX.@range "residual=temp+dt*a_imp*residual-Ui" color = colorant"yellow" begin
-                        @. residual = temp + dt * a_imp[stage + 1, stage + 1] * residual - U
-                    end
-                end
-                function implicit_equation_jacobian!(jacobian, U)
-                    T_imp!.Wfact(jacobian, U, p, dt * a_imp[stage + 1, stage + 1], t_imp)
-                end
-
-                NVTX.@range "solve_newton!" color = colorant"yellow" begin
-                    # TODO: add option for callback
-                    solve_newton!(
-                        newtons_method,
-                        newtons_method_cache,
-                        U,
-                        implicit_equation_residual!,
-                        implicit_equation_jacobian!,
-                    )
-                end
-                @. T_imp[stage] = (U - temp) / (dt * a_imp[stage + 1, stage + 1])
-            else
-                T_imp!(T_imp[stage], U, p, t_imp)
+        t_imp = t + dt * c_imp[stage + 1]
+        if iszero(a_imp[stage + 1, stage + 1]) # Implicit solve
+            @assert !isnothing(newtons_method)
+            @. temp = U
+            # TODO: can/should we remove these closures?
+            function implicit_equation_residual!(residual, U)
+                T_imp!(residual, U, p, t_imp)
+                @. residual = temp + dt * a_imp[stage + 1, stage + 1] * residual - U
             end
+            function implicit_equation_jacobian!(jacobian, U)
+                T_imp!.Wfact(jacobian, U, p, dt * a_imp[stage + 1, stage + 1], t_imp)
+            end
+
+            # TODO: add option for callback
+            solve_newton!(
+                newtons_method,
+                newtons_method_cache,
+                U,
+                implicit_equation_residual!,
+                implicit_equation_jacobian!,
+            )
+            @. T_imp[stage] = (U - temp) / (dt * a_imp[stage + 1, stage + 1])
+        else
+            T_imp!(T_imp[stage], U, p, t_imp)
         end
     end
 
     NVTX.@range "final explicit update" begin
         t_final = t + dt
-        isnothing(T_lim!) || NVTX.@range "compute limited tendency" color = colorant"yellow" begin
-            T_lim!(T_lim[Nstage_exp], U, p, t_final)
-        end
-        isnothing(T_exp!) || NVTX.@range "compute remaining tendency" color = colorant"blue" begin
-            T_exp!(T_exp[Nstage_exp], U, p, t_final)
-        end
-        NVTX.@range "update U" color = colorant"green" begin
-            U .= u
-            for j in 1:Nstage_exp
-                iszero(b_exp[j]) && continue
-                @. U += dt * b_exp[j] * T_lim[j]
-            end
-            isnothing(lim!) || NVTX.@range "apply limiter" color = colorant"yellow" begin
-                lim!(U, p, t_final, u)
-            end
-            for j in 1:Nstage_exp
-                iszero(b_exp[j]) && continue
-                @. U += dt * b_exp[j] * T_exp[j]
-            end
-            for j in 2:(Nstage_imp + 1)
-                iszero(b_imp[j]) && continue
-                @. U += dt * b_imp[j] * T_imp[j - 1]
-            end
+        isnothing(T_lim!) || T_lim!(T_lim[Nstage_exp], U, p, t_final)
+        isnothing(T_exp!) || T_exp!(T_exp[Nstage_exp], U, p, t_final)
+        U .= u
+        fused_increment!(U, dt, b_exp, T_lim, Val(Nstage_exp))
+        isnothing(lim!) || lim!(U, p, t_final, u)
+        fused_increment!(U, dt, b_exp, T_exp, Val(Nstage_exp))
+        fused_increment_jm1!(U, dt, b_imp, T_imp, Val(Nstage_imp + 1))
 
-            # TODO: convert to generic explicit callback
-            isnothing(dss!) || NVTX.@range "dss!" color = colorant"yellow" begin
-                dss!(U, p, t_final)
-            end
-        end
+        # TODO: convert to generic explicit callback
+        isnothing(dss!) || dss!(U, p, t_final)
         u .= U
     end
     return u

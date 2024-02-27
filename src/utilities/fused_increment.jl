@@ -120,7 +120,7 @@ a broadcast expression in the form:
 In the edge case (coeffs are zero, `j` range is empty),
 this lowers to `nothing` (no-op)
 """
-function fused_increment!(u, dt, sc, tend, v)
+@inline function fused_increment!(u, dt, sc, tend, v)
     bc = fused_increment(u, dt, sc, tend, v)
     if bc isa Base.Broadcast.Broadcasted # Only material if not trivial assignment
         Base.Broadcast.materialize!(u, bc)
@@ -141,7 +141,7 @@ this lowers to
 
     `@. U = u`
 """
-function assign_fused_increment!(U, u, dt, sc, tend, v)
+@inline function assign_fused_increment!(U, u, dt, sc, tend, v)
     bc = fused_increment(u, dt, sc, tend, v)
     Base.Broadcast.materialize!(U, bc)
     return nothing

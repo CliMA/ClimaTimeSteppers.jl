@@ -6,7 +6,11 @@ data structure has an instance of any types in `t`.
 """
 function any_reltype(found, obj, name, ets, pc = (); warn = true)
     for pn in propertynames(obj)
-        prop = getproperty(obj, pn)
+        prop = if obj isa Base.Pairs
+            values(obj)
+        else
+            getproperty(obj, pn)
+        end
         pc_full = (pc..., ".", pn)
         pc_string = name * string(join(pc_full))
         for et in ets

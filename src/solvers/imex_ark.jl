@@ -169,8 +169,13 @@ end
     end
 
     if !all(iszero, a_exp[:, i]) || !iszero(b_exp[i])
-        isnothing(T_lim!) || T_lim!(T_lim[i], U, p, t_exp)
-        isnothing(T_exp!) || T_exp!(T_exp[i], U, p, t_exp)
+        if !isnothing(T_lim!) && !isnothing(T_exp!)
+            (; comms_context) = f
+            compute_T_lim_T_exp!(T_lim[i], T_exp[i], U, p, t_exp, T_lim!, T_exp!, comms_context)
+        else
+            isnothing(T_lim!) || T_lim!(T_lim[i], U, p, t_exp)
+            isnothing(T_exp!) || T_exp!(T_exp[i], U, p, t_exp)
+        end
     end
 
     return nothing

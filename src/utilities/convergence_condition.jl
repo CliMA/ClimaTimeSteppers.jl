@@ -92,8 +92,10 @@ updated_cache((; rate, order)::MinimumRateOfConvergence, cache, val, err, iter) 
 Checks multiple `ConvergenceCondition`s, combining their results with either
 `all` or `any`.
 """
-struct MultipleConditions{CC <: Union{typeof(all), typeof(any)}, C <: Tuple{Vararg{<:ConvergenceCondition}}} <:
-       ConvergenceCondition
+struct MultipleConditions{
+    CC <: Union{typeof(all), typeof(any)},
+    C <: Tuple{Vararg{T} where {T <: ConvergenceCondition}},
+} <: ConvergenceCondition
     condition_combiner::CC
     conditions::C
 end

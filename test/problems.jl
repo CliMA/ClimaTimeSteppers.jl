@@ -3,6 +3,8 @@ using ClimaCore
 using ClimaComms
 import ClimaCore: Domains, Geometry, Meshes, Topologies, Spaces, Fields, Operators, Limiters
 
+import Krylov # Trigger ClimaCore/ext/KrylovExt
+
 """
 Single variable linear ODE
 

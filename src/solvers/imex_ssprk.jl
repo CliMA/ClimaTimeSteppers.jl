@@ -154,7 +154,7 @@ function step_u!(integrator, cache::IMEXSSPRKCache)
 
         if !iszero(β[i])
             if !isnothing(T_exp_T_lim!)
-                T_exp_T_lim!(T_lim[i], T_exp[i], U, p, t_exp)
+                T_exp_T_lim!(T_lim, T_exp, U, p, t_exp)
             else
                 isnothing(T_lim!) || T_lim!(T_lim, U, p, t_exp)
                 isnothing(T_exp!) || T_exp!(T_exp, U, p, t_exp)

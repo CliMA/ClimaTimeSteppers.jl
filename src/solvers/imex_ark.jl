@@ -75,12 +75,16 @@ function step_u!(integrator, cache::IMEXARKCache)
     if has_T_lim(f) # Update based on limited tendencies from previous stages
         assign_fused_increment!(temp, u, dt, b_exp, T_lim, Val(s))
         lim!(temp, p, t_final, u)
-        @. u = temp
+        # Update based on tendencies from previous stages
+        bc_exp = has_T_exp(f) ? fused_increment(dt, b_exp, T_exp, Val(s)) : nothing
+        bc_imp = !isnothing(T_imp!) ? fused_increment(dt, b_imp, T_imp, Val(s)) : nothing
+        combined_assign_increment!(u, temp, bc_exp, bc_imp)
+    else
+        # Update based on tendencies from previous stages
+        bc_exp = has_T_exp(f) ? fused_increment(dt, b_exp, T_exp, Val(s)) : nothing
+        bc_imp = !isnothing(T_imp!) ? fused_increment(dt, b_imp, T_imp, Val(s)) : nothing
+        combined_increment!(u, bc_exp, bc_imp)
     end
-
-    # Update based on tendencies from previous stages
-    has_T_exp(f) && fused_increment!(u, dt, b_exp, T_exp, Val(s))
-    isnothing(T_imp!) || fused_increment!(u, dt, b_imp, T_imp, Val(s))
 
     dss!(u, p, t_final)
     post_explicit!(u, p, t_final)
@@ -111,13 +115,16 @@ end
     if has_T_lim(f) # Update based on limited tendencies from previous stages
         assign_fused_increment!(U, u, dt, a_exp, T_lim, Val(i))
         i ≠ 1 && lim!(U, p, t_exp, u)
+        # Update based on tendencies from previous stages
+        bc_exp = has_T_exp(f) ? fused_increment(dt, a_exp, T_exp, Val(i)) : nothing
+        bc_imp = !isnothing(T_imp!) ? fused_increment(dt, a_imp, T_imp, Val(i)) : nothing
+        combined_increment!(U, bc_exp, bc_imp)
     else
-        @. U = u
+        # Update based on tendencies from previous stages
+        bc_exp = has_T_exp(f) ? fused_increment(dt, a_exp, T_exp, Val(i)) : nothing
+        bc_imp = !isnothing(T_imp!) ? fused_increment(dt, a_imp, T_imp, Val(i)) : nothing
+        combined_assign_increment!(U, u, bc_exp, bc_imp)
     end
-
-    # Update based on tendencies from previous stages
-    has_T_exp(f) && fused_increment!(U, dt, a_exp, T_exp, Val(i))
-    isnothing(T_imp!) || fused_increment!(U, dt, a_imp, T_imp, Val(i))
 
     i ≠ 1 && dss!(U, p, t_exp)
 

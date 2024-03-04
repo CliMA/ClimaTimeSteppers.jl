@@ -1,10 +1,17 @@
 ClimaTimeSteppers.jl Release Notes
 ========================
 
+Main
+-------
+
+v0.7.18
+-------
+- ![][badge-🚀performance] Added a fused `T_exp_T_lim!`, so that we can fuse DSS calls that previously lived in `T_exp!` and `T_lim!`.
+
 v0.7.17
 -------
 - Started NEWS
-- [badge-🤖precisionΔ][badge-🚀performance] increments are now fused in the imex ARK method. This should yield better GPU performance, and may result in machine-precision changes.
+- ![][badge-🤖precisionΔ]![][badge-🚀performance] increments are now fused in the imex ARK method. This should yield better GPU performance, and may result in machine-precision changes.
 
 <!--
 Contributors are welcome to begin the description of changelog items with badge(s) below. Here is a brief description of when to use badges for a particular pull request / set of changes:

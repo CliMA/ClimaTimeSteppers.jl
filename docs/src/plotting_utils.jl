@@ -4,6 +4,7 @@ using Distributions: quantile, TDist
 using Printf: @sprintf
 using LaTeXStrings: latexstring
 using PrettyTables: pretty_table, ft_printf
+import ClimaTimeSteppers as CTS
 
 """
     predicted_convergence_order(algorithm_name, ode_function)
@@ -14,7 +15,7 @@ function (assuming that the algorithm converges).
 function predicted_convergence_order(algorithm_name::AbstractAlgorithmName, ode_function::AbstractClimaODEFunction)
     (imp_order, exp_order, combined_order) = imex_convergence_orders(algorithm_name)
     has_imp = !isnothing(ode_function.T_imp!)
-    has_exp = !isnothing(ode_function.T_exp!) || !isnothing(ode_function.T_lim!)
+    has_exp = CTS.has_T_exp(ode_function)
     has_imp && !has_exp && return imp_order
     !has_imp && has_exp && return exp_order
     has_imp && has_exp && return combined_order

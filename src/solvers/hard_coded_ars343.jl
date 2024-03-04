@@ -1,3 +1,5 @@
+# This code has gotten a bit stale, but is still useful for
+# understanding the order of operations.
 function step_u!(integrator, cache::IMEXARKCache, ::ARS343)
     (; u, p, t, dt, sol, alg) = integrator
     (; f) = sol.prob

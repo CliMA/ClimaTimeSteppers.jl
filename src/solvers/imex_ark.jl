@@ -72,14 +72,14 @@ function step_u!(integrator, cache::IMEXARKCache)
 
     t_final = t + dt
 
-    if !isnothing(T_lim!) # Update based on limited tendencies from previous stages
+    if has_T_lim(f) # Update based on limited tendencies from previous stages
         assign_fused_increment!(temp, u, dt, b_exp, T_lim, Val(s))
         lim!(temp, p, t_final, u)
         @. u = temp
     end
 
     # Update based on tendencies from previous stages
-    isnothing(T_exp!) || fused_increment!(u, dt, b_exp, T_exp, Val(s))
+    has_T_exp(f) && fused_increment!(u, dt, b_exp, T_exp, Val(s))
     isnothing(T_imp!) || fused_increment!(u, dt, b_imp, T_imp, Val(s))
 
     dss!(u, p, t_final)
@@ -99,7 +99,7 @@ end
     (; u, p, t, dt, alg) = integrator
     (; f) = integrator.sol.prob
     (; post_explicit!, post_implicit!) = f
-    (; T_lim!, T_exp!, T_imp!, lim!, dss!) = f
+    (; T_exp_T_lim!, T_lim!, T_exp!, T_imp!, lim!, dss!) = f
     (; tableau, newtons_method) = alg
     (; a_exp, b_exp, a_imp, b_imp, c_exp, c_imp) = tableau
     (; U, T_lim, T_exp, T_imp, temp, γ, newtons_method_cache) = cache
@@ -108,7 +108,7 @@ end
     t_exp = t + dt * c_exp[i]
     t_imp = t + dt * c_imp[i]
 
-    if !isnothing(T_lim!) # Update based on limited tendencies from previous stages
+    if has_T_lim(f) # Update based on limited tendencies from previous stages
         assign_fused_increment!(U, u, dt, a_exp, T_lim, Val(i))
         i ≠ 1 && lim!(U, p, t_exp, u)
     else
@@ -116,7 +116,7 @@ end
     end
 
     # Update based on tendencies from previous stages
-    isnothing(T_exp!) || fused_increment!(U, dt, a_exp, T_exp, Val(i))
+    has_T_exp(f) && fused_increment!(U, dt, a_exp, T_exp, Val(i))
     isnothing(T_imp!) || fused_increment!(U, dt, a_imp, T_imp, Val(i))
 
     i ≠ 1 && dss!(U, p, t_exp)
@@ -169,9 +169,8 @@ end
     end
 
     if !all(iszero, a_exp[:, i]) || !iszero(b_exp[i])
-        if !isnothing(T_lim!) && !isnothing(T_exp!)
-            (; comms_context) = f
-            compute_T_lim_T_exp!(T_lim[i], T_exp[i], U, p, t_exp, T_lim!, T_exp!, comms_context)
+        if !isnothing(T_exp_T_lim!)
+            T_exp_T_lim!(T_exp[i], T_lim[i], U, p, t_exp)
         else
             isnothing(T_lim!) || T_lim!(T_lim[i], U, p, t_exp)
             isnothing(T_exp!) || T_exp!(T_exp[i], U, p, t_exp)

@@ -56,7 +56,7 @@ function step_u!(integrator, cache::IMEXSSPRKCache)
     (; u, p, t, dt, alg) = integrator
     (; f) = integrator.sol.prob
     (; post_explicit!, post_implicit!) = f
-    (; T_lim!, T_exp!, T_imp!, lim!, dss!) = f
+    (; T_exp_T_lim!, T_lim!, T_exp!, T_imp!, lim!, dss!) = f
     (; tableau, newtons_method) = alg
     (; a_imp, b_imp, c_exp, c_imp) = tableau
     (; U, U_lim, U_exp, T_lim, T_exp, T_imp, temp, β, γ, newtons_method_cache) = cache
@@ -83,12 +83,12 @@ function step_u!(integrator, cache::IMEXSSPRKCache)
         if i == 1
             @. U_exp = u
         elseif !iszero(β[i - 1])
-            if !isnothing(T_lim!)
+            if has_T_lim(f)
                 @. U_lim = U_exp + dt * T_lim
                 lim!(U_lim, p, t_exp, U_exp)
                 @. U_exp = U_lim
             end
-            if !isnothing(T_exp!)
+            if has_T_exp(f)
                 @. U_exp += dt * T_exp
             end
             @. U_exp = (1 - β[i - 1]) * u + β[i - 1] * U_exp
@@ -153,9 +153,8 @@ function step_u!(integrator, cache::IMEXSSPRKCache)
         end
 
         if !iszero(β[i])
-            if !isnothing(T_lim!) && !isnothing(T_exp!)
-                (; comms_context) = f
-                compute_T_lim_T_exp!(T_lim[i], T_exp[i], U, p, t_exp, T_lim!, T_exp!, comms_context)
+            if !isnothing(T_exp_T_lim!)
+                T_exp_T_lim!(T_lim[i], T_exp[i], U, p, t_exp)
             else
                 isnothing(T_lim!) || T_lim!(T_lim, U, p, t_exp)
                 isnothing(T_exp!) || T_exp!(T_exp, U, p, t_exp)
@@ -166,12 +165,12 @@ function step_u!(integrator, cache::IMEXSSPRKCache)
     t_final = t + dt
 
     if !iszero(β[s])
-        if !isnothing(T_lim!)
+        if has_T_lim(f)
             @. U_lim = U_exp + dt * T_lim
             lim!(U_lim, p, t_final, U_exp)
             @. U_exp = U_lim
         end
-        if !isnothing(T_exp!)
+        if has_T_exp(f)
             @. U_exp += dt * T_exp
         end
         @. u = (1 - β[s]) * u + β[s] * U_exp

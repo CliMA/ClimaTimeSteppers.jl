@@ -118,7 +118,6 @@ const SPCO = SparseCoeffs
 
 include("solvers/imex_tableaus.jl")
 include("solvers/explicit_tableaus.jl")
-include("solvers/compute_T_exp_T_lim.jl")
 include("solvers/imex_ark.jl")
 include("solvers/imex_ssprk.jl")
 include("solvers/multirate.jl")

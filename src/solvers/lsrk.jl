@@ -27,7 +27,7 @@ struct LowStorageRungeKutta2NTableau{T <: NTuple}
     "low storage RK coefficient vector C (time scaling)"
     C::T
 end
-n_stages(::LowStorageRungeKutta2NTableau{T}) where {T} = n_stages_ntuple(T)
+n_stages(tableau::LowStorageRungeKutta2NTableau) = length(tableau.A)
 
 struct LowStorageRungeKutta2NIncCache{T <: LowStorageRungeKutta2NTableau, A}
     tableau::T

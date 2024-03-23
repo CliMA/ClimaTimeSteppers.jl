@@ -18,14 +18,14 @@ cts = joinpath(dirname(@__DIR__));
 include(joinpath(cts, "test", "problems.jl"))
 config_integrators(itc::IntegratorTestCase) = config_integrators(itc.prob)
 function config_integrators(problem)
-    algorithm = CTS.IMEXAlgorithm(ARS343(), NewtonsMethod(; max_iters = 2))
+    algorithm = CTS.ARKAlgorithm(ARS343(), NewtonsMethod(; max_iters = 2))
     dt = 0.01
     integrator = DiffEqBase.init(problem, algorithm; dt)
     integrator.cache = CTS.init_cache(problem, algorithm)
     return (; integrator)
 end
 prob = if parsed_args["problem"] == "diffusion2d"
-    climacore_2Dheat_test_cts(Float64)
+    climacore_1Dheat_test_implicit_cts(Float64)
 elseif parsed_args["problem"] == "ode_fun"
     split_linear_prob_wfact_split()
 elseif parsed_args["problem"] == "fe"

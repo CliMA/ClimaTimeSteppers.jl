@@ -2,7 +2,6 @@ agents:
   queue: new-central
   slurm_mem: 8G
   modules: climacommon/2024_05_27
-  partition: expansion
 
 env:
   JULIA_LOAD_PATH: "${JULIA_LOAD_PATH}:${BUILDKITE_BUILD_CHECKOUT_PATH}/.buildkite"
@@ -10,6 +9,7 @@ env:
   JULIA_NVTX_CALLBACKS: gc
   OMPI_MCA_opal_warn_on_missing_libcuda: 0
   JULIA_MAX_NUM_PRECOMPILE_FILES: 100
+  # JULIA_DEPOT_PATH: "${BUILDKITE_BUILD_PATH}/${BUILDKITE_PIPELINE_SLUG}/depot/default"
 
 steps:
   - label: "init cpu env"
@@ -24,28 +24,13 @@ steps:
       - echo "--- Instantiate perf"
       - "julia --project=perf -e 'using Pkg; Pkg.instantiate(;verbose=true); Pkg.precompile(;strict=true)'"
 
+      - echo "--- Instantiate docs"
+      - "julia --project=docs -e 'using Pkg; Pkg.instantiate(;verbose=true); Pkg.precompile(;strict=true)'"
+
       - echo "--- Package status"
       - "julia --project -e 'using Pkg; Pkg.status()'"
-
-
-  # - label: "init gpu env"
-  #   key: "init_gpu_env"
-  #   command:
-  #     - echo "--- Configure MPI"
-  #     - julia -e 'using Pkg; Pkg.add("MPIPreferences"); using MPIPreferences; use_system_binary()'
-
-  #     - echo "--- Instantiate project"
-  #     - "julia --project -e 'using Pkg; Pkg.instantiate(;verbose=true); Pkg.precompile(;strict=true)'"
-
-  #     - echo "--- Instantiate test"
-  #     - "julia --project=test -e 'using Pkg; Pkg.develop(path=\".\"); Pkg.instantiate(;verbose=true); Pkg.precompile()'"
-
-  #     - echo "--- Initialize CUDA runtime"
-  #     - "julia --project -e 'using CUDA; CUDA.precompile_runtime(); CUDA.versioninfo()'"
-
-  #     - echo "--- Package status"
-  #     - "julia --project -e 'using Pkg; Pkg.status()'"
-  #     slurm_gres: "gpu:1"
+    agents:
+      slurm_gpus: 1
 
   - wait
 
@@ -53,11 +38,24 @@ steps:
     command: "julia --project=test --check-bounds=yes test/runtests.jl"
     artifact_paths: "output/*"
 
-  # - label: "GPU tests"
-  #   command:
-  #     - "julia --project=test --check-bounds=yes test/runtests.jl CuArray"
-  #   artifact_paths: "output/*"
-  #     slurm_gres: "gpu:1"
+  - label: "Deformational flow limiter test (CPU)"
+    command:
+      - "julia --project=docs --check-bounds=yes docs/src/test_deformational_flow.jl CPU"
+    artifact_paths: "output_CPU/*"
+
+  - label: "Deformational flow limiter test (GPU)"
+    command:
+      - "julia --project=docs docs/src/test_deformational_flow.jl GPU"
+    artifact_paths: "output_GPU/*"
+    agents:
+      slurm_gpus: 1
+
+  - label: "Deformational flow limiter test (GPU w/ check-bounds)"
+    command:
+      - "julia --project=docs --check-bounds=yes docs/src/test_deformational_flow.jl GPU_checkbounds"
+    artifact_paths: "output_GPU_checkbounds/*"
+    agents:
+      slurm_gpus: 1
 
   - label: "Flame graph (1D diffusion)"
     command: "julia --project=perf perf/flame.jl --job_id diffusion_1D"

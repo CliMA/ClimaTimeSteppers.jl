@@ -1,76 +1,67 @@
-export IMEXTableau, IMEXAlgorithm
 export ARS111, ARS121, ARS122, ARS233, ARS232, ARS222, ARS343, ARS443
 export IMKG232a, IMKG232b, IMKG242a, IMKG242b, IMKG243a, IMKG252a, IMKG252b
 export IMKG253a, IMKG253b, IMKG254a, IMKG254b, IMKG254c, IMKG342a, IMKG343a
 export SSP222, SSP322, SSP332, SSP333, SSP433
 export DBM453, HOMMEM1, ARK2GKC, ARK437L2SA1, ARK548L2SA2
 
-abstract type IMEXARKAlgorithmName <: AbstractAlgorithmName end
-
 """
-    IMEXTableau(; a_exp, b_exp, c_exp, a_imp, b_imp, c_imp)
+    ARKTableau(lim, exp, imp)
+    ARKTableau(lim_and_exp, imp)
+    ARKTableau(lim_and_exp)
 
-A wrapper for an IMEX Butcher tableau (or, more accurately, a pair of Butcher
-tableaus, one for explicit tendencies and the other for implicit tendencies).
-Only `a_exp` and `a_imp` are required arguments; the default values for `b_exp`
-and `b_imp` assume that the algorithm is FSAL (first same as last), and the
-default values for `c_exp` and `c_imp` assume that it is internally consistent.
+A container for all of the information required to formulate an additive
+Runge-Kutta (ARK) timestepping method with three components:
+ - `lim`, an `RKTableau` applied to the limited tendency `T_lim!`
+ - `exp`, an `RKTableau` applied to the explicit tendency `T_exp!`
+ - `imp`, an `RKTableau` applied to the implicit tendency `T_imp!`
 
-The explicit tableau must be strictly lower triangular, and the implicit tableau
-must be lower triangular (only DIRK algorithms are currently supported).
+If either the `lim` or `exp` tableau is not specified, they are assumed to be
+identical. If the `imp` tableau is also not specified, it is assumed to be the
+same as the `lim` and `exp` tableaus.
+
+The `exp` tableau must describe an explicit Runge-Kutta (ERK) method, and the
+`imp` tableau must describe either a diagonally implicit Runge-Kutta (DIRK)
+method or an ERK method. We also require the `lim` tableau to describe an ERK
+method, but we could potentially extend this to DIRK methods in the future.
+
+If the `lim` tableau includes a canonical Shu-Osher formulation matrix, that
+formulation is used to apply limiters. Otherwise, limiters can only be applied
+approximately, without any guarantees that monotonicity will be preserved.
 """
-struct IMEXTableau{AE <: SPCO, BE <: SPCO, CE <: SPCO, AI <: SPCO, BI <: SPCO, CI <: SPCO}
-    a_exp::AE # matrix of size s×s
-    b_exp::BE # vector of length s
-    c_exp::CE # vector of length s
-    a_imp::AI # matrix of size s×s
-    b_imp::BI # vector of length s
-    c_imp::CI # vector of length s
+struct ARKTableau{FT, L <: RKTableau{FT}, E <: RKTableau{FT}, I <: RKTableau{FT}}
+    lim::L
+    exp::E
+    imp::I
+
+    # NOTE: This needs to be an internal constructor to prevent it from
+    # overwriting the default constructor during precompilation.
+    function ARKTableau(lim::RKTableau{FT}, exp::RKTableau{FT}, imp::RKTableau{FT}) where {FT}
+        is_ERK(lim) || error("lim tableau is not ERK")
+        is_ERK(exp) || error("exp tableau is not ERK")
+        is_ERK(imp) || is_DIRK(imp) || error("imp tableau is not ERK or DIRK")
+
+        lim.c == exp.c || @warn "lim and exp tableaus are not internally consistent"
+
+        return new{FT, typeof(lim), typeof(exp), typeof(imp)}(lim, exp, imp)
+    end
 end
-IMEXTableau(args...) = IMEXTableau(map(x -> SparseCoeffs(x), args)...)
-
-function IMEXTableau(;
-    a_exp,
-    b_exp = a_exp[end, :],
-    c_exp = vec(sum(a_exp; dims = 2)),
-    a_imp,
-    b_imp = a_imp[end, :],
-    c_imp = vec(sum(a_imp; dims = 2)),
-)
-    @assert all(iszero, UpperTriangular(a_exp))
-    @assert all(iszero, UpperTriangular(a_imp) - Diagonal(a_imp))
-
-    # TODO: add generic promote_eltype
-    a_exp, a_imp = promote(a_exp, a_imp)
-    b_exp, b_imp, c_exp, c_imp = promote(b_exp, b_imp, c_exp, c_imp)
-    return IMEXTableau(a_exp, b_exp, c_exp, a_imp, b_imp, c_imp)
-end
+ARKTableau(lim::RKTableau, exp::RKTableau, imp::RKTableau) = ARKTableau(promote(lim, exp, imp)...)
+ARKTableau(lim_and_exp::RKTableau, imp::RKTableau) = ARKTableau(lim_and_exp, lim_and_exp, imp)
+ARKTableau(lim_and_exp::RKTableau) = ARKTableau(lim_and_exp, lim_and_exp)
 
 """
-    IMEXAlgorithm(tableau, newtons_method, [constraint])
-    IMEXAlgorithm(name, newtons_method, [constraint])
+    ARKAlgorithmName
 
-Constructs an IMEX algorithm for solving ODEs, with an optional name and
-constraint. The first constructor accepts any `IMEXTableau` and an optional
-constraint, leaving the algorithm unnamed. The second constructor automatically
-determines the tableau and the default constraint from the algorithm name,
-which must be an `IMEXARKAlgorithmName`.
+An `AbstractAlgorithmName` with a method of the form `ARKTableau(name)`.
 """
-struct IMEXAlgorithm{
-    C <: AbstractAlgorithmConstraint,
-    N <: Union{Nothing, AbstractAlgorithmName},
-    T <: IMEXTableau,
-    NM <: Union{Nothing, NewtonsMethod},
-} <: DistributedODEAlgorithm
-    constraint::C
-    name::N
-    tableau::T
-    newtons_method::NM
-end
-IMEXAlgorithm(tableau::IMEXTableau, newtons_method, constraint = Unconstrained()) =
-    IMEXAlgorithm(constraint, nothing, tableau, newtons_method)
-IMEXAlgorithm(name::IMEXARKAlgorithmName, newtons_method, constraint = default_constraint(name)) =
-    IMEXAlgorithm(constraint, name, IMEXTableau(name), newtons_method)
+abstract type ARKAlgorithmName <: AbstractAlgorithmName end
+
+"""
+    IMEXSSPRKAlgorithmName
+
+An `ARKAlgorithmName` whose `lim` tableau has a canonical Shu-Osher formulation.
+"""
+abstract type IMEXSSPRKAlgorithmName <: ARKAlgorithmName end
 
 ################################################################################
 
@@ -86,10 +77,8 @@ An IMEX ARK algorithm from [ARS1997](@cite), section 2, with 1 implicit stage,
 1 explicit stage and 1st order accuracy. Also called *IMEX Euler* or
 *forward-backward Euler*; equivalent to `OrdinaryDiffEq.IMEXEuler`.
 """
-struct ARS111 <: IMEXARKAlgorithmName end
-function IMEXTableau(::ARS111)
-    IMEXTableau(; a_exp = @SArray([0 0; 1 0]), a_imp = @SArray([0 0; 0 1]))
-end
+struct ARS111 <: ARKAlgorithmName end
+ARKTableau(::ARS111) = ARKTableau(ButcherTableau([0 0; 1 0]), ButcherTableau([0 0; 0 1]))
 
 """
     ARS121
@@ -98,10 +87,8 @@ An IMEX ARK algorithm from [ARS1997](@cite), section 2, with 1 implicit stage, 2
 explicit stages, and 1st order accuracy. Also called *IMEX Euler* or
 *forward-backward Euler*; equivalent to `OrdinaryDiffEq.IMEXEulerARK`.
 """
-struct ARS121 <: IMEXARKAlgorithmName end
-function IMEXTableau(::ARS121)
-    IMEXTableau(; a_exp = @SArray([0 0; 1 0]), b_exp = @SArray([0, 1]), a_imp = @SArray([0 0; 0 1]))
-end
+struct ARS121 <: ARKAlgorithmName end
+ARKTableau(::ARS121) = ARKTableau(ButcherTableau([0 0; 1 0], [0, 1]), ButcherTableau([0 0; 0 1]))
 
 """
     ARS122
@@ -109,15 +96,8 @@ end
 An IMEX ARK algorithm from [ARS1997](@cite), section 2, with 1 implicit stage, 2
 explicit stages, and 2nd order accuracy. Also called *IMEX midpoint*.
 """
-struct ARS122 <: IMEXARKAlgorithmName end
-function IMEXTableau(::ARS122)
-    IMEXTableau(;
-        a_exp = @SArray([0 0; 1/2 0]),
-        b_exp = @SArray([0, 1]),
-        a_imp = @SArray([0 0; 0 1/2]),
-        b_imp = @SArray([0, 1])
-    )
-end
+struct ARS122 <: ARKAlgorithmName end
+ARKTableau(::ARS122) = ARKTableau(ButcherTableau([0 0; 1//2 0], [0, 1]), ButcherTableau([0 0; 0 1//2], [0, 1]))
 
 """
     ARS233
@@ -125,22 +105,26 @@ end
 An IMEX ARK algorithm from [ARS1997](@cite), section 2, with 2 implicit stages,
 3 explicit stages, and 3rd order accuracy.
 """
-struct ARS233 <: IMEXARKAlgorithmName end
-function IMEXTableau(::ARS233)
+struct ARS233 <: ARKAlgorithmName end
+function ARKTableau(::ARS233)
     γ = 1 / 2 + √3 / 6
-    IMEXTableau(;
-        a_exp = @SArray([
-            0 0 0
-            γ 0 0
-            (γ-1) (2-2γ) 0
-        ]),
-        b_exp = @SArray([0, 1 / 2, 1 / 2]),
-        a_imp = @SArray([
-            0 0 0
-            0 γ 0
-            0 (1-2γ) γ
-        ]),
-        b_imp = @SArray([0, 1 / 2, 1 / 2])
+    return ARKTableau(
+        ButcherTableau(
+            [
+                0 0 0
+                γ 0 0
+                (γ-1) (2-2γ) 0
+            ],
+            [0, 1 / 2, 1 / 2],
+        ),
+        ButcherTableau(
+            [
+                0 0 0
+                0 γ 0
+                0 (1-2γ) γ
+            ],
+            [0, 1 / 2, 1 / 2],
+        ),
     )
 end
 
@@ -150,23 +134,22 @@ end
 An IMEX ARK algorithm from [ARS1997](@cite), section 2, with 2 implicit stages,
 3 explicit stages, and 2nd order accuracy.
 """
-struct ARS232 <: IMEXARKAlgorithmName end
-function IMEXTableau(::ARS232)
+struct ARS232 <: ARKAlgorithmName end
+function ARKTableau(::ARS232)
     γ = 1 - √2 / 2
     δ = -2√2 / 3
-    IMEXTableau(;
-        a_exp = @SArray([
+    return ARKTableau(ButcherTableau(
+        [
             0 0 0
             γ 0 0
             δ (1-δ) 0
-        ]),
-        b_exp = @SArray([0, 1 - γ, γ]),
-        a_imp = @SArray([
-            0 0 0
-            0 γ 0
-            0 (1-γ) γ
-        ])
-    )
+        ],
+        [0, 1 - γ, γ],
+    ), ButcherTableau([
+        0 0 0
+        0 γ 0
+        0 (1-γ) γ
+    ]))
 end
 
 """
@@ -175,15 +158,15 @@ end
 An IMEX ARK algorithm from [ARS1997](@cite), section 2, with 2 implicit stages,
 2 explicit stages, and 2nd order accuracy.
 """
-struct ARS222 <: IMEXARKAlgorithmName end
-function IMEXTableau(::ARS222)
+struct ARS222 <: ARKAlgorithmName end
+function ARKTableau(::ARS222)
     γ = 1 - √2 / 2
     δ = 1 - 1 / 2γ
-    IMEXTableau(; a_exp = @SArray([
+    return ARKTableau(ButcherTableau([
         0 0 0
         γ 0 0
         δ (1-δ) 0
-    ]), a_imp = @SArray([
+    ]), ButcherTableau([
         0 0 0
         0 γ 0
         0 (1-γ) γ
@@ -196,8 +179,8 @@ end
 An IMEX ARK algorithm from [ARS1997](@cite), section 2, with 3 implicit stages,
 4 explicit stages, and 3rd order accuracy.
 """
-struct ARS343 <: IMEXARKAlgorithmName end
-function IMEXTableau(::ARS343)
+struct ARS343 <: ARKAlgorithmName end
+function ARKTableau(::ARS343)
     γ = 0.4358665215084590
     a42 = 0.5529291480359398
     a43 = a42
@@ -209,20 +192,22 @@ function IMEXTableau(::ARS343)
         (-1 + 9 / 2 * γ - 3 / 2 * γ^2) * a42 + (-11 / 4 + 21 / 2 * γ - 15 / 4 * γ^2) * a43 + 4 - 25 / 2 * γ +
         9 / 2 * γ^2
     a41 = 1 - a42 - a43
-    IMEXTableau(;
-        a_exp = @SArray([
-            0 0 0 0
-            γ 0 0 0
-            a31 a32 0 0
-            a41 a42 a43 0
-        ]),
-        b_exp = @SArray([0, b1, b2, γ]),
-        a_imp = @SArray([
+    return ARKTableau(
+        ButcherTableau(
+            [
+                0 0 0 0
+                γ 0 0 0
+                a31 a32 0 0
+                a41 a42 a43 0
+            ],
+            [0, b1, b2, γ],
+        ),
+        ButcherTableau([
             0 0 0 0
             0 γ 0 0
             0 (1 - γ)/2 γ 0
             0 b1 b2 γ
-        ])
+        ]),
     )
 end
 
@@ -232,25 +217,23 @@ end
 An IMEX ARK algorithm from [ARS1997](@cite), section 2, with 4 implicit stages,
 4 explicit stages, and 3rd order accuracy.
 """
-struct ARS443 <: IMEXARKAlgorithmName end
-function IMEXTableau(::ARS443)
-    IMEXTableau(;
-        a_exp = @SArray([
-            0 0 0 0 0
-            1/2 0 0 0 0
-            11/18 1/18 0 0 0
-            5/6 -5/6 1/2 0 0
-            1/4 7/4 3/4 -7/4 0
-        ]),
-        a_imp = @SArray([
-            0 0 0 0 0
-            0 1/2 0 0 0
-            0 1/6 1/2 0 0
-            0 -1/2 1/2 1/2 0
-            0 3/2 -3/2 1/2 1/2
-        ])
-    )
-end
+struct ARS443 <: ARKAlgorithmName end
+ARKTableau(::ARS443) = ARKTableau(
+    ButcherTableau([
+        0 0 0 0 0
+        1//2 0 0 0 0
+        11//18 1//18 0 0 0
+        5//6 -5//6 1//2 0 0
+        1//4 7//4 3//4 -7//4 0
+    ]),
+    ButcherTableau([
+        0 0 0 0 0
+        0 1//2 0 0 0
+        0 1//6 1//2 0 0
+        0 -1//2 1//2 1//2 0
+        0 3//2 -3//2 1//2 1//2
+    ]),
+)
 
 ################################################################################
 
@@ -277,12 +260,11 @@ end
 imkg_exp(i, j, α, β) = i == j + 1 ? α[j] : (i > 2 && j == 1 ? β[i - 2] : 0)
 imkg_imp(i, j, α̂, β, δ̂) =
     i == j + 1 ? α̂[j] : (i > 2 && j == 1 ? β[i - 2] : (1 < i <= length(α̂) && i == j ? δ̂[i - 1] : 0))
-function IMKGTableau(α, α̂, δ̂, β = ntuple(_ -> 0, length(δ̂)))
+function IMKGTableau(α, α̂, δ̂, β = zero(δ̂))
     s = length(α̂) + 1
-    type = SMatrix{s, s}
-    return IMEXTableau(;
-        a_exp = StaticArrays.sacollect(type, imkg_exp(i, j, α, β) for i in 1:s, j in 1:s),
-        a_imp = StaticArrays.sacollect(type, imkg_imp(i, j, α̂, β, δ̂) for i in 1:s, j in 1:s),
+    return ARKTableau(
+        ButcherTableau([imkg_exp(i, j, α, β) for i in 1:s, j in 1:s]),
+        ButcherTableau([imkg_imp(i, j, α̂, β, δ̂) for i in 1:s, j in 1:s]),
     )
 end
 
@@ -292,10 +274,8 @@ end
 An IMEX ARK algorithm from [SVTG2019](@cite), Table 3, with 2 implicit stages,
 3 explicit stages, and 2nd order accuracy.
 """
-struct IMKG232a <: IMEXARKAlgorithmName end
-function IMEXTableau(::IMKG232a)
-    IMKGTableau((1 / 2, 1 / 2, 1), (0, -1 / 2 + √2 / 2, 1), (1 - √2 / 2, 1 - √2 / 2))
-end
+struct IMKG232a <: ARKAlgorithmName end
+ARKTableau(::IMKG232a) = IMKGTableau([1 / 2, 1 / 2, 1], [0, -1 / 2 + √2 / 2, 1], [1 - √2 / 2, 1 - √2 / 2])
 
 """
     IMKG232b
@@ -303,10 +283,8 @@ end
 An IMEX ARK algorithm from [SVTG2019](@cite), Table 3, with 2 implicit stages,
 3 explicit stages, and 2nd order accuracy.
 """
-struct IMKG232b <: IMEXARKAlgorithmName end
-function IMEXTableau(::IMKG232b)
-    IMKGTableau((1 / 2, 1 / 2, 1), (0, -1 / 2 - √2 / 2, 1), (1 + √2 / 2, 1 + √2 / 2))
-end
+struct IMKG232b <: ARKAlgorithmName end
+ARKTableau(::IMKG232b) = IMKGTableau([1 / 2, 1 / 2, 1], [0, -1 / 2 - √2 / 2, 1], [1 + √2 / 2, 1 + √2 / 2])
 
 """
     IMKG242a
@@ -314,10 +292,8 @@ end
 An IMEX ARK algorithm from [SVTG2019](@cite), Table 3, with 2 implicit stages,
 4 explicit stages, and 2nd order accuracy.
 """
-struct IMKG242a <: IMEXARKAlgorithmName end
-function IMEXTableau(::IMKG242a)
-    IMKGTableau((1 / 4, 1 / 3, 1 / 2, 1), (0, 0, -1 / 2 + √2 / 2, 1), (0, 1 - √2 / 2, 1 - √2 / 2))
-end
+struct IMKG242a <: ARKAlgorithmName end
+ARKTableau(::IMKG242a) = IMKGTableau([1 / 4, 1 / 3, 1 / 2, 1], [0, 0, -1 / 2 + √2 / 2, 1], [0, 1 - √2 / 2, 1 - √2 / 2])
 
 """
     IMKG242b
@@ -325,10 +301,8 @@ end
 An IMEX ARK algorithm from [SVTG2019](@cite), Table 3, with 2 implicit stages,
 4 explicit stages, and 2nd order accuracy.
 """
-struct IMKG242b <: IMEXARKAlgorithmName end
-function IMEXTableau(::IMKG242b)
-    IMKGTableau((1 / 4, 1 / 3, 1 / 2, 1), (0, 0, -1 / 2 - √2 / 2, 1), (0, 1 + √2 / 2, 1 + √2 / 2))
-end
+struct IMKG242b <: ARKAlgorithmName end
+ARKTableau(::IMKG242b) = IMKGTableau([1 / 4, 1 / 3, 1 / 2, 1], [0, 0, -1 / 2 - √2 / 2, 1], [0, 1 + √2 / 2, 1 + √2 / 2])
 
 """
     IMKG243a
@@ -336,10 +310,9 @@ end
 An IMEX ARK algorithm from [SVTG2019](@cite), Table 3, with 3 implicit stages,
 4 explicit stages, and 2nd order accuracy.
 """
-struct IMKG243a <: IMEXARKAlgorithmName end
-function IMEXTableau(::IMKG243a)
-    IMKGTableau((1 / 4, 1 / 3, 1 / 2, 1), (0, 1 / 6, -√3 / 6, 1), (1 / 2 + √3 / 6, 1 / 2 + √3 / 6, 1 / 2 + √3 / 6))
-end
+struct IMKG243a <: ARKAlgorithmName end
+ARKTableau(::IMKG243a) =
+    IMKGTableau([1 / 4, 1 / 3, 1 / 2, 1], [0, 1 / 6, -√3 / 6, 1], [1 / 2 + √3 / 6, 1 / 2 + √3 / 6, 1 / 2 + √3 / 6])
 # The paper uses √3/6 for α̂[3], which also seems to work.
 
 """
@@ -348,10 +321,9 @@ end
 An IMEX ARK algorithm from [SVTG2019](@cite), Table 3, with 2 implicit stages,
 5 explicit stages, and 2nd order accuracy.
 """
-struct IMKG252a <: IMEXARKAlgorithmName end
-function IMEXTableau(::IMKG252a)
-    IMKGTableau((1 / 4, 1 / 6, 3 / 8, 1 / 2, 1), (0, 0, 0, -1 / 2 + √2 / 2, 1), (0, 0, 1 - √2 / 2, 1 - √2 / 2))
-end
+struct IMKG252a <: ARKAlgorithmName end
+ARKTableau(::IMKG252a) =
+    IMKGTableau([1 / 4, 1 / 6, 3 / 8, 1 / 2, 1], [0, 0, 0, -1 / 2 + √2 / 2, 1], [0, 0, 1 - √2 / 2, 1 - √2 / 2])
 
 """
     IMKG252b
@@ -359,10 +331,9 @@ end
 An IMEX ARK algorithm from [SVTG2019](@cite), Table 3, with 2 implicit stages,
 5 explicit stages, and 2nd order accuracy.
 """
-struct IMKG252b <: IMEXARKAlgorithmName end
-function IMEXTableau(::IMKG252b)
-    IMKGTableau((1 / 4, 1 / 6, 3 / 8, 1 / 2, 1), (0, 0, 0, -1 / 2 - √2 / 2, 1), (0, 0, 1 + √2 / 2, 1 + √2 / 2))
-end
+struct IMKG252b <: ARKAlgorithmName end
+ARKTableau(::IMKG252b) =
+    IMKGTableau([1 / 4, 1 / 6, 3 / 8, 1 / 2, 1], [0, 0, 0, -1 / 2 - √2 / 2, 1], [0, 0, 1 + √2 / 2, 1 + √2 / 2])
 
 """
     IMKG253a
@@ -370,14 +341,12 @@ end
 An IMEX ARK algorithm from [SVTG2019](@cite), Table 3, with 3 implicit stages,
 5 explicit stages, and 2nd order accuracy.
 """
-struct IMKG253a <: IMEXARKAlgorithmName end
-function IMEXTableau(::IMKG253a)
-    IMKGTableau(
-        (1 / 4, 1 / 6, 3 / 8, 1 / 2, 1),
-        (0, 0, √3 / 4 * (1 - √3 / 3) * ((1 + √3 / 3)^2 - 2), √3 / 6, 1),
-        (0, 1 / 2 - √3 / 6, 1 / 2 - √3 / 6, 1 / 2 - √3 / 6),
-    )
-end
+struct IMKG253a <: ARKAlgorithmName end
+ARKTableau(::IMKG253a) = IMKGTableau(
+    [1 / 4, 1 / 6, 3 / 8, 1 / 2, 1],
+    [0, 0, √3 / 4 * (1 - √3 / 3) * ((1 + √3 / 3)^2 - 2), √3 / 6, 1],
+    [0, 1 / 2 - √3 / 6, 1 / 2 - √3 / 6, 1 / 2 - √3 / 6],
+)
 # The paper uses 0.08931639747704086 for α̂[3], which also seems to work.
 
 """
@@ -386,14 +355,12 @@ end
 An IMEX ARK algorithm from [SVTG2019](@cite), Table 3, with 3 implicit stages,
 5 explicit stages, and 2nd order accuracy.
 """
-struct IMKG253b <: IMEXARKAlgorithmName end
-function IMEXTableau(::IMKG253b)
-    IMKGTableau(
-        (1 / 4, 1 / 6, 3 / 8, 1 / 2, 1),
-        (0, 0, √3 / 4 * (1 + √3 / 3) * ((1 - √3 / 3)^2 - 2), -√3 / 6, 1),
-        (0, 1 / 2 + √3 / 6, 1 / 2 + √3 / 6, 1 / 2 + √3 / 6),
-    )
-end
+struct IMKG253b <: ARKAlgorithmName end
+ARKTableau(::IMKG253b) = IMKGTableau(
+    [1 / 4, 1 / 6, 3 / 8, 1 / 2, 1],
+    [0, 0, √3 / 4 * (1 + √3 / 3) * ((1 - √3 / 3)^2 - 2), -√3 / 6, 1],
+    [0, 1 / 2 + √3 / 6, 1 / 2 + √3 / 6, 1 / 2 + √3 / 6],
+)
 # The paper uses 1.2440169358562922 for α̂[3], which also seems to work.
 
 """
@@ -402,10 +369,9 @@ end
 An IMEX ARK algorithm from [SVTG2019](@cite), Table 3, with 4 implicit stages,
 5 explicit stages, and 2nd order accuracy.
 """
-struct IMKG254a <: IMEXARKAlgorithmName end
-function IMEXTableau(::IMKG254a)
-    IMKGTableau((1 / 4, 1 / 6, 3 / 8, 1 / 2, 1), (0, -3 / 10, 5 / 6, -3 / 2, 1), (-1 / 2, 1, 1, 2))
-end
+struct IMKG254a <: ARKAlgorithmName end
+ARKTableau(::IMKG254a) =
+    IMKGTableau([1 // 4, 1 // 6, 3 // 8, 1 // 2, 1], [0, -3 // 10, 5 // 6, -3 // 2, 1], [-1 // 2, 1, 1, 2])
 
 """
     IMKG254b
@@ -413,10 +379,9 @@ end
 An IMEX ARK algorithm from [SVTG2019](@cite), Table 3, with 4 implicit stages,
 5 explicit stages, and 2nd order accuracy.
 """
-struct IMKG254b <: IMEXARKAlgorithmName end
-function IMEXTableau(::IMKG254b)
-    IMKGTableau((1 / 4, 1 / 6, 3 / 8, 1 / 2, 1), (0, -1 / 20, 5 / 4, -1 / 2, 1), (-1 / 2, 1, 1, 1))
-end
+struct IMKG254b <: ARKAlgorithmName end
+ARKTableau(::IMKG254b) =
+    IMKGTableau([1 // 4, 1 // 6, 3 // 8, 1 // 2, 1], [0, -1 // 20, 5 // 4, -1 // 2, 1], [-1 // 2, 1, 1, 1])
 
 """
     IMKG254c
@@ -424,10 +389,9 @@ end
 An IMEX ARK algorithm from [SVTG2019](@cite), Table 3, with 4 implicit stages,
 5 explicit stages, and 2nd order accuracy.
 """
-struct IMKG254c <: IMEXARKAlgorithmName end
-function IMEXTableau(::IMKG254c)
-    IMKGTableau((1 / 4, 1 / 6, 3 / 8, 1 / 2, 1), (0, 1 / 20, 5 / 36, 1 / 3, 1), (1 / 6, 1 / 6, 1 / 6, 1 / 6))
-end
+struct IMKG254c <: ARKAlgorithmName end
+ARKTableau(::IMKG254c) =
+    IMKGTableau([1 // 4, 1 // 6, 3 // 8, 1 // 2, 1], [0, 1 // 20, 5 // 36, 1 // 3, 1], [1 // 6, 1 // 6, 1 // 6, 1 // 6])
 
 """
     IMKG342a
@@ -435,23 +399,21 @@ end
 An IMEX ARK algorithm from [SVTG2019](@cite), Table 4, with 2 implicit stages,
 4 explicit stages, and 3rd order accuracy.
 """
-struct IMKG342a <: IMEXARKAlgorithmName end
-function IMEXTableau(::IMKG342a)
-    IMKGTableau(
-        (1 / 4, 2 / 3, 1 / 3, 3 / 4),
-        (0, 1 / 6 - √3 / 6, -1 / 6 - √3 / 6, 3 / 4),
-        (0, 1 / 2 + √3 / 6, 1 / 2 + √3 / 6),
-        (0, 1 / 3, 1 / 4),
-    )
-end
+struct IMKG342a <: ARKAlgorithmName end
+ARKTableau(::IMKG342a) = IMKGTableau(
+    [1 / 4, 2 / 3, 1 / 3, 3 / 4],
+    [0, 1 / 6 - √3 / 6, -1 / 6 - √3 / 6, 3 / 4],
+    [0, 1 / 2 + √3 / 6, 1 / 2 + √3 / 6],
+    [0, 1 / 3, 1 / 4],
+)
 # The paper and HOMME completely disagree on IMKG342a. Since the version in the
 # paper is not "342" (it appears to be "332"), the version from HOMME is used
 # here. The paper's version is
 # IMKGTableau(
-#     (0, 1/3, 1/3, 3/4),
-#     (0, -1/6 - √3/6, -1/6 - √3/6, 3/4),
-#     (0, 1/2 + √3/6, 1/2 + √3/6),
-#     (1/3, 1/3, 1/4),
+#     [0, 1/3, 1/3, 3/4],
+#     [0, -1/6 - √3/6, -1/6 - √3/6, 3/4],
+#     [0, 1/2 + √3/6, 1/2 + √3/6],
+#     [1/3, 1/3, 1/4],
 # )
 
 """
@@ -460,26 +422,25 @@ end
 An IMEX ARK algorithm from [SVTG2019](@cite), Table 4, with 3 implicit stages,
 4 explicit stages, and 3rd order accuracy.
 """
-struct IMKG343a <: IMEXARKAlgorithmName end
-function IMEXTableau(::IMKG343a)
-    IMKGTableau((1 / 4, 2 / 3, 1 / 3, 3 / 4), (0, -1 / 3, -2 / 3, 3 / 4), (-1 / 3, 1, 1), (0, 1 / 3, 1 / 4))
-end
+struct IMKG343a <: ARKAlgorithmName end
+ARKTableau(::IMKG343a) =
+    IMKGTableau([1 // 4, 2 // 3, 1 // 3, 3 // 4], [0, -1 // 3, -2 // 3, 3 // 4], [-1 // 3, 1, 1], [0, 1 // 3, 1 // 4])
 
 # The paper and HOMME completely disagree on IMKG353a, but neither version
 # is "353" (they appear to be "343" and "354", respectively). The paper's
 # version is
 # IMKGTableau(
-#     (1/4, 2/3, 1/3, 3/4),
-#     (0, -359/600, -559/600, 3/4),
-#     (-1.1678009811335388, 253/200, 253/200),
-#     (0, 1/3, 1/4),
+#     [1/4, 2/3, 1/3, 3/4],
+#     [0, -359/600, -559/600, 3/4],
+#     [-1.1678009811335388, 253/200, 253/200],
+#     [0, 1/3, 1/4],
 # )
 # HOMME's version is
 # IMKGTableau(
-#     (-0.017391304347826087, -23/25, 5/3, 1/3, 3/4),
-#     (0.3075640504095504, -1.2990164859879263, 751/600, -49/60, 3/4),
-#     (-0.2981612530370581, 83/200, 83/200, 23/20),
-#     (1, -1, 1/3, 1/4),
+#     [-0.017391304347826087, -23/25, 5/3, 1/3, 3/4],
+#     [0.3075640504095504, -1.2990164859879263, 751/600, -49/60, 3/4],
+#     [-0.2981612530370581, 83/200, 83/200, 23/20],
+#     [1, -1, 1/3, 1/4],
 # )
 
 # The version of IMKG354a in the paper is not "354" (it appears to be "253"),
@@ -487,10 +448,10 @@ end
 # IMKG353a is mistakenly used to define IMKG354a, and the tableau for IMKG354a
 # is not specified). The paper's version is
 # IMKGTableau(
-#     (1/5, 1/5, 2/3, 1/3, 3/4),
-#     (0, 0, 11/30, -2/3, 3/4),
-#     (0, 2/4, 2/5, 1),
-#     (0, 0, 1/3, 1/4),
+#     [1//5, 1//5, 2//3, 1//3, 3//4],
+#     [0, 0, 11//30, -2//3, 3//4],
+#     [0, 2//4, 2//5, 1],
+#     [0, 0, 1//3, 1//4],
 # )
 
 ################################################################################
@@ -500,10 +461,6 @@ end
 # The naming convention is SSPsσp, where s is the number of implicit stages,
 # σ is the number of explicit stages, and p is the order of accuracy.
 
-abstract type IMEXSSPRKAlgorithmName <: IMEXARKAlgorithmName end
-
-default_constraint(::IMEXSSPRKAlgorithmName) = SSP()
-
 """
     SSP222
 
@@ -511,20 +468,15 @@ An IMEX SSPRK algorithm from [PR2005](@cite), with 2 implicit stages, 2 explicit
 stages, and 2nd order accuracy. Also called *SSP2(222)* in [GGHRUW2018](@cite).
 """
 struct SSP222 <: IMEXSSPRKAlgorithmName end
-function IMEXTableau(::SSP222)
+function ARKTableau(::SSP222)
     γ = 1 - √2 / 2
-    return IMEXTableau(;
-        a_exp = @SArray([
-            0 0
-            1 0
-        ]),
-        b_exp = @SArray([1 / 2, 1 / 2]),
-        a_imp = @SArray([
+    return ARKTableau(RKTableau(SSP22Heuns()), ButcherTableau(
+        [
             γ 0
             (1-2γ) γ
-        ]),
-        b_imp = @SArray([1 / 2, 1 / 2])
-    )
+        ],
+        [1 / 2, 1 / 2],
+    ))
 end
 
 """
@@ -534,22 +486,17 @@ An IMEX SSPRK algorithm from [PR2005](@cite), with 3 implicit stages, 2 explicit
 stages, and 2nd order accuracy.
 """
 struct SSP322 <: IMEXSSPRKAlgorithmName end
-function IMEXTableau(::SSP322)
-    return IMEXTableau(;
-        a_exp = @SArray([
-            0 0 0
-            0 0 0
-            0 1 0
-        ]),
-        b_exp = @SArray([0, 1 / 2, 1 / 2]),
-        a_imp = @SArray([
-            1/2 0 0
-            -1/2 1/2 0
-            0 1/2 1/2
-        ]),
-        b_imp = @SArray([0, 1 / 2, 1 / 2])
-    )
-end
+ARKTableau(::SSP322) = ARKTableau(
+    PaddedTableau(RKTableau(SSP22Heuns())),
+    ButcherTableau(
+        [
+            1//2 0 0
+            -1//2 1//2 0
+            0 1//2 1//2
+        ],
+        [0, 1 // 2, 1 // 2],
+    ),
+)
 
 """
     SSP332
@@ -558,22 +505,16 @@ An IMEX SSPRK algorithm from [PR2005](@cite), with 3 implicit stages, 3 explicit
 stages, and 2nd order accuracy. Also called *SSP2(332)a* in [GGHRUW2018](@cite).
 """
 struct SSP332 <: IMEXSSPRKAlgorithmName end
-function IMEXTableau(::SSP332)
+function ARKTableau(::SSP332)
     γ = 1 - √2 / 2
-    return IMEXTableau(;
-        a_exp = @SArray([
-            0 0 0
-            1 0 0
-            1/4 1/4 0
-        ]),
-        b_exp = @SArray([1 / 6, 1 / 6, 2 / 3]),
-        a_imp = @SArray([
+    return ARKTableau(RKTableau(SSP33ShuOsher()), ButcherTableau(
+        [
             γ 0 0
             (1-2γ) γ 0
             (1 / 2-γ) 0 γ
-        ]),
-        b_imp = @SArray([1 / 6, 1 / 6, 2 / 3])
-    )
+        ],
+        [1 / 6, 1 / 6, 2 / 3],
+    ))
 end
 
 """
@@ -587,22 +528,19 @@ is also called *SSP3(333)c* in [GGHRUW2018](@cite).
 Base.@kwdef struct SSP333{FT <: AbstractFloat} <: IMEXSSPRKAlgorithmName
     β::FT = 1 / 2 + √3 / 6
 end
-function IMEXTableau((; β)::SSP333)
+function ARKTableau((; β)::SSP333)
     @assert β > 1 / 2
     γ = (2β^2 - 3β / 2 + 1 / 3) / (2 - 4β)
-    return IMEXTableau(;
-        a_exp = @SArray([
-            0 0 0
-            1 0 0
-            1/4 1/4 0
-        ]),
-        b_exp = @SArray([1 / 6, 1 / 6, 2 / 3]),
-        a_imp = @SArray([
-            0 0 0
-            (4γ+2β) (1 - 4γ-2β) 0
-            (1 / 2 - β-γ) γ β
-        ]),
-        b_imp = @SArray([1 / 6, 1 / 6, 2 / 3])
+    return ARKTableau(
+        RKTableau(SSP33ShuOsher()),
+        ButcherTableau(
+            [
+                0 0 0
+                (4γ+2β) (1 - 4γ-2β) 0
+                (1 / 2 - β-γ) γ β
+            ],
+            [1 / 6, 1 / 6, 2 / 3],
+        ),
     )
 end
 
@@ -613,25 +551,21 @@ An IMEX SSPRK algorithm from [PR2005](@cite), with 4 implicit stages, 3 explicit
 stages, and 3rd order accuracy. Also called *SSP3(433)* in [GGHRUW2018](@cite).
 """
 struct SSP433 <: IMEXSSPRKAlgorithmName end
-function IMEXTableau(::SSP433)
+function ARKTableau(::SSP433)
     α = 0.24169426078821
     β = 0.06042356519705
     η = 0.12915286960590
-    return IMEXTableau(;
-        a_exp = @SArray([
-            0 0 0 0
-            0 0 0 0
-            0 1 0 0
-            0 1/4 1/4 0
-        ]),
-        b_exp = @SArray([0, 1 / 6, 1 / 6, 2 / 3]),
-        a_imp = @SArray([
-            α 0 0 0
-            -α α 0 0
-            0 (1-α) α 0
-            β η (1 / 2 - α - β-η) α
-        ]),
-        b_imp = @SArray([0, 1 / 6, 1 / 6, 2 / 3])
+    return ARKTableau(
+        PaddedTableau(RKTableau(SSP33ShuOsher())),
+        ButcherTableau(
+            [
+                α 0 0 0
+                -α α 0 0
+                0 (1-α) α 0
+                β η (1 / 2 - α - β-η) α
+            ],
+            [0, 1 / 6, 1 / 6, 2 / 3],
+        ),
     )
 end
 
@@ -645,29 +579,29 @@ end
 An IMEX ARK algorithm from [VSRUW2019](@cite), Appendix A, with 4 implicit
 stages, 5 explicit stages, and 3rd order accuracy.
 """
-struct DBM453 <: IMEXARKAlgorithmName end
-function IMEXTableau(::DBM453)
+struct DBM453 <: ARKAlgorithmName end
+function ARKTableau(::DBM453)
     γ = 0.32591194130117247
-    IMEXTableau(;
-        a_exp = @SArray(
+    return ARKTableau(
+        ButcherTableau(
             [
                 0 0 0 0 0
                 0.10306208811591838 0 0 0 0
                 -0.94124866143519894 1.6626399742527356 0 0 0
                 -1.3670975201437765 1.3815852911016873 1.2673234025619065 0 0
                 -0.81287582068772448 0.81223739060505738 0.90644429603699305 0.094194134045674111 0
-            ]
+            ],
+            [0.87795339639076675, -0.72692641526151547, 0.7520413715737272, -0.22898029400415088, γ],
         ),
-        b_exp = @SArray([0.87795339639076675, -0.72692641526151547, 0.7520413715737272, -0.22898029400415088, γ]),
-        a_imp = @SArray(
+        ButcherTableau(
             [
                 0 0 0 0 0
                 -0.2228498531852541 γ 0 0 0
                 -0.46801347074080545 0.86349284225716961 γ 0 0
                 -0.46509906651927421 0.81063103116959553 0.61036726756832357 γ 0
                 0.87795339639076675 -0.72692641526151547 0.7520413715737272 -0.22898029400415088 γ
-            ]
-        )
+            ],
+        ),
     )
 end
 
@@ -677,27 +611,25 @@ end
 An IMEX ARK algorithm from [GTBBS2020](@cite), section 4.1, with 5 implicit
 stages, 6 explicit stages, and 2nd order accuracy.
 """
-struct HOMMEM1 <: IMEXARKAlgorithmName end
-function IMEXTableau(::HOMMEM1)
-    IMEXTableau(;
-        a_exp = @SArray([
-            0 0 0 0 0 0
-            1/5 0 0 0 0 0
-            0 1/5 0 0 0 0
-            0 0 1/3 0 0 0
-            0 0 0 1/2 0 0
-            0 0 0 0 1 0
-        ]),
-        a_imp = @SArray([
-            0 0 0 0 0 0
-            0 1/5 0 0 0 0
-            0 0 1/5 0 0 0
-            0 0 0 1/3 0 0
-            0 0 0 0 1/2 0
-            5/18 5/18 0 0 0 8/18
-        ])
-    )
-end
+struct HOMMEM1 <: ARKAlgorithmName end
+ARKTableau(::HOMMEM1) = ARKTableau(
+    ButcherTableau([
+        0 0 0 0 0 0
+        1//5 0 0 0 0 0
+        0 1//5 0 0 0 0
+        0 0 1//3 0 0 0
+        0 0 0 1//2 0 0
+        0 0 0 0 1 0
+    ]),
+    ButcherTableau([
+        0 0 0 0 0 0
+        0 1//5 0 0 0 0
+        0 0 1//5 0 0 0
+        0 0 0 1//3 0 0
+        0 0 0 0 1//2 0
+        5//18 5//18 0 0 0 8//18
+    ]),
+)
 
 """
     ARK2GKC(; paper_version = false)
@@ -707,23 +639,25 @@ stages, and 2nd order accuracy. If `paper_version = true`, the algorithm uses
 coefficients from the paper. Otherwise, it uses coefficients that make it more
 stable but less accurate.
 """
-Base.@kwdef struct ARK2GKC <: IMEXARKAlgorithmName
+Base.@kwdef struct ARK2GKC <: ARKAlgorithmName
     paper_version::Bool = false
 end
-function IMEXTableau((; paper_version)::ARK2GKC)
+function ARKTableau((; paper_version)::ARK2GKC)
     a32 = paper_version ? 1 / 2 + √2 / 3 : 1 / 2
-    IMEXTableau(;
-        a_exp = @SArray([
-            0 0 0
-            (2-√2) 0 0
-            (1-a32) a32 0
-        ]),
-        b_exp = @SArray([√2 / 4, √2 / 4, 1 - √2 / 2]),
-        a_imp = @SArray([
+    return ARKTableau(
+        ButcherTableau(
+            [
+                0 0 0
+                (2-√2) 0 0
+                (1-a32) a32 0
+            ],
+            [√2 / 4, √2 / 4, 1 - √2 / 2],
+        ),
+        ButcherTableau([
             0 0 0
             (1-√2 / 2) (1-√2 / 2) 0
             √2/4 √2/4 (1-√2 / 2)
-        ])
+        ]),
     )
 end
 
@@ -734,8 +668,8 @@ An IMEX ARK algorithm from [KC2019](@cite), Table 8, with 6 implicit stages, 7
 explicit stages, and 4th order accuracy. Written as *ARK4(3)7L[2]SA₁* in the
 paper.
 """
-struct ARK437L2SA1 <: IMEXARKAlgorithmName end
-function IMEXTableau(::ARK437L2SA1)
+struct ARK437L2SA1 <: ARKAlgorithmName end
+function ARKTableau(::ARK437L2SA1)
     a_exp = zeros(Rational{Int64}, 7, 7)
     a_imp = zeros(Rational{Int64}, 7, 7)
     b = zeros(Rational{Int64}, 7)
@@ -804,14 +738,7 @@ function IMEXTableau(::ARK437L2SA1)
     c[1] = 0
     c[7] = 1
 
-    IMEXTableau(;
-        a_exp = SArray{Tuple{7, 7}}(a_exp),
-        b_exp = SArray{Tuple{7}}(b),
-        c_exp = SArray{Tuple{7}}(c),
-        a_imp = SArray{Tuple{7, 7}}(a_imp),
-        b_imp = SArray{Tuple{7}}(b),
-        c_imp = SArray{Tuple{7}}(c),
-    )
+    return ARKTableau(ButcherTableau(a_exp, b, c), ButcherTableau(a_imp, b, c))
 end
 
 """
@@ -821,8 +748,8 @@ An IMEX ARK algorithm from [KC2019](@cite), Table 8, with 7 implicit stages, 8
 explicit stages, and 5th order accuracy. Written as *ARK5(4)8L[2]SA₂* in the
 paper.
 """
-struct ARK548L2SA2 <: IMEXARKAlgorithmName end
-function IMEXTableau(::ARK548L2SA2)
+struct ARK548L2SA2 <: ARKAlgorithmName end
+function ARKTableau(::ARK548L2SA2)
     a_exp = zeros(Rational{Int64}, 8, 8)
     a_imp = zeros(Rational{Int64}, 8, 8)
     b = zeros(Rational{Int64}, 8)
@@ -904,12 +831,5 @@ function IMEXTableau(::ARK548L2SA2)
     c[1] = 0
     c[8] = 1
 
-    IMEXTableau(;
-        a_exp = SArray{Tuple{8, 8}}(a_exp),
-        b_exp = SArray{Tuple{8}}(b),
-        c_exp = SArray{Tuple{8}}(c),
-        a_imp = SArray{Tuple{8, 8}}(a_imp),
-        b_imp = SArray{Tuple{8}}(b),
-        c_imp = SArray{Tuple{8}}(c),
-    )
+    return ARKTableau(ButcherTableau(a_exp, b, c), ButcherTableau(a_imp, b, c))
 end

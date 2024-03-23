@@ -48,59 +48,24 @@ using KernelAbstractions
 using LinearAlgebra
 using LinearOperators
 using StaticArrays
+using UnrolledUtilities
 import ClimaComms
 using Colors
 using NVTX
 
-export AbstractAlgorithmName, AbstractAlgorithmConstraint, Unconstrained, SSP
+export AbstractAlgorithmName
 
 array_device(::Union{Array, SArray, MArray}) = CPU()
 array_device(x) = CUDADevice() # assume CUDA
 
+float_type(::Type{T}) where {T} = T <: AbstractFloat ? T : promote_type(map(float_type, fieldtypes(T))...)
+
 import DiffEqBase, SciMLBase, LinearAlgebra, DiffEqCallbacks, Krylov
 
-include(joinpath("utilities", "sparse_coeffs.jl"))
-include(joinpath("utilities", "fused_increment.jl"))
-include("sparse_containers.jl")
+include(joinpath("utilities", "sparse_tuple.jl"))
 include("functions.jl")
 
 abstract type DistributedODEAlgorithm <: DiffEqBase.AbstractODEAlgorithm end
-
-abstract type AbstractAlgorithmName end
-
-"""
-    AbstractAlgorithmConstraint
-
-A mechanism for constraining which operations can be performed by an algorithm
-for solving ODEs.
-
-For example, an unconstrained algorithm might compute a Runge-Kutta stage by
-taking linear combinations of tendencies; i.e., by adding quantities of the form
-`dt * tendency(state)`. On the other hand, a "strong stability preserving"
-algorithm can only take linear combinations of "incremented states"; i.e., it
-only adds quantities of the form `state + dt * coefficient * tendency(state)`.
-"""
-abstract type AbstractAlgorithmConstraint end
-
-"""
-    Unconstrained
-
-Indicates that an algorithm may perform any supported operations.
-"""
-struct Unconstrained <: AbstractAlgorithmConstraint end
-
-default_constraint(::AbstractAlgorithmName) = Unconstrained()
-
-"""
-    SSP
-
-Indicates that an algorithm must be "strong stability preserving", which makes
-it easier to guarantee that the algorithm will preserve monotonicity properties
-satisfied by the initial state. For example, this ensures that the algorithm
-will be able to use limiters in a mathematically consistent way.
-"""
-struct SSP <: AbstractAlgorithmConstraint end
-
 SciMLBase.allowscomplex(alg::DistributedODEAlgorithm) = true
 include("integrators.jl")
 
@@ -109,17 +74,16 @@ include("utilities/convergence_condition.jl")
 include("utilities/convergence_checker.jl")
 include("nl_solvers/newtons_method.jl")
 
+"""
+    AbstractAlgorithmName
 
-n_stages_ntuple(::Type{<:NTuple{Nstages}}) where {Nstages} = Nstages
-n_stages_ntuple(::Type{<:SVector{Nstages}}) where {Nstages} = Nstages
+Supertype of predefined Runge-Kutta methods.
+"""
+abstract type AbstractAlgorithmName end
+include("solvers/rk_tableaus.jl")
+include("solvers/ark_tableaus.jl")
+include("solvers/ark_algorithm.jl")
 
-# Include concrete implementations
-const SPCO = SparseCoeffs
-
-include("solvers/imex_tableaus.jl")
-include("solvers/explicit_tableaus.jl")
-include("solvers/imex_ark.jl")
-include("solvers/imex_ssprk.jl")
 include("solvers/multirate.jl")
 include("solvers/lsrk.jl")
 include("solvers/mis.jl")

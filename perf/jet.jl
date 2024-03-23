@@ -16,7 +16,7 @@ cts = joinpath(dirname(@__DIR__));
 include(joinpath(cts, "test", "problems.jl"))
 config_integrators(itc::IntegratorTestCase) = config_integrators(itc.prob)
 function config_integrators(problem)
-    algorithm = CTS.IMEXAlgorithm(ARS343(), NewtonsMethod(; max_iters = 2))
+    algorithm = CTS.ARKAlgorithm(ARS343(), NewtonsMethod(; max_iters = 2))
     dt = 0.01
     integrator = DiffEqBase.init(problem, algorithm; dt)
     integrator.cache = CTS.init_cache(problem, algorithm)

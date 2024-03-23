@@ -19,15 +19,14 @@ default values for `c_exp` and `c_imp` assume that it is internally consistent.
 The explicit tableau must be strictly lower triangular, and the implicit tableau
 must be lower triangular (only DIRK algorithms are currently supported).
 """
-struct IMEXTableau{AE <: SPCO, BE <: SPCO, CE <: SPCO, AI <: SPCO, BI <: SPCO, CI <: SPCO}
-    a_exp::AE # matrix of size s×s
-    b_exp::BE # vector of length s
-    c_exp::CE # vector of length s
-    a_imp::AI # matrix of size s×s
-    b_imp::BI # vector of length s
-    c_imp::CI # vector of length s
+struct IMEXTableau{M, V}
+    a_exp::M # matrix of size s×s
+    b_exp::V # vector of length s
+    c_exp::V # vector of length s
+    a_imp::M # matrix of size s×s
+    b_imp::V # vector of length s
+    c_imp::V # vector of length s
 end
-IMEXTableau(args...) = IMEXTableau(map(x -> SparseCoeffs(x), args)...)
 
 function IMEXTableau(;
     a_exp,

@@ -59,6 +59,7 @@ array_device(x) = CUDADevice() # assume CUDA
 
 import DiffEqBase, SciMLBase, LinearAlgebra, DiffEqCallbacks, Krylov
 
+include(joinpath("utilities", "sparse_tuple.jl"))
 include(joinpath("utilities", "sparse_coeffs.jl"))
 include(joinpath("utilities", "fused_increment.jl"))
 include("sparse_containers.jl")
@@ -118,7 +119,7 @@ const SPCO = SparseCoeffs
 
 include("solvers/imex_tableaus.jl")
 include("solvers/explicit_tableaus.jl")
-include("solvers/imex_ark.jl")
+include("solvers/imex_ark_new.jl")
 include("solvers/imex_ssprk.jl")
 include("solvers/multirate.jl")
 include("solvers/lsrk.jl")

@@ -66,18 +66,20 @@ end
 
 # called by DiffEqBase.init and DiffEqBase.solve
 function DiffEqBase.__init(
-    prob::DiffEqBase.AbstractODEProblem,
-    alg::DistributedODEAlgorithm,
+    prob::Union{DiffEqBase.AbstractODEProblem, DiffEqBase.AbstractSDEProblem},
+    alg::Union{DistributedODEAlgorithm, DiffEqBase.AbstractSDEAlgorithm},
     args...;
     dt,
     tstops = (),
     saveat = nothing,
     save_everystep = false,
+    save_noise =  DiffEqBase.has_analytic(prob.f),  # StochasticDiffEq.jl/src/solve.jl
     callback = nothing,
     advance_to_tstop = false,
     save_func = (u, t) -> copy(u), # custom kwarg
     dtchangeable = true,           # custom kwarg
     stepstop = -1,                 # custom kwarg
+    seed = UInt64(0),              # StochasticDiffEq.jl/src/solve.jl
     kwargs...,
 )
     (; u0, p) = prob
@@ -91,12 +93,45 @@ function DiffEqBase.__init(
     _saveat = saveat
     tstops, saveat = tstops_and_saveat_heaps(t0, tf, tstops, saveat)
 
-    sol = DiffEqBase.build_solution(prob, alg, typeof(t0)[], typeof(save_func(u0, t0))[])
+    if prob isa DiffEqBase.AbstractSDEProblem && alg isa DiffEqBase.AbstractSDEAlgorithm
+        # See: StochasticDiffEq.jl/src/solve.jl
+        ## W =
+        tspan = prob.tspan 
+        t = tspan[1]
+        u = SciMLBase.recursivecopy(prob.u0)
+        rate_prototype = SciMLBase.recursivecopy(u)
+        noise_rate_prototype = rate_prototype  # only for diagonal noise, see L217
+        rand_prototype = false .* noise_rate_prototype[1,:]  # 
+        _seed = if iszero(seed)
+            if iszero(prob.seed)
+                rand(UInt64)
+            else
+                prob.seed
+            end
+        else
+            seed
+        end
+        W = WienerProcess(
+            t, rand_prototype, save_everystep=save_noise, rng = Xorshifts.Xoroshiro128Plus(_seed)
+        )
+
+        # stats =   # maybe not needed?
+        calculate_error = false
+        # interp =   # not needed
+        # dense =    # not needed
+        # seed = _seed
+        sde_kwargs = (; W, calculate_error, seed = _seed)
+    else
+        sde_kwargs = (;)
+    end
+
+    sol = DiffEqBase.build_solution(prob, alg, typeof(t0)[], typeof(save_func(u0, t0))[]; sde_kwargs...)
     saving_callback =
         NonInterpolatingSavingCallback(save_func, DiffEqCallbacks.SavedValues(sol.t, sol.u), save_everystep)
     callback = DiffEqBase.CallbackSet(callback, saving_callback)
     isempty(callback.continuous_callbacks) || error("Continuous callbacks are not supported")
 
+    # TODO: Figure out what I need to change to construct the integrator
     integrator = DistributedODEIntegrator(
         alg,
         u0,

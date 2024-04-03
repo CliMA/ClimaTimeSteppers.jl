@@ -1,4 +1,5 @@
 import NVTX
+# using Random  # for testing
 
 has_jac(T_imp!) =
     hasfield(typeof(T_imp!), :Wfact) &&
@@ -71,6 +72,7 @@ function step_u!(integrator, cache::IMEXARKCache)
     end
 
     update_stage!(integrator, cache, ntuple(i -> i, Val(s)))
+    return @. u = U  # hack to get SDE solver to work
 
     t_final = t + dt
 
@@ -113,7 +115,7 @@ end
     t_exp = t + dt * c_exp[i]
     t_imp = t + dt * c_imp[i]
 
-    dW = √dt * randn(eltype(dt))
+    
 
     if has_T_lim(f) # Update based on limited tendencies from previous stages
         assign_fused_increment!(U, u, dt, a_exp, T_lim, Val(i))
@@ -123,8 +125,12 @@ end
     end
 
     # Update based on tendencies from previous stages
+    if i ≠ 1 && has_T_stoch(f)
+        dW = √dt * randn(eltype(dt))
+        push!(p.dW, dW)
+        fused_increment!(U, dW, a_exp, T_stoch, Val(i))
+    end
     has_T_exp(f) && fused_increment!(U, dt, a_exp, T_exp, Val(i))
-    has_T_stoch(f) && fused_increment!(U, dW, a_exp, T_stoch, Val(i))
     isnothing(T_imp!) || fused_increment!(U, dt, a_imp, T_imp, Val(i))
 
     i ≠ 1 && dss!(U, p, t_exp)

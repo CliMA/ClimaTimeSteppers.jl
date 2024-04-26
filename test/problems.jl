@@ -1,6 +1,7 @@
 using DiffEqBase, ClimaTimeSteppers, LinearAlgebra, StaticArrays
 using ClimaCore
 using ClimaComms
+ClimaComms.@import_required_backends
 import ClimaCore: Domains, Geometry, Meshes, Topologies, Spaces, Fields, Operators, Limiters
 
 import Krylov # Trigger ClimaCore/ext/KrylovExt

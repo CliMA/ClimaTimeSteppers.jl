@@ -622,7 +622,7 @@ function deformational_flow_test(::Type{FT}; use_limiter = true, use_hyperdiffus
         φ = deg2rad(coord.lat)
 
         ds = map(centers) do center
-            r = Geometry.great_circle_distance(coord, center, horz_space.global_geometry)
+            r = Geometry.great_circle_distance(coord, center, Spaces.global_geometry(horz_space))
             return min(1, (r / R_t)^2 + ((z - z_c) / Z_t)^2)
         end
         in_slot = z > z_c && φ_c - FT(0.125) < φ < φ_c + FT(0.125)
@@ -753,15 +753,15 @@ function horizontal_deformational_flow_test(::Type{FT}; use_limiter = true, use_
         λ = deg2rad(coord.long)
 
         hs = map(centers) do center
-            center′ = Geometry.CartesianPoint(center, space.global_geometry)
-            coord′ = Geometry.CartesianPoint(coord, space.global_geometry)
+            center′ = Geometry.CartesianPoint(center, Spaces.global_geometry(space))
+            coord′ = Geometry.CartesianPoint(coord, Spaces.global_geometry(space))
             dist_squared = (coord′.x1 - center′.x1)^2 + (coord′.x2 - center′.x2)^2 + (coord′.x3 - center′.x3)^2
             # Note: the paper doesn't divide by R^2, which only works if R = 1
             return FT(0.95) * exp(-5 * dist_squared / R^2)
         end
         gaussian_hills = hs[1] + hs[2]
         rs = map(centers) do center
-            return Geometry.great_circle_distance(coord, center, space.global_geometry)
+            return Geometry.great_circle_distance(coord, center, Spaces.global_geometry(space))
         end
         cosine_bells = if rs[1] < R_t
             FT(0.1) + FT(0.9) * (1 + cos(FT(π) * rs[1] / R_t)) / 2

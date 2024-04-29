@@ -323,10 +323,14 @@ function verify_convergence(
     plots = (plots..., footnote_plot)
 
     n_plots = length(plots)
+    heights₀ = repeat([1 / (n_plots - 1)], n_plots - 1)
+    footnote_height = eps()
+    heights = [heights₀ .- footnote_height / n_plots..., footnote_height]
+    layout = Plots.grid(n_plots, 1; heights)
     plot = Plots.plot(
         plots...;
         plot_title = "Analysis of $title for \"$test_name\"",
-        layout = Plots.grid(n_plots, 1; heights = [repeat([1 / (n_plots - 1)], n_plots - 1)..., 0]),
+        layout = layout,
         fontfamily = "Computer Modern",
     )
 

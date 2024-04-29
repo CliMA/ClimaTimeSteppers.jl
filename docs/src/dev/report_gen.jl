@@ -1,3 +1,7 @@
+#=
+julia --project=docs
+using Revise; include(joinpath("docs", "src", "dev", "report_gen.jl"))
+=#
 using ClimaTimeSteppers
 using Test
 using InteractiveUtils: subtypes

@@ -3,6 +3,8 @@ using ClimaCore
 using ClimaComms
 import ClimaCore: Domains, Geometry, Meshes, Topologies, Spaces, Fields, Operators, Limiters
 
+@static isdefined(ClimaComms, :device_type) && ClimaComms.@import_required_backends
+
 import Krylov # Trigger ClimaCore/ext/KrylovExt
 
 """

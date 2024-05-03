@@ -18,7 +18,7 @@ using Aqua
 end
 
 @testset "Aqua tests (remaining)" begin
-    Aqua.test_all(ClimaTimeSteppers; ambiguities=false)
+    Aqua.test_all(ClimaTimeSteppers; ambiguities = false)
 end
 
 nothing

@@ -2,7 +2,7 @@
 ##### BenchmarkTools's trial utils
 #####
 
-get_summary(trial, trial_step; keep_percentage) = (;
+get_summary(trial, trial_step) = (;
     # Using some BenchmarkTools internals :/
     mem = BenchmarkTools.prettymemory(trial.memory),
     mem_val = trial.memory,
@@ -13,10 +13,10 @@ get_summary(trial, trial_step; keep_percentage) = (;
     t_mean_val = StatsBase.mean(trial.times),
     t_med = BenchmarkTools.prettytime(StatsBase.median(trial.times)),
     n_samples = length(trial),
-    percentage = keep_percentage ? minimum(trial.times) / minimum(trial_step.times) * 100 : -1,
+    percentage = minimum(trial.times) / minimum(trial_step.times) * 100,
 )
 
-function tabulate_summary(summary; n_calls)
+function tabulate_summary(summary; n_calls_per_step)
     summary_keys = collect(keys(summary))
     mem = map(k -> summary[k].mem, summary_keys)
     nalloc = map(k -> summary[k].nalloc, summary_keys)
@@ -27,11 +27,11 @@ function tabulate_summary(summary; n_calls)
     n_samples = map(k -> summary[k].n_samples, summary_keys)
     percentage = map(k -> summary[k].percentage, summary_keys)
 
-    func_names = if isnothing(n_calls)
+    func_names = if isnothing(n_calls_per_step)
         map(k -> string(k), collect(keys(summary)))
     else
         @info "(#)x entries have been multiplied by corresponding factors in order to compute percentages"
-        map(k -> string(k, " ($(n_calls[k])x)"), collect(keys(summary)))
+        map(k -> string(k, " ($(n_calls_per_step[k])x)"), collect(keys(summary)))
     end
     table_data = hcat(func_names, mem, nalloc, t_min, t_max, t_mean, t_med, n_samples, percentage)
 
@@ -60,10 +60,10 @@ function get_trial(f, args, name, device; with_cu_prof = :bprofile, trace = fals
     println("--------------- Benchmarking/profiling $name...")
     trial = BenchmarkTools.run(b, samples = sample_limit)
     if device isa ClimaComms.CUDADevice
-        if with_cu_prof == :bprofile
-            p = CUDA.@bprofile trace = trace f(args...)
-        elseif with_cu_prof == :profile
-            p = CUDA.@profile trace = trace f(args...)
+        p = if with_cu_prof == :bprofile
+            CUDA.@bprofile trace = trace f(args...)
+        else
+            CUDA.@profile trace = trace f(args...)
         end
         println(p)
     end

@@ -17,6 +17,14 @@ Base.:*(n::Int, t::BenchmarkTools.Trial) =
 
 include("benchmark_utils.jl")
 
+function get_n_calls_per_step(integrator::CTS.DistributedODEIntegrator)
+    (; alg) = integrator
+    (; newtons_method, name) = alg
+    (; max_iters) = newtons_method
+    n_calls_per_step(name, max_iters)
+end
+
+# TODO: generalize
 n_calls_per_step(::CTS.ARS343, max_newton_iters) = Dict(
     "Wfact" => 3 * max_newton_iters,
     "ldiv!" => 3 * max_newton_iters,
@@ -50,7 +58,6 @@ function CTS.benchmark_step(
     (; f) = sol.prob
     if f isa CTS.ClimaODEFunction
 
-        (; sol, u, p, dt, t) = integrator
         W = get_W(integrator)
         X = similar(u)
         trials₀ = OrderedCollections.OrderedDict()
@@ -68,46 +75,20 @@ function CTS.benchmark_step(
 #! format: on
 
         trials = OrderedCollections.OrderedDict()
-        local n_calls
-        (; alg) = integrator
-        (; newtons_method, name) = alg
-        (; max_iters) = newtons_method
 
-
-        keep_percentage = true
+        n_calls_per_step = get_n_calls_per_step(integrator)
         for k in keys(trials₀)
             isnothing(trials₀[k]) && continue
-            trials[k] = trials₀[k] * n_calls_per_step(name, max_iters)[k]
+            trials[k] = trials₀[k] * n_calls_per_step[k]
         end
-        n_calls = Dict(map(collect(keys(trials₀))) do k
-            k => n_calls_per_step(name, max_iters)[k]
-        end)
-
-        # keep_percentage = try
-        #     for k in keys(trials₀)
-        #         trials[k] = trials₀[k] * n_calls_per_step(name, max_iters)[k]
-        #     end
-        #     n_calls = map(collect(keys(trials₀))) do k
-        #         n_calls_per_step(name, max_iters)[k]
-        #     end
-        #     true
-        # catch
-        #     for k in keys(trials₀)
-        #         trials[k] = trials₀[k]
-        #     end
-        #     n_calls = nothing
-        #     false
-        # end
 
         table_summary = OrderedCollections.OrderedDict()
         for k in keys(trials)
             isnothing(trials[k]) && continue
-            table_summary[k] = get_summary(trials[k], trials["step!"]; keep_percentage)
+            table_summary[k] = get_summary(trials[k], trials["step!"])
         end
-        keep_percentage ||
-            @warn "The percentage column was computed incorrectly, please open an issue in ClimaTimeSteppers with a reproducer."
 
-        tabulate_summary(table_summary; n_calls)
+        tabulate_summary(table_summary; n_calls_per_step)
 
         return (; table_summary, trials)
     else

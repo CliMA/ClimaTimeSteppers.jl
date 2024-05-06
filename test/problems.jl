@@ -1,9 +1,12 @@
-using DiffEqBase, ClimaTimeSteppers, LinearAlgebra, StaticArrays
+using DiffEqBase, ClimaTimeSteppers, StaticArrays
+import LinearAlgebra
+import LinearAlgebra: norm, Diagonal, mul!
 using ClimaCore
 using ClimaComms
+import ClimaCore.MatrixFields: @name, ⋅
 import ClimaCore: Domains, Geometry, Meshes, Topologies, Spaces, Fields, Operators, Limiters
 
-@static isdefined(ClimaComms, :device_type) && ClimaComms.@import_required_backends
+@static pkgversion(ClimaComms) >= v"0.6" && ClimaComms.@import_required_backends
 
 import Krylov # Trigger ClimaCore/ext/KrylovExt
 
@@ -366,6 +369,20 @@ function ark_analytic_test_cts(::Type{FT}) where {FT}
     )
 end
 
+function analytic_linear_no_source_test_cts(::Type{FT}) where {FT}
+    λ = FT(-1)
+    ClimaIntegratorTestCase(;
+        test_name = "analytic_linear_no_source",
+        linear_implicit = true,
+        t_end = FT(10),
+        Y₀ = FT[1],
+        analytic_sol = (t) -> [exp(λ * t)],
+        tendency! = (Yₜ, Y, _, t) -> Yₜ .= λ .* Y,
+        implicit_tendency! = (Yₜ, Y, _, t) -> Yₜ .= λ .* Y,
+        Wfact! = (W, Y, _, dtγ, t) -> W .= dtγ * λ - 1,
+    )
+end
+
 # From Section 1.2 of "Example Programs for ARKode v4.4.0" by D. R. Reynolds
 function ark_analytic_nonlin_test_cts(::Type{FT}) where {FT}
     ClimaIntegratorTestCase(;
@@ -422,19 +439,20 @@ function onewaycouple_mri_test_cts(::Type{FT}) where {FT}
     )
 end
 
-# Used only for inference
-struct DummySchurComplementW{T}
-    temp1::T
-    temp2::T
+
+struct ImplicitJacobianSolver{M, S}
+    matrix::M
+    solver::S
 end
-DummySchurComplementW(Y::T) where {T} = DummySchurComplementW{T}(similar(Y), similar(Y))
-Base.similar(w::DummySchurComplementW) = w
-function LinearAlgebra.ldiv!(x, A::DummySchurComplementW, b)
-    A.temp1 .= b
-    LinearAlgebra.ldiv!(A.temp2, A, A.temp1)
-    x .= A.temp2
+Base.similar(implicitjac::ImplicitJacobianSolver) = implicitjac
+function ImplicitJacobian(matrix, Y::ClimaCore.Fields.FieldVector; alg = ClimaCore.MatrixFields.BlockDiagonalSolve())
+    solver = ClimaCore.MatrixFields.FieldMatrixSolver(alg, matrix, Y)
+    return ImplicitJacobianSolver(matrix, solver)
 end
-LinearAlgebra.ldiv!(x::Fields.FieldVector, A::DummySchurComplementW, b::Fields.FieldVector) = nothing
+function LinearAlgebra.ldiv!(x, a::ImplicitJacobianSolver, b)
+    ClimaCore.MatrixFields.field_matrix_solve!(a.solver, x, a.matrix, b)
+    return nothing
+end
 
 Wfact!(W, Y, p, dtγ, t) = nothing
 
@@ -493,9 +511,11 @@ function climacore_2Dheat_test_cts(::Type{FT}) where {FT}
     post_implicit! = (u, _, t) -> nothing
     post_explicit! = (u, _, t) -> nothing
 
+    jacobian = ClimaCore.MatrixFields.FieldMatrix((@name(u), @name(u)) => FT(-1) * LinearAlgebra.I)
+
     T_imp! = SciMLBase.ODEFunction(
         (Yₜ, u, _, t) -> nothing;
-        jac_prototype = DummySchurComplementW(init_state),
+        jac_prototype = ImplicitJacobian(jacobian, init_state),
         Wfact = Wfact!,
         tgrad = (∂Y∂t, Y, p, t) -> (∂Y∂t .= 0),
     )
@@ -512,6 +532,7 @@ function climacore_2Dheat_test_cts(::Type{FT}) where {FT}
         make_prob(split_tendency_func),
     )
 end
+
 function climacore_1Dheat_test_cts(::Type{FT}) where {FT}
     n_elem_z = 10
     n_z = 1
@@ -554,7 +575,72 @@ function climacore_1Dheat_test_cts(::Type{FT}) where {FT}
     )
 end
 
-# "Dynamical Core Model Intercomparison Project (DCMIP) Test Case Document" by 
+function climacore_1Dheat_test_implicit_cts(::Type{FT}) where {FT}
+    n_elem_z = 10000
+    n_z = 1
+    f_0 = FT(0.0) # denoted by f̂₀ above
+    Δλ = FT(1) # denoted by Δλ̂ above
+    t_end = FT(0.1) # denoted by t̂ above
+
+    domain = Domains.IntervalDomain(Geometry.ZPoint(FT(0)), Geometry.ZPoint(FT(1)), boundary_names = (:bottom, :top))
+    mesh = Meshes.IntervalMesh(domain, nelems = n_elem_z)
+    space = Spaces.FaceFiniteDifferenceSpace(mesh)
+    (; z) = Fields.coordinate_field(space)
+
+    λ = (2 * FT(π) * n_z)^2
+    φ_sin = @. sin(2 * FT(π) * n_z * z)
+
+    init_state = Fields.FieldVector(; u = φ_sin)
+
+    diverg = Operators.DivergenceC2F(; bottom = Operators.SetDivergence(FT(0)), top = Operators.SetDivergence(FT(0)))
+    grad = Operators.GradientF2C()
+
+    diverg_matrix = ClimaCore.MatrixFields.operator_matrix(diverg)
+    grad_matrix = ClimaCore.MatrixFields.operator_matrix(grad)
+
+    function Wfact(W, Y, p, dtγ, t)
+        name = @name(u)
+        # NOTE: We need MatrixFields.⋅, not LinearAlgebra.⋅
+        @. W.matrix[name, name] = diverg_matrix() ⋅ grad_matrix() - (LinearAlgebra.I,)
+        return nothing
+    end
+
+    function T_imp_func!(tendency, state, _, t)
+        @. tendency.u = diverg.(grad.(state.u)) + f_0 * exp(-(λ + Δλ) * t) * φ_sin
+    end
+
+    function tgrad(∂Y∂t, state, _, t)
+        @. ∂Y∂t.u = -f_0 * (λ + Δλ) * exp(-(λ + Δλ) * t) * φ_sin
+    end
+
+    jacobian = ClimaCore.MatrixFields.FieldMatrix(
+        (@name(u), @name(u)) => similar(φ_sin, ClimaCore.MatrixFields.TridiagonalMatrixRow{FT}),
+    )
+
+    jac_prototype = ImplicitJacobian(jacobian, init_state)
+
+    T_imp! = SciMLBase.ODEFunction(T_imp_func!; jac_prototype = jac_prototype, Wfact = Wfact, tgrad = tgrad)
+
+    function analytic_sol(t)
+        state = similar(init_state)
+        @. state.u = (1 + f_0 / Δλ * (1 - exp(-Δλ * t))) * exp(-λ * t) * φ_sin
+        return state
+    end
+
+    tendency_func = ClimaODEFunction(; T_imp!)
+    split_tendency_func = tendency_func
+    make_prob(func) = ODEProblem(func, init_state, (FT(0), t_end), nothing)
+    IntegratorTestCase(
+        "1D Heat Equation Implicit",
+        false,
+        t_end,
+        analytic_sol,
+        make_prob(tendency_func),
+        make_prob(split_tendency_func),
+    )
+end
+
+# "Dynamical Core Model Intercomparison Project (DCMIP) Test Case Document" by
 # Ullrich et al., Section 1.1
 # (http://www-personal.umich.edu/~cjablono/DCMIP-2012_TestCaseDocument_v1.7.pdf)
 # Implemented in flux form, with an optional limiter and hyperdiffusion.

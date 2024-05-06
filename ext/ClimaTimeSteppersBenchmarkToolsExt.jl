@@ -60,6 +60,7 @@ function CTS.benchmark_step(
 
         W = get_W(integrator)
         X = similar(u)
+        @. X = u
         trials₀ = OrderedCollections.OrderedDict()
 
 #! format: off

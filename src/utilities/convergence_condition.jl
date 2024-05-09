@@ -97,7 +97,7 @@ struct MultipleConditions{CC, C} <: ConvergenceCondition
     conditions::C
     function MultipleConditions(
         condition_combiner::Union{typeof(all), typeof(any)},
-        conditions::Vararg{<:ConvergenceCondition},
+        conditions::Vararg{ConvergenceCondition},
     )
         return new{typeof(condition_combiner), typeof(conditions)}(condition_combiner, conditions)
     end

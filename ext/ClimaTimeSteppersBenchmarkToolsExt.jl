@@ -53,6 +53,7 @@ function CTS.benchmark_step(
     device::ClimaComms.AbstractDevice;
     with_cu_prof = :bprofile,
     trace = false,
+    crop = false,
 )
     (; u, p, t, dt, sol, alg) = integrator
     (; f) = sol.prob
@@ -66,15 +67,15 @@ function CTS.benchmark_step(
         trials₀ = OrderedCollections.OrderedDict()
 
 #! format: off
-		trials₀["Wfact"]          = get_trial(wfact_fun(integrator), (W, u, p, dt, t), "Wfact", device; with_cu_prof, trace);
-		trials₀["ldiv!"]          = get_trial(LA.ldiv!, (X, W, u), "ldiv!", device; with_cu_prof, trace);
-		trials₀["T_imp!"]         = get_trial(implicit_fun(integrator), implicit_args(integrator), "T_imp!", device; with_cu_prof, trace);
-        trials₀["T_exp_T_lim!"]   = get_trial(remaining_fun(integrator), remaining_args(integrator), "T_exp_T_lim!", device; with_cu_prof, trace);
-        trials₀["lim!"]           = get_trial(f.lim!, (Xlim, p, t, u), "lim!", device; with_cu_prof, trace);
-		trials₀["dss!"]           = get_trial(f.dss!, (u, p, t), "dss!", device; with_cu_prof, trace);
-        trials₀["post_explicit!"] = get_trial(f.post_explicit!, (u, p, t), "post_explicit!", device; with_cu_prof, trace);
-        trials₀["post_implicit!"] = get_trial(f.post_implicit!, (u, p, t), "post_implicit!", device; with_cu_prof, trace);
-		trials₀["step!"]          = get_trial(SciMLBase.step!, (integrator, ), "step!", device; with_cu_prof, trace);
+		trials₀["Wfact"]          = get_trial(wfact_fun(integrator), (W, u, p, dt, t), "Wfact", device; with_cu_prof, trace, crop);
+		trials₀["ldiv!"]          = get_trial(LA.ldiv!, (X, W, u), "ldiv!", device; with_cu_prof, trace, crop);
+		trials₀["T_imp!"]         = get_trial(implicit_fun(integrator), implicit_args(integrator), "T_imp!", device; with_cu_prof, trace, crop);
+        trials₀["T_exp_T_lim!"]   = get_trial(remaining_fun(integrator), remaining_args(integrator), "T_exp_T_lim!", device; with_cu_prof, trace, crop);
+        trials₀["lim!"]           = get_trial(f.lim!, (Xlim, p, t, u), "lim!", device; with_cu_prof, trace, crop);
+		trials₀["dss!"]           = get_trial(f.dss!, (u, p, t), "dss!", device; with_cu_prof, trace, crop);
+        trials₀["post_explicit!"] = get_trial(f.post_explicit!, (u, p, t), "post_explicit!", device; with_cu_prof, trace, crop);
+        trials₀["post_implicit!"] = get_trial(f.post_implicit!, (u, p, t), "post_implicit!", device; with_cu_prof, trace, crop);
+		trials₀["step!"]          = get_trial(SciMLBase.step!, (integrator, ), "step!", device; with_cu_prof, trace, crop);
 #! format: on
 
         trials = OrderedCollections.OrderedDict()

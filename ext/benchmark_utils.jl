@@ -48,8 +48,8 @@ function tabulate_summary(summary; n_calls_per_step)
     )
 end
 
-get_trial(f::Nothing, args, name, device; with_cu_prof = :bprofile, trace = false) = nothing
-function get_trial(f, args, name, device; with_cu_prof = :bprofile, trace = false)
+get_trial(f::Nothing, args, name, device; with_cu_prof = :bprofile, trace = false, crop = false) = nothing
+function get_trial(f, args, name, device; with_cu_prof = :bprofile, trace = false, crop = false)
     f(args...) # compile first
     b = if device isa ClimaComms.CUDADevice
         BenchmarkTools.@benchmarkable CUDA.@sync $f($(args)...)
@@ -65,7 +65,9 @@ function get_trial(f, args, name, device; with_cu_prof = :bprofile, trace = fals
         else
             CUDA.@profile trace = trace f(args...)
         end
-        println(p)
+        io = IOContext(stdout, :crop => crop)
+        show(io, p)
+        println()
     end
     println()
     return trial

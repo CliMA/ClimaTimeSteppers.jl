@@ -120,7 +120,8 @@ function CTS.benchmark_step(
         table_summary = OrderedCollections.OrderedDict()
         for k in keys(trials)
             isnothing(trials[k]) && continue
-            table_summary[k] = get_summary(trials[k], trials["step!"])
+            trial_step = haskey(trials, "step!") ? trials["step!"] : nothing
+            table_summary[k] = get_summary(trials[k], trial_step)
         end
 
         if !isnothing(only)

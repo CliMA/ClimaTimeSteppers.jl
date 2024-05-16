@@ -37,27 +37,58 @@ n_calls_per_step(::CTS.ARS343, max_newton_iters) = Dict(
     "step!" => 1,
 )
 
+function maybe_push!(trials₀, name, f!, args, kwargs, only)
+    if isnothing(only) || name in only
+        trials₀[name] = get_trial(f!, args, name; kwargs...)
+    end
+end
+
+const allowed_names =
+    ["Wfact", "ldiv!", "T_imp!", "T_exp_T_lim!", "lim!", "dss!", "post_explicit!", "post_implicit!", "step!"]
 
 """
     benchmark_step(
         integrator::DistributedODEIntegrator,
         device::ClimaComms.AbstractDevice;
-        with_cu_prof = :bfrofile, # [:bprofile, :profile]
-        trace = false
+        with_cu_prof::Symbol = :bfrofile, # [:bprofile, :profile]
+        trace::Bool = false,
+        crop::Bool = false,
+        only::Union{Nothing, Vector{String}} = nothing,
     )
 
-Benchmark a DistributedODEIntegrator
+Benchmark a DistributedODEIntegrator given:
+ - `integrator` the `DistributedODEIntegrator`.
+ - `device` the `ClimaComms` device.
+ - `with_cu_prof`, `:profile` or `:bprofile`, to call `CUDA.@profile` or `CUDA.@bprofile` respectively.
+ - `trace`, Bool passed to `CUDA.@profile` (see CUDA docs)
+ - `crop`, Bool indicating whether or not to crop the `CUDA.@profile` printed table.
+ - `only, list of functions to benchmarks (benchmark all by default)
+
+`only` may contain:
+ - "Wfact"
+ - "ldiv!"
+ - "T_imp!"
+ - "T_exp_T_lim!"
+ - "lim!"
+ - "dss!"
+ - "post_explicit!"
+ - "post_implicit!"
+ - "step!"
 """
 function CTS.benchmark_step(
     integrator::CTS.DistributedODEIntegrator,
     device::ClimaComms.AbstractDevice;
-    with_cu_prof = :bprofile,
-    trace = false,
-    crop = false,
+    with_cu_prof::Symbol = :bprofile,
+    trace::Bool = false,
+    crop::Bool = false,
+    only::Union{Nothing, Vector{String}} = nothing,
 )
     (; u, p, t, dt, sol, alg) = integrator
     (; f) = sol.prob
     if f isa CTS.ClimaODEFunction
+        if !isnothing(only)
+            @assert all(x -> x in allowed_names, only) "Allowed names in `only` are: $allowed_names"
+        end
 
         W = get_W(integrator)
         X = similar(u)
@@ -65,17 +96,17 @@ function CTS.benchmark_step(
         @. X = u
         @. Xlim = u
         trials₀ = OrderedCollections.OrderedDict()
-
+        kwargs = (; device, with_cu_prof, trace, crop)
 #! format: off
-		trials₀["Wfact"]          = get_trial(wfact_fun(integrator), (W, u, p, dt, t), "Wfact", device; with_cu_prof, trace, crop);
-		trials₀["ldiv!"]          = get_trial(LA.ldiv!, (X, W, u), "ldiv!", device; with_cu_prof, trace, crop);
-		trials₀["T_imp!"]         = get_trial(implicit_fun(integrator), implicit_args(integrator), "T_imp!", device; with_cu_prof, trace, crop);
-        trials₀["T_exp_T_lim!"]   = get_trial(remaining_fun(integrator), remaining_args(integrator), "T_exp_T_lim!", device; with_cu_prof, trace, crop);
-        trials₀["lim!"]           = get_trial(f.lim!, (Xlim, p, t, u), "lim!", device; with_cu_prof, trace, crop);
-		trials₀["dss!"]           = get_trial(f.dss!, (u, p, t), "dss!", device; with_cu_prof, trace, crop);
-        trials₀["post_explicit!"] = get_trial(f.post_explicit!, (u, p, t), "post_explicit!", device; with_cu_prof, trace, crop);
-        trials₀["post_implicit!"] = get_trial(f.post_implicit!, (u, p, t), "post_implicit!", device; with_cu_prof, trace, crop);
-		trials₀["step!"]          = get_trial(SciMLBase.step!, (integrator, ), "step!", device; with_cu_prof, trace, crop);
+        maybe_push!(trials₀, "Wfact", wfact_fun(integrator), (W, u, p, dt, t), kwargs, only)
+        maybe_push!(trials₀, "ldiv!", LA.ldiv!, (X, W, u), kwargs, only)
+        maybe_push!(trials₀, "T_imp!", implicit_fun(integrator), implicit_args(integrator), kwargs, only)
+        maybe_push!(trials₀, "T_exp_T_lim!", remaining_fun(integrator), remaining_args(integrator), kwargs, only)
+        maybe_push!(trials₀, "lim!", f.lim!, (Xlim, p, t, u), kwargs, only)
+        maybe_push!(trials₀, "dss!", f.dss!, (u, p, t), kwargs, only)
+        maybe_push!(trials₀, "post_explicit!", f.post_explicit!, (u, p, t), kwargs, only)
+        maybe_push!(trials₀, "post_implicit!", f.post_implicit!, (u, p, t), kwargs, only)
+        maybe_push!(trials₀, "step!", SciMLBase.step!, (integrator, ), kwargs, only)
 #! format: on
 
         trials = OrderedCollections.OrderedDict()
@@ -92,6 +123,9 @@ function CTS.benchmark_step(
             table_summary[k] = get_summary(trials[k], trials["step!"])
         end
 
+        if !isnothing(only)
+            @warn "Percentages are only based on $only, pass `only = nothing` for accurately reported percentages"
+        end
         tabulate_summary(table_summary; n_calls_per_step)
 
         return (; table_summary, trials)

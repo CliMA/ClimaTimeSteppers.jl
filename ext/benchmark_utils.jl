@@ -2,7 +2,7 @@
 ##### BenchmarkTools's trial utils
 #####
 
-get_summary(trial, trial_step) = (;
+get_summary(trial, trial_step = nothing) = (;
     # Using some BenchmarkTools internals :/
     mem = BenchmarkTools.prettymemory(trial.memory),
     mem_val = trial.memory,
@@ -13,7 +13,7 @@ get_summary(trial, trial_step) = (;
     t_mean_val = StatsBase.mean(trial.times),
     t_med = BenchmarkTools.prettytime(StatsBase.median(trial.times)),
     n_samples = length(trial),
-    percentage = minimum(trial.times) / minimum(trial_step.times) * 100,
+    percentage = isnothing(trial_step) ? -1 : minimum(trial.times) / minimum(trial_step.times) * 100,
 )
 
 function tabulate_summary(summary; n_calls_per_step)

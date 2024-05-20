@@ -65,9 +65,13 @@ function get_trial(f, args, name; device, with_cu_prof = :bprofile, trace = fals
         else
             CUDA.@profile trace = trace f(args...)
         end
-        io = IOContext(stdout, :crop => crop)
-        show(io, p)
-        println()
+        if crop
+            io = IOContext(stdout, :crop => :horizontal)
+            show(io, p)
+            println()
+        else
+            println(p)
+        end
     end
     println()
     return trial

@@ -53,6 +53,7 @@ const allowed_names =
         with_cu_prof::Symbol = :bfrofile, # [:bprofile, :profile]
         trace::Bool = false,
         crop::Bool = false,
+        hcrop::Union{Nothing, Int} = nothing,
         only::Union{Nothing, Vector{String}} = nothing,
     )
 
@@ -62,6 +63,7 @@ Benchmark a DistributedODEIntegrator given:
  - `with_cu_prof`, `:profile` or `:bprofile`, to call `CUDA.@profile` or `CUDA.@bprofile` respectively.
  - `trace`, Bool passed to `CUDA.@profile` (see CUDA docs)
  - `crop`, Bool indicating whether or not to crop the `CUDA.@profile` printed table.
+ - `hcrop`, Number of horizontal characters to include in the table before cropping.
  - `only, list of functions to benchmarks (benchmark all by default)
 
 `only` may contain:
@@ -81,6 +83,7 @@ function CTS.benchmark_step(
     with_cu_prof::Symbol = :bprofile,
     trace::Bool = false,
     crop::Bool = false,
+    hcrop::Union{Nothing, Int} = nothing,
     only::Union{Nothing, Vector{String}} = nothing,
 )
     (; u, p, t, dt, sol, alg) = integrator
@@ -96,7 +99,7 @@ function CTS.benchmark_step(
         @. X = u
         @. Xlim = u
         trials₀ = OrderedCollections.OrderedDict()
-        kwargs = (; device, with_cu_prof, trace, crop)
+        kwargs = (; device, with_cu_prof, trace, crop, hcrop)
 #! format: off
         maybe_push!(trials₀, "Wfact", wfact_fun(integrator), (W, u, p, dt, t), kwargs, only)
         maybe_push!(trials₀, "ldiv!", LA.ldiv!, (X, W, u), kwargs, only)

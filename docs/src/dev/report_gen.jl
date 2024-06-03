@@ -17,10 +17,6 @@ let # Convergence
     title = "All Algorithms"
     algorithm_names = map(T -> T(), all_subtypes(ClimaTimeSteppers.AbstractAlgorithmName))
     algorithm_names = filter(name -> !(name isa ARK437L2SA1 || name isa ARK548L2SA2), algorithm_names) # too high order
-
-    # NOTE: Some imperfections in the convergence order for SSPKnoth are to be
-    # expected because we are not using the exact Jacobian
-
     verify_convergence(title, algorithm_names, ark_analytic_nonlin_test_cts(Float64), 200)
     verify_convergence(title, algorithm_names, ark_analytic_sys_test_cts(Float64), 400)
     verify_convergence(title, algorithm_names, ark_analytic_test_cts(Float64), 40000; super_convergence = (ARS121(),))
@@ -33,8 +29,6 @@ let # Convergence
         num_steps_scaling_factor = 4,
         numerical_reference_algorithm_name = ARS343(),
     )
-    rosenbrock_schems = filter(name -> name isa ClimaTimeSteppers.RosenbrockAlgorithmName, algorithm_names)
-    verify_convergence(title, rosenbrock_schems, climacore_1Dheat_test_implicit_cts(Float64), 400)
     verify_convergence(
         title,
         algorithm_names,

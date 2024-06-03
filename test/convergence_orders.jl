@@ -31,7 +31,6 @@ second_order_tableau() = [
     SSP222,
     SSP322,
     SSP332,
-    SSPKnoth,
 ]
 
 #####

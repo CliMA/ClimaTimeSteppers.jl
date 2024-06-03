@@ -51,7 +51,6 @@ HOMMEM1
 ARK2GKC
 ARK437L2SA1
 ARK548L2SA2
-SSPKnoth
 ```
 
 ## Explicit Algorithm Names

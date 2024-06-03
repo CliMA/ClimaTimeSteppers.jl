@@ -59,8 +59,6 @@ imex_convergence_orders(::ARK548L2SA2) = (5, 5, 5)
 imex_convergence_orders(::SSP22Heuns) = (2, 2, 2)
 imex_convergence_orders(::SSP33ShuOsher) = (3, 3, 3)
 imex_convergence_orders(::RK4) = (4, 4, 4)
-# SSPKnoth is not really an IMEX method
-imex_convergence_orders(::SSPKnoth) = (2, 2, 2)
 
 # Compute a confidence interval for the convergence order, returning the
 # estimated convergence order and its uncertainty.
@@ -115,8 +113,6 @@ function verify_convergence(
     default_dt = t_end / num_steps
 
     algorithm(algorithm_name::ClimaTimeSteppers.ERKAlgorithmName) = ExplicitAlgorithm(algorithm_name)
-    algorithm(algorithm_name::ClimaTimeSteppers.SSPKnoth) =
-        ClimaTimeSteppers.RosenbrockAlgorithm(ClimaTimeSteppers.tableau(ClimaTimeSteppers.SSPKnoth()))
     algorithm(algorithm_name::ClimaTimeSteppers.IMEXARKAlgorithmName) =
         IMEXAlgorithm(algorithm_name, NewtonsMethod(; max_iters = linear_implicit ? 1 : 2))
 

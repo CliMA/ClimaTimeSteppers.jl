@@ -2,7 +2,7 @@ using Test
 using ClimaComms
 using ClimaTimeSteppers, DiffEqBase
 using ClimaTimeSteppers.Callbacks
-import MPI
+
 @static isdefined(ClimaComms, :device_type) && ClimaComms.@import_required_backends
 device = ClimaComms.device()
 comm_ctx = ClimaComms.MPICommsContext(device)

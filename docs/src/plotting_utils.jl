@@ -105,7 +105,7 @@ function verify_convergence(
     average_function = array -> norm(array) / sqrt(length(array)),
     average_function_str = "RMS",
     only_endpoints = false,
-    verbose = true,
+    verbose = false,
 )
     (; test_name, t_end, linear_implicit, analytic_sol) = test_case
     prob = test_case.split_prob

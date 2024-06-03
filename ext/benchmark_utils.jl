@@ -48,8 +48,9 @@ function tabulate_summary(summary; n_calls_per_step)
     )
 end
 
-get_trial(f::Nothing, args, name; device, with_cu_prof = :bprofile, trace = false, crop = false) = nothing
-function get_trial(f, args, name; device, with_cu_prof = :bprofile, trace = false, crop = false)
+get_trial(f::Nothing, args, name; device, with_cu_prof = :bprofile, trace = false, crop = false, hcrop = nothing) =
+    nothing
+function get_trial(f, args, name; device, with_cu_prof = :bprofile, trace = false, crop = false, hcrop = nothing)
     f(args...) # compile first
     b = if device isa ClimaComms.CUDADevice
         BenchmarkTools.@benchmarkable CUDA.@sync $f($(args)...)
@@ -68,8 +69,13 @@ function get_trial(f, args, name; device, with_cu_prof = :bprofile, trace = fals
         if crop
             println(p) # crops by default
         else
-            io = IOContext(stdout, :crop => :horizontal)
-            show(io, p)
+            # use "COLUMNS" to set how many horizontal characters to crop:
+            # See https://github.com/ronisbr/PrettyTables.jl/issues/11#issuecomment-2145550354
+            envs = isnothing(hcrop) ? () : ("COLUMNS" => hcrop,)
+            withenv(envs...) do
+                io = IOContext(stdout, :crop => :horizontal, :limit => true, :displaysize => displaysize())
+                show(io, p)
+            end
             println()
         end
     end

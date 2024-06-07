@@ -5,7 +5,7 @@ using ClimaTimeSteppers.Callbacks
 
 @static isdefined(ClimaComms, :device_type) && ClimaComms.@import_required_backends
 device = ClimaComms.device()
-comm_ctx = ClimaComms.MPICommsContext(device)
+comm_ctx = ClimaComms.context(device)
 
 ClimaComms.init(comm_ctx)
 

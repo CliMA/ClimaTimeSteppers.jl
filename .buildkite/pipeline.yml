@@ -18,9 +18,6 @@ steps:
       - echo "--- Instantiate project"
       - "julia --project -e 'using Pkg; Pkg.instantiate(;verbose=true); Pkg.precompile(;strict=true)'"
 
-      - echo "--- Instantiate test"
-      - "julia --project=test -e 'using Pkg; Pkg.develop(path=\".\"); Pkg.instantiate(;verbose=true); Pkg.precompile(;strict=true)'"
-
       - echo "--- Instantiate perf"
       - "julia --project=perf -e 'using Pkg; Pkg.instantiate(;verbose=true); Pkg.precompile(;strict=true)'"
 
@@ -38,7 +35,7 @@ steps:
   #     - "julia --project -e 'using Pkg; Pkg.instantiate(;verbose=true); Pkg.precompile(;strict=true)'"
 
   #     - echo "--- Instantiate test"
-  #     - "julia --project=test -e 'using Pkg; Pkg.develop(path=\".\"); Pkg.instantiate(;verbose=true); Pkg.precompile()'"
+  #     - "julia --project -e 'using Pkg; Pkg.develop(path=\".\"); Pkg.instantiate(;verbose=true); Pkg.precompile()'"
 
   #     - echo "--- Initialize CUDA runtime"
   #     - "julia --project -e 'using CUDA; CUDA.precompile_runtime(); CUDA.versioninfo()'"
@@ -50,12 +47,18 @@ steps:
   - wait
 
   - label: "CPU tests"
-    command: "julia --project=test --check-bounds=yes test/runtests.jl"
+    command: "julia --project -e 'using Pkg; Pkg.test()'"
+    artifact_paths: "output/*"
+
+  - label: "CPU MPI tests"
+    command: "julia --project --check-bounds=yes test/runtests.jl"
+    env:
+      CLIMACOMMS_CONTEXT: "MPI"
     artifact_paths: "output/*"
 
   # - label: "GPU tests"
   #   command:
-  #     - "julia --project=test --check-bounds=yes test/runtests.jl CuArray"
+  #     - "julia --project --check-bounds=yes test/runtests.jl"
   #   artifact_paths: "output/*"
   #     slurm_gres: "gpu:1"
 

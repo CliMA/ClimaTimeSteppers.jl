@@ -1,3 +1,4 @@
+ENV["CLIMACOMMS_CONTEXT"] = "MPI" # we explicitly need an MPICommsContext.
 using Test
 using ClimaComms
 using ClimaTimeSteppers, DiffEqBase

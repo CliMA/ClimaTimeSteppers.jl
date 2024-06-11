@@ -37,6 +37,7 @@ mutable struct DistributedODEIntegrator{
     # DiffEqBase.initialize! and DiffEqBase.finalize!
     cache::cacheType
     sol::solType
+    tdir::tType # see https://docs.sciml.ai/DiffEqCallbacks/stable/output_saving/#DiffEqCallbacks.SavingCallback
 end
 
 # helper function for setting up min/max heaps for tstops and saveat
@@ -64,6 +65,8 @@ function tstops_and_saveat_heaps(t0, tf, tstops, saveat)
     return tstops, saveat
 end
 
+compute_tdir(ts) = ts[1] > ts[end] ? sign(ts[end] - ts[1]) : eltype(ts)(1)
+
 # called by DiffEqBase.init and DiffEqBase.solve
 function DiffEqBase.__init(
     prob::DiffEqBase.AbstractODEProblem,
@@ -75,9 +78,10 @@ function DiffEqBase.__init(
     save_everystep = false,
     callback = nothing,
     advance_to_tstop = false,
-    save_func = (u, t) -> copy(u), # custom kwarg
-    dtchangeable = true,           # custom kwarg
-    stepstop = -1,                 # custom kwarg
+    save_func = (u, t) -> copy(u),   # custom kwarg
+    dtchangeable = true,             # custom kwarg
+    stepstop = -1,                   # custom kwarg
+    tdir = compute_tdir(prob.tspan), #
     kwargs...,
 )
     (; u0, p) = prob
@@ -116,6 +120,7 @@ function DiffEqBase.__init(
         false,
         init_cache(prob, alg; dt, kwargs...),
         sol,
+        tdir,
     )
     if prob.f isa ClimaODEFunction
         (; post_explicit!) = prob.f

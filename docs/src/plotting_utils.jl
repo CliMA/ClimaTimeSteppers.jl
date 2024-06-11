@@ -91,6 +91,12 @@ function convergence_order(dts, errs, confidence)
     return order, order_uncertainty
 end
 
+function make_saving_callback(cb, u, t, integrator)
+    DECB = CTS.DiffEqCallbacks
+    savevalType = typeof(cb(u, t, integrator))
+    return DECB.SavingCallback(cb, DECB.SavedValues(typeof(t), savevalType))
+end
+
 function verify_convergence(
     title,
     algorithm_names,
@@ -127,8 +133,8 @@ function verify_convergence(
         solve(deepcopy(prob), ref_alg; dt = ref_dt, save_everystep = !only_endpoints)
     end
 
-    cur_avg_err(u, t) = average_function(abs.(u .- ref_sol(t)))
-    cur_avg_sol_and_err(u, t) = (average_function(u), average_function(abs.(u .- ref_sol(t))))
+    cur_avg_err(u, t, integrator) = average_function(abs.(u .- ref_sol(t)))
+    cur_avg_sol_and_err(u, t, integrator) = (average_function(u), average_function(abs.(u .- ref_sol(t))))
 
     float_str(x) = @sprintf "%.4f" x
     pow_str(x) = "10^{$(@sprintf "%.1f" log10(x))}"
@@ -182,6 +188,9 @@ function verify_convergence(
         plot_kwargs...,
     )
 
+    scb_cur_avg_err = make_saving_callback(cur_avg_err, prob.u0, t_end, nothing)
+    scb_cur_avg_sol_and_err = make_saving_callback(cur_avg_sol_and_err, prob.u0, t_end, nothing)
+
     for algorithm_name in algorithm_names
         alg = algorithm(algorithm_name)
         alg_str = string(nameof(typeof(algorithm_name)))
@@ -196,8 +205,7 @@ function verify_convergence(
                     alg;
                     dt = plot1_dt,
                     save_everystep = !only_endpoints,
-                    save_func = cur_avg_err,
-                    kwargshandle = DiffEqBase.KeywordArgSilent,
+                    callback = scb_cur_avg_err,
                 ).u
             verbose && @info "RMS_error(dt = $plot1_dt) = $(average_function(cur_avg_errs))"
             return average_function(cur_avg_errs)
@@ -226,8 +234,7 @@ function verify_convergence(
             alg;
             dt = default_dt,
             save_everystep = !only_endpoints,
-            save_func = cur_avg_sol_and_err,
-            kwargshandle = DiffEqBase.KeywordArgSilent,
+            callback = scb_cur_avg_sol_and_err,
         )
         plot2_ts = plot2_values.t
         plot2_cur_avg_sols = first.(plot2_values.u)
@@ -267,8 +274,7 @@ function verify_convergence(
             history_alg;
             dt = default_dt,
             save_everystep = !only_endpoints,
-            save_func = (u, t) -> u .- ref_sol(t),
-            kwargshandle = DiffEqBase.KeywordArgSilent,
+            callback = make_saving_callback((u, t, integrator) -> u .- ref_sol(t), prob.u0, t_end, nothing),
         )
         history_array = hcat(history_solve_results.u...)
         history_plot_title = "Errors for $history_alg_name with \$dt = $(pow_str(default_dt))\$"

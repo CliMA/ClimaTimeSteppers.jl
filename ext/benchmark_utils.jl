@@ -83,7 +83,7 @@ function get_trial(f, args, name; device, with_cu_prof = :bprofile, trace = fals
     return trial
 end
 
-get_W(i::CTS.DistributedODEIntegrator) = i.cache.newtons_method_cache.j
+get_W(i::CTS.DistributedODEIntegrator) = hasproperty(i.cache, :W) ? i.cache.W : i.cache.newtons_method_cache.j
 get_W(i) = i.cache.W
 f_args(i, f::CTS.ForwardEulerODEFunction) = (copy(i.u), i.u, i.p, i.t, i.dt)
 f_args(i, f) = (similar(i.u), i.u, i.p, i.t)

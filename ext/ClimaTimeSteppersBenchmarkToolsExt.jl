@@ -19,6 +19,9 @@ include("benchmark_utils.jl")
 
 function get_n_calls_per_step(integrator::CTS.DistributedODEIntegrator)
     (; alg) = integrator
+    if alg isa CTS.RosenbrockAlgorithm
+        return n_calls_per_step(alg)
+    end
     (; newtons_method, name) = alg
     (; max_iters) = newtons_method
     n_calls_per_step(name, max_iters)
@@ -36,6 +39,19 @@ n_calls_per_step(::CTS.ARS343, max_newton_iters) = Dict(
     "post_implicit!" => 4,
     "step!" => 1,
 )
+function n_calls_per_step(alg::CTS.RosenbrockAlgorithm{CTS.RosenbrockTableau{N}}) where {N}
+    return Dict(
+        "Wfact" => 1,
+        "ldiv!" => N,
+        "T_imp!" => N,
+        "T_exp_T_lim!" => N,
+        "lim!" => 0,
+        "dss!" => N,
+        "post_explicit!" => 0,
+        "post_implicit!" => N,
+        "step!" => 1,
+    )
+end
 
 function maybe_push!(trials₀, name, f!, args, kwargs, only)
     if isnothing(only) || name in only

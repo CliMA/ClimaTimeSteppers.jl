@@ -59,7 +59,8 @@ imex_convergence_orders(::ARK548L2SA2) = (5, 5, 5)
 imex_convergence_orders(::SSP22Heuns) = (2, 2, 2)
 imex_convergence_orders(::SSP33ShuOsher) = (3, 3, 3)
 imex_convergence_orders(::RK4) = (4, 4, 4)
-imex_convergence_orders(::SSPKnoth) = (2, 3, 2)
+imex_convergence_orders(::OldSSPKnoth) = (2, 3, 2)
+imex_convergence_orders(::ARKSSPKnoth) = (2, 3, 2)
 # SSPKnoth is a fully implicit method, but it loses an order of convergence
 # when using an implicit tendency because it only performs one Newton iteration.
 
@@ -110,15 +111,15 @@ function verify_convergence(
     average_function = array -> norm(array) / sqrt(length(array)),
     average_function_str = "RMS",
     only_endpoints = false,
-    verbose = false,
+    verbose = true,
 )
     (; test_name, t_end, linear_implicit, analytic_sol) = test_case
     prob = test_case.split_prob
     FT = typeof(t_end)
     default_dt = t_end / num_steps
 
-    algorithm(algorithm_name::ClimaTimeSteppers.SSPKnoth) =
-        ClimaTimeSteppers.RosenbrockAlgorithm(ClimaTimeSteppers.tableau(ClimaTimeSteppers.SSPKnoth()))
+    algorithm(algorithm_name::ClimaTimeSteppers.ARKRosenbrockAlgorithmName) =
+        ARKAlgorithm(algorithm_name)
     algorithm(algorithm_name::ClimaTimeSteppers.RKAlgorithmName) = RKAlgorithm(algorithm_name)
     algorithm(algorithm_name::ClimaTimeSteppers.ARKAlgorithmName) =
         ARKAlgorithm(algorithm_name, NewtonsMethod(; max_iters = linear_implicit ? 1 : 2))
@@ -199,6 +200,7 @@ function verify_convergence(
 
         verbose && @info "Running $test_name with $alg_str..."
         plot1_net_avg_errs = map(plot1_dts) do plot1_dt
+            # @show alg.tableau.imp
             cur_avg_errs =
                 solve(
                     deepcopy(prob),

@@ -554,6 +554,8 @@ Base.@kwdef struct NewtonsMethod{
     verbose::V = Silent()
 end
 
+allocate_cache(::Nothing, _, _) = nothing
+
 function allocate_cache(alg::NewtonsMethod, x_prototype, j_prototype = nothing)
     (; update_j, krylov_method, convergence_checker) = alg
     @assert !(isnothing(j_prototype) && (isnothing(krylov_method) || isnothing(krylov_method.jacobian_free_jvp)))

@@ -1,3 +1,4 @@
+export ARKSSPKnoth
 export ARS111, ARS121, ARS122, ARS233, ARS232, ARS222, ARS343, ARS443
 export IMKG232a, IMKG232b, IMKG242a, IMKG242b, IMKG243a, IMKG252a, IMKG252b
 export IMKG253a, IMKG253b, IMKG254a, IMKG254b, IMKG254c, IMKG342a, IMKG343a
@@ -38,7 +39,7 @@ struct ARKTableau{FT, L <: RKTableau{FT}, E <: RKTableau{FT}, I <: RKTableau{FT}
     function ARKTableau(lim::RKTableau{FT}, exp::RKTableau{FT}, imp::RKTableau{FT}) where {FT}
         is_ERK(lim) || error("lim tableau is not ERK")
         is_ERK(exp) || error("exp tableau is not ERK")
-        is_ERK(imp) || is_DIRK(imp) || error("imp tableau is not ERK or DIRK")
+        is_ERK(imp) || is_DIRK(imp) || error("imp tableau is not ERK, DIRK")
 
         lim.c == exp.c || @warn "lim and exp tableaus are not internally consistent"
 
@@ -57,11 +58,53 @@ An `AbstractAlgorithmName` with a method of the form `ARKTableau(name)`.
 abstract type ARKAlgorithmName <: AbstractAlgorithmName end
 
 """
+    ARKRosenbrockAlgorithmName
+
+An `AbstractAlgorithmName` with a method of the form `ARKTableau(name)` and that does not require
+a Newton's solver.
+"""
+abstract type ARKRosenbrockAlgorithmName <: AbstractAlgorithmName end
+
+"""
     IMEXSSPRKAlgorithmName
 
 An `ARKAlgorithmName` whose `lim` tableau has a canonical Shu-Osher formulation.
 """
 abstract type IMEXSSPRKAlgorithmName <: ARKAlgorithmName end
+
+################################################################################
+"""
+    ARKSSPKnoth
+"""
+struct ARKSSPKnoth <: ARKRosenbrockAlgorithmName end
+function ARKTableau(::ARKSSPKnoth)
+    sspknoth = RosenbrockTableau(
+        [
+            1 0 0
+            0 1 0
+            -3//4 -3//4 1
+        ],
+        [
+            0 0 0
+            1 0 0
+            1//4 1//4 0
+        ],
+        [1 // 6, 1 // 6, 2 // 3],
+    )
+    γ = 1 - √2 / 2
+    δ = -2√2 / 3
+    other = ButcherTableau(
+        [
+            0 0 0
+            γ 0 0
+            δ (1-δ) 0
+        ],
+        [0, 1 - γ, γ],
+    )
+
+    ARKTableau(other, sspknoth)
+end
+
 
 ################################################################################
 

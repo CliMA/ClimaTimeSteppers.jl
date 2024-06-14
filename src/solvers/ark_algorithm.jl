@@ -127,6 +127,7 @@ end
 ARKAlgorithm(tableau_or_name) = ARKAlgorithm(tableau_or_name, nothing)
 ARKAlgorithm(tableau::ARKTableau, newtons_method) = ARKAlgorithm(nothing, tableau, newtons_method)
 ARKAlgorithm(name::ARKAlgorithmName, newtons_method) = ARKAlgorithm(name, ARKTableau(name), newtons_method)
+ARKAlgorithm(name::ARKRosenbrockAlgorithmName, _) = ARKAlgorithm(name, ARKTableau(name), nothing)
 
 has_jac(T_imp!) =
     hasfield(typeof(T_imp!), :Wfact) &&
@@ -174,13 +175,14 @@ function init_cache(prob::DiffEqBase.AbstractODEProblem, alg::ARKAlgorithm; kwar
     A_lim = vcat(tableau.lim.a, tableau.lim.b')
     A_exp = vcat(tableau.exp.a, tableau.exp.b')
     A_imp = vcat(tableau.imp.a, tableau.imp.b')
+    Γ_imp = vcat(tableau.imp.Γ, tableau.imp.b')
 
-    Γ = diag(A_imp)
-    DA_imp = vcat(Diagonal(Γ), zeros(s)')
-    LA_imp = A_imp - DA_imp
+    DΓ = diag(tableau.imp.Γ)
+    DΓ_imp = vcat(Diagonal(DΓ), zeros(s)')
+    LΓ_imp = Γ_imp - DΓ_imp
 
-    z_stages = findall(iszero, Γ) # stages without implicit solves
-    nz_stages = findall(!iszero, Γ) # stages with implicit solves
+    z_stages = findall(iszero, DΓ) # stages without implicit solves
+    nz_stages = findall(!iszero, DΓ) # stages with implicit solves
 
     I_z = zeros(s, s)
     I_z[z_stages, z_stages] = Matrix(I, length(z_stages), length(z_stages))
@@ -189,10 +191,19 @@ function init_cache(prob::DiffEqBase.AbstractODEProblem, alg::ARKAlgorithm; kwar
     A_imp_z[:, z_stages] = A_imp[:, z_stages]
 
     A_imp_nz = A_imp - A_imp_z
+    DA = diag(tableau.imp.a)
+    DA_imp = vcat(Diagonal(DA), zeros(s)')
+    LA_imp = A_imp - DA_imp
     LA_imp_nz = A_imp_nz - DA_imp
-    a_imp_nz = A_imp_nz[1:s, :]
 
-    G_imp_nz = fix_float_error.(LA_imp_nz * (inv(I_z + a_imp_nz) - I_z))
+    Γ_imp_z = zeros(s + 1, s)
+    Γ_imp_z[:, z_stages] = Γ_imp[:, z_stages]
+
+    Γ_imp_nz = Γ_imp - Γ_imp_z
+    LΓ_imp_nz = Γ_imp_nz - DΓ_imp
+    γ_imp_nz = Γ_imp_nz[1:s, :]
+
+    G_imp_nz = fix_float_error.(LA_imp_nz * (inv(I_z + γ_imp_nz) - I_z))
     @assert all(iszero, G_imp_nz[:, z_stages])
     @assert all(iszero, UpperTriangular(G_imp_nz[1:s, :]))
     @assert all(value -> value == 0 || abs(value) > 100 * eps(), G_imp_nz)
@@ -254,8 +265,9 @@ function init_cache(prob::DiffEqBase.AbstractODEProblem, alg::ARKAlgorithm; kwar
 
     timestepper_cache = (;
         internal_and_final_stages = ntuple(identity, s + 1),
-        γ = length(unique(Γ[nz_stages])) == 1 ? FT(Γ[nz_stages[1]]) : nothing,
-        Γ = FT.(Γ),
+        γ = length(unique(DΓ[nz_stages])) == 1 ? FT(DΓ[nz_stages[1]]) : nothing,
+        DΓ = FT.(DΓ),
+        Γ_imp = FT.(Γ_imp),
         c_lim = FT.(tableau.lim.c),
         c_exp = FT.(tableau.exp.c),
         c_imp = FT.(tableau.imp.c),
@@ -276,8 +288,8 @@ function init_cache(prob::DiffEqBase.AbstractODEProblem, alg::ARKAlgorithm; kwar
         u_plus_Δu_lim = similar(u0),
     )
 
-    newtons_method_cache = if !iszero(Γ) && !isnothing(T_imp!)
-        isnothing(newtons_method) && imp_error(name)
+    newtons_method_cache = if !iszero(DΓ) && !isnothing(T_imp!)
+        (isnothing(newtons_method) && !(name isa ClimaTimeSteppers.ARKRosenbrockAlgorithmName)) && imp_error(name)
         j = has_jac(T_imp!) ? T_imp!.jac_prototype : nothing
         allocate_cache(newtons_method, u0, j)
     else
@@ -285,6 +297,47 @@ function init_cache(prob::DiffEqBase.AbstractODEProblem, alg::ARKAlgorithm; kwar
     end
 
     return ARKAlgorithmCache(timestepper_cache, newtons_method_cache)
+end
+
+function step_implicit!(name,
+                        newtons_method,
+                        newtons_method_cache,
+                        u_on_stage,
+                        T_imp!,
+                        p,
+                        t_imp,
+                        u_minus_Δu_imp_from_solve,
+                        Δtγ,
+                        pre_implicit_solve!,
+                        post_stage!
+                        )
+    # Solve u′ ≈ u_minus_Δu_imp_from_solve + Δtγ * T_imp(u′, p, t_imp).
+    solve_newton!(
+        newtons_method,
+        newtons_method_cache,
+        u_on_stage,
+        (residual, u′) -> begin
+            T_imp!(residual, u′, p, t_imp)
+            @. residual = u_minus_Δu_imp_from_solve + Δtγ * residual - u′
+        end,
+        (jacobian, u′) -> T_imp!.Wfact(jacobian, u′, p, Δtγ, t_imp),
+        u′ -> pre_implicit_solve!(u′, p, t_imp),
+        u′ -> post_stage!(u′, p, t_imp),
+    )
+end
+
+function step_implicit!(name::ClimaTimeSteppers.ARKRosenbrockAlgorithmName,
+                        newtons_method,
+                        newtons_method_cache,
+                        u_on_stage,
+                        T_imp!,
+                        p,
+                        t_imp,
+                        u_minus_Δu_imp_from_solve,
+                        Δtγ,
+                        pre_implicit_solve!,
+                        post_stage!
+                        )
 end
 
 function step_u!(integrator, cache::ARKAlgorithmCache)
@@ -296,7 +349,7 @@ function step_u!(integrator, cache::ARKAlgorithmCache)
     (;
         internal_and_final_stages,
         γ,
-        Γ,
+        DΓ,
         c_lim,
         c_exp,
         c_imp,
@@ -374,7 +427,7 @@ function step_u!(integrator, cache::ARKAlgorithmCache)
             return
         end
 
-        Δtγ = Δt * Γ[stage]
+        Δtγ = Δt * DΓ[stage]
         t_lim = t + Δt * c_lim[stage]
         t_exp = t + Δt * c_exp[stage]
         t_imp = t + Δt * c_imp[stage]
@@ -388,19 +441,17 @@ function step_u!(integrator, cache::ARKAlgorithmCache)
 
             pre_implicit_solve!(u_on_stage, p, t_imp)
 
-            # Solve u′ ≈ u_minus_Δu_imp_from_solve + Δtγ * T_imp(u′, p, t_imp).
-            solve_newton!(
-                newtons_method,
-                newtons_method_cache,
-                u_on_stage,
-                (residual, u′) -> begin
-                    T_imp!(residual, u′, p, t_imp)
-                    @. residual = u_minus_Δu_imp_from_solve + Δtγ * residual - u′
-                end,
-                (jacobian, u′) -> T_imp!.Wfact(jacobian, u′, p, Δtγ, t_imp),
-                u′ -> pre_implicit_solve!(u′, p, t_imp),
-                u′ -> post_stage!(u′, p, t_imp),
-            )
+            step_implicit!(name,
+                           newtons_method,
+                           newtons_method_cache,
+                           u_on_stage,
+                           T_imp!,
+                           p,
+                           t_imp,
+                           u_minus_Δu_imp_from_solve,
+                           Δtγ,
+                           pre_implicit_solve!,
+                           post_stage!)
         else
             @. u_on_stage = u_minus_Δu_imp_from_solve
             if !isempty(A_lim_row) || !isempty(A_exp_row) || !isempty(LA_imp_row) || !isempty(G_imp_row)

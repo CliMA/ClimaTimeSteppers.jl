@@ -4,10 +4,11 @@ export ClimaODEFunction, ForwardEulerODEFunction
 
 abstract type AbstractClimaODEFunction <: DiffEqBase.AbstractODEFunction{true} end
 
-struct ClimaODEFunction{TEL, TL, TE, TI, L, D, PE, PI} <: AbstractClimaODEFunction
+struct ClimaODEFunction{TEL, TL, TE, TES, TI, L, D, PE, PI} <: AbstractClimaODEFunction
     T_exp_T_lim!::TEL
     T_lim!::TL
     T_exp!::TE
+    T_stoch!::TES
     T_imp!::TI
     lim!::L
     dss!::D
@@ -17,13 +18,14 @@ struct ClimaODEFunction{TEL, TL, TE, TI, L, D, PE, PI} <: AbstractClimaODEFuncti
         T_exp_T_lim! = nothing, # nothing or (uₜ_exp, uₜ_lim, u, p, t) -> ...
         T_lim! = nothing, # nothing or (uₜ, u, p, t) -> ...
         T_exp! = nothing, # nothing or (uₜ, u, p, t) -> ...
+        T_stoch! = nothing, # nothing or (uₜ, u, p, t) -> ...
         T_imp! = nothing, # nothing or (uₜ, u, p, t) -> ...
         lim! = (u, p, t, u_ref) -> nothing,
         dss! = (u, p, t) -> nothing,
         post_explicit! = (u, p, t) -> nothing,
         post_implicit! = (u, p, t) -> nothing,
     )
-        args = (T_exp_T_lim!, T_lim!, T_exp!, T_imp!, lim!, dss!, post_explicit!, post_implicit!)
+        args = (T_exp_T_lim!, T_lim!, T_exp!, T_stoch!, T_imp!, lim!, dss!, post_explicit!, post_implicit!)
 
         if !isnothing(T_exp_T_lim!)
             @assert isnothing(T_exp!) "`T_exp_T_lim!` was passed, `T_exp!` must be `nothing`"
@@ -37,6 +39,7 @@ struct ClimaODEFunction{TEL, TL, TE, TI, L, D, PE, PI} <: AbstractClimaODEFuncti
 end
 
 has_T_exp(f::ClimaODEFunction) = !isnothing(f.T_exp!) || !isnothing(f.T_exp_T_lim!)
+has_T_stoch(f::ClimaODEFunction) = !isnothing(f.T_stoch!)
 has_T_lim(f::ClimaODEFunction) = !isnothing(f.lim!) && (!isnothing(f.T_lim!) || !isnothing(f.T_exp_T_lim!))
 
 # Don't wrap a AbstractClimaODEFunction in an ODEFunction (makes ODEProblem work).

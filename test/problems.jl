@@ -10,6 +10,120 @@ import ClimaCore: Domains, Geometry, Meshes, Topologies, Spaces, Fields, Operato
 
 import Krylov # Trigger ClimaCore/ext/KrylovExt
 
+function geometric_BM()
+    f!(uₜ, u, p, t) = @. uₜ = p.μ * u
+    g!(uₜ, u, p, t) = @. uₜ = p.σ * u
+    ClimaODEFunction(; T_exp! = f!, T_stoch! = g!)
+end
+
+function geometric_BM_prob(;
+        u0 = [1 / 2],
+        p = (; μ = 1.01, σ = 0.5, dW = Float64[]),
+        tspan = (0.0, 1.0),
+    )
+    func = geometric_BM()
+    ODEProblem(func, u0, tspan, p)
+end
+
+geometric_BM_analytical(u0, p, t, W) = @. u0 * exp((p.μ - p.σ^2 / 2) * t + p.σ * W)
+geometric_BM_analytical(sol) = begin
+    u0 = sol.u[1][1]
+    p = sol.prob.p
+    W = [0; cumsum(p.dW)]
+    geometric_BM_analytical(u0, p, sol.t, W)
+end
+
+function OU()
+    f!(uₜ, u, p, t) = @. uₜ = p.μ * (p.θ - u)
+    g!(uₜ, u, p, t) = @. uₜ = p.σ
+    ClimaODEFunction(; T_exp! = f!, T_stoch! = g!)
+end
+
+function OU_prob(;
+        u0 = [1 / 2], 
+        p = (; μ = 1.01, θ = 1.0, σ = 1.0, dW = Float64[]),
+        tspan = (0.0, 1.0),
+    )
+    func = OU()
+    ODEProblem(func, u0, tspan, p)
+end
+
+function OU_AR_process(; uprev, h, p, z = randn())
+    (;μ, θ, σ) = p
+    exp_minus_θh = @. exp(-θ * h)
+    umean = uprev * exp_minus_θh + μ * (1 - exp_minus_θh)
+    unoise = √(σ^2 / 2θ * (1 - exp_minus_θh^2)) * z
+    unext = umean + unoise
+    unext
+end
+function OU_AR_process_solve(u0, p, t, z)
+    @assert length(z) == length(t) - 1
+    u = zeros(length(t)) # preallocate
+    u[1] = u0
+    for i in 2:length(t)
+        u[i] = OU_AR_process(uprev = u[i-1], h = t[i] - t[i-1], p = p, z = z[i-1])
+    end
+    u
+end
+
+function OU_analytical(u0, p, t, dW)
+    (;μ, θ, σ) = p
+    exp_minus_θt = @. exp(-θ * t)
+    exp_θt_dW = @. exp(θ * t) * [0; dW]
+    ∫exp_θt_dW = cumsum(exp_θt_dW)
+    @. u0 * exp_minus_θt + μ * (1 - exp_minus_θt) + σ * exp_minus_θt * ∫exp_θt_dW
+end
+OU_analytical(sol) = begin
+    u0 = sol.u[1][1]
+    p = sol.prob.p
+    OU_analytical(u0, p, sol.t, p.dW)
+end
+
+using GLMakie
+
+# Example usage:
+# ts, sols, an_sols, AR_sols = mysolve(n=10, prob = OU_prob(), analytical = OU_analytical, AR = OU_AR_process_solve)
+# plot_sols(ts, sols, an_sols, AR_sols)
+function mysolve(n=1; prob, analytical = nothing, AR = nothing, dt = 0.1)
+    u0 = prob.u0[1]
+    alg = IMEXAlgorithm(ARS111(), nothing);  # Explicit Euler
+    sols = Vector{Float64}[]
+    an_sols = Vector{Float64}[]
+    AR_sols = Vector{Float64}[]
+    ts = Float64[]
+    for _ in 1:n
+        prob.u0[1] = u0  # reinit
+        sol = solve(prob, alg; dt, save_everystep = true)
+        ts = sol.t
+        push!(sols, vcat(sol.u...))
+        if !isnothing(analytical)
+            an_sol = analytical(sol)
+            push!(an_sols, vcat(an_sol...))
+        end
+        if !isnothing(AR)
+            z = sol.prob.p.dW / √dt  # rescale to AR(1)
+            AR_sol = AR(u0, prob.p, sol.t, z)
+            push!(AR_sols, AR_sol)
+        end
+        empty!(prob.p.dW)
+    end
+    sols = hcat(sols...)
+    !isnothing(analytical) && (an_sols = hcat(an_sols...))
+    !isnothing(AR) && (AR_sols = hcat(AR_sols...))
+    return ts, sols, an_sols, AR_sols
+end
+
+function plot_sols(ts, sols, an_sols = nothing, AR_sols = nothing)
+    fig = Figure()
+    ax = Axis(fig[1,1])
+    lines!.(ax, Ref(ts), eachcol(sols); color=:black, label =  "numerical")
+    isnothing(an_sols) || lines!.(ax, Ref(ts), eachcol(an_sols); color=:red, label = "analytical")
+    isnothing(AR_sols) || lines!.(ax, Ref(ts), eachcol(AR_sols); color=:blue, label = "AR(1)")
+    axislegend(; position=:lt, unique=true)
+    fig
+end
+
+
 """
 Single variable linear ODE
 
@@ -23,7 +137,7 @@ u(t) = u_0 e^{αt}
 
 This is an in-place variant of the one from DiffEqProblemLibrary.jl.
 """
-function linear_prob()
+function linear_prob() ## nice thing
     ODEProblem(
         IncrementingODEFunction{true}((du, u, p, t, α = true, β = false) -> (du .= α .* p .* u .+ β .* du)),
         [1 / 2],
@@ -547,7 +661,7 @@ function climacore_1Dheat_test_cts(::Type{FT}) where {FT}
         return state
     end
 
-    tendency_func = ClimaODEFunction(; T_exp!)
+    tendency_func = ClimaODEFunction(; T_exp!)  # example of explicit-only ClimaODEFunction
     split_tendency_func = tendency_func
     make_prob(func) = ODEProblem(func, init_state, (FT(0), t_end), nothing)
     IntegratorTestCase(

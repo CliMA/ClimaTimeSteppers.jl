@@ -201,7 +201,11 @@ function init_cache(prob::DiffEqBase.AbstractODEProblem, alg::ARKAlgorithm; kwar
 
     Γ_imp_nz = Γ_imp - Γ_imp_z
     LΓ_imp_nz = Γ_imp_nz - DΓ_imp
+
     γ_imp_nz = Γ_imp_nz[1:s, :]
+    Γ_imp⁻¹_nz = vcat(inv(γ_imp_nz), zeros(s)')
+    DΓ_imp⁻¹_imp = vcat(Diagonal(Γ_imp⁻¹_nz), zeros(s)')
+    LΓ_imp⁻¹_nz = Γ_imp⁻¹_nz - DΓ_imp⁻¹_imp
 
     G_imp_nz = fix_float_error.(LA_imp_nz * (inv(I_z + γ_imp_nz) - I_z))
     @assert all(iszero, G_imp_nz[:, z_stages])
@@ -246,19 +250,21 @@ function init_cache(prob::DiffEqBase.AbstractODEProblem, alg::ARKAlgorithm; kwar
     end
 
     if isnothing(T_imp!)
-        LA_imp_rows = G_imp_rows = empty_matrix_rows
+        LA_imp_rows = G_imp_rows = Γinv_imp_rows = empty_matrix_rows
         T_imp_sparse = ΔU_imp_nz_sparse = empty_vector
     elseif count(!iszero, LA_imp_nz) <= count(!iszero, G_imp_nz)
         # Use the Butcher formulation for T_imp if its matrix is sparser, or if
         # both formulations have the same sparsity.
         LA_imp_rows = sparse_matrix_rows(FT.(LA_imp))
         G_imp_rows = empty_matrix_rows
+        Γinv_imp_rows = empty_matrix_rows
         T_imp_sparse = SparseTuple(_ -> similar(u0), findall(!iszero, eachcol(LA_imp)))
         ΔU_imp_nz_sparse = empty_vector
     else
         # Use the increment formulation for T_imp if its matrix is sparser.
         LA_imp_rows = sparse_matrix_rows(FT.(A_imp_z))
         G_imp_rows = sparse_matrix_rows(FT.(G_imp_nz))
+        Γinv_imp_rows = sparse_matrix_rows(FT.(LΓ_imp⁻¹_nz))
         T_imp_sparse = SparseTuple(_ -> similar(u0), findall(!iszero, eachcol(A_imp_z)))
         ΔU_imp_nz_sparse = SparseTuple(_ -> similar(u0), findall(!iszero, eachcol(G_imp_nz)))
     end
@@ -276,6 +282,7 @@ function init_cache(prob::DiffEqBase.AbstractODEProblem, alg::ARKAlgorithm; kwar
         A_exp_rows,
         LA_imp_rows,
         G_imp_rows,
+        Γinv_imp_rows,
         T_lim_sparse,
         T_exp_sparse,
         T_imp_sparse,
@@ -309,7 +316,9 @@ function step_implicit!(name,
                         u_minus_Δu_imp_from_solve,
                         Δtγ,
                         pre_implicit_solve!,
-                        post_stage!
+                        post_stage!,
+                        Γinv_imp_rows,
+                        ΔU_imp_nz_sparse
                         )
     # Solve u′ ≈ u_minus_Δu_imp_from_solve + Δtγ * T_imp(u′, p, t_imp).
     solve_newton!(
@@ -336,8 +345,11 @@ function step_implicit!(name::ClimaTimeSteppers.ARKRosenbrockAlgorithmName,
                         u_minus_Δu_imp_from_solve,
                         Δtγ,
                         pre_implicit_solve!,
-                        post_stage!
+                        post_stage!,
+                        Γinv_imp_rows,
+                        ΔU_imp_nz_sparse
                         )
+        u_on_stage .= broadcasted_dot(Γinv_imp_rows, ΔU_imp_nz_sparse)
 end
 
 function step_u!(integrator, cache::ARKAlgorithmCache)
@@ -358,6 +370,7 @@ function step_u!(integrator, cache::ARKAlgorithmCache)
         A_exp_rows,
         LA_imp_rows,
         G_imp_rows,
+        Γinv_imp_rows,
         T_lim_sparse,
         T_exp_sparse,
         T_imp_sparse,
@@ -451,7 +464,9 @@ function step_u!(integrator, cache::ARKAlgorithmCache)
                            u_minus_Δu_imp_from_solve,
                            Δtγ,
                            pre_implicit_solve!,
-                           post_stage!)
+                           post_stage!,
+                           Γinv_imp_rows,
+                           ΔU_imp_nz_sparse)
         else
             @. u_on_stage = u_minus_Δu_imp_from_solve
             if !isempty(A_lim_row) || !isempty(A_exp_row) || !isempty(LA_imp_row) || !isempty(G_imp_row)

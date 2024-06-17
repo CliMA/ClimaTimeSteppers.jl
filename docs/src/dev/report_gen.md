@@ -1,6 +1,6 @@
 # Verifying Correctness
 
-The `IMEXAlgorithm` supports problems that specify any combination of the following: an implicit tendency `T_imp!`, an explicit tendency `T_exp!`, a limited tendency `T_lim!`, a function `dss!` that applies a direct stiffness summation, and a function `lim!` that applies a monotonicity-preserving limiter.
+The `ARKAlgorithm` supports problems that specify any combination of the following: an implicit tendency `T_imp!`, an explicit tendency `T_exp!`, a limited tendency `T_lim!`, a function `dss!` that applies a direct stiffness summation, and a function `lim!` that applies a monotonicity-preserving limiter.
 
 ## Convergence without a Limiter
 
@@ -12,7 +12,9 @@ The test cases we use for this analysis are:
     - `ark_analytic`, which uses a nonlinear `T_exp!` and a linear `T_imp!`
     - `ark_analytic_sys` and `ark_onewaycouple_mri`, which use a linear `T_imp!`
     - `ark_analytic_nonlin`, which uses a nonlinear `T_imp!`
-    - `1d_heat_equation` and `2d_heat_equation`, which use a nonlinear `T_exp!` and `dss!`, where the spatial discretization is implemented using `ClimaCore`
+    - `1d_heat_equation`, which uses a nonlinear `T_exp!` implemented with `ClimaCore`
+    - `2d_heat_equation`, which uses a nonlinear `T_exp!` and `dss!` implemented with `ClimaCore`
+    - `1d_heat_equation_implicit`, which uses a nonlinear `T_imp!` implemented with `ClimaCore`
 
 ```@example
 include("report_gen.jl")
@@ -23,6 +25,7 @@ include("report_gen.jl")
  ![](output/convergence_ark_analytic_nonlin_all_algorithms.png)
  ![](output/convergence_1d_heat_equation_all_algorithms.png)
  ![](output/convergence_2d_heat_equation_all_algorithms.png)
+ ![](output/convergence_1d_heat_equation_implicit_all_algorithms.png)
 
 ## Errors with a Limiter
 
@@ -40,8 +43,8 @@ limiter_summary(Float64, [SSP333(), ARS343()], horizontal_deformational_flow_tes
 ```
 
 Plots of the tracer specific humidities that were used to compute this table are shown below.
- ![](output/limiter_summary_SSP333.png)
- ![](output/limiter_summary_ARS343.png)
+ ![](output/horizontal_deformational_flow_limiter_summary_SSP333.png)
+ ![](output/horizontal_deformational_flow_limiter_summary_ARS343.png)
 
 ## References
 

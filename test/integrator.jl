@@ -6,7 +6,7 @@ include("integrator_utils.jl")
 include("problems.jl")
 
 @testset "integrator save times" begin
-    for (alg, test_case) in ((ExplicitAlgorithm(SSP33ShuOsher()), clima_constant_tendency_test(Float64)),),
+    for (alg, test_case) in ((RKAlgorithm(SSP33ShuOsher()), clima_constant_tendency_test(Float64)),),
         reverse_prob in (false, true),
         n_dt_steps in (10, 10000)
 
@@ -111,7 +111,7 @@ end
 @testset "integrator save times with reinit!" begin
     # OrdinaryDiffEq does not save at t0′ after reinit! unless erase_sol is
     # true, so this test does not include a comparison with OrdinaryDiffEq.
-    alg = ExplicitAlgorithm(SSP33ShuOsher())
+    alg = RKAlgorithm(SSP33ShuOsher())
     test_case = clima_constant_tendency_test(Float64)
     (; prob, analytic_sol) = test_case
     for reverse_prob in (false, true)
@@ -152,7 +152,7 @@ end
 end
 
 @testset "integrator step past end time" begin
-    alg = ExplicitAlgorithm(SSP33ShuOsher())
+    alg = RKAlgorithm(SSP33ShuOsher())
     test_case = clima_constant_tendency_test(Float64)
     (; prob, analytic_sol) = test_case
     t0, tf = prob.tspan

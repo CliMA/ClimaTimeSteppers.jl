@@ -20,7 +20,7 @@ function do_work!(integrator, cache)
 end
 test_case = climacore_1Dheat_test_cts(Float64)
 prob = test_case.split_prob
-algorithm = CTS.IMEXAlgorithm(ARS343(), NewtonsMethod(; max_iters = 2))
+algorithm = CTS.ARKAlgorithm(ARS343(), NewtonsMethod(; max_iters = 2))
 dt = 0.01
 integrator = DiffEqBase.init(prob, algorithm; dt)
 cache = CTS.init_cache(prob, algorithm)

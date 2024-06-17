@@ -448,7 +448,6 @@ Wfact!(W, Y, p, dtγ, t) = nothing
 """
 function climacore_2Dheat_test_cts(::Type{FT}) where {FT}
     context = ClimaComms.context()
-    dss_tendency = true
 
     n_elem_x = 2
     n_elem_y = 2
@@ -478,11 +477,11 @@ function climacore_2Dheat_test_cts(::Type{FT}) where {FT}
     grad = Operators.Gradient()
     function T_exp!(tendency, state, _, t)
         @. tendency.u = wdiv(grad(state.u)) + f_0 * exp(-(λ + Δλ) * t) * φ_sin_sin
-        dss_tendency && Spaces.weighted_dss!(tendency.u)
     end
 
-    function dss!(state, _, t)
-        dss_tendency || Spaces.weighted_dss!(state.u)
+    dss_buffer = Spaces.create_dss_buffer(φ_sin_sin)
+    function dss!(tendency_or_state, _, t)
+        Spaces.weighted_dss!(tendency_or_state.u, dss_buffer)
     end
 
     function analytic_sol(t)
@@ -491,21 +490,7 @@ function climacore_2Dheat_test_cts(::Type{FT}) where {FT}
         return state
     end
 
-    # we add implicit pieces here for inference analysis
-    T_lim! = (Yₜ, u, _, t) -> nothing
-    post_implicit! = (u, _, t) -> nothing
-    post_explicit! = (u, _, t) -> nothing
-
-    jacobian = ClimaCore.MatrixFields.FieldMatrix((@name(u), @name(u)) => FT(-1) * LinearAlgebra.I)
-
-    T_imp! = SciMLBase.ODEFunction(
-        (Yₜ, u, _, t) -> nothing;
-        jac_prototype = FieldMatrixWithSolver(jacobian, init_state),
-        Wfact = Wfact!,
-        tgrad = (∂Y∂t, Y, p, t) -> (∂Y∂t .= 0),
-    )
-
-    tendency_func = ClimaODEFunction(; T_exp!, T_imp!, dss!, post_implicit!, post_explicit!)
+    tendency_func = ClimaODEFunction(; T_exp!, dss!)
     split_tendency_func = tendency_func
     make_prob(func) = ODEProblem(func, init_state, (FT(0), t_end), nothing)
     IntegratorTestCase(
@@ -561,9 +546,9 @@ function climacore_1Dheat_test_cts(::Type{FT}) where {FT}
 end
 
 function climacore_1Dheat_test_implicit_cts(::Type{FT}) where {FT}
-    n_elem_z = 10000
+    n_elem_z = 10
     n_z = 1
-    f_0 = FT(0.0) # denoted by f̂₀ above
+    f_0 = FT(0) # denoted by f̂₀ above
     Δλ = FT(1) # denoted by Δλ̂ above
     t_end = FT(0.1) # denoted by t̂ above
 
@@ -583,15 +568,14 @@ function climacore_1Dheat_test_implicit_cts(::Type{FT}) where {FT}
     diverg_matrix = ClimaCore.MatrixFields.operator_matrix(diverg)
     grad_matrix = ClimaCore.MatrixFields.operator_matrix(grad)
 
-    function Wfact(W, Y, p, dtγ, t)
-        name = @name(u)
-        # NOTE: We need MatrixFields.⋅, not LinearAlgebra.⋅
-        @. W.matrix[name, name] = diverg_matrix() ⋅ grad_matrix() - (LinearAlgebra.I,)
-        return nothing
+    function T_imp_func!(tendency, state, _, t)
+        @. tendency.u = diverg(grad(state.u)) + f_0 * exp(-(λ + Δλ) * t) * φ_sin
     end
 
-    function T_imp_func!(tendency, state, _, t)
-        @. tendency.u = diverg.(grad.(state.u)) + f_0 * exp(-(λ + Δλ) * t) * φ_sin
+    function Wfact(W, Y, p, dtγ, t)
+        # NOTE: We need MatrixFields.⋅, not LinearAlgebra.⋅
+        @. W[@name(u), @name(u)] = dtγ * diverg_matrix() ⋅ grad_matrix() - (LinearAlgebra.I,)
+        return nothing
     end
 
     function tgrad(∂Y∂t, state, _, t)
@@ -604,7 +588,7 @@ function climacore_1Dheat_test_implicit_cts(::Type{FT}) where {FT}
 
     jac_prototype = FieldMatrixWithSolver(jacobian, init_state)
 
-    T_imp! = SciMLBase.ODEFunction(T_imp_func!; jac_prototype = jac_prototype, Wfact = Wfact, tgrad = tgrad)
+    T_imp! = SciMLBase.ODEFunction(T_imp_func!; jac_prototype, Wfact, tgrad)
 
     function analytic_sol(t)
         state = similar(init_state)
@@ -663,9 +647,11 @@ function deformational_flow_test(::Type{FT}; use_limiter = true, use_hyperdiffus
 
     centers = Geometry.LatLongZPoint.(rad2deg(φ_c), rad2deg.((λ_c1, λ_c2)), FT(0))
 
-    # custom discretization (paper's discretization results in a very slow test)
-    vert_nelems = 10
-    horz_nelems = 4
+    # 200 m resolution along the vertical axis
+    vert_nelems = 8 # 60
+
+    # 1° resolution on the equator: 360° / (4 * nelems * npoly) = 1°
+    horz_nelems = 10 # 30
     horz_npoly = 3
 
     vert_domain =
@@ -683,30 +669,31 @@ function deformational_flow_test(::Type{FT}; use_limiter = true, use_hyperdiffus
     cent_space = Spaces.ExtrudedFiniteDifferenceSpace(horz_space, vert_cent_space)
     cent_coords = Fields.coordinate_field(cent_space)
     face_space = Spaces.FaceExtrudedFiniteDifferenceSpace(cent_space)
+    face_coords = Fields.coordinate_field(face_space)
 
     # initial density (Equation 8)
-    cent_ρ = @. p_0 / (R_d * T_0) * exp(-cent_coords.z / H)
+    ρ = @. p_0 / (R_d * T_0) * exp(-cent_coords.z / H)
 
     # initial tracer concentrations (Equations 28--35)
-    cent_q = map(cent_coords) do coord
+    q = map(cent_coords) do coord
         z = coord.z
         φ = deg2rad(coord.lat)
 
         ds = map(centers) do center
-            r = Geometry.great_circle_distance(coord, center, Spaces.global_geometry(horz_space))
+            r = Geometry.great_circle_distance(coord, center, Spaces.global_geometry(cent_space))
             return min(1, (r / R_t)^2 + ((z - z_c) / Z_t)^2)
         end
         in_slot = z > z_c && φ_c - FT(0.125) < φ < φ_c + FT(0.125)
 
-        q1 = (1 + cos(FT(π) * ds[1])) / 2 + (1 + cos(FT(π) * ds[2])) / 2
-        q2 = FT(0.9) - FT(0.8) * q1^2
-        q3 = (ds[1] < FT(0.5) || ds[2] < FT(0.5)) && !in_slot ? FT(1) : FT(0.1)
-        q4 = 1 - FT(0.3) * (q1 + q2 + q3)
-        q5 = FT(1)
-        return (; q1, q2, q3, q4, q5)
+        cosine_bells = (1 + cos(FT(π) * ds[1])) / 2 + (1 + cos(FT(π) * ds[2])) / 2
+        inverse_cosine_bells = FT(0.9) - FT(0.8) * cosine_bells^2
+        slotted_spheres = (ds[1] < FT(0.5) || ds[2] < FT(0.5)) && !in_slot ? FT(1) : FT(0.1)
+        linear_combination = 1 - FT(0.3) * (cosine_bells + inverse_cosine_bells + slotted_spheres)
+        constant = FT(1)
+        return (; cosine_bells, inverse_cosine_bells, slotted_spheres, linear_combination, constant)
     end
 
-    init_state = Fields.FieldVector(; cent_ρ, cent_ρq = cent_ρ .* cent_q)
+    init_state = Fields.FieldVector(; ρ, ρq = ρ .* q)
 
     # current wind vector (Equations 15--26)
     current_cent_wind_vector = Fields.Field(Geometry.UVWVector{FT}, cent_space)
@@ -739,36 +726,70 @@ function deformational_flow_test(::Type{FT}; use_limiter = true, use_hyperdiffus
     horz_div = Operators.Divergence()
     horz_wdiv = Operators.WeakDivergence()
     horz_grad = Operators.Gradient()
-    cent_χ = similar(cent_q)
+    χ = similar(q)
+    χ_dss_buffer = Spaces.create_dss_buffer(χ)
     function T_lim!(tendency, state, _, t)
-        @. current_cent_wind_vector = wind_vector(cent_coords, state.cent_ρ, t)
-        @. tendency.cent_ρ = -horz_div(state.cent_ρ * current_cent_wind_vector)
-        @. tendency.cent_ρq = -horz_div(state.cent_ρq * current_cent_wind_vector)
+        @. current_cent_wind_vector = wind_vector(cent_coords, state.ρ, t)
+        @. tendency.ρ = -horz_div(state.ρ * current_cent_wind_vector)
+        @. tendency.ρq = -horz_div(state.ρq * current_cent_wind_vector)
         use_hyperdiffusion || return nothing
-        @. cent_χ = horz_wdiv(horz_grad(state.cent_ρq / state.cent_ρ))
-        Spaces.weighted_dss!(cent_χ)
-        @. tendency.cent_ρq += -D₄ * horz_wdiv(state.cent_ρ * horz_grad(cent_χ))
+        for name in propertynames(q)
+            @. χ.:($$name) = horz_wdiv(horz_grad(state.ρq.:($$name) / state.ρ))
+        end
+        Spaces.weighted_dss!(χ, χ_dss_buffer)
+        for name in propertynames(q)
+            @. tendency.ρq.:($$name) += -D₄ * horz_wdiv(state.ρ * horz_grad(χ.:($$name)))
+        end
         return nothing
     end
 
-    limiter = Limiters.QuasiMonotoneLimiter(cent_q; rtol = FT(0))
+    limiter = Limiters.QuasiMonotoneLimiter(q; rtol = FT(0))
     function lim!(state, _, t, ref_state)
         use_limiter || return nothing
-        Limiters.compute_bounds!(limiter, ref_state.cent_ρq, ref_state.cent_ρ)
-        Limiters.apply_limiter!(state.cent_ρq, state.cent_ρ, limiter)
+        Limiters.compute_bounds!(limiter, ref_state.ρq, ref_state.ρ)
+        Limiters.apply_limiter!(state.ρq, state.ρ, limiter)
         return nothing
     end
 
-    vert_div = Operators.DivergenceF2C()
-    vert_interp = Operators.InterpolateC2F(top = Operators.Extrapolate(), bottom = Operators.Extrapolate())
+    vert_interp = Operators.InterpolateC2F(bottom = Operators.Extrapolate(), top = Operators.Extrapolate())
+    vert_div = Operators.DivergenceF2C(;
+        bottom = Operators.SetValue(Geometry.Covariant3Vector(FT(0))),
+        top = Operators.SetValue(Geometry.Covariant3Vector(FT(0))),
+    )
+    flux_corrected_transport =
+        Operators.FCTZalesak(; bottom = Operators.FirstOrderOneSided(), top = Operators.FirstOrderOneSided())
+    upwind1 = Operators.UpwindBiasedProductC2F()
+    upwind3 = Operators.Upwind3rdOrderBiasedProductC2F(
+        bottom = Operators.ThirdOrderOneSided(),
+        top = Operators.ThirdOrderOneSided(),
+    )
     function T_exp!(tendency, state, _, t)
-        @. current_face_wind_vector = wind_vector(face_coords, vert_interp(state.cent_ρ), t)
-        @. tendency.cent_ρ = -vert_div(vert_interp(state.cent_ρ) * current_face_wind_vector)
-        @. tendency.cent_ρq = -vert_div(vert_interp(state.cent_ρq) * current_face_wind_vector)
-    end
+        Δt = τ / 1000 # TODO: Get Δt from the timestepper.
+        @. q = state.ρq / state.ρ
+        @. current_face_wind_vector = wind_vector(face_coords, vert_interp(state.ρ), t)
+        @. tendency.ρ = -vert_div(vert_interp(state.ρ) * current_face_wind_vector)
+        for name in propertynames(q)
+            @. tendency.ρq.:($$name) =
+                -vert_div(
+                    vert_interp(state.ρ) * (
+                        upwind1(current_face_wind_vector, q.:($$name)) + flux_corrected_transport(
+                            upwind3(current_face_wind_vector, q.:($$name)) -
+                            upwind1(current_face_wind_vector, q.:($$name)),
+                            q.:($$name) / Δt,
+                            q.:($$name) / Δt -
+                            vert_div(vert_interp(state.ρ) * upwind1(current_face_wind_vector, q.:($$name))) / state.ρ,
+                        )
+                    ),
+                )
+            # -vert_div(vert_interp(state.ρq.:($$name)) * current_face_wind_vector)
+        end
+    end # TODO: Make this tendency implicit, and add its Jacobian.
 
+    ρ_dss_buffer = Spaces.create_dss_buffer(init_state.ρ)
+    ρq_dss_buffer = Spaces.create_dss_buffer(init_state.ρq)
     function dss!(state, _, t)
-        Spaces.weighted_dss!(state.q)
+        Spaces.weighted_dss!(state.ρ, ρ_dss_buffer)
+        Spaces.weighted_dss!(state.ρq, ρq_dss_buffer)
     end
 
     function analytic_sol(t)
@@ -852,8 +873,9 @@ function horizontal_deformational_flow_test(::Type{FT}; use_limiter = true, use_
             else
                 FT(0.1)
             end
+        constant = FT(1)
 
-        return (; gaussian_hills, cosine_bells, slotted_cylinders)
+        return (; gaussian_hills, cosine_bells, slotted_cylinders, constant)
     end
     init_state = Fields.FieldVector(; ρ, ρq = ρ .* q)
 

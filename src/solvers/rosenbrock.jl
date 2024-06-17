@@ -1,13 +1,11 @@
-export SSPKnoth
+export OldSSPKnoth
 using StaticArrays
 import DiffEqBase
 import LinearAlgebra: ldiv!, diagm
 import LinearAlgebra
 
-abstract type RosenbrockAlgorithmName <: AbstractAlgorithmName end
-
 """
-    RosenbrockTableau{N, RT, N²}
+    OldRosenbrockTableau{N, RT, N²}
 
 Contains everything that defines a Rosenbrock-type method.
 
@@ -15,7 +13,7 @@ Contains everything that defines a Rosenbrock-type method.
 
 Refer to the documentation for the precise meaning of the symbols below.
 """
-struct RosenbrockTableau{N}
+struct OldRosenbrockTableau{N}
     """A = α Γ⁻¹"""
     A::SMatrix{N, N}
     """Tableau used for the time-dependent part"""
@@ -28,14 +26,14 @@ struct RosenbrockTableau{N}
     m::SMatrix{N, 1}
 end
 
-function RosenbrockTableau(α::SMatrix{N, N}, Γ::SMatrix{N, N}, b::SMatrix{1, N}) where {N}
+function OldRosenbrockTableau(α::SMatrix{N, N}, Γ::SMatrix{N, N}, b::SMatrix{1, N}) where {N}
     A = α / Γ
     invΓ = inv(Γ)
     diag_invΓ = SMatrix{N, N}(diagm([invΓ[i, i] for i in 1:N]))
     # C is diag(γ₁₁⁻¹, γ₂₂⁻¹, ...) - Γ⁻¹
     C = diag_invΓ .- inv(Γ)
     m = b / Γ
-    return RosenbrockTableau{N}(A, α, C, Γ, m)
+    return OldRosenbrockTableau{N}(A, α, C, Γ, m)
 end
 
 """
@@ -43,7 +41,7 @@ end
 
 Constructs a Rosenbrock algorithm for solving ODEs.
 """
-struct RosenbrockAlgorithm{T <: RosenbrockTableau} <: ClimaTimeSteppers.DistributedODEAlgorithm
+struct RosenbrockAlgorithm{T <: OldRosenbrockTableau} <: ClimaTimeSteppers.DistributedODEAlgorithm
     tableau::T
 end
 
@@ -119,7 +117,7 @@ function step_u!(int, cache::RosenbrockCache{Nstages}) where {Nstages}
     T_exp_lim! = int.sol.prob.f.T_exp_T_lim!
     tgrad! = isnothing(T_imp!) ? nothing : T_imp!.tgrad
 
-    (; post_explicit!, post_implicit!, dss!) = int.sol.prob.f
+    (; post_stage!, dss!) = int.sol.prob.f
 
     # TODO: This is only valid when Γ[i, i] is constant, otherwise we have to
     # move this in the for loop
@@ -146,10 +144,7 @@ function step_u!(int, cache::RosenbrockCache{Nstages}) where {Nstages}
             U .+= A[i, j] .* k[j]
         end
 
-        if !isnothing(post_implicit!)
-            # NOTE: post_implicit! is a misnomer
-            post_implicit!(U, p, t + αi * dt)
-        end
+        post_stage!(U, p, t + αi * dt)
 
         if !isnothing(T_imp!)
             T_imp!(fU_imp, U, p, t + αi * dt)
@@ -201,18 +196,20 @@ function step_u!(int, cache::RosenbrockCache{Nstages}) where {Nstages}
 end
 
 """
-    SSPKnoth
+    OldSSPKnoth
 
-`SSPKnoth` is a second-order Rosenbrock method developed by Oswald Knoth.
+`OldSSPKnoth` is a third-order Rosenbrock method developed by Oswald Knoth. When
+integrating an implicit tendency, this reduces to a second-order method because
+it only performs an approximate implicit solve on each stage.
 
 The coefficients are the same as in `CGDycore.jl`, except that for C we add the
 diagonal elements too. Note, however, that the elements on the diagonal of C do
 not really matter because C is only used in its lower triangular part. We add them
 mostly to match literature on the subject
 """
-struct SSPKnoth <: RosenbrockAlgorithmName end
+struct OldSSPKnoth <: RosenbrockAlgorithmName end
 
-function tableau(::SSPKnoth)
+function tableau(::OldSSPKnoth)
     N = 3
     α = @SMatrix [
         0 0 0
@@ -225,5 +222,5 @@ function tableau(::SSPKnoth)
         0 1 0
         -3/4 -3/4 1
     ]
-    return RosenbrockTableau(α, Γ, b)
+    return OldRosenbrockTableau(α, Γ, b)
 end

@@ -27,7 +27,7 @@ struct MultirateInfinitesimalStepTableau{T2 <: T2Type, T1 <: T1Type}
     c::T1
     c̃::T1
 end
-n_stages(::MultirateInfinitesimalStepTableau{T2, T1}) where {T2, T1} = n_stages_ntuple(T1)
+n_stages(tableau::MultirateInfinitesimalStepTableau) = length(tableau.d)
 
 function MultirateInfinitesimalStepTableau(α, β, γ)
     d = SVector(sum(β, dims = 2)) # KW2014 (2)

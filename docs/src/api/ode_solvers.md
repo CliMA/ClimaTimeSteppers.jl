@@ -4,19 +4,39 @@
 CurrentModule = ClimaTimeSteppers
 ```
 
-## Interface
+## Tableau Interface
 
 ```@docs
-AbstractAlgorithmConstraint
-Unconstrained
-SSP
-IMEXTableau
-IMEXAlgorithm
-ExplicitTableau
-ExplicitAlgorithm
+ClimaTimeSteppers.RKTableau
+ClimaTimeSteppers.ButcherTableau
+ClimaTimeSteppers.ShuOsherTableau
+ClimaTimeSteppers.PaddedTableau
+ClimaTimeSteppers.ARKTableau
+ClimaTimeSteppers.is_ERK
+ClimaTimeSteppers.is_DIRK
 ```
 
-## IMEX Algorithm Names
+## Algorithm Interface
+
+```@docs
+AbstractAlgorithmName
+ClimaTimeSteppers.RKAlgorithmName
+ClimaTimeSteppers.SSPRKAlgorithmName
+ClimaTimeSteppers.ARKAlgorithmName
+ClimaTimeSteppers.IMEXSSPRKAlgorithmName
+RKAlgorithm
+ARKAlgorithm
+```
+
+## RK Algorithm Names
+
+```@docs
+SSP22Heuns
+SSP33ShuOsher
+RK4
+```
+
+## ARK Algorithm Names
 
 ```@docs
 ARS111
@@ -52,14 +72,6 @@ ARK2GKC
 ARK437L2SA1
 ARK548L2SA2
 SSPKnoth
-```
-
-## Explicit Algorithm Names
-
-```@docs
-SSP22Heuns
-SSP33ShuOsher
-RK4
 ```
 
 ## Old LSRK Interface

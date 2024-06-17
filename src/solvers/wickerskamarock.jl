@@ -18,7 +18,7 @@ struct WickerSkamarockRungeKuttaTableau{T <: NTuple}
     "Time-scaling coefficients c"
     c::T
 end
-n_stages(::WickerSkamarockRungeKuttaTableau{T}) where {T} = n_stages_ntuple(T)
+n_stages(tableau::WickerSkamarockRungeKuttaTableau) = length(tableau.c)
 
 struct WickerSkamarockRungeKuttaCache{T <: WickerSkamarockRungeKuttaTableau, A}
     tableau::T

@@ -143,6 +143,7 @@ function verify_convergence(
     float_str(x) = @sprintf "%.4f" x
     pow_str(x) = "10^{$(@sprintf "%.1f" log10(x))}"
     function si_str(x)
+        x in (0, Inf, -Inf, NaN) && return string(x)
         exponent = floor(Int, log10(x))
         mantissa = x / 10.0^exponent
         return "$(float_str(mantissa)) \\times 10^{$exponent}"

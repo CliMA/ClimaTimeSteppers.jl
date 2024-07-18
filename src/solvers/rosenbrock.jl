@@ -146,9 +146,13 @@ function step_u!(int, cache::RosenbrockCache{Nstages}) where {Nstages}
             U .+= A[i, j] .* k[j]
         end
 
+        # NOTE: post_implicit! is a misnomer
         if !isnothing(post_implicit!)
-            # NOTE: post_implicit! is a misnomer
-            post_implicit!(U, p, t + αi * dt)
+            # We update p on every stage but the first, and at the end of each
+            # timestep. Since the first stage is unchanged from the end of the
+            # previous timestep, this order of operations ensures that p is
+            # always consistent with the state, including between timesteps.
+            (i != 1) && post_implicit!(U, p, t + αi * dt)
         end
 
         if !isnothing(T_imp!)
@@ -197,6 +201,7 @@ function step_u!(int, cache::RosenbrockCache{Nstages}) where {Nstages}
     end
 
     dss!(u, p, t + dt)
+    post_implicit!(u, p, t + dt)
     return nothing
 end
 

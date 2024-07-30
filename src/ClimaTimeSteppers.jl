@@ -57,7 +57,7 @@ export AbstractAlgorithmName, AbstractAlgorithmConstraint, Unconstrained, SSP
 array_device(::Union{Array, SArray, MArray}) = CPU()
 array_device(x) = CUDADevice() # assume CUDA
 
-import DiffEqBase, SciMLBase, LinearAlgebra, DiffEqCallbacks, Krylov
+import DiffEqBase, SciMLBase, LinearAlgebra, Krylov
 
 include(joinpath("utilities", "sparse_coeffs.jl"))
 include(joinpath("utilities", "fused_increment.jl"))

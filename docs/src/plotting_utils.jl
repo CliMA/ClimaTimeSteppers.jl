@@ -5,6 +5,7 @@ using Printf: @sprintf
 using LaTeXStrings: latexstring
 using PrettyTables: pretty_table, ft_printf
 import ClimaTimeSteppers as CTS
+import DiffEqCallbacks
 
 """
     predicted_convergence_order(algorithm_name, ode_function)
@@ -94,9 +95,8 @@ function convergence_order(dts, errs, confidence)
 end
 
 function make_saving_callback(cb, u, t, integrator)
-    DECB = CTS.DiffEqCallbacks
     savevalType = typeof(cb(u, t, integrator))
-    return DECB.SavingCallback(cb, DECB.SavedValues(typeof(t), savevalType))
+    return DiffEqCallbacks.SavingCallback(cb, DiffEqCallbacks.SavedValues(typeof(t), savevalType))
 end
 
 function verify_convergence(

@@ -40,6 +40,31 @@ mutable struct DistributedODEIntegrator{
     tdir::tType # see https://docs.sciml.ai/DiffEqCallbacks/stable/output_saving/#DiffEqCallbacks.SavingCallback
 end
 
+"""
+    SavedValues{tType<:Real, savevalType}
+
+A struct used to save values of the time in `t::Vector{tType}` and
+additional values in `saveval::Vector{savevalType}`.
+
+From DiffEqCallbacks.
+"""
+struct SavedValues{tType, savevalType}
+    t::Vector{tType}
+    saveval::Vector{savevalType}
+end
+
+"""
+    SavedValues(tType::DataType, savevalType::DataType)
+
+Return `SavedValues{tType, savevalType}` with empty storage vectors.
+
+From DiffEqCallbacks.
+"""
+function SavedValues(::Type{tType}, ::Type{savevalType}) where {tType, savevalType}
+    SavedValues{tType, savevalType}(Vector{tType}(), Vector{savevalType}())
+end
+
+
 # helper function for setting up min/max heaps for tstops and saveat
 function tstops_and_saveat_heaps(t0, tf, tstops, saveat)
     FT = typeof(tf)
@@ -96,8 +121,7 @@ function DiffEqBase.__init(
     tstops, saveat = tstops_and_saveat_heaps(t0, tf, tstops, saveat)
 
     sol = DiffEqBase.build_solution(prob, alg, typeof(t0)[], typeof(save_func(u0, t0))[])
-    saving_callback =
-        NonInterpolatingSavingCallback(save_func, DiffEqCallbacks.SavedValues(sol.t, sol.u), save_everystep)
+    saving_callback = NonInterpolatingSavingCallback(save_func, SavedValues(sol.t, sol.u), save_everystep)
     callback = DiffEqBase.CallbackSet(callback, saving_callback)
     isempty(callback.continuous_callbacks) || error("Continuous callbacks are not supported")
 

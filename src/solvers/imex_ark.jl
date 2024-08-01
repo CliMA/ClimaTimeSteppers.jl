@@ -1,4 +1,5 @@
 import NVTX
+# using Random  # for testing
 
 has_jac(T_imp!) =
     hasfield(typeof(T_imp!), :Wfact) &&
@@ -17,6 +18,7 @@ struct IMEXARKCache{SCU, SCE, SCI, T, Γ, NMC}
     U::SCU     # sparse container of length s
     T_lim::SCE # sparse container of length s
     T_exp::SCE # sparse container of length s
+    T_stoch::SCE # sparse container of length s
     T_imp::SCI # sparse container of length s
     temp::T
     γ::Γ
@@ -35,6 +37,7 @@ function init_cache(prob::DiffEqBase.AbstractODEProblem, alg::IMEXAlgorithm{Unco
     U = zero(u0)
     T_lim = SparseContainer(map(i -> zero(u0), collect(1:length(inds_T_exp))), inds_T_exp)
     T_exp = SparseContainer(map(i -> zero(u0), collect(1:length(inds_T_exp))), inds_T_exp)
+    T_stoch = SparseContainer(map(i -> zero(u0), collect(1:length(inds_T_exp))), inds_T_exp)
     T_imp = SparseContainer(map(i -> zero(u0), collect(1:length(inds_T_imp))), inds_T_imp)
     temp = zero(u0)
     γs = unique(filter(!iszero, diag(a_imp)))
@@ -42,7 +45,7 @@ function init_cache(prob::DiffEqBase.AbstractODEProblem, alg::IMEXAlgorithm{Unco
     jac_prototype = has_jac(T_imp!) ? T_imp!.jac_prototype : nothing
     newtons_method_cache =
         isnothing(T_imp!) || isnothing(newtons_method) ? nothing : allocate_cache(newtons_method, u0, jac_prototype)
-    return IMEXARKCache(U, T_lim, T_exp, T_imp, temp, γ, newtons_method_cache)
+    return IMEXARKCache(U, T_lim, T_exp, T_stoch, T_imp, temp, γ, newtons_method_cache)
 end
 
 # generic fallback
@@ -50,10 +53,10 @@ function step_u!(integrator, cache::IMEXARKCache)
     (; u, p, t, dt, alg) = integrator
     (; f) = integrator.sol.prob
     (; post_explicit!, post_implicit!) = f
-    (; T_lim!, T_exp!, T_imp!, lim!, dss!) = f
+    (; T_lim!, T_exp!, T_stoch!, T_imp!, lim!, dss!) = f
     (; tableau, newtons_method) = alg
     (; a_exp, b_exp, a_imp, b_imp, c_exp, c_imp) = tableau
-    (; U, T_lim, T_exp, T_imp, temp, γ, newtons_method_cache) = cache
+    (; U, T_lim, T_exp, T_stoch, T_imp, temp, γ, newtons_method_cache) = cache
     s = length(b_exp)
 
     if !isnothing(T_imp!) && !isnothing(newtons_method)
@@ -69,6 +72,7 @@ function step_u!(integrator, cache::IMEXARKCache)
     end
 
     update_stage!(integrator, cache, ntuple(i -> i, Val(s)))
+    return @. u = U  # hack to get SDE solver to work
 
     t_final = t + dt
 
@@ -80,6 +84,9 @@ function step_u!(integrator, cache::IMEXARKCache)
 
     # Update based on tendencies from previous stages
     has_T_exp(f) && fused_increment!(u, dt, b_exp, T_exp, Val(s))
+
+    has_T_stoch(f) && fused_increment!(u, dt, b_exp, T_stoch, Val(s))
+
     isnothing(T_imp!) || fused_increment!(u, dt, b_imp, T_imp, Val(s))
 
     dss!(u, p, t_final)
@@ -99,14 +106,16 @@ end
     (; u, p, t, dt, alg) = integrator
     (; f) = integrator.sol.prob
     (; post_explicit!, post_implicit!) = f
-    (; T_exp_T_lim!, T_lim!, T_exp!, T_imp!, lim!, dss!) = f
+    (; T_exp_T_lim!, T_lim!, T_exp!, T_stoch!, T_imp!, lim!, dss!) = f
     (; tableau, newtons_method) = alg
     (; a_exp, b_exp, a_imp, b_imp, c_exp, c_imp) = tableau
-    (; U, T_lim, T_exp, T_imp, temp, γ, newtons_method_cache) = cache
+    (; U, T_lim, T_exp, T_stoch, T_imp, temp, γ, newtons_method_cache) = cache
     s = length(b_exp)
 
     t_exp = t + dt * c_exp[i]
     t_imp = t + dt * c_imp[i]
+
+    
 
     if has_T_lim(f) # Update based on limited tendencies from previous stages
         assign_fused_increment!(U, u, dt, a_exp, T_lim, Val(i))
@@ -116,6 +125,11 @@ end
     end
 
     # Update based on tendencies from previous stages
+    if i ≠ 1 && has_T_stoch(f)
+        dW = √dt * randn(eltype(dt))
+        push!(p.dW, dW)
+        fused_increment!(U, dW, a_exp, T_stoch, Val(i))
+    end
     has_T_exp(f) && fused_increment!(U, dt, a_exp, T_exp, Val(i))
     isnothing(T_imp!) || fused_increment!(U, dt, a_imp, T_imp, Val(i))
 
@@ -175,6 +189,7 @@ end
             isnothing(T_lim!) || T_lim!(T_lim[i], U, p, t_exp)
             isnothing(T_exp!) || T_exp!(T_exp[i], U, p, t_exp)
         end
+        isnothing(T_stoch!) || T_stoch!(T_stoch[i], U, p, t_exp)
     end
 
     return nothing

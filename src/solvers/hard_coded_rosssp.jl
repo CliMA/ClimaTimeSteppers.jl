@@ -7,6 +7,7 @@
 # are from previous pages (with 1/!2 = 1/12)
 
 import ClimaTimeSteppers
+import LinearAlgebra: ldiv!, lu
 
 abstract type RosSSPAlgorithmName <: ClimaTimeSteppers.AbstractAlgorithmName end
 
@@ -112,6 +113,7 @@ struct RosSSPCache
     num_stages
     KI
     Y
+    J
     fU_exp
     fU_imp
     U_imp
@@ -120,22 +122,25 @@ struct RosSSPCache
 end
 
 function ClimaTimeSteppers.init_cache(problem, alg::RosSSPAlgorithm; kwargs...)
-    num_stages = length(alg.tableau.bI) + 1
-    KI = ntuple(_ -> zero(prob.u0), num_stages)
-    Y = ntuple(_ -> zero(prob.u0), num_stages)
-    fU_exp = ntuple(_ -> zero(prob.u0), num_stages)
-    fU_imp = ntuple(_ -> zero(prob.u0), num_stages)
-    U_imp = ntuple(_ -> zero(prob.u0), num_stages)
-    KI_rhs = ntuple(_ -> zero(prob.u0), num_stages)
+    num_stages = length(alg.tableau.bI)
+    KI = ntuple(_ -> zero(prob.u0), num_stages + 1)
+    Y = ntuple(_ -> zero(prob.u0), num_stages + 1)
+    fU_exp = ntuple(_ -> zero(prob.u0), num_stages + 1)
+    fU_imp = ntuple(_ -> zero(prob.u0), num_stages + 1)
+    U_imp = ntuple(_ -> zero(prob.u0), num_stages + 1)
+    KI_rhs = ntuple(_ -> zero(prob.u0), num_stages + 1)
     if !isnothing(prob.f.T_imp!)
         W = prob.f.T_imp!.jac_prototype
+        J = copy(W)
     else
         W = nothing
+        J = nothing
     end
     return RosSSPCache(
         num_stages,
         KI,
         Y,
+        J,
         fU_exp,
         fU_imp,
         U_imp,
@@ -153,6 +158,7 @@ function ClimaTimeSteppers.step_u!(int, cache::RosSSPCache)
     (; num_stages,
      KI,
      Y,
+     J,
      fU_exp,
      fU_imp,
      U_imp,
@@ -178,37 +184,53 @@ function ClimaTimeSteppers.step_u!(int, cache::RosSSPCache)
         # FIXME: Assumes βI has same values on diagonal
         @assert length(unique(βI[i, i] for i in 1:(num_stages - 1) )) == 1
 
-        dtγ = βI[1, 1]
+        dtγ = dt * βI[1, 1]
         Wfact! = int.sol.prob.f.T_imp!.Wfact
         Wfact!(W, u, p, dtγ, t)
+        @. J = (W + one(W)) / dtγ
     end
 
-    for i in 1:num_stages
+    for i in 1:(num_stages + 1)
         # FIXME: t has dependency on α
 
-        # For i == 1, we compute this after comping Y[1]
-        i != 1 && T_exp!(fU_exp[i], Y[i], p, t)
+        if !isnothing(f.T_exp!)
+            # For i == 1, we compute this after comping Y[1]
+            i != 1 && T_exp!(fU_exp[i], Y[i], p, t)
+        else
+            fU_exp[i] .= zero(u_n)
+        end
 
         if !isnothing(f.T_imp!)
-            @. U_imp = u_n + sum(αI[i, j] * KI[j] for j in 1:i-1; init = zero(u_n)) + dt * sum(αE[i, j] * fU_exp[j] for j in 1:i-1; init = zero(u_n))
-            T_imp!(fU_imp[i], U_imp, p, t)
-            @. KI_rhs = dt * fU_imp[i] + dt * W * (sum(βI[i, j] * KI[j] for j in 1:i; init = zero(u_n)) + dt * sum(βE[i, j] * fU_exp[j] for j in 1:i-1; init = zero(u_n)))
-            if W isa Matrix
-                ldiv!(KI[i], lu(W), KI_rhs)
+            if i == num_stages + 1
+                KI[i] .= zero(u_n)
             else
-                ldiv!(KI[i], W, KI_rhs)
+                # @show αI[3, 1] * KI[1] +  αI[3, 2] * KI[2]
+                U_imp[i] .= u_n .+ sum(αI[i, j] * KI[j] for j in 1:(i-1); init = zero(u_n)) .+ dt .* sum(αE[i, j] * fU_exp[j] for j in 1:(i-1); init = zero(u_n))
+                T_imp!(fU_imp[i], U_imp[i], p, t)
+                KI_rhs[i] .= .- dt .* fU_imp[i] .- dt .* J .* (sum(βI[i, j] * KI[j] for j in 1:i; init = zero(u_n)) + dt * sum(βE[i, j] * fU_exp[j] for j in 1:(i-1); init = zero(u_n)))
+                if W isa Matrix
+                    ldiv!(KI[i], lu(W), KI_rhs[i])
+                else
+                    ldiv!(KI[i], W, KI_rhs[i])
+                end
             end
+            # @show W, U_imp[i], KI_rhs[i], KI[i], i
         else
             KI[i] .= zero(u_n)
         end
 
         if i == 1
             Y[1] .= u_n + ζI[1, 1] * KI[1]
-            T_exp!(fU_exp[1], Y[1], p, t)
+            if !isnothing(f.T_exp!)
+                T_exp!(fU_exp[1], Y[1], p, t)
+            else
+                fU_exp[1] .= zero(u_n)
+            end
         else
+            # @show sum(ΘI[i, j] * KI[j] for j in 1:i; init = zero(u_n))
             Y[i] .= sum(η[i, j] * Y[j] + dt * ΘE[i, j] * fU_exp[j] for j in 1:(i-1); init = zero(u_n)) + sum(ΘI[i, j] * KI[j] for j in 1:i; init = zero(u_n))
         end
-        # @show i, fU_exp[i], Y[i]
+        # @show i, Y[i]
     end
-    u .= Y[num_stages]
+    u .= Y[num_stages + 1]
 end

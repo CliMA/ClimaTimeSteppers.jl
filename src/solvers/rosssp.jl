@@ -6,13 +6,14 @@
 # Here, we use the coefficients on page 411 for RosERK(3,2), alphas and betas
 # are from previous pages (with 1/!2 = 1/12)
 
-import ClimaTimeSteppers
 import LinearAlgebra: ldiv!, lu
 
-abstract type RosSSPAlgorithmName <: ClimaTimeSteppers.AbstractAlgorithmName end
+export DaiYagi
+
+abstract type RosSSPAlgorithmName <: AbstractAlgorithmName end
 
 """
-    RosenbrockTableau
+    RosSSPTableau
 
 Contains everything that defines a RosSSP method.
 
@@ -35,11 +36,11 @@ end
 
 
 """
-    RosenbrockAlgorithm(tableau)
+    RosSSPAlgorithm(tableau)
 
-Constructs a Rosenbrock algorithm for solving ODEs.
+Constructs a RosSSP algorithm for solving ODEs.
 """
-struct RosSSPAlgorithm{T <: RosSSPTableau} <: ClimaTimeSteppers.DistributedODEAlgorithm
+struct RosSSPAlgorithm{T <: RosSSPTableau} <: DistributedODEAlgorithm
     tableau::T
 end
 
@@ -121,14 +122,14 @@ struct RosSSPCache
     W
 end
 
-function ClimaTimeSteppers.init_cache(problem, alg::RosSSPAlgorithm; kwargs...)
+function init_cache(prob, alg::RosSSPAlgorithm; kwargs...)
     num_stages = length(alg.tableau.bI)
     KI = ntuple(_ -> zero(prob.u0), num_stages + 1)
     Y = ntuple(_ -> zero(prob.u0), num_stages + 1)
     fU_exp = ntuple(_ -> zero(prob.u0), num_stages + 1)
     fU_imp = ntuple(_ -> zero(prob.u0), num_stages + 1)
-    U_imp = ntuple(_ -> zero(prob.u0), num_stages + 1)
-    KI_rhs = ntuple(_ -> zero(prob.u0), num_stages + 1)
+    U_imp = zero(prob.u0)
+    KI_rhs = zero(prob.u0)
     if !isnothing(prob.f.T_imp!)
         W = prob.f.T_imp!.jac_prototype
         J = copy(W)
@@ -149,7 +150,7 @@ function ClimaTimeSteppers.init_cache(problem, alg::RosSSPAlgorithm; kwargs...)
     )
 end
 
-function ClimaTimeSteppers.step_u!(int, cache::RosSSPCache)
+function step_u!(int, cache::RosSSPCache)
     (; u, p, t, dt) = int
     f = int.sol.prob.f
     T_imp! = !isnothing(f.T_imp!) ? f.T_imp! : (args...) -> nothing
@@ -205,13 +206,13 @@ function ClimaTimeSteppers.step_u!(int, cache::RosSSPCache)
                 KI[i] .= zero(u_n)
             else
                 # @show αI[3, 1] * KI[1] +  αI[3, 2] * KI[2]
-                U_imp[i] .= u_n .+ sum(αI[i, j] * KI[j] for j in 1:(i-1); init = zero(u_n)) .+ dt .* sum(αE[i, j] * fU_exp[j] for j in 1:(i-1); init = zero(u_n))
-                T_imp!(fU_imp[i], U_imp[i], p, t)
-                KI_rhs[i] .= .- dt .* fU_imp[i] .- dt .* J .* (sum(βI[i, j] * KI[j] for j in 1:i; init = zero(u_n)) + dt * sum(βE[i, j] * fU_exp[j] for j in 1:(i-1); init = zero(u_n)))
+                U_imp .= u_n .+ sum(αI[i, j] * KI[j] for j in 1:(i-1); init = zero(u_n)) .+ dt .* sum(αE[i, j] * fU_exp[j] for j in 1:(i-1); init = zero(u_n))
+                T_imp!(fU_imp[i], U_imp, p, t)
+                KI_rhs .= .- dt .* fU_imp[i] .- dt .* J .* (sum(βI[i, j] * KI[j] for j in 1:i; init = zero(u_n)) + dt * sum(βE[i, j] * fU_exp[j] for j in 1:(i-1); init = zero(u_n)))
                 if W isa Matrix
-                    ldiv!(KI[i], lu(W), KI_rhs[i])
+                    ldiv!(KI[i], lu(W), KI_rhs)
                 else
-                    ldiv!(KI[i], W, KI_rhs[i])
+                    ldiv!(KI[i], W, KI_rhs)
                 end
             end
             # @show W, U_imp[i], KI_rhs[i], KI[i], i

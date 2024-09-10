@@ -3,8 +3,6 @@ import ClimaTimeSteppers
 
 const FT = Float64
 
-includet("../src/solvers/hard_coded_rosssp.jl")
-
 function T_exp!(∂ₜY, Y, p, t)
     ∂ₜY .= p.λ * Y
     return nothing
@@ -22,7 +20,7 @@ prob = SciMLBase.ODEProblem(
     (; λ = -1)
 )
 
-algo = RosSSPAlgorithm(tableau(DaiYagi()));
+algo = ClimaTimeSteppers.RosSSPAlgorithm(ClimaTimeSteppers.tableau(ClimaTimeSteppers.DaiYagi()));
 
 integrator = SciMLBase.init(prob, algo; dt, saveat = dt);
 

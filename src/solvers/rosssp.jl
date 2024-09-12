@@ -192,11 +192,11 @@ function step_u!(int, cache::RosSSPCache)
 
     u_n = copy(u)
 
+    # FIXME: Assumes βI has same values on diagonal
+    @assert length(unique(βI[i, i] for i in 1:(num_stages - 1) )) == 1
     dtγ = dt * βI[1, 1]
 
     if !isnothing(f.T_imp!)
-        # FIXME: Assumes βI has same values on diagonal
-        @assert length(unique(βI[i, i] for i in 1:(num_stages - 1) )) == 1
         Wfact! = int.sol.prob.f.T_imp!.Wfact
         Wfact!(W, u, p, dtγ, t)
 
@@ -231,6 +231,11 @@ function step_u!(int, cache::RosSSPCache)
                                                 , (@name(c.uₕ), @name(c.uₕ)) => LinearAlgebra.I / dtγ)
 
         myJ .= (W.matrix .+ myone) .* mydtγ
+    end
+
+    if !isnothing(f.T_exp!) && !isnothing(f.T_exp_T_lim!)
+        error("Problem")
+        # We don't accumulate T_exp in the function calls below
     end
 
     for i in 1:(num_stages + 1)
@@ -290,11 +295,11 @@ function step_u!(int, cache::RosSSPCache)
         end
 
         if i == 1
-            Y[1] .= u_n + ζI[1, 1] * KI[1]
+            Y[1] .= u_n .+ ζI[1, 1] * KI[1]
             # @show extrema(fU_exp[1]), extrema(Y[1])
         else
             # @show sum(ΘI[i, j] * KI[j] for j in 1:i; init = zero(u_n))
-            Y[i] .= sum(η[i, j] * Y[j] + dt * ΘE[i, j] * fU_exp[j] for j in 1:(i-1); init = zero(u_n)) + sum(ΘI[i, j] * KI[j] for j in 1:i; init = zero(u_n))
+            Y[i] .= sum(η[i, j] .* Y[j] + dt .* ΘE[i, j] .* fU_exp[j] for j in 1:(i-1); init = zero(u_n)) #.+ sum(ΘI[i, j] * KI[j] for j in 1:i; init = zero(u_n))
         end
 
         if !isnothing(f.T_exp!)
@@ -306,10 +311,11 @@ function step_u!(int, cache::RosSSPCache)
             T_exp_T_lim!(fU_exp[i], fU_lim[i], Y[i], p, t + ci * dt)
             fU_exp[i] .+= fU_lim[i]
         else
-            fU_exp[i] .= zero(u_n)
             fU_lim[i] .= zero(u_n)
         end
-        # @show extrema(Y[i]), extrema(fU_exp[i]), extrema(fU_lim[i]), f.T_exp!, f.T_exp_T_lim!
+        # @show i, extrema(Y[i].c.uₕ.components), extrema(fU_exp[i].c.uₕ.components)
+        # @show i, extrema(Y[i].f.u₃.components), extrema(fU_exp[i].f.u₃.components), extrema(fU_exp[i])
+        # @show i, extrema(Y[i].c.ρ), extrema(fU_exp[i].c.ρ)
         dss!(fU_exp[i], p, t + ci * dt)
         post_implicit!(Y[i], p, t + ci * dt)
     end
@@ -317,7 +323,7 @@ function step_u!(int, cache::RosSSPCache)
 
     # Main.@infiltrate true
 
-    # dss!(u, p, t + dt)
-    # post_implicit!(u, p, t + dt)
+    dss!(u, p, t + dt)
+    post_implicit!(u, p, t + dt)
     return nothing
 end

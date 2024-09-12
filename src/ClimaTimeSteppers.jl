@@ -127,6 +127,7 @@ include("solvers/wickerskamarock.jl")
 include("solvers/rosenbrock.jl")
 
 include("solvers/rosssp.jl")
+include("solvers/rosssp_scalar.jl")
 
 include("Callbacks.jl")
 

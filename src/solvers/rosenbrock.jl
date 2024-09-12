@@ -123,7 +123,6 @@ function step_u!(int, cache::RosenbrockCache{Nstages}) where {Nstages}
     tgrad! = isnothing(T_imp!) ? nothing : T_imp!.tgrad
 
     (; post_explicit!, post_implicit!, dss!) = int.sol.prob.f
-    tT = typeof(t)
 
     # TODO: This is only valid when Γ[i, i] is constant, otherwise we have to
     # move this in the for loop
@@ -142,8 +141,8 @@ function step_u!(int, cache::RosenbrockCache{Nstages}) where {Nstages}
         # Reset tendency
         fill!(fU, 0)
 
-        αi = sum(α[i, 1:(i - 1)]; init = zero(tT))::tT
-        γi = sum(Γ[i, 1:i]; init = zero(tT))::tT
+        αi = sum(α[i, 1:(i - 1)]; init = zero(eltype(α)))
+        γi = sum(Γ[i, 1:i]; init = zero(eltype(Γ)))
 
         U .= u
         for j in 1:(i - 1)

@@ -39,16 +39,16 @@ n_calls_per_step(::CTS.ARS343, max_newton_iters) = Dict(
     "post_implicit!" => 4,
     "step!" => 1,
 )
-function n_calls_per_step(alg::CTS.RosenbrockAlgorithm{CTS.RosenbrockTableau{N}}) where {N}
+function n_calls_per_step(alg::CTS.RosenbrockAlgorithm)
     return Dict(
         "Wfact" => 1,
-        "ldiv!" => N,
-        "T_imp!" => N,
-        "T_exp_T_lim!" => N,
+        "ldiv!" => CTS.n_stages(alg.tableau),
+        "T_imp!" => CTS.n_stages(alg.tableau),
+        "T_exp_T_lim!" => CTS.n_stages(alg.tableau),
         "lim!" => 0,
-        "dss!" => N,
+        "dss!" => CTS.n_stages(alg.tableau),
         "post_explicit!" => 0,
-        "post_implicit!" => N,
+        "post_implicit!" => CTS.n_stages(alg.tableau),
         "step!" => 1,
     )
 end

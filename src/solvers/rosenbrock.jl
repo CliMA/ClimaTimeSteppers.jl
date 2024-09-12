@@ -27,6 +27,7 @@ struct RosenbrockTableau{N, SM <: SMatrix{N, N}, SM1 <: SMatrix{N, 1}}
     """m = b Γ⁻¹, used to compute the increments k"""
     m::SM1
 end
+n_stages(::RosenbrockTableau{N}) where {N} = N
 
 function RosenbrockTableau(α::SMatrix{N, N}, Γ::SMatrix{N, N}, b::SMatrix{1, N}) where {N}
     A = α / Γ

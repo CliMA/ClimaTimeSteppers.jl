@@ -15,17 +15,17 @@ Contains everything that defines a Rosenbrock-type method.
 
 Refer to the documentation for the precise meaning of the symbols below.
 """
-struct RosenbrockTableau{N}
+struct RosenbrockTableau{N, SM <: SMatrix{N, N}, SM1 <: SMatrix{N, 1}}
     """A = α Γ⁻¹"""
-    A::SMatrix{N, N}
+    A::SM
     """Tableau used for the time-dependent part"""
-    α::SMatrix{N, N}
+    α::SM
     """Stepping matrix. C = 1/diag(Γ) - Γ⁻¹"""
-    C::SMatrix{N, N}
+    C::SM
     """Substage contribution matrix"""
-    Γ::SMatrix{N, N}
+    Γ::SM
     """m = b Γ⁻¹, used to compute the increments k"""
-    m::SMatrix{N, 1}
+    m::SM1
 end
 
 function RosenbrockTableau(α::SMatrix{N, N}, Γ::SMatrix{N, N}, b::SMatrix{1, N}) where {N}
@@ -35,7 +35,10 @@ function RosenbrockTableau(α::SMatrix{N, N}, Γ::SMatrix{N, N}, b::SMatrix{1, N
     # C is diag(γ₁₁⁻¹, γ₂₂⁻¹, ...) - Γ⁻¹
     C = diag_invΓ .- inv(Γ)
     m = b / Γ
-    return RosenbrockTableau{N}(A, α, C, Γ, m)
+    m′ = convert(SMatrix{N, 1}, m) # Sometimes m is a SMatrix{1, N} matrix.
+    SM = typeof(A)
+    SM1 = typeof(m′)
+    return RosenbrockTableau{N, SM, SM1}(A, α, C, Γ, m′)
 end
 
 """
@@ -120,10 +123,11 @@ function step_u!(int, cache::RosenbrockCache{Nstages}) where {Nstages}
     tgrad! = isnothing(T_imp!) ? nothing : T_imp!.tgrad
 
     (; post_explicit!, post_implicit!, dss!) = int.sol.prob.f
+    tT = typeof(t)
 
     # TODO: This is only valid when Γ[i, i] is constant, otherwise we have to
     # move this in the for loop
-    dtγ = dt * Γ[1, 1]
+    @inbounds dtγ = dt * Γ[1, 1]
 
     if !isnothing(T_imp!)
         Wfact! = int.sol.prob.f.T_imp!.Wfact
@@ -134,12 +138,12 @@ function step_u!(int, cache::RosenbrockCache{Nstages}) where {Nstages}
         tgrad!(∂Y∂t, u, p, t)
     end
 
-    for i in 1:Nstages
+    @inbounds for i in 1:Nstages
         # Reset tendency
         fill!(fU, 0)
 
-        αi = sum(α[i, 1:(i - 1)])
-        γi = sum(Γ[i, 1:i])
+        αi = sum(α[i, 1:(i - 1)]; init = zero(tT))::tT
+        γi = sum(Γ[i, 1:i]; init = zero(tT))::tT
 
         U .= u
         for j in 1:(i - 1)
@@ -196,7 +200,7 @@ function step_u!(int, cache::RosenbrockCache{Nstages}) where {Nstages}
         end
     end
 
-    for i in 1:Nstages
+    @inbounds for i in 1:Nstages
         u .+= m[i] .* k[i]
     end
 

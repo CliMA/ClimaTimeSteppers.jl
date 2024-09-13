@@ -11,18 +11,18 @@ import LinearAlgebra: ldiv!, lu, UniformScaling
 import ClimaCore
 import ClimaCore.MatrixFields: @name
 
-export DaiYagi
+export DaiYagiAtmos
 
-abstract type RosSSPAlgorithmName <: AbstractAlgorithmName end
+abstract type RosSSPAtmosAlgorithmName <: AbstractAlgorithmName end
 
 """
-    RosSSPTableau
+    RosSSPAtmosTableau
 
-Contains everything that defines a RosSSP method.
+Contains everything that defines a RosSSPAtmos method.
 
 Refer to the documentation for the precise meaning of the symbols below.
 """
-struct RosSSPTableau
+struct RosSSPAtmosTableau
     η
     ΘI
     ΘE
@@ -39,17 +39,17 @@ end
 
 
 """
-    RosSSPAlgorithm(tableau)
+    RosSSPAtmosAlgorithm(tableau)
 
-Constructs a RosSSP algorithm for solving ODEs.
+Constructs a RosSSPAtmos algorithm for solving ODEs.
 """
-struct RosSSPAlgorithm{T <: RosSSPTableau} <: DistributedODEAlgorithm
+struct RosSSPAtmosAlgorithm{T <: RosSSPAtmosTableau} <: DistributedODEAlgorithm
     tableau::T
 end
 
-struct DaiYagi <: RosSSPAlgorithmName end
+struct DaiYagiAtmos <: RosSSPAtmosAlgorithmName end
 
-function tableau(::DaiYagi)
+function tableau(::DaiYagiAtmos)
     # NOTE: These coefficients are all related.
     # In the next version, I will compute one from another.
 
@@ -97,7 +97,7 @@ function tableau(::DaiYagi)
 
     ζI = vcat(γI, bI)
 
-    return RosSSPTableau(
+    return RosSSPAtmosTableau(
     η ,
     ΘI,
     ΘE,
@@ -113,7 +113,7 @@ function tableau(::DaiYagi)
     )
 end
 
-struct RosSSPCache
+struct RosSSPAtmosCache
     num_stages
     KI
     Y
@@ -126,7 +126,7 @@ struct RosSSPCache
     W
 end
 
-function init_cache(prob, alg::RosSSPAlgorithm; kwargs...)
+function init_cache(prob, alg::RosSSPAtmosAlgorithm; kwargs...)
     num_stages = length(alg.tableau.bI)
     KI = ntuple(_ -> NaN32 * zero(prob.u0), num_stages + 1)
     Y = ntuple(_ -> NaN32 * zero(prob.u0), num_stages + 1)
@@ -143,7 +143,7 @@ function init_cache(prob, alg::RosSSPAlgorithm; kwargs...)
         J = nothing
         dtγJ = nothing
     end
-    return RosSSPCache(
+    return RosSSPAtmosCache(
         num_stages,
         KI,
         Y,
@@ -157,7 +157,7 @@ function init_cache(prob, alg::RosSSPAlgorithm; kwargs...)
     )
 end
 
-function step_u!(int, cache::RosSSPCache)
+function step_u!(int, cache::RosSSPAtmosCache)
     (; u, p, t, dt) = int
     f = int.sol.prob.f
     T_imp! = !isnothing(f.T_imp!) ? f.T_imp! : (args...) -> nothing
@@ -295,12 +295,18 @@ function step_u!(int, cache::RosSSPCache)
         end
 
         if i == 1
-            Y[1] .= u_n .+ ζI[1, 1] * KI[1]
+            Y[1] .= u_n #.+ ζI[1, 1] * KI[1]
             # @show extrema(fU_exp[1]), extrema(Y[1])
         else
             # @show sum(ΘI[i, j] * KI[j] for j in 1:i; init = zero(u_n))
             Y[i] .= sum(η[i, j] .* Y[j] + dt .* ΘE[i, j] .* fU_exp[j] for j in 1:(i-1); init = zero(u_n)) #.+ sum(ΘI[i, j] * KI[j] for j in 1:i; init = zero(u_n))
         end
+
+        # @show i, extrema(Y[i].c.uₕ.components), extrema(fU_exp[i].c.uₕ.components)
+        # @show i, extrema(Y[i].f.u₃.components), extrema(fU_exp[i].f.u₃.components), extrema(fU_exp[i])
+        # @show i, extrema(Y[i].c.ρ), extrema(fU_exp[i].c.ρ)
+
+        post_implicit!(Y[i], p, t + ci * dt)
 
         if !isnothing(f.T_exp!)
             T_exp!(fU_exp[i], Y[i], p, t + ci * dt)
@@ -309,21 +315,17 @@ function step_u!(int, cache::RosSSPCache)
         end
         if !isnothing(f.T_exp_T_lim!)
             T_exp_T_lim!(fU_exp[i], fU_lim[i], Y[i], p, t + ci * dt)
-            fU_exp[i] .+= fU_lim[i]
+            # fU_exp[i] .+= fU_lim[i]
         else
             fU_lim[i] .= zero(u_n)
         end
-        # @show i, extrema(Y[i].c.uₕ.components), extrema(fU_exp[i].c.uₕ.components)
-        # @show i, extrema(Y[i].f.u₃.components), extrema(fU_exp[i].f.u₃.components), extrema(fU_exp[i])
-        # @show i, extrema(Y[i].c.ρ), extrema(fU_exp[i].c.ρ)
-        dss!(fU_exp[i], p, t + ci * dt)
-        post_implicit!(Y[i], p, t + ci * dt)
+        i != num_stages + 1 && dss!(fU_exp[i], p, t + ci * dt)
     end
     u .= Y[num_stages + 1]
 
     # Main.@infiltrate true
 
     dss!(u, p, t + dt)
-    post_implicit!(u, p, t + dt)
+    # post_implicit!(u, p, t + dt)
     return nothing
 end

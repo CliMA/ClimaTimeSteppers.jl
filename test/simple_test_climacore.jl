@@ -31,12 +31,12 @@ const seconds = second = 1.0
 
 # Radius and height of the spherical shell:
 radius = 6000kilometers
-height = 1kilometers
+height = 1000kilometers
 
 # Details of the computational grid:
-number_horizontal_elements = 10
-horizontal_polynomial_order = 3
-number_vertical_elements = 10
+number_horizontal_elements = 1
+horizontal_polynomial_order = 1
+number_vertical_elements = 1000
 
 # We prepare a face-centered vertical grid by first creating the Domain, then
 # the Mesh, and finally the Space
@@ -103,7 +103,7 @@ Y₀ = ClimaCore.Fields.FieldVector(; my_var = copy(φ_gauss));
 diverg = ClimaCore.Operators.WeakDivergence();
 grad = ClimaCore.Operators.Gradient();
 
-K = 3.0
+K = 1e8
 
 # Notice how we picked `WeakDivergence` instead of normal divergence. We use the
 # weak formulation of even derivatives (second-order, fourth-order, etc.) with
@@ -171,6 +171,8 @@ end
 T_imp_wrapper! =
     SciMLBase.ODEFunction(T_imp!; jac_prototype = FieldMatrixWithSolver(jacobian_matrix, Y₀), Wfact = Wfact);
 
+# T_imp_wrapper! = nothing
+
 # On this type of spaces, we need to apply DSS to ensure continuity
 function dss!(state, p, t)
     ClimaCore.Spaces.weighted_dss!(state.my_var)
@@ -178,11 +180,13 @@ end
 
 # Now, we have all the pieces to set up the integrator
 t0 = 0seconds
-t_end = 500seconds
-dt = 5seconds
+t_end = 10seconds
+dt = 0.01seconds
 
 prob = SciMLBase.ODEProblem(
-    ClimaTimeSteppers.ClimaODEFunction(; T_imp! = T_imp_wrapper!, T_exp!, dss!),
+    ClimaTimeSteppers.ClimaODEFunction(; T_imp! = T_imp_wrapper!,
+                                       # T_exp!,
+                                       dss!),
     Y₀,
     (t0, t_end),
     nothing,
@@ -190,6 +194,13 @@ prob = SciMLBase.ODEProblem(
 
 # We use DaiYagi for this example
 algo = ClimaTimeSteppers.RosSSPAlgorithm(ClimaTimeSteppers.tableau(ClimaTimeSteppers.DaiYagi()));
+# algo = ClimaTimeSteppers.IMEXAlgorithm(
+#         ClimaTimeSteppers.ARS343(),
+#         ClimaTimeSteppers.NewtonsMethod(
+#             max_iters = 5,
+#             update_j = ClimaTimeSteppers.UpdateEvery(ClimaTimeSteppers.NewNewtonIteration),
+#         ),
+#     )
 
 # And here is the integrator, where we set `saveat = dt` to save a snapshot of
 # the solution at every timestep.
@@ -233,18 +244,19 @@ extrema(ClimaCore.Fields.level(integrator.u.my_var, ClimaCore.Utilities.PlusHalf
 extrema(ClimaCore.Fields.level(integrator.u.my_var, ClimaCore.Utilities.PlusHalf(1)))
 
 # Let us solve the equation
-SciMLBase.solve!(integrator);
+@time SciMLBase.solve!(integrator);
 
-# Now, the extreme for `my_var` will have decreased, due to diffusion
-extrema(integrator.u)
+# # Now, the extreme for `my_var` will have decreased, due to diffusion
+# extrema(integrator.u)
 
-# Let us focus on the surface level
-extrema(ClimaCore.Fields.level(integrator.u.my_var, ClimaCore.Utilities.PlusHalf(0)))
+# # Let us focus on the surface level
+# extrema(ClimaCore.Fields.level(integrator.u.my_var, ClimaCore.Utilities.PlusHalf(0)))
 
-# And the first level
-extrema(ClimaCore.Fields.level(integrator.u.my_var, ClimaCore.Utilities.PlusHalf(1)))
+# # And the first level
+# extrema(ClimaCore.Fields.level(integrator.u.my_var, ClimaCore.Utilities.PlusHalf(1)))
 
-# And we will see some development on the layers that did not have data before
-Plots.heatmap(remap(; target_z = 0.1kilometers))
-Plots.savefig("diff-hm3.png")
+# # And we will see some development on the layers that did not have data before
+# Plots.heatmap(remap(; target_z = 10kilometers))
+# Plots.savefig("diff-hm3.png")
 # ![](diff-hm3.png)
+@show extrema(integrator.u.my_var)

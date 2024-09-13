@@ -11,6 +11,11 @@ import LinearAlgebra: ldiv!, lu
 
 abstract type RosSSPAlgorithmName <: ClimaTimeSteppers.AbstractAlgorithmName end
 
+import ClimaCore
+import ClimaCore.MatrixFields: @name
+
+const DENNIS_FIXED_BUG = false
+
 """
     RosenbrockTableau
 
@@ -127,13 +132,19 @@ function ClimaTimeSteppers.init_cache(prob, alg::RosSSPAlgorithm; kwargs...)
     KI = ntuple(_ -> zero(prob.u0), num_stages + 1)
     Y = ntuple(_ -> zero(prob.u0), num_stages + 1)
     fU_exp = ntuple(_ -> zero(prob.u0), num_stages + 1)
-    fU_imp = ntuple(_ -> zero(prob.u0), num_stages + 1)
+    fU_imp = zero(prob.u0)
     fU_lim = ntuple(_ -> zero(prob.u0), num_stages + 1)
     U_imp = zero(prob.u0)
     KI_rhs = zero(prob.u0)
     if !isnothing(prob.f.T_imp!)
         W = prob.f.T_imp!.jac_prototype
-        J = similar(W.matrix)
+        if DENNIS_FIXED_BUG
+            J = similar(W.matrix)
+        else
+            # For simple diffusion case
+            FT = eltype(prob.u0.my_var)
+            J = ClimaCore.MatrixFields.FieldMatrix((@name(my_var), @name(my_var)) => similar(prob.u0.my_var, ClimaCore.MatrixFields.TridiagonalMatrixRow{FT}))
+        end
     else
         W = nothing
         J = nothing
@@ -193,7 +204,15 @@ function ClimaTimeSteppers.step_u!(int, cache::RosSSPCache)
         dtγ = dt * βI[1, 1]
         Wfact! = int.sol.prob.f.T_imp!.Wfact
         Wfact!(W, u, p, dtγ, t)
-        J .= (W.matrix .+ one(W.matrix)) ./ dtγ
+
+        if DENNIS_FIXED_BUG
+            J .= (W.matrix .+ one(W.matrix)) ./ dtγ
+        else
+            mydtγ = ClimaCore.MatrixFields.FieldMatrix((@name(my_var), @name(my_var)) => ClimaCore.MatrixFields.DiagonalMatrixRow.(ones(eltype(eltype(W.matrix[@name(my_var), @name(my_var)])), axes(u.my_var)) ./ dtγ))
+
+            J .= (W.matrix .+ one(W.matrix)) .* mydtγ
+            # J .= (W.matrix .+ one(W.matrix)) ./ dtγ
+        end
     end
 
     for i in 1:(num_stages + 1)
@@ -208,9 +227,13 @@ function ClimaTimeSteppers.step_u!(int, cache::RosSSPCache)
             if i == num_stages + 1
                 KI[i] .= zero(u_n)
             else
-                U_imp .= u_n .+ sum(αI[i, j] * KI[j] for j in 1:(i-1); init = zero(u_n)) .+ dt .* sum(αE[i, j] * fU_exp[j] for j in 1:(i-1); init = zero(u_n))
-                T_imp!(fU_imp[i], U_imp, p, t + ci * dt)
-                KI_rhs .= .- dt .* fU_imp[i] .- dt * J .* (sum(βI[i, j] * KI[j] for j in 1:(i-1); init = zero(u_n)) + dt * sum(βE[i, j] * fU_exp[j] for j in 1:(i-1); init = zero(u_n)))
+                U_imp .= u_n .+ sum(αI[i, j] .* KI[j] for j in 1:(i-1); init = zero(u_n)) #.+ dt .* sum(αE[i, j] .* fU_exp[j] for j in 1:(i-1); init = zero(u_n))
+                T_imp!(fU_imp, U_imp, p, t + ci * dt)
+
+                mydt = ClimaCore.MatrixFields.FieldMatrix((@name(my_var), @name(my_var)) => ClimaCore.MatrixFields.DiagonalMatrixRow.(ones(eltype(eltype(W.matrix[@name(my_var), @name(my_var)])), axes(u.my_var)) .* dt))
+                mysum = sum(βI[i, j] .* KI[j] for j in 1:(i-1); init = zero(u_n)) #.+ mydt .* sum(βE[i, j] .* fU_exp[j] for j in 1:(i-1); init = zero(u_n))
+
+                KI_rhs .= .- mydt .* fU_imp .- mydt .* J .* mysum
                 dss!(KI_rhs, p, t + ci * dt)
                 if W isa Matrix
                     ldiv!(KI[i], lu(W), KI_rhs)
@@ -223,9 +246,10 @@ function ClimaTimeSteppers.step_u!(int, cache::RosSSPCache)
         end
 
         if i == 1
-            Y[1] .= u_n + ζI[1, 1] * KI[1]
+            Y[1] .= u_n .+ ζI[1, 1] * KI[1]
         else
-            Y[i] .= sum(η[i, j] * Y[j] + dt * ΘE[i, j] * fU_exp[j] for j in 1:(i-1); init = zero(u_n)) + sum(ΘI[i, j] * KI[j] for j in 1:i; init = zero(u_n))
+            # Y[i] .= sum(η[i, j] .* Y[j] .+ dt .* ΘE[i, j] .* fU_exp[j] for j in 1:(i-1); init = zero(u_n)) .+ sum(ΘI[i, j] .* KI[j] for j in 1:i; init = zero(u_n))
+            Y[i] .= sum(η[i, j] .* Y[j] for j in 1:(i-1); init = zero(u_n)) .+ sum(ΘI[i, j] .* KI[j] for j in 1:i; init = zero(u_n))
         end
 
         if !isnothing(f.T_exp!)

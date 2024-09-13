@@ -171,7 +171,8 @@ function step_u!(int, cache::RosenbrockCache{Nstages}) where {Nstages}
             fU .+= fU_lim
         end
 
-        @show i, extrema(U.c.ρ), extrema(fU_exp), extrema(fU_lim)
+        # @show i, extrema(U.c.ρ), extrema(fU_exp), extrema(fU_lim), extrema(fU_imp)
+        @show extrema(fU_imp)
 
         if !isnothing(tgrad!)
             fU .+= γi .* dt .* ∂Y∂t

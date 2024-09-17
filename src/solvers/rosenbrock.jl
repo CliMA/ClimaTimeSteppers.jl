@@ -171,8 +171,10 @@ function step_u!(int, cache::RosenbrockCache{Nstages}) where {Nstages}
             fU .+= fU_lim
         end
 
+        # @show i, extrema(parent(fU_imp.f.u₃)), extrema(parent(U.f.u₃))
         # @show i, extrema(U.c.ρ), extrema(fU_exp), extrema(fU_lim), extrema(fU_imp)
-        @show extrema(fU_imp)
+        # @show i, extrema(fU_imp), extrema(U)
+        # @show extrema(parent(W.matrix[@name(f.u₃), @name(f.u₃)].entries))
 
         if !isnothing(tgrad!)
             fU .+= γi .* dt .* ∂Y∂t
@@ -197,6 +199,8 @@ function step_u!(int, cache::RosenbrockCache{Nstages}) where {Nstages}
         else
             k[i] .= .-fU
         end
+
+    # Main.@infiltrate i == 2
     end
 
     for i in 1:Nstages

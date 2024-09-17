@@ -131,7 +131,7 @@ function init_cache(prob, alg::RosSSPAtmosAlgorithm; kwargs...)
     KI = ntuple(_ -> NaN32 * zero(prob.u0), num_stages + 1)
     Y = ntuple(_ -> NaN32 * zero(prob.u0), num_stages + 1)
     fU_exp = ntuple(_ -> NaN32 * zero(prob.u0), num_stages + 1)
-    fU_imp = ntuple(_ -> NaN32 * zero(prob.u0), num_stages + 1)
+    fU_imp = NaN32 * zero(prob.u0)
     fU_lim = ntuple(_ -> NaN32 * zero(prob.u0), num_stages + 1)
     U_imp = zero(prob.u0)
     KI_rhs = zero(prob.u0)
@@ -141,7 +141,6 @@ function init_cache(prob, alg::RosSSPAtmosAlgorithm; kwargs...)
     else
         W = nothing
         J = nothing
-        dtγJ = nothing
     end
     return RosSSPAtmosCache(
         num_stages,
@@ -199,36 +198,49 @@ function step_u!(int, cache::RosSSPAtmosCache)
     if !isnothing(f.T_imp!)
         Wfact! = int.sol.prob.f.T_imp!.Wfact
         Wfact!(W, u, p, dtγ, t)
+        # @show W.matrix[@name(f.u₃), @name(f.u₃)]
+        # @show W.matrix[@name(c.ρ), @name(c.ρ)]
 
         center_field = u.c.ρ
         face_field = u.f.u₃
         FT = eltype(center_field)
         myJ = ClimaCore.MatrixFields.FieldMatrix((@name(c.ρ), @name(c.ρ)) => similar(center_field, ClimaCore.MatrixFields.DiagonalMatrixRow{FT})
-                                                , (@name(c.ρ), @name(f.u₃)) => W.matrix[@name(c.ρ), @name(f.u₃)]
-                                                , (@name(c.ρe_tot), @name(f.u₃)) => W.matrix[@name(c.ρe_tot), @name(f.u₃)]
-                                                , (@name(f.u₃), @name(c.ρ)) => W.matrix[@name(f.u₃), @name(c.ρ)]
-                                                , (@name(f.u₃), @name(c.ρe_tot)) => W.matrix[@name(f.u₃), @name(c.ρe_tot)]
-                                                , (@name(f.u₃), @name(c.uₕ)) => W.matrix[@name(f.u₃), @name(c.uₕ)]
-                                                , (@name(f.u₃), @name(f.u₃)) => W.matrix[@name(f.u₃), @name(f.u₃)]
+                                                , (@name(c.ρ), @name(f.u₃)) => copy(W.matrix[@name(c.ρ), @name(f.u₃)])
+                                                , (@name(c.ρe_tot), @name(f.u₃)) => copy(W.matrix[@name(c.ρe_tot), @name(f.u₃)])
+                                                , (@name(f.u₃), @name(c.ρ)) => copy(W.matrix[@name(f.u₃), @name(c.ρ)])
+                                                , (@name(f.u₃), @name(c.ρe_tot)) => copy(W.matrix[@name(f.u₃), @name(c.ρe_tot)])
+                                                , (@name(f.u₃), @name(c.uₕ)) => copy(W.matrix[@name(f.u₃), @name(c.uₕ)])
+                                                , (@name(f.u₃), @name(f.u₃)) => copy(W.matrix[@name(f.u₃), @name(f.u₃)])
                                                 , (@name(c.ρe_tot), @name(c.ρe_tot)) =>  similar(center_field, ClimaCore.MatrixFields.DiagonalMatrixRow{FT})
                                                 , (@name(c.uₕ), @name(c.uₕ)) =>  similar(center_field, ClimaCore.MatrixFields.DiagonalMatrixRow{FT}
                                                   ))
 
-        myone = ClimaCore.MatrixFields.FieldMatrix((@name(c.ρ), @name(c.ρ)) => LinearAlgebra.I
+        # myW = ClimaCore.MatrixFields.FieldMatrix((@name(c.ρ), @name(c.ρ)) => similar(center_field, ClimaCore.MatrixFields.DiagonalMatrixRow{FT})
+        #                                          , (@name(c.ρ), @name(f.u₃)) => W.matrix[@name(c.ρ), @name(f.u₃)]
+        #                                          , (@name(c.ρe_tot), @name(f.u₃)) => W.matrix[@name(c.ρe_tot), @name(f.u₃)]
+        #                                          , (@name(f.u₃), @name(c.ρ)) => W.matrix[@name(f.u₃), @name(c.ρ)]
+        #                                          , (@name(f.u₃), @name(c.ρe_tot)) => W.matrix[@name(f.u₃), @name(c.ρe_tot)]
+        #                                          , (@name(f.u₃), @name(c.uₕ)) => W.matrix[@name(f.u₃), @name(c.uₕ)]
+        #                                          , (@name(f.u₃), @name(f.u₃)) => W.matrix[@name(f.u₃), @name(f.u₃)]
+        #                                          , (@name(c.ρe_tot), @name(c.ρe_tot)) =>  similar(center_field, ClimaCore.MatrixFields.DiagonalMatrixRow{FT})
+        #                                          , (@name(c.uₕ), @name(c.uₕ)) =>  similar(center_field, ClimaCore.MatrixFields.DiagonalMatrixRow{FT}))
+
+
+        myone = ClimaCore.MatrixFields.FieldMatrix((@name(c.ρ), @name(c.ρ)) => ClimaCore.MatrixFields.DiagonalMatrixRow.(ones(eltype(eltype(W.matrix[@name(c.ρ), @name(c.ρ)])), axes(center_field)))
                                                 , (@name(f.u₃), @name(f.u₃)) =>
-                                                    ones(ClimaCore.MatrixFields.DiagonalMatrixRow{eltype(eltype(W.matrix[@name(f.u₃), @name(f.u₃)]))}, axes(face_field))
-                                                , (@name(c.ρe_tot), @name(c.ρe_tot)) => LinearAlgebra.I
-                                                , (@name(c.uₕ), @name(c.uₕ)) => LinearAlgebra.I)
+                                                    ClimaCore.MatrixFields.DiagonalMatrixRow.(ones(eltype(eltype(W.matrix[@name(f.u₃), @name(f.u₃)])), axes(face_field)))
+                                                , (@name(c.ρe_tot), @name(c.ρe_tot)) => ClimaCore.MatrixFields.DiagonalMatrixRow.(ones(eltype(eltype(W.matrix[@name(c.ρe_tot), @name(c.ρe_tot)])), axes(center_field)))
+                                                , (@name(c.uₕ), @name(c.uₕ)) => ClimaCore.MatrixFields.DiagonalMatrixRow.(ones(eltype(eltype(W.matrix[@name(c.uₕ), @name(c.uₕ)])), axes(center_field))))
 
         # dtγ_matrix = ClimaCore.MatrixFields.FieldMatrix((ClimaCore.MatrixFields.@name(),
         #                                                  ClimaCore.MatrixFields.@name()) => 1/(dtγ) * LinearAlgebra.I
         #                                                             )
 
-        mydtγ = ClimaCore.MatrixFields.FieldMatrix((@name(c.ρ), @name(c.ρ)) => LinearAlgebra.I / dtγ
+        mydtγ = ClimaCore.MatrixFields.FieldMatrix((@name(c.ρ), @name(c.ρ)) => ClimaCore.MatrixFields.DiagonalMatrixRow.(ones(eltype(eltype(W.matrix[@name(c.ρ), @name(c.ρ)])), axes(center_field)) ./ (dtγ))
                                                 , (@name(f.u₃), @name(f.u₃)) =>
                                                     ClimaCore.MatrixFields.DiagonalMatrixRow.(ones(eltype(eltype(W.matrix[@name(f.u₃), @name(f.u₃)])), axes(face_field)) ./ dtγ)
-                                                , (@name(c.ρe_tot), @name(c.ρe_tot)) => LinearAlgebra.I / dtγ
-                                                , (@name(c.uₕ), @name(c.uₕ)) => LinearAlgebra.I / dtγ)
+                                                , (@name(c.ρe_tot), @name(c.ρe_tot)) => ClimaCore.MatrixFields.DiagonalMatrixRow.(ones(eltype(eltype(W.matrix[@name(c.ρe_tot), @name(c.ρe_tot)])), axes(center_field)) ./ (dtγ))
+                                                , (@name(c.uₕ), @name(c.uₕ)) => ClimaCore.MatrixFields.DiagonalMatrixRow.(ones(eltype(eltype(W.matrix[@name(c.uₕ), @name(c.uₕ)])), axes(center_field)) ./ (dtγ)))
 
         myJ .= (W.matrix .+ myone) .* mydtγ
     end
@@ -237,6 +249,8 @@ function step_u!(int, cache::RosSSPAtmosCache)
         error("Problem")
         # We don't accumulate T_exp in the function calls below
     end
+
+    Main.CA.fill_with_nans!(p)
 
     for i in 1:(num_stages + 1)
         # FIXME: Check both EXP-IMP tableau for ci
@@ -251,14 +265,16 @@ function step_u!(int, cache::RosSSPAtmosCache)
                 KI[i] .= zero(u_n)
             else
                 # @show αI[3, 1] * KI[1] +  αI[3, 2] * KI[2]
-                U_imp .= u_n .+ sum(αI[i, j] * KI[j] for j in 1:(i-1); init = zero(u_n)) .+ dt .* sum(αE[i, j] * fU_exp[j] for j in 1:(i-1); init = zero(u_n))
-                T_imp!(fU_imp[i], U_imp, p, t + ci * dt)
-                mysum = (sum(βI[i, j] * KI[j] for j in 1:(i-1); init = zero(u_n)) + dt * sum(βE[i, j] * fU_exp[j] for j in 1:(i-1); init = zero(u_n)))
-                dt_matrix = ClimaCore.MatrixFields.FieldMatrix((@name(c.ρ), @name(c.ρ)) => LinearAlgebra.I * (-dt)
+                U_imp .= u_n .+ sum(αI[i, j] .* KI[j] for j in 1:(i-1); init = zero(u_n)) .+ dt .* sum(αE[i, j] .* fU_exp[j] for j in 1:(i-1); init = zero(u_n))
+                post_implicit!(U_imp, p, t + ci * dt)
+                T_imp!(fU_imp, U_imp, p, t + ci * dt)
+
+                mysum = (sum(βI[i, j] .* KI[j] for j in 1:(i-1); init = zero(u_n)) + dt .* sum(βE[i, j] .* fU_exp[j] for j in 1:(i-1); init = zero(u_n)))
+                dt_matrix = ClimaCore.MatrixFields.FieldMatrix((@name(c.ρ), @name(c.ρ)) => ClimaCore.MatrixFields.DiagonalMatrixRow.(ones(eltype(eltype(W.matrix[@name(c.ρ), @name(c.ρ)])), axes(center_field)) .* (-dt))
                                                                , (@name(f.u₃), @name(f.u₃)) =>
                                                                    ClimaCore.MatrixFields.DiagonalMatrixRow.(ones(eltype(eltype(W.matrix[@name(f.u₃), @name(f.u₃)])), axes(face_field)) .* (-dt))
-                                                               , (@name(c.ρe_tot), @name(c.ρe_tot)) => LinearAlgebra.I * (-dt)
-                                                               , (@name(c.uₕ), @name(c.uₕ)) => LinearAlgebra.I * (-dt))
+                                                               , (@name(c.ρe_tot), @name(c.ρe_tot)) => ClimaCore.MatrixFields.DiagonalMatrixRow.(ones(eltype(eltype(W.matrix[@name(c.ρe_tot), @name(c.ρe_tot)])), axes(center_field)) .* (-dt))
+                                                               , (@name(c.uₕ), @name(c.uₕ)) => ClimaCore.MatrixFields.DiagonalMatrixRow.(ones(eltype(eltype(W.matrix[@name(c.uₕ), @name(c.uₕ)])), axes(center_field)) .* (-dt)))
 
                 # dt_matrix = ClimaCore.MatrixFields.FieldMatrix((ClimaCore.MatrixFields.@name(),
                 #                                                      ClimaCore.MatrixFields.@name()) => dt * LinearAlgebra.I
@@ -266,26 +282,40 @@ function step_u!(int, cache::RosSSPAtmosCache)
                 # oγ_matrix = ClimaCore.MatrixFields.FieldMatrix((ClimaCore.MatrixFields.@name(),
                 #                                                      ClimaCore.MatrixFields.@name()) => 1/dtγ * LinearAlgebra.I
                 #                                                     )
-                KI_rhs .= dt_matrix .* fU_imp[i] .- myJ .* mysum
+                # @show myJ .* mysum .* dt_matrix
+
+                KI_rhs .= dt_matrix .* fU_imp .+ myJ .* dt_matrix .* mysum
+                # @show extrema(KI_rhs)
                 dss!(KI_rhs, p, t + ci * dt)
                 if W isa Matrix
                     ldiv!(KI[i], lu(W), KI_rhs)
                 else
                     ldiv!(KI[i], W, KI_rhs)
                 end
-                # @show myJ[@name(c.ρ), @name(c.ρ)]
+
+                # @show KI[i].c.ρ
+
+                # Main.@infiltrate true
 
                 if all(isnan, parent(KI[i].c.ρ))
-                    fill!(KI[i].c.ρ, 0)
-                end
-                if all(isnan, parent(KI[i].c.ρe_tot))
-                    fill!(KI[i].c.ρe_tot, 0)
-                end
-                if all(isnan, parent(KI[i].f.u₃))
-                    fill!(parent(KI[i].f.u₃), 0)
+                    parent(KI[i].c.ρ) .= .- parent(KI_rhs.c.ρ)
                 end
 
-                # Main.@infiltrate i == 1
+                if all(isnan, parent(KI[i].c.ρe_tot))
+                    parent(KI[i].c.ρe_tot) .= .- parent(KI_rhs.c.ρe_tot)
+                end
+
+                if all(isnan, parent(KI[i].c.uₕ))
+                    parent(KI[i].c.uₕ) .= .- parent(KI_rhs.c.uₕ)
+                end
+
+                if all(isnan, parent(KI[i].f.u₃))
+                    parent(KI[i].f.u₃) .= .- parent(KI_rhs.f.u₃)
+                end
+
+                # @show extrema(KI[i])
+
+                # Main.@infiltrate i == 2
 
                 # @show i, extrema(u_n), extrema(U_imp), extrema(fU_imp[i]), extrema(mysum), extrema(KI_rhs), extrema(KI[i])
             end
@@ -295,12 +325,13 @@ function step_u!(int, cache::RosSSPAtmosCache)
         end
 
         if i == 1
-            Y[1] .= u_n #.+ ζI[1, 1] * KI[1]
+            Y[1] .= u_n .+ ζI[1, 1] * KI[1]
             # @show extrema(fU_exp[1]), extrema(Y[1])
         else
             # @show sum(ΘI[i, j] * KI[j] for j in 1:i; init = zero(u_n))
-            Y[i] .= sum(η[i, j] .* Y[j] + dt .* ΘE[i, j] .* fU_exp[j] for j in 1:(i-1); init = zero(u_n)) #.+ sum(ΘI[i, j] * KI[j] for j in 1:i; init = zero(u_n))
+            Y[i] .= sum(η[i, j] .* Y[j] + dt .* ΘE[i, j] .* fU_exp[j] for j in 1:(i-1); init = zero(u_n)) .+ sum(ΘI[i, j] * KI[j] for j in 1:i; init = zero(u_n))
         end
+        # @show i, extrema(parent(fU_imp.f.u₃)), extrema(parent(Y[i].f.u₃)), extrema(parent(KI[i].f.u₃))
 
         # @show i, extrema(Y[i].c.uₕ.components), extrema(fU_exp[i].c.uₕ.components)
         # @show i, extrema(Y[i].f.u₃.components), extrema(fU_exp[i].f.u₃.components), extrema(fU_exp[i])
@@ -315,7 +346,7 @@ function step_u!(int, cache::RosSSPAtmosCache)
         end
         if !isnothing(f.T_exp_T_lim!)
             T_exp_T_lim!(fU_exp[i], fU_lim[i], Y[i], p, t + ci * dt)
-            # fU_exp[i] .+= fU_lim[i]
+            fU_exp[i] .+= fU_lim[i]
         else
             fU_lim[i] .= zero(u_n)
         end
@@ -326,6 +357,6 @@ function step_u!(int, cache::RosSSPAtmosCache)
     # Main.@infiltrate true
 
     dss!(u, p, t + dt)
-    # post_implicit!(u, p, t + dt)
+    post_implicit!(u, p, t + dt)
     return nothing
 end

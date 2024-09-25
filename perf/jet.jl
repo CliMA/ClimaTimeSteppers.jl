@@ -60,5 +60,5 @@ end
     JET.@test_opt CTS.step_u!(integrator, integrator.cache)
 
     CTS.__step!(integrator) # compile first, and make sure it runs
-    JET.@test_opt broken = true CTS.__step!(integrator)
+    JET.@test_opt CTS.__step!(integrator)
 end

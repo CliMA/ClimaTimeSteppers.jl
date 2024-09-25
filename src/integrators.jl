@@ -225,6 +225,17 @@ is_past_t(integrator, t) = tdir(integrator) * (t - integrator.t) < zero(integrat
 reached_tstop(integrator, tstop, stop_at_tstop = integrator.dtchangeable) =
     integrator.t == tstop || (!stop_at_tstop && is_past_t(integrator, tstop))
 
+
+@inline unrolled_foreach(::Tuple{}, integrator) = nothing
+@inline unrolled_foreach(callback, integrator) =
+    callback.condition(integrator.u, integrator.t, integrator) ? callback.affect!(integrator) : nothing
+@inline unrolled_foreach(discrete_callbacks::Tuple{Any}, integrator) =
+    unrolled_foreach(first(discrete_callbacks), integrator)
+@inline function unrolled_foreach(discrete_callbacks::Tuple, integrator)
+    unrolled_foreach(first(discrete_callbacks), integrator)
+    unrolled_foreach(Base.tail(discrete_callbacks), integrator)
+end
+
 function __step!(integrator)
     (; _dt, dtchangeable, tstops) = integrator
 
@@ -246,13 +257,7 @@ function __step!(integrator)
 
     # apply callbacks
     discrete_callbacks = integrator.callback.discrete_callbacks
-    for (ncb, callback) in enumerate(discrete_callbacks)
-        if callback.condition(integrator.u, integrator.t, integrator)::Bool
-            NVTX.@range "Callback $ncb of $(length(discrete_callbacks))" color = colorant"yellow" begin
-                callback.affect!(integrator)
-            end
-        end
-    end
+    unrolled_foreach(discrete_callbacks, integrator)
 
     # remove tstops that were just reached
     while !isempty(tstops) && reached_tstop(integrator, first(tstops))

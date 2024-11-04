@@ -90,7 +90,7 @@ function tstops_and_saveat_heaps(t0, tf, tstops, saveat)
     return tstops, saveat
 end
 
-compute_tdir(ts) = ts[1] > ts[end] ? sign(ts[end] - ts[1]) : eltype(ts)(1)
+compute_tdir(ts) = ts[1] > ts[end] ? sign(ts[end] - ts[1]) : oneunit(ts[1])
 
 # called by DiffEqBase.init and DiffEqBase.solve
 function DiffEqBase.__init(
@@ -112,7 +112,7 @@ function DiffEqBase.__init(
     (; u0, p) = prob
     t0, tf = prob.tspan
 
-    dt > zero(dt) || error("dt must be positive")
+    dt > zero(oneunit(dt)) || error("dt must be positive")
     _dt = dt
     dt = tf > t0 ? dt : -dt
 
@@ -241,8 +241,8 @@ function __step!(integrator)
     # is taken from OrdinaryDiffEq.jl
     t_plus_dt = integrator.t + integrator.dt
     t_unit = oneunit(integrator.t)
-    max_t_error = 100 * eps(float(integrator.t / t_unit)) * t_unit
-    integrator.t = !isempty(tstops) && abs(first(tstops) - t_plus_dt) < max_t_error ? first(tstops) : t_plus_dt
+    max_t_error = 100 * eps(float(integrator.t / t_unit)) * float(t_unit)
+    integrator.t = !isempty(tstops) && abs(float(first(tstops)) - float(t_plus_dt)) < max_t_error ? first(tstops) : t_plus_dt
 
     # apply callbacks
     discrete_callbacks = integrator.callback.discrete_callbacks

@@ -4,6 +4,9 @@ import DiffEqBase
 import LinearAlgebra: ldiv!, diagm
 import LinearAlgebra
 
+# import ClimaUtilities.TimeManager: Time4
+# import ClimaUtilities.TimeManager: Dates
+
 abstract type RosenbrockAlgorithmName <: AbstractAlgorithmName end
 
 """
@@ -180,10 +183,10 @@ function step_u!(int, cache::RosenbrockCache{Nstages}) where {Nstages}
         (i != Nstages) && dss!(fU, p, t + αi * dt)
 
         for j in 1:(i - 1)
-            fU .+= (C[i, j] / dt) .* k[j]
+            fU .+= (C[i, j] / float(dt)) .* k[j]
         end
 
-        fU .*= -dtγ
+        fU .*= -float(dtγ)
 
         if !isnothing(T_imp!)
             if W isa Matrix
@@ -222,13 +225,13 @@ function tableau(::SSPKnoth)
     α = @SMatrix [
         0 0 0
         1 0 0
-        1/4 1/4 0
+        1//4 1//4 0
     ]
-    b = @SMatrix [1 / 6 1 / 6 2 / 3]
+    b = @SMatrix [1 // 6 1 // 6 2 // 3]
     Γ = @SMatrix [
         1 0 0
         0 1 0
-        -3/4 -3/4 1
+        -3//4 -3//4 1
     ]
     return RosenbrockTableau(α, Γ, b)
 end

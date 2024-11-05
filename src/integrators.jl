@@ -67,7 +67,12 @@ end
 
 # helper function for setting up min/max heaps for tstops and saveat
 function tstops_and_saveat_heaps(t0, tf, tstops, saveat)
-    FT = typeof(tf)
+    FT = typeof(first(promote(t0, tf)))
+    t0, tf = promote(t0, tf)
+    tt = promote(t0, tstops...)
+    tstops = tt[begin+1:end]
+    tt = promote(t0, saveat...)
+    saveat = tt[begin+1:end]
     ordering = tf > t0 ? DataStructures.FasterForward : DataStructures.FasterReverse
 
     # ensure that tstops includes tf and only has values ahead of t0
@@ -111,6 +116,7 @@ function DiffEqBase.__init(
 )
     (; u0, p) = prob
     t0, tf = prob.tspan
+    t0, tf, dt = promote(t0, tf, dt)
 
     dt > zero(oneunit(dt)) || error("dt must be positive")
     _dt = dt

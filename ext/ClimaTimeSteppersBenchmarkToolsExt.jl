@@ -35,8 +35,8 @@ n_calls_per_step(::CTS.ARS343, max_newton_iters) = Dict(
     "T_exp_T_lim!" => 4,
     "lim!" => 4,
     "dss!" => 4,
-    "post_explicit!" => 3,
-    "post_implicit!" => 4,
+    "pre_explicit!" => 3,
+    "pre_implicit!" => 4,
     "step!" => 1,
 )
 function n_calls_per_step(alg::CTS.RosenbrockAlgorithm)
@@ -47,8 +47,8 @@ function n_calls_per_step(alg::CTS.RosenbrockAlgorithm)
         "T_exp_T_lim!" => CTS.n_stages(alg.tableau),
         "lim!" => 0,
         "dss!" => CTS.n_stages(alg.tableau),
-        "post_explicit!" => 0,
-        "post_implicit!" => CTS.n_stages(alg.tableau),
+        "pre_explicit!" => 0,
+        "pre_implicit!" => CTS.n_stages(alg.tableau),
         "step!" => 1,
     )
 end
@@ -60,7 +60,7 @@ function maybe_push!(trials₀, name, f!, args, kwargs, only)
 end
 
 const allowed_names =
-    ["Wfact", "ldiv!", "T_imp!", "T_exp_T_lim!", "lim!", "dss!", "post_explicit!", "post_implicit!", "step!"]
+    ["Wfact", "ldiv!", "T_imp!", "T_exp_T_lim!", "lim!", "dss!", "pre_explicit!", "pre_implicit!", "step!"]
 
 """
     benchmark_step(
@@ -89,8 +89,8 @@ Benchmark a DistributedODEIntegrator given:
  - "T_exp_T_lim!"
  - "lim!"
  - "dss!"
- - "post_explicit!"
- - "post_implicit!"
+ - "pre_explicit!"
+ - "pre_implicit!"
  - "step!"
 """
 function CTS.benchmark_step(
@@ -123,8 +123,8 @@ function CTS.benchmark_step(
         maybe_push!(trials₀, "T_exp_T_lim!", remaining_fun(integrator), remaining_args(integrator), kwargs, only)
         maybe_push!(trials₀, "lim!", f.lim!, (Xlim, p, t, u), kwargs, only)
         maybe_push!(trials₀, "dss!", f.dss!, (u, p, t), kwargs, only)
-        maybe_push!(trials₀, "post_explicit!", f.post_explicit!, (u, p, t), kwargs, only)
-        maybe_push!(trials₀, "post_implicit!", f.post_implicit!, (u, p, t), kwargs, only)
+        maybe_push!(trials₀, "pre_explicit!", f.pre_explicit!, (u, p, t), kwargs, only)
+        maybe_push!(trials₀, "pre_implicit!", f.pre_implicit!, (u, p, t), kwargs, only)
         maybe_push!(trials₀, "step!", SciMLBase.step!, (integrator, ), kwargs, only)
 #! format: on
 

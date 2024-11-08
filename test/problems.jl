@@ -493,8 +493,8 @@ function climacore_2Dheat_test_cts(::Type{FT}) where {FT}
 
     # we add implicit pieces here for inference analysis
     T_lim! = (Yₜ, u, _, t) -> nothing
-    post_implicit! = (u, _, t) -> nothing
-    post_explicit! = (u, _, t) -> nothing
+    pre_implicit! = (u, _, t) -> nothing
+    pre_explicit! = (u, _, t) -> nothing
 
     jacobian = ClimaCore.MatrixFields.FieldMatrix((@name(u), @name(u)) => FT(-1) * LinearAlgebra.I)
 
@@ -505,7 +505,7 @@ function climacore_2Dheat_test_cts(::Type{FT}) where {FT}
         tgrad = (∂Y∂t, Y, p, t) -> (∂Y∂t .= 0),
     )
 
-    tendency_func = ClimaODEFunction(; T_exp!, T_imp!, dss!, post_implicit!, post_explicit!)
+    tendency_func = ClimaODEFunction(; T_exp!, T_imp!, dss!, pre_implicit!, pre_explicit!)
     split_tendency_func = tendency_func
     make_prob(func) = ODEProblem(func, init_state, (FT(0), t_end), nothing)
     IntegratorTestCase(

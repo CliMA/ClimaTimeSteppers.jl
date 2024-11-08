@@ -11,8 +11,8 @@ struct ClimaODEFunction{TEL, TL, TE, TI, L, D, PE, PI} <: AbstractClimaODEFuncti
     T_imp!::TI
     lim!::L
     dss!::D
-    post_explicit!::PE
-    post_implicit!::PI
+    pre_explicit!::PE
+    pre_implicit!::PI
     function ClimaODEFunction(;
         T_exp_T_lim! = nothing, # nothing or (uₜ_exp, uₜ_lim, u, p, t) -> ...
         T_lim! = nothing, # nothing or (uₜ, u, p, t) -> ...
@@ -20,10 +20,10 @@ struct ClimaODEFunction{TEL, TL, TE, TI, L, D, PE, PI} <: AbstractClimaODEFuncti
         T_imp! = nothing, # nothing or (uₜ, u, p, t) -> ...
         lim! = (u, p, t, u_ref) -> nothing,
         dss! = (u, p, t) -> nothing,
-        post_explicit! = (u, p, t) -> nothing,
-        post_implicit! = (u, p, t) -> nothing,
+        pre_explicit! = (u, p, t) -> nothing,
+        pre_implicit! = (u, p, t) -> nothing,
     )
-        args = (T_exp_T_lim!, T_lim!, T_exp!, T_imp!, lim!, dss!, post_explicit!, post_implicit!)
+        args = (T_exp_T_lim!, T_lim!, T_exp!, T_imp!, lim!, dss!, pre_explicit!, pre_implicit!)
 
         if !isnothing(T_exp_T_lim!)
             @assert isnothing(T_exp!) "`T_exp_T_lim!` was passed, `T_exp!` must be `nothing`"

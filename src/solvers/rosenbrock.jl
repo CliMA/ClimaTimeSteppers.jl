@@ -123,7 +123,7 @@ function step_u!(int, cache::RosenbrockCache{Nstages}) where {Nstages}
     T_exp_lim! = int.sol.prob.f.T_exp_T_lim!
     tgrad! = isnothing(T_imp!) ? nothing : T_imp!.tgrad
 
-    (; post_explicit!, post_implicit!, dss!) = int.sol.prob.f
+    (; pre_explicit!, pre_implicit!, dss!) = int.sol.prob.f
 
     # TODO: This is only valid when Γ[i, i] is constant, otherwise we have to
     # move this in the for loop
@@ -150,13 +150,12 @@ function step_u!(int, cache::RosenbrockCache{Nstages}) where {Nstages}
             U .+= A[i, j] .* k[j]
         end
 
-        # NOTE: post_implicit! is a misnomer
-        if !isnothing(post_implicit!)
+        if !isnothing(pre_explicit!)
             # We update p on every stage but the first, and at the end of each
             # timestep. Since the first stage is unchanged from the end of the
             # previous timestep, this order of operations ensures that p is
             # always consistent with the state, including between timesteps.
-            (i != 1) && post_implicit!(U, p, t + αi * dt)
+            (i != 1) && pre_explicit!(U, p, t + αi * dt)
         end
 
         if !isnothing(T_imp!)
@@ -205,7 +204,7 @@ function step_u!(int, cache::RosenbrockCache{Nstages}) where {Nstages}
     end
 
     dss!(u, p, t + dt)
-    post_implicit!(u, p, t + dt)
+    pre_explicit!(u, p, t + dt)
     return nothing
 end
 

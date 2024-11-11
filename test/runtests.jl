@@ -31,8 +31,14 @@ end
 @safetestset "Integrator tests" begin
     include("integrator.jl")
 end
+# These are all run in parallel on buildkite,
+# so let's not waste more compilation time.
 @safetestset "Algorithm convergence" begin
-    include("convergence.jl")
+    include("convergence_lsrk.jl")
+    include("tabulate_convergence_orders_multirate.jl")
+    include("tabulate_convergence_orders_rosenbrock.jl")
+    include("tabulate_convergence_orders_imex_ssp.jl")
+    include("tabulate_convergence_orders_imex_ark.jl")
 end
 @safetestset "Convergence checker unit tests" begin
     include("test_convergence_checker.jl")

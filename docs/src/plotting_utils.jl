@@ -182,6 +182,7 @@ function limiter_summary(sol_dicts, algorithm_names)
             "2-Norm Error",
             "∞-Norm Error",
         ],
+        crop = :none,
         body_hlines = collect(3:3:(length(table_rows) - 1)),
         formatters = ft_printf("%.4e"),
     )

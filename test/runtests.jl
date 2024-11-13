@@ -1,15 +1,5 @@
 using SafeTestsets
 
-#=
-TODO: add separate GPU tests
-if get(ARGS,1,"Array") == "CuArray"
-    using CUDA
-    const ArrayType = CUDA.CuArray
-else
-    const ArrayType = Array
-end
-=#
-
 @safetestset "SparseContainers" begin
     include("sparse_containers.jl")
 end

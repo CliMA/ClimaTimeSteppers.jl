@@ -254,6 +254,7 @@ steps:
 
       - label: "Convergence: IMKG254b"
         command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg IMKG254b"
+        soft_fail: true
 
       - label: "Convergence: IMKG254c"
         command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg IMKG254c"

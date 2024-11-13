@@ -6,10 +6,12 @@ using ClimaTimeSteppers, LinearAlgebra, Test
 import PrettyTables
 import SciMLBase
 
-include(joinpath(@__DIR__, "convergence_orders.jl"))
-include(joinpath(@__DIR__, "convergence_utils.jl"))
-include(joinpath(@__DIR__, "utils.jl"))
-include(joinpath(@__DIR__, "problems.jl"))
+if !@isdefined(IntegratorTestCase)
+    include(joinpath(@__DIR__, "convergence_orders.jl"))
+    include(joinpath(@__DIR__, "convergence_utils.jl"))
+    include(joinpath(@__DIR__, "utils.jl"))
+    include(joinpath(@__DIR__, "problems.jl"))
+end
 
 function tabulate_convergence_orders_rosenbrock()
     tabs = [SSPKnoth]

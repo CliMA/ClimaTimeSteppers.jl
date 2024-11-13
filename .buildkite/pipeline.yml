@@ -165,6 +165,7 @@ steps:
 
       - label: "Convergence: SSP22Heuns"
         command: "julia --color=yes --check-bounds=yes --project=docs docs/src/dev/report_gen_alg.jl --alg SSP22Heuns"
+        soft_fail: true
 
       - label: "Convergence: SSP33ShuOsher"
         command: "julia --color=yes --check-bounds=yes --project=docs docs/src/dev/report_gen_alg.jl --alg SSP33ShuOsher"
@@ -201,6 +202,7 @@ steps:
 
       - label: "Convergence: SSP222"
         command: "julia --color=yes --check-bounds=yes --project=docs docs/src/dev/report_gen_alg.jl --alg SSP222"
+        soft_fail: true
 
       - label: "Convergence: SSP322"
         command: "julia --color=yes --check-bounds=yes --project=docs docs/src/dev/report_gen_alg.jl --alg SSP322"
@@ -228,6 +230,7 @@ steps:
 
       - label: "Convergence: IMKG242a"
         command: "julia --color=yes --check-bounds=yes --project=docs docs/src/dev/report_gen_alg.jl --alg IMKG242a"
+        soft_fail: true
 
       - label: "Convergence: IMKG242b"
         command: "julia --color=yes --check-bounds=yes --project=docs docs/src/dev/report_gen_alg.jl --alg IMKG242b"

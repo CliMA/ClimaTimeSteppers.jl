@@ -44,6 +44,7 @@ steps:
   - wait
 
   - group: "Unit tests"
+    key: unit_tests
     steps:
 
       - label: "unit: sparse_containers"
@@ -85,12 +86,14 @@ steps:
         artifact_paths: "output/*"
 
   - group: "Test convergence"
+    key: test_convergence
     steps:
 
       - label: "conv: lsrk"
         command: "julia --project=.buildkite --check-bounds=yes test/convergence_lsrk.jl"
 
   - group: "Tabulate convergence"
+    key: tabulate_convergence
     steps:
 
       - label: "conv: tabulate_convergence_orders_multirate"
@@ -113,6 +116,7 @@ steps:
       #     slurm_gres: "gpu:1"
 
   - group: "Performance"
+    key: performance
     steps:
 
       - label: "Perf: Flame graph (1D diffusion)"
@@ -133,6 +137,7 @@ steps:
 
 
   - group: "Limiters analysis"
+    key: limiters_analysis
     steps:
 
       - label: "Limiters analysis: SSP333_LT_HT"
@@ -159,7 +164,8 @@ steps:
       - label: "Limiters analysis: ARS343_LF_HF"
         command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/limiter_analysis.jl --alg ARS343 --use_limiter false --use_hyperdiffusion false"
 
-  - group: "Convergence"
+  - group: "Algorithm convergence"
+    key: alg_convergence
     steps:
 
       - label: "Convergence: SSP22Heuns"
@@ -268,15 +274,16 @@ steps:
       - label: "Convergence: SSPKnoth"
         command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg SSPKnoth"
 
-  - wait
-
   - group: "Summaries"
+    key: summaries
     steps:
 
       - label: "Summarize convergence"
         command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/summarize_convergence.jl"
         artifact_paths: "output/*"
+        depends_on: alg_convergence
 
       - label: "Summarize limiter analysis"
         command: "julia --color=yes --project=.buildkite docs/src/dev/limiter_summary.jl"
         artifact_paths: "output/*"
+        depends_on: limiters_analysis

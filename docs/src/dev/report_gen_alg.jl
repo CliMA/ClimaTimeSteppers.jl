@@ -89,7 +89,7 @@ let # Convergence
     export_convergence_results(
         alg_name,
         climacore_2Dheat_test_cts(Float64),
-        600;
+        700;
         num_steps_scaling_factor = 4,
         numerical_reference_algorithm_name = ARS343(),
     )

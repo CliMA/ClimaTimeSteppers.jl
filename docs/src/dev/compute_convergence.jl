@@ -266,7 +266,7 @@ function compute_convergence!(
         callback = scb_cur_avg_sol_and_err,
     )
     if any(isnan, plot2_values)
-        error("NaN found in plot2_values")
+        error("NaN found in plot2_values in problem $(test_name)")
     end
     out_dict[key1][key2]["plot2_values"] = plot2_values
 

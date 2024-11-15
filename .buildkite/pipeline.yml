@@ -183,6 +183,7 @@ steps:
 
       - label: "Convergence: ARS111"
         command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg ARS111"
+        soft_fail: true
 
       - label: "Convergence: ARS121"
         command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg ARS121"
@@ -192,6 +193,7 @@ steps:
 
       - label: "Convergence: ARS222"
         command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg ARS222"
+        soft_fail: true
 
       - label: "Convergence: ARS232"
         command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg ARS232"

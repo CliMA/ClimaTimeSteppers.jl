@@ -110,6 +110,7 @@ function predicted_convergence_order(algorithm_name::AbstractAlgorithmName, ode_
     return 0
 end
 
+import Logging
 function export_convergence_results(alg_name, test_problem, num_steps; kwargs...)
     out_dict = Dict()
     (; test_name) = test_problem
@@ -118,7 +119,9 @@ function export_convergence_results(alg_name, test_problem, num_steps; kwargs...
     out_dict[string(test_name)]["args"] = (alg_name, test_problem, num_steps)
     out_dict[string(test_name)]["kwargs"] = kwargs
     compute_convergence!(out_dict, alg_name, test_problem, num_steps; kwargs...)
-    JLD2.save_object("convergence_$(alg_name)_$(test_problem.test_name).jld2", out_dict)
+    Logging.with_logger(Logging.NullLogger()) do # suppress warnings about anonymous functions
+        JLD2.save_object("convergence_$(alg_name)_$(test_problem.test_name).jld2", out_dict)
+    end
 end
 
 

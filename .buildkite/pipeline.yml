@@ -282,7 +282,9 @@ steps:
 
       - label: "Summarize convergence"
         command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/summarize_convergence.jl"
-        artifact_paths: "output/*"
+        artifact_paths:
+          - "output/*"
+          - "output/convergence_failure/*"
         depends_on: alg_convergence
 
       - label: "Summarize limiter analysis"

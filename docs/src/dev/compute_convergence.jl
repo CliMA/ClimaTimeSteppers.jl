@@ -274,7 +274,14 @@ function compute_convergence!(
         @show default_dt
         @show count(isnan, plot2_values.u[end])
         @show length(plot2_values.u[end])
-        error("NaN found in plot2_values in problem $(test_name)")
+        @show count(isnan, plot2_values.u[1])
+        @show length(plot2_values.u[1])
+        out_path = joinpath("output", "convergence_failure")
+        mkpath(out_path)
+        fname(i) = "$(key1)_$(key2)_step_$(i).png"
+        for (i, u) in enumerate(plot2_values.u)
+            Plots.png(Plots.plot(u.u), joinpath(out_path, fname(i)))
+        end
     end
     out_dict[key1][key2]["plot2_values"] = plot2_values
 

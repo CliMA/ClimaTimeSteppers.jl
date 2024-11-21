@@ -460,8 +460,18 @@ function climacore_2Dheat_test_cts(::Type{FT}) where {FT}
     t_end = FT(0.05) # denoted by t̂ above
 
     domain = Domains.RectangleDomain(
-        Domains.IntervalDomain(Geometry.XPoint(FT(0)), Geometry.XPoint(FT(1)), periodic = true),
-        Domains.IntervalDomain(Geometry.YPoint(FT(0)), Geometry.YPoint(FT(1)), periodic = true),
+        Domains.IntervalDomain(
+            Geometry.XPoint(FT(0)),
+            Geometry.XPoint(FT(1)),
+            periodic = false,
+            boundary_names = (:east, :west),
+        ),
+        Domains.IntervalDomain(
+            Geometry.YPoint(FT(0)),
+            Geometry.YPoint(FT(1)),
+            periodic = false,
+            boundary_names = (:north, :south),
+        ),
     )
     mesh = Meshes.RectilinearMesh(domain, n_elem_x, n_elem_y)
     topology = Topologies.Topology2D(context, mesh)
@@ -474,11 +484,24 @@ function climacore_2Dheat_test_cts(::Type{FT}) where {FT}
 
     init_state = Fields.FieldVector(; u = φ_sin_sin)
 
+    function set_boundaries!(f::Fields.Field, value)
+        (; x, y) = Fields.coordinate_field(f)
+        d = Meshes.domain(Spaces.grid(Spaces.horizontal_space(axes(f)))) # domain
+        x_min = d.interval1.coord_min.x
+        x_max = d.interval1.coord_max.x
+        y_min = d.interval2.coord_min.y
+        y_max = d.interval2.coord_max.y
+        @. f = ifelse(x == x_min || x == x_max || y == y_min || y == y_max, value, f)
+    end
     wdiv = Operators.WeakDivergence()
     grad = Operators.Gradient()
+
     function T_exp!(tendency, state, _, t)
         @. tendency.u = wdiv(grad(state.u)) + f_0 * exp(-(λ + Δλ) * t) * φ_sin_sin
         dss_tendency && Spaces.weighted_dss!(tendency.u)
+        _FT = Spaces.undertype(axes(state.u))
+        set_boundaries!(tendency.u, _FT(0))
+        return nothing
     end
 
     function dss!(state, _, t)

@@ -441,6 +441,20 @@ end
 
 Wfact!(W, Y, p, dtγ, t) = nothing
 
+function on_boundary(x, y, x_min, x_max, y_min, y_max)
+    ((x == x_min) | (x == x_max) | (y == y_min) | (y == y_max))
+end
+
+function set_boundaries!(f::Fields.Field, value)
+    (; x, y) = Fields.coordinate_field(f)
+    d = Meshes.domain(Spaces.grid(Spaces.horizontal_space(axes(f)))) # domain
+    x_min = d.interval1.coord_min.x
+    x_max = d.interval1.coord_max.x
+    y_min = d.interval2.coord_min.y
+    y_max = d.interval2.coord_max.y
+    @. f = ifelse(on_boundary(x, y, x_min, x_max, y_min, y_max), value, f)
+end
+
 """
     climacore_2Dheat_test_cts(::Type{<:AbstractFloat})
 
@@ -484,15 +498,6 @@ function climacore_2Dheat_test_cts(::Type{FT}) where {FT}
 
     init_state = Fields.FieldVector(; u = φ_sin_sin)
 
-    function set_boundaries!(f::Fields.Field, value)
-        (; x, y) = Fields.coordinate_field(f)
-        d = Meshes.domain(Spaces.grid(Spaces.horizontal_space(axes(f)))) # domain
-        x_min = d.interval1.coord_min.x
-        x_max = d.interval1.coord_max.x
-        y_min = d.interval2.coord_min.y
-        y_max = d.interval2.coord_max.y
-        @. f = ifelse(x == x_min || x == x_max || y == y_min || y == y_max, value, f)
-    end
     wdiv = Operators.WeakDivergence()
     grad = Operators.Gradient()
 

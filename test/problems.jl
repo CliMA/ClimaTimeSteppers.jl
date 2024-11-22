@@ -586,7 +586,7 @@ function climacore_1Dheat_test_implicit_cts(::Type{FT}) where {FT}
     function Wfact(W, Y, p, dtγ, t)
         name = @name(u)
         # NOTE: We need MatrixFields.⋅, not LinearAlgebra.⋅
-        @. W.matrix[name, name] = diverg_matrix() ⋅ grad_matrix() - (LinearAlgebra.I,)
+        @. W.matrix[name, name] = dtγ * diverg_matrix() ⋅ grad_matrix() - (LinearAlgebra.I,)
         return nothing
     end
 

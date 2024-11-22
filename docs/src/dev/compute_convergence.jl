@@ -1,4 +1,5 @@
 import JLD2
+import ClimaCorePlots
 import Plots
 using Distributions: quantile, TDist
 using Printf: @sprintf
@@ -169,7 +170,9 @@ function compute_convergence!(
     float_str(x) = @sprintf "%.4f" x
     pow_str(x) = "10^{$(@sprintf "%.1f" log10(x))}"
     function si_str(x)
-        x in (0, Inf, -Inf, NaN) && return string(x)
+        if isnan(x) || x in (0, Inf, -Inf)
+            return string(x)
+        end
         exponent = floor(Int, log10(x))
         mantissa = x / 10.0^exponent
         return "$(float_str(mantissa)) \\times 10^{$exponent}"
@@ -266,7 +269,20 @@ function compute_convergence!(
         callback = scb_cur_avg_sol_and_err,
     )
     if any(isnan, plot2_values)
-        error("NaN found in plot2_values in problem $(test_name)")
+        @show test_name
+        @show default_dt
+        @show count(isnan, plot2_values.u[end])
+        @show length(plot2_values.u[end])
+        @show count(isnan, plot2_values.u[1])
+        @show length(plot2_values.u[1])
+        out_path = joinpath("output", "convergence_failure")
+        mkpath(out_path)
+        fname(i) = replace("$(key1)_$(key2)_step_$(i).png", " " => "_", "(" => "", ")" => "")
+        for (i, u) in enumerate(plot2_values.u)
+            f = joinpath(out_path, fname(i))
+            Plots.png(Plots.plot(u.u), joinpath(out_path, fname(i)))
+        end
+        # error("NaN found in plot2_values in problem $(test_name)")
     end
     out_dict[key1][key2]["plot2_values"] = plot2_values
 

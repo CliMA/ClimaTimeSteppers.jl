@@ -503,13 +503,17 @@ function climacore_2Dheat_test_cts(::Type{FT}) where {FT}
 
     function T_exp!(tendency, state, _, t)
         @. tendency.u = wdiv(grad(state.u)) + f_0 * exp(-(λ + Δλ) * t) * φ_sin_sin
-        e1 = extrema(tendency.u)
+        divgradu = @. wdiv(grad(state.u))
+        src_term = @. f_0 * exp(-(λ + Δλ) * t) * φ_sin_sin
+        exp_term = exp(-(λ + Δλ) * t)
+        φ_sin_sin_term = @. φ_sin_sin
         dss_tendency && Spaces.weighted_dss!(tendency.u)
-        e2 = extrema(tendency.u)
         _FT = Spaces.undertype(axes(state.u))
         set_boundaries!(tendency.u, _FT(0))
-        e3 = extrema(tendency.u)
-        @show e1, e2, e3
+        e1 = extrema(divgradu)
+        e2 = extrema(src_term)
+        e3 = extrema(φ_sin_sin_term)
+        @show e1, e2, e3, exp_term
         return nothing
     end
 

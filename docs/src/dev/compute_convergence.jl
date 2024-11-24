@@ -111,7 +111,9 @@ function predicted_convergence_order(algorithm_name::AbstractAlgorithmName, ode_
     return 0
 end
 
+import Logging
 function export_convergence_results(alg_name, test_problem, num_steps; kwargs...)
+    @info "=========================== Exporting convergence for $(test_problem.test_name)..."
     out_dict = Dict()
     (; test_name) = test_problem
     out_dict[string(test_name)] = Dict()
@@ -119,7 +121,9 @@ function export_convergence_results(alg_name, test_problem, num_steps; kwargs...
     out_dict[string(test_name)]["args"] = (alg_name, test_problem, num_steps)
     out_dict[string(test_name)]["kwargs"] = kwargs
     compute_convergence!(out_dict, alg_name, test_problem, num_steps; kwargs...)
-    JLD2.save_object("convergence_$(alg_name)_$(test_problem.test_name).jld2", out_dict)
+    Logging.with_logger(Logging.NullLogger()) do
+        JLD2.save_object("convergence_$(alg_name)_$(test_problem.test_name).jld2", out_dict)
+    end
 end
 
 
@@ -279,8 +283,10 @@ function compute_convergence!(
         mkpath(out_path)
         fname(i) = replace("$(key1)_$(key2)_step_$(i).png", " " => "_", "(" => "", ")" => "")
         for (i, u) in enumerate(plot2_values.u)
-            f = joinpath(out_path, fname(i))
-            Plots.png(Plots.plot(u.u), joinpath(out_path, fname(i)))
+            if !all(isnan, u.u)
+                f = joinpath(out_path, fname(i))
+                Plots.png(Plots.plot(u.u), joinpath(out_path, fname(i)))
+            end
         end
         # error("NaN found in plot2_values in problem $(test_name)")
     end

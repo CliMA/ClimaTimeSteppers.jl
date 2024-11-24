@@ -510,15 +510,24 @@ function climacore_2Dheat_test_cts(::Type{FT}) where {FT}
         dss_tendency && Spaces.weighted_dss!(tendency.u)
         _FT = Spaces.undertype(axes(state.u))
         set_boundaries!(tendency.u, _FT(0))
-        e1 = extrema(divgradu)
-        e2 = extrema(src_term)
-        e3 = extrema(φ_sin_sin_term)
-        @show e1, e2, e3, exp_term
+        if t ≤ t_end*0.01
+            e0 = extrema(state.u)
+            e1 = extrema(divgradu)
+            @show e0, e1, count(isnan, parent(state.u)), length(parent(state.u))
+        end
         return nothing
     end
 
     function dss!(state, _, t)
+        if t ≤ t_end*0.01
+            e0_dss = extrema(state.u)
+            @show e0_dss, count(isnan, parent(state.u)), length(parent(state.u))
+        end
         dss_tendency || Spaces.weighted_dss!(state.u)
+        if t ≤ t_end*0.01
+            e1_dss = extrema(state.u)
+            @show e1_dss, count(isnan, parent(state.u)), length(parent(state.u))
+        end
     end
 
     function analytic_sol(t)
@@ -537,7 +546,7 @@ function climacore_2Dheat_test_cts(::Type{FT}) where {FT}
     T_imp! = SciMLBase.ODEFunction(
         (Yₜ, u, _, t) -> nothing;
         jac_prototype = FieldMatrixWithSolver(jacobian, init_state),
-        Wfact = Wfact!,
+        Wfact = (W, Y, p, dtγ, t) -> nothing,
         tgrad = (∂Y∂t, Y, p, t) -> (∂Y∂t .= 0),
     )
 

@@ -132,4 +132,10 @@ include("Callbacks.jl")
 benchmark_step(integrator, device) =
     @warn "Must load CUDA, BenchmarkTools, OrderedCollections, StatsBase, PrettyTables to trigger the ClimaTimeSteppersBenchmarkToolsExt extension"
 
+export allows_arbitrary_number_types
+
+function SciMLBase.allows_arbitrary_number_types(alg::T) where {T <: ClimaTimeSteppers.RosenbrockAlgorithm}
+    true
+end
+
 end

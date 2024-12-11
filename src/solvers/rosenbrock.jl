@@ -179,7 +179,7 @@ function step_u!(int, cache::RosenbrockCache{Nstages}) where {Nstages}
         end
 
         if !isnothing(tgrad!)
-            fU .+= γi .* dt .* ∂Y∂t
+            fU .+= γi .* float(dt) .* ∂Y∂t
         end
 
         # We dss the tendency at every stage but the last. At the last stage, we

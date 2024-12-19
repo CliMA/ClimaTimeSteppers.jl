@@ -29,7 +29,6 @@ function init_cache(prob::DiffEqBase.AbstractODEProblem, alg::Multirate; dt, fas
     @assert prob.f isa DiffEqBase.SplitFunction
 
     # subproblems
-    @assert prob.f.f2 isa DiffEqBase.AbstractODEFunction
     outerprob = DiffEqBase.ODEProblem{DiffEqBase.isinplace(prob)}(
         prob.f.f2,
         prob.u0,
@@ -41,7 +40,6 @@ function init_cache(prob::DiffEqBase.AbstractODEProblem, alg::Multirate; dt, fas
     outercache = init_cache(outerprob, alg.slow)
 
     innerfun = init_inner(prob, outercache, dt)
-    @assert innerfun isa DiffEqBase.AbstractODEFunction
     innerprob = DiffEqBase.ODEProblem{DiffEqBase.isinplace(prob)}(
         innerfun,
         prob.u0,

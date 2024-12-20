@@ -138,4 +138,8 @@ function SciMLBase.allows_arbitrary_number_types(alg::T) where {T <: ClimaTimeSt
     true
 end
 
+function SciMLBase.allows_arbitrary_number_types(alg::T) where {T <: ClimaTimeSteppers.IMEXAlgorithm}
+    true
+end
+
 end

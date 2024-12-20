@@ -130,7 +130,7 @@ end
         # TODO: can/should we remove these closures?
         implicit_equation_residual! = (residual, Ui) -> begin
             T_imp!(residual, Ui, p, t_imp)
-            @. residual = temp + dt * a_imp[i, i] * residual - Ui
+            @. residual = temp + float(dt) * a_imp[i, i] * residual - Ui
         end
         implicit_equation_jacobian! = (jacobian, Ui) -> T_imp!.Wfact(jacobian, Ui, p, dt * a_imp[i, i], t_imp)
         call_post_implicit! = Ui -> begin
@@ -140,7 +140,7 @@ end
             if (!all(iszero, a_imp[:, i]) || !iszero(b_imp[i])) && !iszero(a_imp[i, i])
                 # If T_imp[i] is being treated implicitly, ensure that it
                 # exactly satisfies the implicit equation.
-                @. T_imp[i] = (Ui - temp) / (dt * a_imp[i, i])
+                @. T_imp[i] = (Ui - temp) / (float(dt) * a_imp[i, i])
             end
             post_implicit!(Ui, p, t_imp)
         end

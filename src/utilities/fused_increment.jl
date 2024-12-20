@@ -121,7 +121,7 @@ In the edge case (coeffs are zero, `j` range is empty),
 this lowers to `nothing` (no-op)
 """
 @inline function fused_increment!(u, dt, sc, tend, v)
-    bc = fused_increment(u, dt, sc, tend, v)
+    bc = fused_increment(u, float(dt), sc, tend, v)
     if bc isa Base.Broadcast.Broadcasted # Only material if not trivial assignment
         Base.Broadcast.materialize!(u, bc)
     end
@@ -142,7 +142,7 @@ this lowers to
     `@. U = u`
 """
 @inline function assign_fused_increment!(U, u, dt, sc, tend, v)
-    bc = fused_increment(u, dt, sc, tend, v)
+    bc = fused_increment(u, float(dt), sc, tend, v)
     Base.Broadcast.materialize!(U, bc)
     return nothing
 end

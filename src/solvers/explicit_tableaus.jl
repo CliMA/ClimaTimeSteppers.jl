@@ -89,8 +89,8 @@ struct RK4 <: ERKAlgorithmName end
 function ExplicitTableau(::RK4)
     return ExplicitTableau(; a = @SArray([
         0 0 0 0
-        1/2 0 0 0
-        0 1/2 0 0
+        1//2 0 0 0
+        0 1//2 0 0
         0 0 1 0
-    ]), b = @SArray([1 / 6, 1 / 3, 1 / 3, 1 / 6]))
+    ]), b = @SArray([1 // 6, 1 // 3, 1 // 3, 1 // 6]))
 end

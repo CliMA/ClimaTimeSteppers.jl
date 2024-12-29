@@ -49,7 +49,7 @@ end
 function step_u!(integrator, cache::IMEXARKCache)
     (; u, p, t, dt, alg) = integrator
     (; f) = integrator.sol.prob
-    (; post_explicit!, post_implicit!) = f
+    (; pre_explicit!, pre_implicit!) = f
     (; T_lim!, T_exp!, T_imp!, lim!, dss!) = f
     (; tableau, newtons_method) = alg
     (; a_exp, b_exp, a_imp, b_imp, c_exp, c_imp) = tableau
@@ -63,6 +63,7 @@ function step_u!(integrator, cache::IMEXARKCache)
             if γ isa Nothing
                 sdirk_error(name)
             else
+                pre_implicit!(u, p, t)
                 T_imp!.Wfact(jacobian, u, p, dt * γ, t)
             end
         end
@@ -83,7 +84,9 @@ function step_u!(integrator, cache::IMEXARKCache)
     isnothing(T_imp!) || fused_increment!(u, dt, b_imp, T_imp, Val(s))
 
     dss!(u, p, t_final)
-    post_explicit!(u, p, t_final)
+    # this `pre_explicit!` call perpares the cache `p` for both
+    # the callbacks and the beginning of the next timestep
+    pre_explicit!(u, p, t_final)
 
     return u
 end
@@ -98,7 +101,7 @@ end
 @inline function update_stage!(integrator, cache::IMEXARKCache, i::Int)
     (; u, p, t, dt, alg) = integrator
     (; f) = integrator.sol.prob
-    (; post_explicit!, post_implicit!) = f
+    (; pre_explicit!, pre_implicit!) = f
     (; T_exp_T_lim!, T_lim!, T_exp!, T_imp!, lim!, dss!) = f
     (; tableau, newtons_method) = alg
     (; a_exp, b_exp, a_imp, b_imp, c_exp, c_imp) = tableau
@@ -116,34 +119,22 @@ end
     end
 
     # Update based on tendencies from previous stages
+    i ≠ 1 && pre_explicit!(U, p, t_exp) # pre_explicit! was called at the end of the previous step!
     has_T_exp(f) && fused_increment!(U, dt, a_exp, T_exp, Val(i))
     isnothing(T_imp!) || fused_increment!(U, dt, a_imp, T_imp, Val(i))
 
     i ≠ 1 && dss!(U, p, t_exp)
 
-    if !(!isnothing(T_imp!) && !iszero(a_imp[i, i]))
-        i ≠ 1 && post_explicit!(U, p, t_imp)
-    else # Implicit solve
+    if (!isnothing(T_imp!) && !iszero(a_imp[i, i])) # Implicit solve
         @assert !isnothing(newtons_method)
         @. temp = U
-        i ≠ 1 && post_explicit!(U, p, t_imp)
         # TODO: can/should we remove these closures?
         implicit_equation_residual! = (residual, Ui) -> begin
             T_imp!(residual, Ui, p, t_imp)
             @. residual = temp + dt * a_imp[i, i] * residual - Ui
         end
         implicit_equation_jacobian! = (jacobian, Ui) -> T_imp!.Wfact(jacobian, Ui, p, dt * a_imp[i, i], t_imp)
-        call_post_implicit! = Ui -> begin
-            post_implicit!(Ui, p, t_imp)
-        end
-        call_post_implicit_last! = Ui -> begin
-            if (!all(iszero, a_imp[:, i]) || !iszero(b_imp[i])) && !iszero(a_imp[i, i])
-                # If T_imp[i] is being treated implicitly, ensure that it
-                # exactly satisfies the implicit equation.
-                @. T_imp[i] = (Ui - temp) / (dt * a_imp[i, i])
-            end
-            post_implicit!(Ui, p, t_imp)
-        end
+        call_pre_implicit! = Ui -> pre_implicit!(Ui, p, t_imp)
 
         solve_newton!(
             newtons_method,
@@ -151,8 +142,7 @@ end
             U,
             implicit_equation_residual!,
             implicit_equation_jacobian!,
-            call_post_implicit!,
-            call_post_implicit_last!,
+            call_pre_implicit!,
         )
     end
 
@@ -160,18 +150,25 @@ end
     # give the same results for redundant columns (as long as the implicit
     # tendency only acts in the vertical direction).
 
-    if !all(iszero, a_imp[:, i]) || !iszero(b_imp[i])
-        if iszero(a_imp[i, i]) && !isnothing(T_imp!)
+    if (!all(iszero, a_imp[:, i]) || !iszero(b_imp[i])) && !isnothing(T_imp!)
+        if iszero(a_imp[i, i])
             # If its coefficient is 0, T_imp[i] is effectively being
             # treated explicitly.
             T_imp!(T_imp[i], U, p, t_imp)
+        else
+            # If T_imp[i] is being treated implicitly, ensure that it
+            # exactly satisfies the implicit equation.
+            @. T_imp[i] = (U - temp) / (dt * a_imp[i, i])
         end
     end
-
     if !all(iszero, a_exp[:, i]) || !iszero(b_exp[i])
         if !isnothing(T_exp_T_lim!)
+            pre_explicit!(U, p, t_exp)
             T_exp_T_lim!(T_exp[i], T_lim[i], U, p, t_exp)
         else
+            if !isnothing(T_lim!) || !isnothing(T_exp!)
+                pre_explicit!(U, p, t_exp)
+            end
             isnothing(T_lim!) || T_lim!(T_lim[i], U, p, t_exp)
             isnothing(T_exp!) || T_exp!(T_exp[i], U, p, t_exp)
         end

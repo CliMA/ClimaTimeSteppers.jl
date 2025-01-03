@@ -14,8 +14,9 @@ mutable struct MyCallback
     initialized::Bool
     calls::Int
     finalized::Bool
+    last_t::Real
 end
-MyCallback() = MyCallback(false, 0, false)
+MyCallback() = MyCallback(false, 0, false, -1.0)
 
 function Callbacks.initialize!(cb::MyCallback, integrator)
     cb.initialized = true
@@ -25,6 +26,7 @@ function Callbacks.finalize!(cb::MyCallback, integrator)
 end
 function (cb::MyCallback)(integrator)
     cb.calls += 1
+    cb.last_t = integrator.t
 end
 
 cb1 = MyCallback()
@@ -32,6 +34,10 @@ cb2 = MyCallback()
 cb3 = MyCallback()
 cb4 = MyCallback()
 cb5 = MyCallback()
+cb6 = MyCallback()
+cb7 = MyCallback()
+cb8 = MyCallback()
+cb9 = MyCallback()
 
 cbs = CallbackSet(
     EveryXSimulationTime(cb1, 1 / 4),
@@ -40,6 +46,10 @@ cbs = CallbackSet(
     EveryXSimulationSteps(cb4, 4, atinit = true),
     EveryXSimulationSteps(_ -> sleep(1 / 32), 1),
     EveryXWallTimeSeconds(cb5, 0.49, comm_ctx),
+    EveryXSimulationTime(cb6, 0.49, call_at_end = true),
+    EveryXSimulationSteps(cb7, 3, call_at_end = true),
+    EveryXSimulationTime(cb8, 0.3, call_at_end = false),
+    EveryXSimulationSteps(cb9, 3, call_at_end = false),
 )
 
 const_prob_inc = ODEProblem(
@@ -62,6 +72,11 @@ solve(const_prob_inc, LSRKEulerMethod(), dt = 1 / 32, callback = cbs)
 @test cb3.calls == 32
 @test cb4.calls == 9
 @test cb5.calls >= 2
+
+@test cb6.last_t == 1.0
+@test cb7.last_t == 1.0
+@test cb8.last_t == (1 / 32) * 29
+@test cb9.last_t == (1 / 32) * 30
 
 if isdefined(DiffEqBase, :finalize!)
 

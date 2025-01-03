@@ -441,6 +441,20 @@ end
 
 Wfact!(W, Y, p, dtγ, t) = nothing
 
+function on_boundary(x, y, x_min, x_max, y_min, y_max)
+    ((x == x_min) | (x == x_max) | (y == y_min) | (y == y_max))
+end
+
+function set_boundaries!(f::Fields.Field, value)
+    (; x, y) = Fields.coordinate_field(f)
+    d = Meshes.domain(Spaces.grid(Spaces.horizontal_space(axes(f)))) # domain
+    x_min = d.interval1.coord_min.x
+    x_max = d.interval1.coord_max.x
+    y_min = d.interval2.coord_min.y
+    y_max = d.interval2.coord_max.y
+    @. f = ifelse(on_boundary(x, y, x_min, x_max, y_min, y_max), value, f)
+end
+
 """
     climacore_2Dheat_test_cts(::Type{<:AbstractFloat})
 
@@ -460,8 +474,18 @@ function climacore_2Dheat_test_cts(::Type{FT}) where {FT}
     t_end = FT(0.05) # denoted by t̂ above
 
     domain = Domains.RectangleDomain(
-        Domains.IntervalDomain(Geometry.XPoint(FT(0)), Geometry.XPoint(FT(1)), periodic = true),
-        Domains.IntervalDomain(Geometry.YPoint(FT(0)), Geometry.YPoint(FT(1)), periodic = true),
+        Domains.IntervalDomain(
+            Geometry.XPoint(FT(0)),
+            Geometry.XPoint(FT(1)),
+            periodic = false,
+            boundary_names = (:east, :west),
+        ),
+        Domains.IntervalDomain(
+            Geometry.YPoint(FT(0)),
+            Geometry.YPoint(FT(1)),
+            periodic = false,
+            boundary_names = (:north, :south),
+        ),
     )
     mesh = Meshes.RectilinearMesh(domain, n_elem_x, n_elem_y)
     topology = Topologies.Topology2D(context, mesh)
@@ -476,13 +500,34 @@ function climacore_2Dheat_test_cts(::Type{FT}) where {FT}
 
     wdiv = Operators.WeakDivergence()
     grad = Operators.Gradient()
+
     function T_exp!(tendency, state, _, t)
         @. tendency.u = wdiv(grad(state.u)) + f_0 * exp(-(λ + Δλ) * t) * φ_sin_sin
+        divgradu = @. wdiv(grad(state.u))
+        src_term = @. f_0 * exp(-(λ + Δλ) * t) * φ_sin_sin
+        exp_term = exp(-(λ + Δλ) * t)
+        φ_sin_sin_term = @. φ_sin_sin
         dss_tendency && Spaces.weighted_dss!(tendency.u)
+        _FT = Spaces.undertype(axes(state.u))
+        set_boundaries!(tendency.u, _FT(0))
+        if t ≤ t_end*0.01
+            e0 = extrema(state.u)
+            e1 = extrema(divgradu)
+            @show e0, e1, count(isnan, parent(state.u)), length(parent(state.u))
+        end
+        return nothing
     end
 
     function dss!(state, _, t)
+        if t ≤ t_end*0.01
+            e0_dss = extrema(state.u)
+            @show e0_dss, count(isnan, parent(state.u)), length(parent(state.u))
+        end
         dss_tendency || Spaces.weighted_dss!(state.u)
+        if t ≤ t_end*0.01
+            e1_dss = extrema(state.u)
+            @show e1_dss, count(isnan, parent(state.u)), length(parent(state.u))
+        end
     end
 
     function analytic_sol(t)
@@ -501,7 +546,7 @@ function climacore_2Dheat_test_cts(::Type{FT}) where {FT}
     T_imp! = SciMLBase.ODEFunction(
         (Yₜ, u, _, t) -> nothing;
         jac_prototype = FieldMatrixWithSolver(jacobian, init_state),
-        Wfact = Wfact!,
+        Wfact = (W, Y, p, dtγ, t) -> nothing,
         tgrad = (∂Y∂t, Y, p, t) -> (∂Y∂t .= 0),
     )
 

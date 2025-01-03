@@ -89,7 +89,7 @@ Trigger `f!(integrator)` every `Δt` simulation time.
 If `atinit=true`, then `f!` will additionally be triggered at initialization. Otherwise
 the first trigger will be after `Δt` simulation time.
 """
-function EveryXSimulationTime(f!, Δt; atinit = false)
+function EveryXSimulationTime(f!, Δt; atinit = false, save_positions = (true, true))
     t_next = zero(Δt)
 
     function _initialize(c, u, t, integrator)
@@ -116,9 +116,9 @@ function EveryXSimulationTime(f!, Δt; atinit = false)
         end
     end
     if isdefined(DiffEqBase, :finalize!)
-        SciMLBase.DiscreteCallback(condition, f!; initialize = _initialize, finalize = _finalize)
+        SciMLBase.DiscreteCallback(condition, f!; initialize = _initialize, finalize = _finalize, save_positions = save_positions)
     else
-        SciMLBase.DiscreteCallback(condition, f!; initialize = _initialize)
+        SciMLBase.DiscreteCallback(condition, f!; initialize = _initialize, save_positions = save_positions)
     end
 end
 
@@ -132,7 +132,7 @@ Trigger `f!(integrator)` every `Δsteps` simulation steps.
 If `atinit==true`, then `f!` will additionally be triggered at initialization. Otherwise
 the first trigger will be after `Δsteps`.
 """
-function EveryXSimulationSteps(f!, Δsteps; atinit = false)
+function EveryXSimulationSteps(f!, Δsteps; atinit = false, call_at_end = false, save_positions = (true, true))
     steps = 0
     steps_next = 0
 
@@ -154,15 +154,17 @@ function EveryXSimulationSteps(f!, Δsteps; atinit = false)
         if steps >= steps_next
             steps_next += Δsteps
             return true
+        elseif (call_at_end && t == integrator.sol.prob.tspan[2])
+            return true
         else
             return false
         end
     end
 
     if isdefined(DiffEqBase, :finalize!)
-        SciMLBase.DiscreteCallback(condition, f!; initialize = _initialize, finalize = _finalize)
+        SciMLBase.DiscreteCallback(condition, f!; initialize = _initialize, finalize = _finalize, save_positions = save_positions)
     else
-        SciMLBase.DiscreteCallback(condition, f!; initialize = _initialize)
+        SciMLBase.DiscreteCallback(condition, f!; initialize = _initialize, save_positions = save_positions)
     end
 end
 

@@ -120,9 +120,12 @@ function export_convergence_results(alg_name, test_problem, num_steps; kwargs...
     out_dict[string(test_name)][string(alg_name)] = Dict()
     out_dict[string(test_name)]["args"] = (alg_name, test_problem, num_steps)
     out_dict[string(test_name)]["kwargs"] = kwargs
-    compute_convergence!(out_dict, alg_name, test_problem, num_steps; kwargs...)
-    Logging.with_logger(Logging.NullLogger()) do
-        JLD2.save_object("convergence_$(alg_name)_$(test_problem.test_name).jld2", out_dict)
+    try
+        compute_convergence!(out_dict, alg_name, test_problem, num_steps; kwargs...)
+        Logging.with_logger(Logging.NullLogger()) do
+            JLD2.save_object("convergence_$(alg_name)_$(test_problem.test_name).jld2", out_dict)
+        end
+    catch
     end
 end
 

@@ -169,106 +169,242 @@ steps:
     steps:
 
       - label: "Convergence: SSP22Heuns"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg SSP22Heuns"
+        command:
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg SSP22Heuns
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/maybe_error.jl --alg SSP22Heuns
+        artifact_paths:
+          - "output/SSP22Heuns/*"
 
       - label: "Convergence: SSP33ShuOsher"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg SSP33ShuOsher"
+        command:
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg SSP33ShuOsher
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/maybe_error.jl --alg SSP33ShuOsher
+        artifact_paths:
+          - "output/SSP33ShuOsher/*"
 
       - label: "Convergence: RK4"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg RK4"
+        command:
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg RK4
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/maybe_error.jl --alg RK4
+        artifact_paths:
+          - "output/RK4/*"
 
       - label: "Convergence: ARK2GKC"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg ARK2GKC"
+        command:
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg ARK2GKC
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/maybe_error.jl --alg ARK2GKC
+        artifact_paths:
+          - "output/ARK2GKC/*"
 
       - label: "Convergence: ARS111"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg ARS111"
+        command:
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg ARS111
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/maybe_error.jl --alg ARS111
+        artifact_paths:
+          - "output/ARS111/*"
 
       - label: "Convergence: ARS121"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg ARS121"
+        command:
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg ARS121
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/maybe_error.jl --alg ARS121
+        artifact_paths:
+          - "output/ARS121/*"
 
       - label: "Convergence: ARS122"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg ARS122"
+        command:
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg ARS122
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/maybe_error.jl --alg ARS122
+        artifact_paths:
+          - "output/ARS122/*"
 
       - label: "Convergence: ARS222"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg ARS222"
+        command:
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg ARS222
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/maybe_error.jl --alg ARS222
+        artifact_paths:
+          - "output/ARS222/*"
 
       - label: "Convergence: ARS232"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg ARS232"
+        command:
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg ARS232
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/maybe_error.jl --alg ARS232
+        artifact_paths:
+          - "output/ARS232/*"
 
       - label: "Convergence: ARS233"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg ARS233"
+        command:
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg ARS233
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/maybe_error.jl --alg ARS233
+        artifact_paths:
+          - "output/ARS233/*"
 
       - label: "Convergence: ARS343"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg ARS343"
+        command:
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg ARS343
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/maybe_error.jl --alg ARS343
+        artifact_paths:
+          - "output/ARS343/*"
 
       - label: "Convergence: ARS443"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg ARS443"
+        command:
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg ARS443
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/maybe_error.jl --alg ARS443
+        artifact_paths:
+          - "output/ARS443/*"
 
       - label: "Convergence: SSP222"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg SSP222"
+        command:
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg SSP222
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/maybe_error.jl --alg SSP222
+        artifact_paths:
+          - "output/SSP222/*"
 
       - label: "Convergence: SSP322"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg SSP322"
+        command:
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg SSP322
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/maybe_error.jl --alg SSP322
+        artifact_paths:
+          - "output/SSP322/*"
 
       - label: "Convergence: SSP332"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg SSP332"
+        command:
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg SSP332
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/maybe_error.jl --alg SSP332
+        artifact_paths:
+          - "output/SSP332/*"
 
       - label: "Convergence: SSP333"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg SSP333"
+        command:
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg SSP333
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/maybe_error.jl --alg SSP333
+        artifact_paths:
+          - "output/SSP333/*"
 
       - label: "Convergence: SSP433"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg SSP433"
+        command:
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg SSP433
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/maybe_error.jl --alg SSP433
+        artifact_paths:
+          - "output/SSP433/*"
 
       - label: "Convergence: DBM453"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg DBM453"
+        command:
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg DBM453
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/maybe_error.jl --alg DBM453
+        artifact_paths:
+          - "output/DBM453/*"
 
       - label: "Convergence: HOMMEM1"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg HOMMEM1"
+        command:
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg HOMMEM1
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/maybe_error.jl --alg HOMMEM1
+        artifact_paths:
+          - "output/HOMMEM1/*"
 
       - label: "Convergence: IMKG232a"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg IMKG232a"
+        command:
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg IMKG232a
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/maybe_error.jl --alg IMKG232a
+        artifact_paths:
+          - "output/IMKG232a/*"
 
       - label: "Convergence: IMKG232b"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg IMKG232b"
+        command:
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg IMKG232b
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/maybe_error.jl --alg IMKG232b
+        artifact_paths:
+          - "output/IMKG232b/*"
 
       - label: "Convergence: IMKG242a"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg IMKG242a"
+        command:
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg IMKG242a
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/maybe_error.jl --alg IMKG242a
+        artifact_paths:
+          - "output/IMKG242a/*"
 
       - label: "Convergence: IMKG242b"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg IMKG242b"
+        command:
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg IMKG242b
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/maybe_error.jl --alg IMKG242b
+        artifact_paths:
+          - "output/IMKG242b/*"
 
       - label: "Convergence: IMKG243a"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg IMKG243a"
+        command:
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg IMKG243a
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/maybe_error.jl --alg IMKG243a
+        artifact_paths:
+          - "output/IMKG243a/*"
 
       - label: "Convergence: IMKG252a"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg IMKG252a"
+        command:
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg IMKG252a
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/maybe_error.jl --alg IMKG252a
+        artifact_paths:
+          - "output/IMKG252a/*"
 
       - label: "Convergence: IMKG252b"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg IMKG252b"
+        command:
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg IMKG252b
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/maybe_error.jl --alg IMKG252b
+        artifact_paths:
+          - "output/IMKG252b/*"
 
       - label: "Convergence: IMKG253a"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg IMKG253a"
+        command:
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg IMKG253a
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/maybe_error.jl --alg IMKG253a
+        artifact_paths:
+          - "output/IMKG253a/*"
 
       - label: "Convergence: IMKG253b"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg IMKG253b"
+        command:
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg IMKG253b
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/maybe_error.jl --alg IMKG253b
+        artifact_paths:
+          - "output/IMKG253b/*"
 
       - label: "Convergence: IMKG254a"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg IMKG254a"
+        command:
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg IMKG254a
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/maybe_error.jl --alg IMKG254a
+        artifact_paths:
+          - "output/IMKG254a/*"
 
       - label: "Convergence: IMKG254b"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg IMKG254b"
+        command:
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg IMKG254b
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/maybe_error.jl --alg IMKG254b
+        artifact_paths:
+          - "output/IMKG254b/*"
 
       - label: "Convergence: IMKG254c"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg IMKG254c"
+        command:
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg IMKG254c
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/maybe_error.jl --alg IMKG254c
+        artifact_paths:
+          - "output/IMKG254c/*"
 
       - label: "Convergence: IMKG342a"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg IMKG342a"
+        command:
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg IMKG342a
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/maybe_error.jl --alg IMKG342a
+        artifact_paths:
+          - "output/IMKG342a/*"
 
       - label: "Convergence: IMKG343a"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg IMKG343a"
+        command:
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg IMKG343a
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/maybe_error.jl --alg IMKG343a
+        artifact_paths:
+          - "output/IMKG343a/*"
 
       - label: "Convergence: SSPKnoth"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg SSPKnoth"
+        command:
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg SSPKnoth
+          - julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/maybe_error.jl --alg SSPKnoth
+        artifact_paths:
+          - "output/SSPKnoth/*"
 
   - group: "Summaries"
     key: summaries

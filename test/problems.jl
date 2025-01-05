@@ -510,7 +510,7 @@ function climacore_2Dheat_test_cts(::Type{FT}) where {FT}
         dss_tendency && Spaces.weighted_dss!(tendency.u)
         _FT = Spaces.undertype(axes(state.u))
         set_boundaries!(tendency.u, _FT(0))
-        if t ≤ t_end*0.01
+        if t ≤ t_end * 0.01
             e0 = extrema(state.u)
             e1 = extrema(divgradu)
             @show e0, e1, count(isnan, parent(state.u)), length(parent(state.u))
@@ -519,12 +519,12 @@ function climacore_2Dheat_test_cts(::Type{FT}) where {FT}
     end
 
     function dss!(state, _, t)
-        if t ≤ t_end*0.01
+        if t ≤ t_end * 0.01
             e0_dss = extrema(state.u)
             @show e0_dss, count(isnan, parent(state.u)), length(parent(state.u))
         end
         dss_tendency || Spaces.weighted_dss!(state.u)
-        if t ≤ t_end*0.01
+        if t ≤ t_end * 0.01
             e1_dss = extrema(state.u)
             @show e1_dss, count(isnan, parent(state.u)), length(parent(state.u))
         end

@@ -62,12 +62,35 @@ include(joinpath(@__DIR__, "compute_convergence.jl"))
 include(joinpath(pkgdir(ClimaTimeSteppers), "test", "problems.jl"))
 import ClimaTimeSteppers as CTS
 all_subtypes(::Type{T}) where {T} = isabstracttype(T) ? vcat(all_subtypes.(subtypes(T))...) : [T]
+_global_parsed_args = parse_commandline()
+_global_alg_name = getproperty(CTS, Symbol(_global_parsed_args["alg"]))()
+nans_exported = false
+import ClimaCore
+ClimaCore.DataLayouts.call_post_op_callback() = true
+function ClimaCore.DataLayouts.post_op_callback(data, args...; kwargs...)
+    aname = nameof(typeof(_global_alg_name))
+    file = "output/$aname/data_with_nans.dat"
+    mkpath(dirname(file))
+    if any(isnan, parent(data))
+        global nans_exported
+        if !nans_exported
+            @show count(isnan, parent(data))
+            @show length(parent(data))
+            @show size(parent(data))
+            open(file, "w") do io
+                println(io, parent(data))
+            end
+            nans_exported = true
+        end
+    end
+end
 
 let # Convergence
-    parsed_args = parse_commandline()
-    alg_name = getproperty(CTS, Symbol(parsed_args["alg"]))()
     # NOTE: Some imperfections in the convergence order for SSPKnoth are to be
     # expected because we are not using the exact Jacobian
+
+    parsed_args = parse_commandline()
+    alg_name = getproperty(CTS, Symbol(parsed_args["alg"]))()
 
     export_convergence_results(alg_name, ark_analytic_nonlin_test_cts(Float64), 200)
     export_convergence_results(alg_name, ark_analytic_sys_test_cts(Float64), 400)

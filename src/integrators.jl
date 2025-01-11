@@ -68,11 +68,6 @@ end
 # helper function for setting up min/max heaps for tstops and saveat
 function tstops_and_saveat_heaps(t0, tf, tstops, saveat)
     FT = typeof(first(promote(t0, tf)))
-    t0, tf = promote(t0, tf)
-    tt = promote(t0, tstops...)
-    tstops = tt[begin+1:end]
-    tt = promote(t0, saveat...)
-    saveat = tt[begin+1:end]
     ordering = tf > t0 ? DataStructures.FasterForward : DataStructures.FasterReverse
 
     # ensure that tstops includes tf and only has values ahead of t0
@@ -81,7 +76,12 @@ function tstops_and_saveat_heaps(t0, tf, tstops, saveat)
 
     if isnothing(saveat)
         saveat = [t0, tf]
-    elseif saveat isa Number
+    # We do this instead of checking if saveat is a Number, because saveat could
+    # be an ITime
+    # This is problematic because if saveat is [0], then I want to just save at 0
+    # This is different if saveat is a number where I want to save at every saveat
+    elseif saveat isa Number || typeof(x).name.name == :ITime
+        saveat = first(saveat)
         saveat > zero(saveat) || error("saveat value must be positive")
         saveat = tf > t0 ? saveat : -saveat
         saveat = [t0:saveat:tf..., tf]

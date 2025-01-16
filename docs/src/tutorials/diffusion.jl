@@ -190,9 +190,9 @@ prob = SciMLBase.ODEProblem(
 # We use SSPKnoth for this example
 algo = ClimaTimeSteppers.RosenbrockAlgorithm(ClimaTimeSteppers.tableau(ClimaTimeSteppers.SSPKnoth()));
 
-# And here is the integrator, where we set `saveat = dt` to save a snapshot of
+# And here is the integrator, where we set `saveat = t0:dt:t_end` to save a snapshot of
 # the solution at every timestep.
-integrator = SciMLBase.init(prob, algo; dt, saveat = dt);
+integrator = SciMLBase.init(prob, algo; dt, saveat = t0:dt:t_end);
 
 ## Solution and visualization
 #

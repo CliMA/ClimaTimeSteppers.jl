@@ -119,13 +119,14 @@ end
     has_T_exp(f) && fused_increment!(U, dt, a_exp, T_exp, Val(i))
     isnothing(T_imp!) || fused_increment!(U, dt, a_imp, T_imp, Val(i))
 
-    i ≠ 1 && dss!(U, p, t_exp)
-
-    if !(!isnothing(T_imp!) && !iszero(a_imp[i, i]))
+    if isnothing(T_imp!) || iszero(a_imp[i, i])
+        i ≠ 1 && dss!(U, p, t_imp)
         i ≠ 1 && post_explicit!(U, p, t_imp)
     else # Implicit solve
         @assert !isnothing(newtons_method)
         @. temp = U
+        # We do not need to apply DSS yet because the implicit solve does not
+        # involve any horizontal derivatives.
         i ≠ 1 && post_explicit!(U, p, t_imp)
         # TODO: can/should we remove these closures?
         implicit_equation_residual! = (residual, Ui) -> begin
@@ -137,11 +138,7 @@ end
             post_implicit!(Ui, p, t_imp)
         end
         call_post_implicit_last! = Ui -> begin
-            if (!all(iszero, a_imp[:, i]) || !iszero(b_imp[i])) && !iszero(a_imp[i, i])
-                # If T_imp[i] is being treated implicitly, ensure that it
-                # exactly satisfies the implicit equation.
-                @. T_imp[i] = (Ui - temp) / (dt * a_imp[i, i])
-            end
+            dss!(Ui, p, t_imp)
             post_implicit!(Ui, p, t_imp)
         end
 
@@ -156,15 +153,15 @@ end
         )
     end
 
-    # We do not need to DSS U again because the implicit solve should
-    # give the same results for redundant columns (as long as the implicit
-    # tendency only acts in the vertical direction).
-
     if !all(iszero, a_imp[:, i]) || !iszero(b_imp[i])
-        if iszero(a_imp[i, i]) && !isnothing(T_imp!)
+        if iszero(a_imp[i, i])
             # If its coefficient is 0, T_imp[i] is effectively being
             # treated explicitly.
-            T_imp!(T_imp[i], U, p, t_imp)
+            isnothing(T_imp!) || T_imp!(T_imp[i], U, p, t_imp)
+        else
+            # If T_imp[i] is being treated implicitly, ensure that it
+            # exactly satisfies the implicit equation.
+            isnothing(T_imp!) || @. T_imp[i] = (U - temp) / (dt * a_imp[i, i])
         end
     end
 

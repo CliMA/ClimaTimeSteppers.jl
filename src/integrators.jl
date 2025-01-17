@@ -80,8 +80,7 @@ function tstops_and_saveat_heaps(t0, tf, tstops, saveat)
     # be an ITime
     # This is problematic because if saveat is [0], then I want to just save at 0
     # This is different if saveat is a number where I want to save at every saveat
-    elseif saveat isa Number || typeof(x).name.name == :ITime
-        saveat = first(saveat)
+    elseif saveat isa Number || typeof(saveat).name.name == :ITime
         saveat > zero(saveat) || error("saveat value must be positive")
         saveat = tf > t0 ? saveat : -saveat
         saveat = [t0:saveat:tf..., tf]

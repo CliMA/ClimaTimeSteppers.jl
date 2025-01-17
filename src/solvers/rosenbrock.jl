@@ -229,13 +229,13 @@ function tableau(::SSPKnoth)
     α = @SMatrix [
         0 0 0
         1 0 0
-        1//4 1//4 0
+        1/4 1/4 0
     ]
-    b = @SMatrix [1 // 6 1 // 6 2 // 3]
+    b = @SMatrix [1 / 6 1 / 6 2 / 3]
     Γ = @SMatrix [
         1 0 0
         0 1 0
-        -3//4 -3//4 1
+        -3/4 -3/4 1
     ]
     return RosenbrockTableau(α, Γ, b)
 end

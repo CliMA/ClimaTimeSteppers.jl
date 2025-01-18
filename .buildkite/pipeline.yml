@@ -170,7 +170,6 @@ steps:
 
       - label: "Convergence: SSP22Heuns"
         command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg SSP22Heuns"
-        soft_fail: true
 
       - label: "Convergence: SSP33ShuOsher"
         command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg SSP33ShuOsher"
@@ -183,7 +182,6 @@ steps:
 
       - label: "Convergence: ARS111"
         command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg ARS111"
-        soft_fail: true
 
       - label: "Convergence: ARS121"
         command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg ARS121"
@@ -193,7 +191,6 @@ steps:
 
       - label: "Convergence: ARS222"
         command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg ARS222"
-        soft_fail: true
 
       - label: "Convergence: ARS232"
         command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg ARS232"
@@ -209,7 +206,6 @@ steps:
 
       - label: "Convergence: SSP222"
         command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg SSP222"
-        soft_fail: true
 
       - label: "Convergence: SSP322"
         command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg SSP322"
@@ -237,7 +233,6 @@ steps:
 
       - label: "Convergence: IMKG242a"
         command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg IMKG242a"
-        soft_fail: true
 
       - label: "Convergence: IMKG242b"
         command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg IMKG242b"
@@ -262,7 +257,6 @@ steps:
 
       - label: "Convergence: IMKG254b"
         command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg IMKG254b"
-        soft_fail: true
 
       - label: "Convergence: IMKG254c"
         command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg IMKG254c"

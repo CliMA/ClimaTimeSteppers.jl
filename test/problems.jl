@@ -499,7 +499,7 @@ function climacore_2Dheat_test_cts(::Type{FT}) where {FT}
     jacobian = ClimaCore.MatrixFields.FieldMatrix((@name(u), @name(u)) => FT(-1) * LinearAlgebra.I)
 
     T_imp! = SciMLBase.ODEFunction(
-        (Yₜ, u, _, t) -> nothing;
+        (Yₜ, u, _, t) -> (Yₜ .= 0);
         jac_prototype = FieldMatrixWithSolver(jacobian, init_state),
         Wfact = Wfact!,
         tgrad = (∂Y∂t, Y, p, t) -> (∂Y∂t .= 0),

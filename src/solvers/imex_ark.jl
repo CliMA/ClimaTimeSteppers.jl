@@ -132,7 +132,7 @@ end
             T_imp!(residual, Ui, p, t_imp)
             @. residual = temp + float(dt) * a_imp[i, i] * residual - Ui
         end
-        implicit_equation_jacobian! = (jacobian, Ui) -> T_imp!.Wfact(jacobian, Ui, p, dt * a_imp[i, i], t_imp)
+        implicit_equation_jacobian! = (jacobian, Ui) -> T_imp!.Wfact(jacobian, Ui, p, float(dt) * a_imp[i, i], t_imp)
         call_post_implicit! = Ui -> begin
             post_implicit!(Ui, p, t_imp)
         end

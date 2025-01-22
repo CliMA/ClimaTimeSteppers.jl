@@ -561,7 +561,7 @@ function allocate_cache(alg::NewtonsMethod, x_prototype, j_prototype = nothing)
         krylov_method_cache = isnothing(krylov_method) ? nothing : allocate_cache(krylov_method, x_prototype),
         convergence_checker_cache = isnothing(convergence_checker) ? nothing :
                                     allocate_cache(convergence_checker, x_prototype),
-        Δx = similar(x_prototype),
+        Δx = zero(x_prototype),
         f = zero(x_prototype),
         j = isnothing(j_prototype) ? nothing : zero(j_prototype),
     )

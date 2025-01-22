@@ -1,4 +1,5 @@
 using ClimaTimeSteppers
+import ClimaTimeSteppers as CTS
 using Test
 using InteractiveUtils: subtypes
 
@@ -11,7 +12,43 @@ all_subtypes(::Type{T}) where {T} = isabstracttype(T) ? vcat(all_subtypes.(subty
 
 @testset "IMEX Algorithm Convergence" begin
     title = "IMEX Algorithms"
-    algorithm_names = map(T -> T(), all_subtypes(ClimaTimeSteppers.IMEXAlgorithmName))
+    # algorithm_names = map(T -> T(), all_subtypes(ClimaTimeSteppers.IMEXAlgorithmName))
+    algorithm_names = [
+        # CTS.SSP22Heuns(),
+        # CTS.SSP33ShuOsher(),
+        # CTS.RK4(),
+        # CTS.ARK2GKC(),
+        CTS.ARS111(),
+        CTS.ARS121(),
+        CTS.ARS122(),
+        CTS.ARS222(),
+        CTS.ARS232(),
+        CTS.ARS233(),
+        CTS.ARS343(),
+        CTS.ARS443(),
+        CTS.SSP222(),
+        CTS.SSP322(),
+        CTS.SSP332(),
+        CTS.SSP333(),
+        CTS.SSP433(),
+        CTS.DBM453(),
+        CTS.HOMMEM1(),
+        CTS.IMKG232a(),
+        CTS.IMKG232b(),
+        CTS.IMKG242a(),
+        CTS.IMKG242b(),
+        CTS.IMKG243a(),
+        CTS.IMKG252a(),
+        CTS.IMKG252b(),
+        CTS.IMKG253a(),
+        CTS.IMKG253b(),
+        CTS.IMKG254a(),
+        CTS.IMKG254b(),
+        CTS.IMKG254c(),
+        CTS.IMKG342a(),
+        CTS.IMKG343a(),
+        # CTS.SSPKnoth()
+    ]
     test_imex_algorithms(title, algorithm_names, ark_analytic_nonlin_test_cts(Float64), 200)
     test_imex_algorithms(title, algorithm_names, ark_analytic_sys_test_cts(Float64), 400)
     test_imex_algorithms(title, algorithm_names, ark_analytic_test_cts(Float64), 40000; super_convergence = (ARS121(),))

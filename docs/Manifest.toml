@@ -230,10 +230,20 @@ version = "0.14.19"
     Krylov = "ba0b0d4f-ebba-5204-a429-3ac8c609bfb7"
 
 [[deps.ClimaTimeSteppers]]
-deps = ["ClimaComms", "DataStructures", "DiffEqBase", "DiffEqCallbacks", "KernelAbstractions", "Krylov", "LinearAlgebra", "LinearOperators", "SciMLBase", "StaticArrays"]
+deps = ["ClimaComms", "Colors", "DataStructures", "DiffEqBase", "KernelAbstractions", "Krylov", "LinearAlgebra", "LinearOperators", "NVTX", "SciMLBase", "StaticArrays"]
 path = ".."
 uuid = "595c0a79-7f3d-439a-bc5a-b232dc3bde79"
-version = "0.7.0"
+version = "0.7.39"
+
+    [deps.ClimaTimeSteppers.extensions]
+    ClimaTimeSteppersBenchmarkToolsExt = ["CUDA", "BenchmarkTools", "OrderedCollections", "StatsBase", "PrettyTables"]
+
+    [deps.ClimaTimeSteppers.weakdeps]
+    BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
+    CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
+    OrderedCollections = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
+    PrettyTables = "08abe8d2-0d0c-5749-adfa-8a2ac140af0d"
+    StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 
 [[deps.CloseOpenIntervals]]
 deps = ["Static", "StaticArrayInterface"]
@@ -414,16 +424,6 @@ version = "6.130.0"
     Tracker = "9f7883ad-71c0-57eb-9f7f-b5c9e6d3789c"
     Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
     Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
-
-[[deps.DiffEqCallbacks]]
-deps = ["DataStructures", "DiffEqBase", "ForwardDiff", "Functors", "LinearAlgebra", "Markdown", "NLsolve", "Parameters", "RecipesBase", "RecursiveArrayTools", "SciMLBase", "StaticArraysCore"]
-git-tree-sha1 = "d0b94b3694d55e7eedeee918e7daee9e3b873399"
-uuid = "459566f4-90b8-5000-8ac3-15dfb0a30def"
-version = "2.35.0"
-
-    [deps.DiffEqCallbacks.weakdeps]
-    OrdinaryDiffEq = "1dea7af3-3e70-54e6-95c3-0bf5283fa5ed"
-    Sundials = "c3572dad-4567-51f8-b174-8c6c989267f4"
 
 [[deps.DiffResults]]
 deps = ["StaticArraysCore"]
@@ -650,12 +650,6 @@ deps = ["FunctionWrappers"]
 git-tree-sha1 = "b104d487b34566608f8b4e1c39fb0b10aa279ff8"
 uuid = "77dc65aa-8811-40c2-897b-53d922fa7daf"
 version = "0.1.3"
-
-[[deps.Functors]]
-deps = ["LinearAlgebra"]
-git-tree-sha1 = "64d8e93700c7a3f28f717d265382d52fac9fa1c1"
-uuid = "d9f16b24-f501-4c13-a1f2-28368ffc5196"
-version = "0.4.12"
 
 [[deps.Future]]
 deps = ["Random"]

@@ -2,7 +2,6 @@ export NewtonsMethod, KrylovMethod
 export JacobianFreeJVP, ForwardDiffJVP, ForwardDiffStepSize
 export ForwardDiffStepSize1, ForwardDiffStepSize2, ForwardDiffStepSize3
 export ForcingTerm, ConstantForcing, EisenstatWalkerForcing
-export Verbosity
 
 # TODO: Implement AutoDiffJVP after ClimaAtmos's cache is moved from f! to x (so
 #       that we only need to define Dual.(x), and not also make_dual(f!)).
@@ -131,10 +130,10 @@ struct ForwardDiffStepSize3 <: ForwardDiffStepSize end
 Computes the Jacobian-vector product `j(x[n]) * Δx[n]` for a Newton-Krylov
 method without directly using the Jacobian `j(x[n])`, and instead only using
 `x[n]`, `f(x[n])`, and other function evaluations `f(x′)`. This is done by
-calling `jvp!(::JacobianFreeJVP, cache, jΔx, Δx, x, f!, f)`. The `jΔx` passed to
-a Jacobian-free JVP is modified in-place. The `cache` can be obtained with
-`allocate_cache(::JacobianFreeJVP, x_prototype)`, where `x_prototype` is
-`similar` to `x` (and also to `Δx` and `f`).
+calling `jvp!(::JacobianFreeJVP, cache, jΔx, Δx, x, f!, f, post_implicit!)`.
+The `jΔx` passed to a Jacobian-free JVP is modified in-place. The `cache` can
+be obtained with `allocate_cache(::JacobianFreeJVP, x_prototype)`, where
+`x_prototype` is `similar` to `x` (and also to `Δx` and `f`).
 """
 abstract type JacobianFreeJVP end
 
@@ -150,14 +149,15 @@ Base.@kwdef struct ForwardDiffJVP{S <: ForwardDiffStepSize, T} <: JacobianFreeJV
     step_adjustment::T = 1
 end
 
-allocate_cache(::ForwardDiffJVP, x_prototype) = (; x2 = similar(x_prototype), f2 = similar(x_prototype))
+allocate_cache(::ForwardDiffJVP, x_prototype) = (; x2 = zero(x_prototype), f2 = zero(x_prototype))
 
-function jvp!(alg::ForwardDiffJVP, cache, jΔx, Δx, x, f!, f)
+function jvp!(alg::ForwardDiffJVP, cache, jΔx, Δx, x, f!, f, post_implicit!)
     (; default_step, step_adjustment) = alg
     (; x2, f2) = cache
     FT = eltype(x)
     ε = FT(step_adjustment) * default_step(Δx, x)
     @. x2 = x + ε * Δx
+    isnothing(post_implicit!) || post_implicit!(x2)
     f!(f2, x2)
     @. jΔx = (f2 - f) / ε
 end
@@ -343,10 +343,10 @@ end
 Finds an approximation `Δx[n] ≈ j(x[n]) \\ f(x[n])` for Newton's method such
 that `‖f(x[n]) - j(x[n]) * Δx[n]‖ ≤ rtol[n] * ‖f(x[n])‖`, where `rtol[n]` is the
 value of the forcing term on iteration `n`. This is done by calling
-`solve_krylov!(::KrylovMethod, cache, Δx, x, f!, f, n, j = nothing)`, where `f` is
-`f(x[n])` and, if it is specified, `j` is either `j(x[n])` or an approximation
-of `j(x[n])`. The `Δx` passed to a Krylov method is modified in-place. The
-`cache` can be obtained with `allocate_cache(::KrylovMethod, x_prototype)`,
+`solve_krylov!(::KrylovMethod, cache, Δx, x, f!, f, n, post_implicit!, j = nothing)`,
+where `f` is `f(x[n])` and, if it is specified, `j` is either `j(x[n])` or an
+approximation of `j(x[n])`. The `Δx` passed to a Krylov method is modified in-place.
+The `cache` can be obtained with `allocate_cache(::KrylovMethod, x_prototype)`,
 where `x_prototype` is `similar` to `x` (and also to `Δx` and `f`).
 
 This is primarily a wrapper for a `Krylov.KrylovSolver` from `Krylov.jl`. In
@@ -428,14 +428,14 @@ function allocate_cache(alg::KrylovMethod, x_prototype)
     )
 end
 
-function solve_krylov!(alg::KrylovMethod, cache, Δx, x, f!, f, n, j = nothing)
+NVTX.@annotate function solve_krylov!(alg::KrylovMethod, cache, Δx, x, f!, f, n, post_implicit!, j = nothing)
     (; jacobian_free_jvp, forcing_term, solve_kwargs) = alg
     (; disable_preconditioner, debugger) = alg
     type = solver_type(alg)
     (; jacobian_free_jvp_cache, forcing_term_cache, solver, debugger_cache) = cache
     jΔx!(jΔx, Δx) =
         isnothing(jacobian_free_jvp) ? mul!(jΔx, j, Δx) :
-        jvp!(jacobian_free_jvp, jacobian_free_jvp_cache, jΔx, Δx, x, f!, f)
+        jvp!(jacobian_free_jvp, jacobian_free_jvp_cache, jΔx, Δx, x, f!, f, post_implicit!)
     opj = LinearOperator(eltype(x), length(x), length(x), false, false, jΔx!)
     M = disable_preconditioner || isnothing(j) || isnothing(jacobian_free_jvp) ? I : j
     print_debug!(debugger, debugger_cache, opj, M)
@@ -558,33 +558,43 @@ function allocate_cache(alg::NewtonsMethod, x_prototype, j_prototype = nothing)
     (; update_j, krylov_method, convergence_checker) = alg
     @assert !(isnothing(j_prototype) && (isnothing(krylov_method) || isnothing(krylov_method.jacobian_free_jvp)))
     return (;
-        update_j_cache = allocate_cache(update_j, eltype(x_prototype)),
         krylov_method_cache = isnothing(krylov_method) ? nothing : allocate_cache(krylov_method, x_prototype),
         convergence_checker_cache = isnothing(convergence_checker) ? nothing :
                                     allocate_cache(convergence_checker, x_prototype),
-        Δx = similar(x_prototype),
-        f = similar(x_prototype),
-        j = isnothing(j_prototype) ? nothing : similar(j_prototype),
+        Δx = zero(x_prototype),
+        f = zero(x_prototype),
+        j = isnothing(j_prototype) ? nothing : zero(j_prototype),
     )
 end
 
-function solve_newton!(alg::NewtonsMethod, cache, x, f!, j! = nothing)
+solve_newton!(
+    alg::NewtonsMethod,
+    cache::Nothing,
+    x,
+    f!,
+    j! = nothing,
+    post_implicit! = nothing,
+    post_implicit_last! = nothing,
+) = nothing
+
+NVTX.@annotate function solve_newton!(
+    alg::NewtonsMethod,
+    cache,
+    x,
+    f!,
+    j! = nothing,
+    post_implicit! = nothing,
+    post_implicit_last! = nothing,
+)
     (; max_iters, update_j, krylov_method, convergence_checker, verbose) = alg
-    (; update_j_cache, krylov_method_cache, convergence_checker_cache) = cache
+    (; krylov_method_cache, convergence_checker_cache) = cache
     (; Δx, f, j) = cache
-    if (!isnothing(j)) && needs_update!(update_j, update_j_cache, NewNewtonSolve())
+    if (!isnothing(j)) && needs_update!(update_j, NewNewtonSolve())
         j!(j, x)
     end
-    for n in 0:max_iters
-        # Update x[n] with Δx[n - 1], and exit the loop if Δx[n] is not needed.
-        n > 0 && (x .-= Δx)
-        if n == max_iters && isnothing(convergence_checker)
-            is_verbose(verbose) && @info "Newton iteration $n: ‖x‖ = $(norm(x)), ‖Δx‖ = N/A"
-            break
-        end
-
+    for n in 1:max_iters
         # Compute Δx[n].
-        if (!isnothing(j)) && needs_update!(update_j, update_j_cache, NewNewtonIteration())
+        if (!isnothing(j)) && needs_update!(update_j, NewNewtonIteration())
             j!(j, x)
         end
         f!(f, x)
@@ -595,22 +605,23 @@ function solve_newton!(alg::NewtonsMethod, cache, x, f!, j! = nothing)
                 ldiv!(Δx, j, f)
             end
         else
-            solve_krylov!(krylov_method, krylov_method_cache, Δx, x, f!, f, n, j)
+            solve_krylov!(krylov_method, krylov_method_cache, Δx, x, f!, f, n, post_implicit!, j)
         end
         is_verbose(verbose) && @info "Newton iteration $n: ‖x‖ = $(norm(x)), ‖Δx‖ = $(norm(Δx))"
 
+        x .-= Δx
+        # Update x[n] with Δx[n - 1], and exit the loop if Δx[n] is not needed.
         # Check for convergence if necessary.
-        if !isnothing(convergence_checker)
-            check_convergence!(convergence_checker, convergence_checker_cache, x, Δx, n) && break
-            n == max_iters && @warn "Newton's method did not converge within $n iterations"
+        if is_converged!(convergence_checker, convergence_checker_cache, x, Δx, n)
+            isnothing(post_implicit_last!) || post_implicit_last!(x)
+            break
+        elseif n == max_iters
+            isnothing(post_implicit_last!) || post_implicit_last!(x)
+        else
+            isnothing(post_implicit!) || post_implicit!(x)
         end
-    end
-end
-
-function update!(alg::NewtonsMethod, cache, signal::UpdateSignal, j!)
-    (; update_j) = alg
-    (; update_j_cache, j) = cache
-    if (!isnothing(j)) && needs_update!(update_j, update_j_cache, signal)
-        j!(j)
+        if is_verbose(verbose) && n == max_iters
+            @warn "Newton's method did not converge within $n iterations: ‖x‖ = $(norm(x)), ‖Δx‖ = $(norm(Δx))"
+        end
     end
 end

@@ -37,7 +37,33 @@ mutable struct DistributedODEIntegrator{
     # DiffEqBase.initialize! and DiffEqBase.finalize!
     cache::cacheType
     sol::solType
+    tdir::tType # see https://docs.sciml.ai/DiffEqCallbacks/stable/output_saving/#DiffEqCallbacks.SavingCallback
 end
+
+"""
+    SavedValues{tType<:Real, savevalType}
+
+A struct used to save values of the time in `t::Vector{tType}` and
+additional values in `saveval::Vector{savevalType}`.
+
+From DiffEqCallbacks.
+"""
+struct SavedValues{tType, savevalType}
+    t::Vector{tType}
+    saveval::Vector{savevalType}
+end
+
+"""
+    SavedValues(tType::DataType, savevalType::DataType)
+
+Return `SavedValues{tType, savevalType}` with empty storage vectors.
+
+From DiffEqCallbacks.
+"""
+function SavedValues(::Type{tType}, ::Type{savevalType}) where {tType, savevalType}
+    SavedValues{tType, savevalType}(Vector{tType}(), Vector{savevalType}())
+end
+
 
 # helper function for setting up min/max heaps for tstops and saveat
 function tstops_and_saveat_heaps(t0, tf, tstops, saveat)
@@ -64,6 +90,8 @@ function tstops_and_saveat_heaps(t0, tf, tstops, saveat)
     return tstops, saveat
 end
 
+compute_tdir(ts) = ts[1] > ts[end] ? sign(ts[end] - ts[1]) : eltype(ts)(1)
+
 # called by DiffEqBase.init and DiffEqBase.solve
 function DiffEqBase.__init(
     prob::DiffEqBase.AbstractODEProblem,
@@ -75,9 +103,10 @@ function DiffEqBase.__init(
     save_everystep = false,
     callback = nothing,
     advance_to_tstop = false,
-    save_func = (u, t) -> copy(u), # custom kwarg
-    dtchangeable = true,           # custom kwarg
-    stepstop = -1,                 # custom kwarg
+    save_func = (u, t) -> copy(u),   # custom kwarg
+    dtchangeable = true,             # custom kwarg
+    stepstop = -1,                   # custom kwarg
+    tdir = compute_tdir(prob.tspan), #
     kwargs...,
 )
     (; u0, p) = prob
@@ -92,8 +121,7 @@ function DiffEqBase.__init(
     tstops, saveat = tstops_and_saveat_heaps(t0, tf, tstops, saveat)
 
     sol = DiffEqBase.build_solution(prob, alg, typeof(t0)[], typeof(save_func(u0, t0))[])
-    saving_callback =
-        NonInterpolatingSavingCallback(save_func, DiffEqCallbacks.SavedValues(sol.t, sol.u), save_everystep)
+    saving_callback = NonInterpolatingSavingCallback(save_func, SavedValues(sol.t, sol.u), save_everystep)
     callback = DiffEqBase.CallbackSet(callback, saving_callback)
     isempty(callback.continuous_callbacks) || error("Continuous callbacks are not supported")
 
@@ -116,7 +144,12 @@ function DiffEqBase.__init(
         false,
         init_cache(prob, alg; dt, kwargs...),
         sol,
+        tdir,
     )
+    if prob.f isa ClimaODEFunction
+        (; post_explicit!) = prob.f
+        isnothing(post_explicit!) || post_explicit!(u0, p, t0)
+    end
     DiffEqBase.initialize!(callback, u0, t0, integrator)
     return integrator
 end
@@ -155,7 +188,7 @@ function DiffEqBase.__solve(prob::DiffEqBase.AbstractODEProblem, alg::Distribute
 end
 
 # either called directly (after init), or by DiffEqBase.solve (via __solve)
-function DiffEqBase.solve!(integrator::DistributedODEIntegrator)
+NVTX.@annotate function DiffEqBase.solve!(integrator::DistributedODEIntegrator)
     while !isempty(integrator.tstops) && integrator.step != integrator.stepstop
         __step!(integrator)
     end
@@ -192,6 +225,17 @@ is_past_t(integrator, t) = tdir(integrator) * (t - integrator.t) < zero(integrat
 reached_tstop(integrator, tstop, stop_at_tstop = integrator.dtchangeable) =
     integrator.t == tstop || (!stop_at_tstop && is_past_t(integrator, tstop))
 
+
+@inline unrolled_foreach(::Tuple{}, integrator) = nothing
+@inline unrolled_foreach(callback, integrator) =
+    callback.condition(integrator.u, integrator.t, integrator) ? callback.affect!(integrator) : nothing
+@inline unrolled_foreach(discrete_callbacks::Tuple{Any}, integrator) =
+    unrolled_foreach(first(discrete_callbacks), integrator)
+@inline function unrolled_foreach(discrete_callbacks::Tuple, integrator)
+    unrolled_foreach(first(discrete_callbacks), integrator)
+    unrolled_foreach(Base.tail(discrete_callbacks), integrator)
+end
+
 function __step!(integrator)
     (; _dt, dtchangeable, tstops) = integrator
 
@@ -213,11 +257,7 @@ function __step!(integrator)
 
     # apply callbacks
     discrete_callbacks = integrator.callback.discrete_callbacks
-    for callback in discrete_callbacks
-        if callback.condition(integrator.u, integrator.t, integrator)
-            callback.affect!(integrator)
-        end
-    end
+    unrolled_foreach(discrete_callbacks, integrator)
 
     # remove tstops that were just reached
     while !isempty(tstops) && reached_tstop(integrator, first(tstops))
@@ -226,7 +266,9 @@ function __step!(integrator)
 end
 
 # solvers need to define this interface
-step_u!(integrator) = step_u!(integrator, integrator.cache)
+NVTX.@annotate function step_u!(integrator)
+    step_u!(integrator, integrator.cache)
+end
 
 DiffEqBase.get_dt(integrator::DistributedODEIntegrator) = integrator._dt
 function set_dt!(integrator::DistributedODEIntegrator, dt)
@@ -274,5 +316,5 @@ function NonInterpolatingSavingCallback(save_func, saved_values, save_everystep)
     end
     initialize(cb, u, t, integrator) = condition(u, t, integrator) && affect!(integrator)
     finalize(cb, u, t, integrator) = !save_everystep && !isempty(integrator.saveat) && affect!(integrator)
-    DiffEqBase.DiscreteCallback(condition, affect!; initialize, finalize)
+    SciMLBase.DiscreteCallback(condition, affect!; initialize, finalize)
 end

@@ -63,12 +63,12 @@ function init_cache(
 
     tab = tableau(alg, eltype(prob.u0))
     N = length(tab.d)
-    ΔU = ntuple(n -> similar(prob.u0), N)
+    ΔU = ntuple(n -> zero(prob.u0), N)
     # at time i, contains
     #   ΔU[j] = U[j] - u    j < i
     #   ΔU[i] = U[i]
     #   ΔU[N] = offset vec
-    F = ntuple(n -> similar(prob.u0), N)
+    F = ntuple(n -> zero(prob.u0), N)
     return MultirateInfinitesimalStepCache(ΔU, F, tab)
 end
 

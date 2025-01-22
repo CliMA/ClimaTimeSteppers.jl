@@ -149,7 +149,7 @@ Base.@kwdef struct ForwardDiffJVP{S <: ForwardDiffStepSize, T} <: JacobianFreeJV
     step_adjustment::T = 1
 end
 
-allocate_cache(::ForwardDiffJVP, x_prototype) = (; x2 = similar(x_prototype), f2 = similar(x_prototype))
+allocate_cache(::ForwardDiffJVP, x_prototype) = (; x2 = zero(x_prototype), f2 = zero(x_prototype))
 
 function jvp!(alg::ForwardDiffJVP, cache, jΔx, Δx, x, f!, f, post_implicit!)
     (; default_step, step_adjustment) = alg
@@ -562,8 +562,8 @@ function allocate_cache(alg::NewtonsMethod, x_prototype, j_prototype = nothing)
         convergence_checker_cache = isnothing(convergence_checker) ? nothing :
                                     allocate_cache(convergence_checker, x_prototype),
         Δx = similar(x_prototype),
-        f = similar(x_prototype),
-        j = isnothing(j_prototype) ? nothing : similar(j_prototype),
+        f = zero(x_prototype),
+        j = isnothing(j_prototype) ? nothing : zero(j_prototype),
     )
 end
 

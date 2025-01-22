@@ -94,7 +94,7 @@ function init_cache(prob::DiffEqBase.AbstractODEProblem, alg::RosenbrockAlgorith
     fU_exp = zero(prob.u0)
     fU_lim = zero(prob.u0)
     ∂Y∂t = zero(prob.u0)
-    k = ntuple(n -> similar(prob.u0), Nstages)
+    k = ntuple(n -> zero(prob.u0), Nstages)
     if !isnothing(prob.f.T_imp!)
         W = prob.f.T_imp!.jac_prototype
     else

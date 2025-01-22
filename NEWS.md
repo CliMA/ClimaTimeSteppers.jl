@@ -3,6 +3,8 @@ ClimaTimeSteppers.jl Release Notes
 
 Main
 -------
+v0.7.39
+- ![][badge-💥breaking] If saveat is a number, then it does not automatically expand to `tspan[1]:saveat:tspan[2]`.
 
 v0.7.18
 -------

@@ -4,11 +4,10 @@ using ClimaTimeSteppers: array_device
 using StaticArrays
 using LinearAlgebra
 using KernelAbstractions
-using CUDA
 
 include("ode_tests_common.jl")
 
-const ArrayType = CuArray
+const ArrayType = Array
 
 @testset "ODE Solvers" begin
     @testset "Convergence/extensive" begin

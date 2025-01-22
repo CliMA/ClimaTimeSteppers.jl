@@ -310,10 +310,15 @@ function test_imex_algorithms(
     plots = (plots..., footnote_plot)
 
     n_plots = length(plots)
+
+    heights₀ = repeat([1 / (n_plots - 1)], n_plots - 1)
+    footnote_height = eps()
+    heights = [heights₀ .- footnote_height / n_plots..., footnote_height]
+
     plot = Plots.plot(
         plots...;
         plot_title = "Analysis of $title for \"$test_name\"",
-        layout = Plots.grid(n_plots, 1; heights = [repeat([1 / (n_plots - 1)], n_plots - 1)..., 0]),
+        layout = Plots.grid(n_plots, 1; heights),
         fontfamily = "Computer Modern",
     )
 

@@ -1,5 +1,6 @@
 using DiffEqBase, ClimaTimeSteppers, LinearAlgebra, StaticArrays
 using ClimaCore
+using ClimaComms
 
 """
 Single variable linear ODE
@@ -446,7 +447,8 @@ function climacore_2Dheat_test_cts(::Type{FT}) where {FT}
         ),
     )
     mesh = ClimaCore.Meshes.RectilinearMesh(domain, n_elem_x, n_elem_y)
-    topology = ClimaCore.Topologies.Topology2D(mesh)
+    context = ClimaComms.context()
+    topology = ClimaCore.Topologies.Topology2D(context, mesh)
     quadrature = ClimaCore.Spaces.Quadratures.GLL{n_poly + 1}()
     space = ClimaCore.Spaces.SpectralElementSpace2D(topology, quadrature)
     (; x, y) = ClimaCore.Fields.coordinate_field(space)

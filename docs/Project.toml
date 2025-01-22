@@ -1,7 +1,9 @@
 [deps]
 AbstractTrees = "1520ce14-60c1-5f80-bbc7-55ef81b5835c"
+ClimaComms = "3a4d1b5c-c61d-41fd-a00a-5873ba7a1b0d"
 ClimaCore = "d414da3d-4745-48bb-8d80-42e94e092884"
 ClimaTimeSteppers = "595c0a79-7f3d-439a-bc5a-b232dc3bde79"
+Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
 DiffEqBase = "2b5f629d-d688-5b77-993f-72d75c75574e"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"

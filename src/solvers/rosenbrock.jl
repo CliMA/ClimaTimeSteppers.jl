@@ -152,12 +152,10 @@ function step_u!(int, cache::RosenbrockCache{Nstages}) where {Nstages}
 
         # NOTE: post_implicit! is a misnomer
         if !isnothing(post_implicit!)
-            # We apply DSS and update p on every stage but the first, and at the
-            # end of each timestep. Since the first stage is unchanged from the
-            # end of the previous timestep, this order of operations ensures
-            # that the state is always continuous and that p is consistent with
-            # the state, including between timesteps.
-            (i != 1) && dss!(U, p, t + αi * dt)
+            # We update p on every stage but the first, and at the end of each
+            # timestep. Since the first stage is unchanged from the end of the
+            # previous timestep, this order of operations ensures that p is
+            # always consistent with the state, including between timesteps.
             (i != 1) && post_implicit!(U, p, t + αi * dt)
         end
 
@@ -180,6 +178,10 @@ function step_u!(int, cache::RosenbrockCache{Nstages}) where {Nstages}
         if !isnothing(tgrad!)
             fU .+= γi .* dt .* ∂Y∂t
         end
+
+        # We dss the tendency at every stage but the last. At the last stage, we
+        # dss the incremented state
+        (i != Nstages) && dss!(fU, p, t + αi * dt)
 
         for j in 1:(i - 1)
             fU .+= (C[i, j] / dt) .* k[j]

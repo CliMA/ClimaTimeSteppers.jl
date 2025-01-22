@@ -33,6 +33,7 @@ function step_u!(integrator, cache::IMEXARKCache, ::ARS343)
     @. U = u + dt * a_exp[i, 1] * T_lim[1]
     lim!(U, p, t_exp, u)
     @. U += dt * a_exp[i, 1] * T_exp[1]
+    dss!(U, p, t_exp)
     post_explicit!(U, p, t_exp)
 
     @. temp = U # used in closures
@@ -48,10 +49,6 @@ function step_u!(integrator, cache::IMEXARKCache, ::ARS343)
         call_post_implicit! = Ui -> begin
             post_implicit!(Ui, p, t_imp)
         end
-        call_post_implicit_last! = Ui -> begin
-            dss!(Ui, p, t_imp)
-            post_implicit!(Ui, p, t_imp)
-        end
         solve_newton!(
             newtons_method,
             newtons_method_cache,
@@ -59,7 +56,6 @@ function step_u!(integrator, cache::IMEXARKCache, ::ARS343)
             implicit_equation_residual!,
             implicit_equation_jacobian!,
             call_post_implicit!,
-            call_post_implicit_last!,
         )
     end
 
@@ -73,6 +69,7 @@ function step_u!(integrator, cache::IMEXARKCache, ::ARS343)
     @. U = u + dt * a_exp[i, 1] * T_lim[1] + dt * a_exp[i, 2] * T_lim[2]
     lim!(U, p, t_exp, u)
     @. U += dt * a_exp[i, 1] * T_exp[1] + dt * a_exp[i, 2] * T_exp[2] + dt * a_imp[i, 2] * T_imp[2]
+    dss!(U, p, t_exp)
     post_explicit!(U, p, t_exp)
 
     @. temp = U # used in closures
@@ -88,10 +85,6 @@ function step_u!(integrator, cache::IMEXARKCache, ::ARS343)
         call_post_implicit! = Ui -> begin
             post_implicit!(Ui, p, t_imp)
         end
-        call_post_implicit_last! = Ui -> begin
-            dss!(Ui, p, t_imp)
-            post_implicit!(Ui, p, t_imp)
-        end
         solve_newton!(
             newtons_method,
             newtons_method_cache,
@@ -99,7 +92,6 @@ function step_u!(integrator, cache::IMEXARKCache, ::ARS343)
             implicit_equation_residual!,
             implicit_equation_jacobian!,
             call_post_implicit!,
-            call_post_implicit_last!,
         )
     end
 
@@ -117,6 +109,7 @@ function step_u!(integrator, cache::IMEXARKCache, ::ARS343)
         dt * a_exp[i, 3] * T_exp[3] +
         dt * a_imp[i, 2] * T_imp[2] +
         dt * a_imp[i, 3] * T_imp[3]
+    dss!(U, p, t_exp)
     post_explicit!(U, p, t_exp)
 
     @. temp = U # used in closures
@@ -132,10 +125,6 @@ function step_u!(integrator, cache::IMEXARKCache, ::ARS343)
         call_post_implicit! = Ui -> begin
             post_implicit!(Ui, p, t_imp)
         end
-        call_post_implicit_last! = Ui -> begin
-            dss!(Ui, p, t_imp)
-            post_implicit!(Ui, p, t_imp)
-        end
         solve_newton!(
             newtons_method,
             newtons_method_cache,
@@ -143,7 +132,6 @@ function step_u!(integrator, cache::IMEXARKCache, ::ARS343)
             implicit_equation_residual!,
             implicit_equation_jacobian!,
             call_post_implicit!,
-            call_post_implicit_last!,
         )
     end
 

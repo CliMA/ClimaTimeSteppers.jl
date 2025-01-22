@@ -1,23 +1,5 @@
 using Documenter, DocumenterCitations
 using ClimaTimeSteppers
-using Literate
-
-tutorial_basedir = "tutorials"
-tutorial_basedir_from_here = joinpath(@__DIR__, "src", tutorial_basedir)
-
-jl_files_in_basedir = filter(endswith(".jl"), readdir(tutorial_basedir_from_here))
-
-println("Building literate tutorials...")
-generated_tutorials = String[]
-for filename in jl_files_in_basedir
-    Literate.markdown(
-        joinpath(tutorial_basedir_from_here, filename),
-        tutorial_basedir_from_here;
-        execute = true,
-        flavor = Literate.CommonMarkFlavor(),
-    )
-    push!(generated_tutorials, joinpath(tutorial_basedir, replace(filename, ".jl" => ".md")))
-end
 
 # https://github.com/jheinen/GR.jl/issues/278#issuecomment-587090846
 ENV["GKSwstype"] = "nul"
@@ -27,20 +9,23 @@ bib = CitationBibliography(joinpath(@__DIR__, "refs.bib"))
 #! format: off
 pages = [
     "index.md",
-    "Algorithm Formulations" => [
-        "ODE Solvers" => "algorithm_formulations/ode_solvers.md",
-        "Newtons Method" => "algorithm_formulations/newtons_method.md",
-        "Rosenbrock Method" => "algorithm_formulations/rosenbrock.md",
-        "Old LSRK Formulations" => "algorithm_formulations/lsrk.md",
-        "Old MRRK Formulations" => "algorithm_formulations/mrrk.md",
+    "Algorithm formulations" => [
+        "algo_formulations/lsrk.md",
+        "algo_formulations/ssprk.md",
+        "algo_formulations/ark.md",
+        "algo_formulations/mrrk.md",
+    ],
+    "Non-linear solvers" => [
+        "Formulation" => "nl_solvers/formulation.md",
+        "Newtons method" => "nl_solvers/newtons_method.md",
     ],
     "Test problems" => [
         "test_problems/index.md",
     ],
-    "Tutorials" => generated_tutorials,
     "API docs" => [
-        "ODE Solvers" => "api/ode_solvers.md",
-        "Newtons Method" => "api/newtons_method.md",
+        "Algorithms" => "api/algorithms.md",
+        "Tableaus" => "api/tableaus.md",
+        "Non-linear solvers" => "api/nl_solvers.md",
         "Callbacks" => "api/callbacks.md",
     ],
     # "Algorithm comparisons" => "algo_comparisons.md", # TODO: fill out
@@ -56,13 +41,14 @@ mathengine = MathJax(Dict(:TeX => Dict(:equationNumbers => Dict(:autoNumber => "
 
 format = Documenter.HTML(prettyurls = get(ENV, "CI", nothing) == "true", mathengine = mathengine, collapselevel = 1)
 
-makedocs(;
-    plugins = [bib],
+makedocs(
+    bib,
     sitename = "ClimaTimeSteppers",
     format = format,
     modules = [ClimaTimeSteppers],
     checkdocs = :exports,
     clean = true,
+    strict = true,
     pages = pages,
 )
 

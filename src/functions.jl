@@ -1,47 +1,18 @@
 import DiffEqBase
-export AbstractClimaODEFunction
 export ClimaODEFunction, ForwardEulerODEFunction
 
-abstract type AbstractClimaODEFunction <: DiffEqBase.AbstractODEFunction{true} end
-
-struct ClimaODEFunction{TEL, TL, TE, TI, L, D, PE, PI} <: AbstractClimaODEFunction
-    T_exp_T_lim!::TEL
-    T_lim!::TL
-    T_exp!::TE
-    T_imp!::TI
-    lim!::L
-    dss!::D
-    post_explicit!::PE
-    post_implicit!::PI
-    function ClimaODEFunction(;
-        T_exp_T_lim! = nothing, # nothing or (uₜ_exp, uₜ_lim, u, p, t) -> ...
-        T_lim! = nothing, # nothing or (uₜ, u, p, t) -> ...
-        T_exp! = nothing, # nothing or (uₜ, u, p, t) -> ...
-        T_imp! = nothing, # nothing or (uₜ, u, p, t) -> ...
-        lim! = (u, p, t, u_ref) -> nothing,
-        dss! = (u, p, t) -> nothing,
-        post_explicit! = (u, p, t) -> nothing,
-        post_implicit! = (u, p, t) -> nothing,
-    )
-        args = (T_exp_T_lim!, T_lim!, T_exp!, T_imp!, lim!, dss!, post_explicit!, post_implicit!)
-
-        if !isnothing(T_exp_T_lim!)
-            @assert isnothing(T_exp!) "`T_exp_T_lim!` was passed, `T_exp!` must be `nothing`"
-            @assert isnothing(T_lim!) "`T_exp_T_lim!` was passed, `T_lim!` must be `nothing`"
-        end
-        if !isnothing(T_exp!) && !isnothing(T_lim!)
-            @warn "Both `T_exp!` and `T_lim!` are not `nothing`, please use `T_exp_T_lim!` instead."
-        end
-        return new{typeof.(args)...}(args...)
-    end
+Base.@kwdef struct ClimaODEFunction{TL, TE, TI, L, D, S} <: DiffEqBase.AbstractODEFunction{true}
+    T_lim!::TL = nothing # nothing or (uₜ, u, p, t) -> ...
+    T_exp!::TE = nothing # nothing or (uₜ, u, p, t) -> ...
+    T_imp!::TI = nothing # nothing or (uₜ, u, p, t) -> ...
+    lim!::L = (u, p, t, u_ref) -> nothing
+    dss!::D = (u, p, t) -> nothing
+    stage_callback!::S = (u, p, t) -> nothing
 end
 
-has_T_exp(f::ClimaODEFunction) = !isnothing(f.T_exp!) || !isnothing(f.T_exp_T_lim!)
-has_T_lim(f::ClimaODEFunction) = !isnothing(f.lim!) && (!isnothing(f.T_lim!) || !isnothing(f.T_exp_T_lim!))
-
-# Don't wrap a AbstractClimaODEFunction in an ODEFunction (makes ODEProblem work).
-DiffEqBase.ODEFunction{iip}(f::AbstractClimaODEFunction) where {iip} = f
-DiffEqBase.ODEFunction(f::AbstractClimaODEFunction) = f
+# Don't wrap a ClimaODEFunction in an ODEFunction (makes ODEProblem work).
+DiffEqBase.ODEFunction{iip}(f::ClimaODEFunction) where {iip} = f
+DiffEqBase.ODEFunction(f::ClimaODEFunction) = f
 
 """
     ForwardEulerODEFunction(f; jac_prototype, Wfact, tgrad)

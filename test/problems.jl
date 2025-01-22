@@ -1,14 +1,5 @@
-using DiffEqBase, ClimaTimeSteppers, StaticArrays
-import LinearAlgebra
-import LinearAlgebra: norm, Diagonal, mul!
+using DiffEqBase, ClimaTimeSteppers, LinearAlgebra, StaticArrays
 using ClimaCore
-using ClimaComms
-import ClimaCore.MatrixFields: @name, ⋅, FieldMatrixWithSolver
-import ClimaCore: Domains, Geometry, Meshes, Topologies, Spaces, Fields, Operators, Limiters
-
-@static pkgversion(ClimaComms) >= v"0.6" && ClimaComms.@import_required_backends
-
-import Krylov # Trigger ClimaCore/ext/KrylovExt
 
 """
 Single variable linear ODE
@@ -369,20 +360,6 @@ function ark_analytic_test_cts(::Type{FT}) where {FT}
     )
 end
 
-function analytic_linear_no_source_test_cts(::Type{FT}) where {FT}
-    λ = FT(-1)
-    ClimaIntegratorTestCase(;
-        test_name = "analytic_linear_no_source",
-        linear_implicit = true,
-        t_end = FT(10),
-        Y₀ = FT[1],
-        analytic_sol = (t) -> [exp(λ * t)],
-        tendency! = (Yₜ, Y, _, t) -> Yₜ .= λ .* Y,
-        implicit_tendency! = (Yₜ, Y, _, t) -> Yₜ .= λ .* Y,
-        Wfact! = (W, Y, _, dtγ, t) -> W .= dtγ * λ - 1,
-    )
-end
-
 # From Section 1.2 of "Example Programs for ARKode v4.4.0" by D. R. Reynolds
 function ark_analytic_nonlin_test_cts(::Type{FT}) where {FT}
     ClimaIntegratorTestCase(;
@@ -439,15 +416,12 @@ function onewaycouple_mri_test_cts(::Type{FT}) where {FT}
     )
 end
 
-Wfact!(W, Y, p, dtγ, t) = nothing
-
 """
     climacore_2Dheat_test_cts(::Type{<:AbstractFloat})
 
 2D diffusion test problem. See [`2D diffusion problem`](@ref) for more details.
 """
 function climacore_2Dheat_test_cts(::Type{FT}) where {FT}
-    context = ClimaComms.context()
     dss_tendency = true
 
     n_elem_x = 2
@@ -459,30 +433,38 @@ function climacore_2Dheat_test_cts(::Type{FT}) where {FT}
     Δλ = FT(1) # denoted by Δλ̂ above
     t_end = FT(0.05) # denoted by t̂ above
 
-    domain = Domains.RectangleDomain(
-        Domains.IntervalDomain(Geometry.XPoint(FT(0)), Geometry.XPoint(FT(1)), periodic = true),
-        Domains.IntervalDomain(Geometry.YPoint(FT(0)), Geometry.YPoint(FT(1)), periodic = true),
+    domain = ClimaCore.Domains.RectangleDomain(
+        ClimaCore.Domains.IntervalDomain(
+            ClimaCore.Geometry.XPoint(FT(0)),
+            ClimaCore.Geometry.XPoint(FT(1)),
+            periodic = true,
+        ),
+        ClimaCore.Domains.IntervalDomain(
+            ClimaCore.Geometry.YPoint(FT(0)),
+            ClimaCore.Geometry.YPoint(FT(1)),
+            periodic = true,
+        ),
     )
-    mesh = Meshes.RectilinearMesh(domain, n_elem_x, n_elem_y)
-    topology = Topologies.Topology2D(context, mesh)
-    quadrature = Spaces.Quadratures.GLL{n_poly + 1}()
-    space = Spaces.SpectralElementSpace2D(topology, quadrature)
-    (; x, y) = Fields.coordinate_field(space)
+    mesh = ClimaCore.Meshes.RectilinearMesh(domain, n_elem_x, n_elem_y)
+    topology = ClimaCore.Topologies.Topology2D(mesh)
+    quadrature = ClimaCore.Spaces.Quadratures.GLL{n_poly + 1}()
+    space = ClimaCore.Spaces.SpectralElementSpace2D(topology, quadrature)
+    (; x, y) = ClimaCore.Fields.coordinate_field(space)
 
     λ = (2 * FT(π))^2 * (n_x^2 + n_y^2)
     φ_sin_sin = @. sin(2 * FT(π) * n_x * x) * sin(2 * FT(π) * n_y * y)
 
-    init_state = Fields.FieldVector(; u = φ_sin_sin)
+    init_state = ClimaCore.Fields.FieldVector(; u = φ_sin_sin)
 
-    wdiv = Operators.WeakDivergence()
-    grad = Operators.Gradient()
+    wdiv = ClimaCore.Operators.WeakDivergence()
+    grad = ClimaCore.Operators.Gradient()
     function T_exp!(tendency, state, _, t)
         @. tendency.u = wdiv(grad(state.u)) + f_0 * exp(-(λ + Δλ) * t) * φ_sin_sin
-        dss_tendency && Spaces.weighted_dss!(tendency.u)
+        dss_tendency && ClimaCore.Spaces.weighted_dss!(tendency.u)
     end
 
     function dss!(state, _, t)
-        dss_tendency || Spaces.weighted_dss!(state.u)
+        dss_tendency || ClimaCore.Spaces.weighted_dss!(state.u)
     end
 
     function analytic_sol(t)
@@ -491,21 +473,7 @@ function climacore_2Dheat_test_cts(::Type{FT}) where {FT}
         return state
     end
 
-    # we add implicit pieces here for inference analysis
-    T_lim! = (Yₜ, u, _, t) -> nothing
-    post_implicit! = (u, _, t) -> nothing
-    post_explicit! = (u, _, t) -> nothing
-
-    jacobian = ClimaCore.MatrixFields.FieldMatrix((@name(u), @name(u)) => FT(-1) * LinearAlgebra.I)
-
-    T_imp! = SciMLBase.ODEFunction(
-        (Yₜ, u, _, t) -> (Yₜ .= 0);
-        jac_prototype = FieldMatrixWithSolver(jacobian, init_state),
-        Wfact = Wfact!,
-        tgrad = (∂Y∂t, Y, p, t) -> (∂Y∂t .= 0),
-    )
-
-    tendency_func = ClimaODEFunction(; T_exp!, T_imp!, dss!, post_implicit!, post_explicit!)
+    tendency_func = ClimaODEFunction(; T_exp!, dss!)
     split_tendency_func = tendency_func
     make_prob(func) = ODEProblem(func, init_state, (FT(0), t_end), nothing)
     IntegratorTestCase(
@@ -517,7 +485,6 @@ function climacore_2Dheat_test_cts(::Type{FT}) where {FT}
         make_prob(split_tendency_func),
     )
 end
-
 function climacore_1Dheat_test_cts(::Type{FT}) where {FT}
     n_elem_z = 10
     n_z = 1
@@ -525,18 +492,25 @@ function climacore_1Dheat_test_cts(::Type{FT}) where {FT}
     Δλ = FT(1) # denoted by Δλ̂ above
     t_end = FT(0.1) # denoted by t̂ above
 
-    domain = Domains.IntervalDomain(Geometry.ZPoint(FT(0)), Geometry.ZPoint(FT(1)), boundary_names = (:bottom, :top))
-    mesh = Meshes.IntervalMesh(domain, nelems = n_elem_z)
-    space = Spaces.FaceFiniteDifferenceSpace(mesh)
-    (; z) = Fields.coordinate_field(space)
+    domain = ClimaCore.Domains.IntervalDomain(
+        ClimaCore.Geometry.ZPoint(FT(0)),
+        ClimaCore.Geometry.ZPoint(FT(1)),
+        boundary_names = (:bottom, :top),
+    )
+    mesh = ClimaCore.Meshes.IntervalMesh(domain, nelems = n_elem_z)
+    space = ClimaCore.Spaces.FaceFiniteDifferenceSpace(mesh)
+    (; z) = ClimaCore.Fields.coordinate_field(space)
 
     λ = (2 * FT(π) * n_z)^2
     φ_sin = @. sin(2 * FT(π) * n_z * z)
 
-    init_state = Fields.FieldVector(; u = φ_sin)
+    init_state = ClimaCore.Fields.FieldVector(; u = φ_sin)
 
-    div = Operators.DivergenceC2F(; bottom = Operators.SetDivergence(FT(0)), top = Operators.SetDivergence(FT(0)))
-    grad = Operators.GradientF2C()
+    div = ClimaCore.Operators.DivergenceC2F(;
+        bottom = ClimaCore.Operators.SetDivergence(FT(0)),
+        top = ClimaCore.Operators.SetDivergence(FT(0)),
+    )
+    grad = ClimaCore.Operators.GradientF2C()
     function T_exp!(tendency, state, _, t)
         @. tendency.u = div(grad(state.u)) + f_0 * exp(-(λ + Δλ) * t) * φ_sin
     end
@@ -554,364 +528,6 @@ function climacore_1Dheat_test_cts(::Type{FT}) where {FT}
         "1D Heat Equation",
         false,
         t_end,
-        analytic_sol,
-        make_prob(tendency_func),
-        make_prob(split_tendency_func),
-    )
-end
-
-function climacore_1Dheat_test_implicit_cts(::Type{FT}) where {FT}
-    n_elem_z = 10000
-    n_z = 1
-    f_0 = FT(0.0) # denoted by f̂₀ above
-    Δλ = FT(1) # denoted by Δλ̂ above
-    t_end = FT(0.1) # denoted by t̂ above
-
-    domain = Domains.IntervalDomain(Geometry.ZPoint(FT(0)), Geometry.ZPoint(FT(1)), boundary_names = (:bottom, :top))
-    mesh = Meshes.IntervalMesh(domain, nelems = n_elem_z)
-    space = Spaces.FaceFiniteDifferenceSpace(mesh)
-    (; z) = Fields.coordinate_field(space)
-
-    λ = (2 * FT(π) * n_z)^2
-    φ_sin = @. sin(2 * FT(π) * n_z * z)
-
-    init_state = Fields.FieldVector(; u = φ_sin)
-
-    diverg = Operators.DivergenceC2F(; bottom = Operators.SetDivergence(FT(0)), top = Operators.SetDivergence(FT(0)))
-    grad = Operators.GradientF2C()
-
-    diverg_matrix = ClimaCore.MatrixFields.operator_matrix(diverg)
-    grad_matrix = ClimaCore.MatrixFields.operator_matrix(grad)
-
-    function Wfact(W, Y, p, dtγ, t)
-        name = @name(u)
-        # NOTE: We need MatrixFields.⋅, not LinearAlgebra.⋅
-        @. W.matrix[name, name] = diverg_matrix() ⋅ grad_matrix() - (LinearAlgebra.I,)
-        return nothing
-    end
-
-    function T_imp_func!(tendency, state, _, t)
-        @. tendency.u = diverg.(grad.(state.u)) + f_0 * exp(-(λ + Δλ) * t) * φ_sin
-    end
-
-    function tgrad(∂Y∂t, state, _, t)
-        @. ∂Y∂t.u = -f_0 * (λ + Δλ) * exp(-(λ + Δλ) * t) * φ_sin
-    end
-
-    jacobian = ClimaCore.MatrixFields.FieldMatrix(
-        (@name(u), @name(u)) => similar(φ_sin, ClimaCore.MatrixFields.TridiagonalMatrixRow{FT}),
-    )
-
-    jac_prototype = FieldMatrixWithSolver(jacobian, init_state)
-
-    T_imp! = SciMLBase.ODEFunction(T_imp_func!; jac_prototype = jac_prototype, Wfact = Wfact, tgrad = tgrad)
-
-    function analytic_sol(t)
-        state = similar(init_state)
-        @. state.u = (1 + f_0 / Δλ * (1 - exp(-Δλ * t))) * exp(-λ * t) * φ_sin
-        return state
-    end
-
-    tendency_func = ClimaODEFunction(; T_imp!)
-    split_tendency_func = tendency_func
-    make_prob(func) = ODEProblem(func, init_state, (FT(0), t_end), nothing)
-    IntegratorTestCase(
-        "1D Heat Equation Implicit",
-        false,
-        t_end,
-        analytic_sol,
-        make_prob(tendency_func),
-        make_prob(split_tendency_func),
-    )
-end
-
-# "Dynamical Core Model Intercomparison Project (DCMIP) Test Case Document" by
-# Ullrich et al., Section 1.1
-# (http://www-personal.umich.edu/~cjablono/DCMIP-2012_TestCaseDocument_v1.7.pdf)
-# Implemented in flux form, with an optional limiter and hyperdiffusion.
-# TODO: Use this as an integration test.
-function deformational_flow_test(::Type{FT}; use_limiter = true, use_hyperdiffusion = true) where {FT}
-    context = ClimaComms.context()
-    # Table III
-    # Note: the paper uses "a" in place of "R"
-    R = FT(6371220)          # radius of Earth [m]
-    g = FT(9.80616)          # gravitational acceleration [m/s^2]
-    R_d = FT(287.0)          # gas constant for dry air [J/kg/K]
-
-    # Table IX
-    # Note: the paper specifies that λ_c1 = 5π/6 ∈ [0, 2π), and that
-    # λ_c2 = 7π/6 ∈ [0, 2π), whereas we use λ_c1, λ_c2 ∈ [-π, π).
-    z_top = FT(12000)         # altitude at model top [m]
-    p_top = FT(25494.4)       # pressure at model top [Pa]
-    T_0 = FT(300)             # isothermal atmospheric temperature [K]
-    p_0 = FT(100000)          # reference pressure [Pa]
-    τ = 60 * 60 * 24 * FT(12) # period of motion (12 days) [s]
-    ω_0 = 23000 * FT(π) / τ   # maximum vertical pressure velocity [Pa/s]
-    b = FT(0.2)               # normalized pressure depth of divergent layer
-    λ_c1 = -FT(π) / 6         # initial longitude of first tracer
-    λ_c2 = FT(π) / 6          # initial longitude of second tracer
-    φ_c = FT(0)               # initial latitude of tracers
-    z_c = FT(5000)            # initial altitude of tracers [m]
-    R_t = R / 2               # horizontal half-width of tracers [m]
-    Z_t = FT(1000)            # vertical half-width of tracers [m]
-
-    # scale height [m] (Equation 3)
-    H = R_d * T_0 / g
-
-    # hyperviscosity coefficient [m^4] (specified in the limiter paper)
-    D₄ = FT(6.6e14)
-
-    centers = Geometry.LatLongZPoint.(rad2deg(φ_c), rad2deg.((λ_c1, λ_c2)), FT(0))
-
-    # custom discretization (paper's discretization results in a very slow test)
-    vert_nelems = 10
-    horz_nelems = 4
-    horz_npoly = 3
-
-    vert_domain =
-        Domains.IntervalDomain(Geometry.ZPoint(FT(0)), Geometry.ZPoint(z_top); boundary_names = (:bottom, :top))
-    vert_mesh = Meshes.IntervalMesh(vert_domain, nelems = vert_nelems)
-    z_topology = Topologies.IntervalTopology(context, vert_mesh)
-    vert_cent_space = Spaces.CenterFiniteDifferenceSpace(z_topology)
-
-    horz_domain = Domains.SphereDomain(R)
-    horz_mesh = Meshes.EquiangularCubedSphere(horz_domain, horz_nelems)
-    horz_topology = Topologies.Topology2D(context, horz_mesh)
-    horz_quad = Spaces.Quadratures.GLL{horz_npoly + 1}()
-    horz_space = Spaces.SpectralElementSpace2D(horz_topology, horz_quad)
-
-    cent_space = Spaces.ExtrudedFiniteDifferenceSpace(horz_space, vert_cent_space)
-    cent_coords = Fields.coordinate_field(cent_space)
-    face_space = Spaces.FaceExtrudedFiniteDifferenceSpace(cent_space)
-
-    # initial density (Equation 8)
-    cent_ρ = @. p_0 / (R_d * T_0) * exp(-cent_coords.z / H)
-
-    # initial tracer concentrations (Equations 28--35)
-    cent_q = map(cent_coords) do coord
-        z = coord.z
-        φ = deg2rad(coord.lat)
-
-        ds = map(centers) do center
-            r = Geometry.great_circle_distance(coord, center, Spaces.global_geometry(horz_space))
-            return min(1, (r / R_t)^2 + ((z - z_c) / Z_t)^2)
-        end
-        in_slot = z > z_c && φ_c - FT(0.125) < φ < φ_c + FT(0.125)
-
-        q1 = (1 + cos(FT(π) * ds[1])) / 2 + (1 + cos(FT(π) * ds[2])) / 2
-        q2 = FT(0.9) - FT(0.8) * q1^2
-        q3 = (ds[1] < FT(0.5) || ds[2] < FT(0.5)) && !in_slot ? FT(1) : FT(0.1)
-        q4 = 1 - FT(0.3) * (q1 + q2 + q3)
-        q5 = FT(1)
-        return (; q1, q2, q3, q4, q5)
-    end
-
-    init_state = Fields.FieldVector(; cent_ρ, cent_ρq = cent_ρ .* cent_q)
-
-    # current wind vector (Equations 15--26)
-    current_cent_wind_vector = Fields.Field(Geometry.UVWVector{FT}, cent_space)
-    current_face_wind_vector = Fields.Field(Geometry.UVWVector{FT}, face_space)
-    function wind_vector(coord, ρ, t)
-        z = coord.z
-        φ = deg2rad(coord.lat)
-        λ = deg2rad(coord.long)
-
-        p = p_0 * exp(-g * z / (R_d * T_0)) # initial pressure (Equation 1)
-        λ′ = λ - 2 * FT(π) * t / τ
-        k = 10 * R / τ
-
-        u_a = k * sin(λ′)^2 * sin(2 * φ) * cos(FT(π) * t / τ) + 2 * FT(π) * R / τ * cos(φ)
-        u_d =
-            ω_0 * R / (b * p_top) *
-            cos(λ′) *
-            cos(φ)^2 *
-            cos(2 * FT(π) * t / τ) *
-            (-exp((p - p_0) / (b * p_top)) + exp((p_top - p) / (b * p_top)))
-        u = u_a + u_d
-        v = k * sin(2 * λ′) * cos(φ) * cos(FT(π) * t / τ)
-        s = 1 + exp((p_top - p_0) / (b * p_top)) - exp((p - p_0) / (b * p_top)) - exp((p_top - p) / (b * p_top))
-        ω = ω_0 * sin(λ′) * cos(φ) * cos(2 * FT(π) * t / τ) * s
-        w = -ω / (g * ρ)
-
-        return Geometry.UVWVector(u, v, w)
-    end
-
-    horz_div = Operators.Divergence()
-    horz_wdiv = Operators.WeakDivergence()
-    horz_grad = Operators.Gradient()
-    cent_χ = similar(cent_q)
-    function T_lim!(tendency, state, _, t)
-        @. current_cent_wind_vector = wind_vector(cent_coords, state.cent_ρ, t)
-        @. tendency.cent_ρ = -horz_div(state.cent_ρ * current_cent_wind_vector)
-        @. tendency.cent_ρq = -horz_div(state.cent_ρq * current_cent_wind_vector)
-        use_hyperdiffusion || return nothing
-        @. cent_χ = horz_wdiv(horz_grad(state.cent_ρq / state.cent_ρ))
-        Spaces.weighted_dss!(cent_χ)
-        @. tendency.cent_ρq += -D₄ * horz_wdiv(state.cent_ρ * horz_grad(cent_χ))
-        return nothing
-    end
-
-    limiter = Limiters.QuasiMonotoneLimiter(cent_q; rtol = FT(0))
-    function lim!(state, _, t, ref_state)
-        use_limiter || return nothing
-        Limiters.compute_bounds!(limiter, ref_state.cent_ρq, ref_state.cent_ρ)
-        Limiters.apply_limiter!(state.cent_ρq, state.cent_ρ, limiter)
-        return nothing
-    end
-
-    vert_div = Operators.DivergenceF2C()
-    vert_interp = Operators.InterpolateC2F(top = Operators.Extrapolate(), bottom = Operators.Extrapolate())
-    function T_exp!(tendency, state, _, t)
-        @. current_face_wind_vector = wind_vector(face_coords, vert_interp(state.cent_ρ), t)
-        @. tendency.cent_ρ = -vert_div(vert_interp(state.cent_ρ) * current_face_wind_vector)
-        @. tendency.cent_ρq = -vert_div(vert_interp(state.cent_ρq) * current_face_wind_vector)
-    end
-
-    function dss!(state, _, t)
-        Spaces.weighted_dss!(state.q)
-    end
-
-    function analytic_sol(t)
-        t ∈ (0, τ) || error("Analytic solution only defined at start and end")
-        return copy(init_state)
-    end
-
-    tendency_func = ClimaODEFunction(; T_lim!, T_exp!, lim!, dss!)
-    split_tendency_func = tendency_func
-    make_prob(func) = ODEProblem(func, init_state, (FT(0), τ), nothing)
-    IntegratorTestCase(
-        "Deformational Flow",
-        false,
-        τ,
-        analytic_sol,
-        make_prob(tendency_func),
-        make_prob(split_tendency_func),
-    )
-end
-
-# "A standard test case suite for two-dimensional linear transport on the
-# sphere" by Lauritzen et al.
-# (https://gmd.copernicus.org/articles/5/887/2012/gmd-5-887-2012.pdf)
-# Implemented in flux form, with an optional limiter and hyperdiffusion.
-function horizontal_deformational_flow_test(::Type{FT}; use_limiter = true, use_hyperdiffusion = true) where {FT}
-    context = ClimaComms.context()
-    # constants (using the same notation as deformational_flow_test)
-    R = FT(6371220)           # radius of Earth [m]
-    τ = 60 * 60 * 24 * FT(12) # period of motion (12 days) [s]
-    λ_c1 = -FT(π) / 6         # initial longitude of first tracer
-    λ_c2 = FT(π) / 6          # initial longitude of second tracer
-    φ_c = FT(0)               # initial latitude of tracers
-    R_t = R / 2               # horizontal half-width of tracers [m]
-    D₄ = FT(6.6e14)           # hyperviscosity coefficient [m^4] (specified in the limiter paper)
-
-    centers = Geometry.LatLongPoint.(rad2deg(φ_c), rad2deg.((λ_c1, λ_c2)))
-
-    # 1.5° resolution on the equator: 360° / (4 * nelems * npoly) = 1.5°
-    nelems = 20
-    npoly = 3
-
-    domain = Domains.SphereDomain(R)
-    mesh = Meshes.EquiangularCubedSphere(domain, nelems)
-    topology = Topologies.Topology2D(context, mesh)
-    quad = Spaces.Quadratures.GLL{npoly + 1}()
-    space = Spaces.SpectralElementSpace2D(topology, quad)
-    coords = Fields.coordinate_field(space)
-
-    # initial conditions (Section 2.2)
-    ρ = ones(space)
-    q = map(coords) do coord
-        φ = deg2rad(coord.lat)
-        λ = deg2rad(coord.long)
-
-        hs = map(centers) do center
-            center′ = Geometry.CartesianPoint(center, Spaces.global_geometry(space))
-            coord′ = Geometry.CartesianPoint(coord, Spaces.global_geometry(space))
-            dist_squared = (coord′.x1 - center′.x1)^2 + (coord′.x2 - center′.x2)^2 + (coord′.x3 - center′.x3)^2
-            # Note: the paper doesn't divide by R^2, which only works if R = 1
-            return FT(0.95) * exp(-5 * dist_squared / R^2)
-        end
-        gaussian_hills = hs[1] + hs[2]
-        rs = map(centers) do center
-            return Geometry.great_circle_distance(coord, center, Spaces.global_geometry(space))
-        end
-        cosine_bells = if rs[1] < R_t
-            FT(0.1) + FT(0.9) * (1 + cos(FT(π) * rs[1] / R_t)) / 2
-        elseif rs[2] < R_t
-            FT(0.1) + FT(0.9) * (1 + cos(FT(π) * rs[2] / R_t)) / 2
-        else
-            FT(0.1)
-        end
-        slotted_cylinders =
-            if (
-                (rs[1] <= R_t && abs(λ - λ_c1) >= R_t / 6R) ||
-                (rs[2] <= R_t && abs(λ - λ_c2) >= R_t / 6R) ||
-                (rs[1] <= R_t && abs(λ - λ_c1) < R_t / 6R && φ - φ_c < -5R_t / 12R) ||
-                (rs[2] <= R_t && abs(λ - λ_c2) < R_t / 6R && φ - φ_c > 5R_t / 12R)
-            )
-                FT(1)
-            else
-                FT(0.1)
-            end
-
-        return (; gaussian_hills, cosine_bells, slotted_cylinders)
-    end
-    init_state = Fields.FieldVector(; ρ, ρq = ρ .* q)
-
-    # current wind vector (Section 2.3)
-    current_wind_vector = Fields.Field(Geometry.UVVector{FT}, space)
-    function wind_vector(coord, t)
-        φ = deg2rad(coord.lat)
-        λ = deg2rad(coord.long)
-
-        λ′ = λ - 2 * FT(π) * t / τ
-        k = 10 * R / τ
-
-        u = k * sin(λ′)^2 * sin(2 * φ) * cos(FT(π) * t / τ) + 2 * FT(π) * R / τ * cos(φ)
-        v = k * sin(2 * λ′) * cos(φ) * cos(FT(π) * t / τ)
-
-        return Geometry.UVVector(u, v)
-    end
-
-    div = Operators.Divergence()
-    wdiv = Operators.WeakDivergence()
-    grad = Operators.Gradient()
-    χ = similar(q)
-    function T_lim!(tendency, state, _, t)
-        @. current_wind_vector = wind_vector(coords, t)
-        @. tendency.ρ = -div(state.ρ * current_wind_vector)
-        @. tendency.ρq = -div(state.ρq * current_wind_vector)
-        use_hyperdiffusion || return nothing
-        @. χ = wdiv(grad(state.ρq / state.ρ))
-        Spaces.weighted_dss!(χ)
-        @. tendency.ρq += -D₄ * wdiv(state.ρ * grad(χ))
-        return nothing
-    end
-
-    limiter = Limiters.QuasiMonotoneLimiter(q; rtol = FT(0))
-    function lim!(state, _, t, ref_state)
-        use_limiter || return nothing
-        Limiters.compute_bounds!(limiter, ref_state.ρq, ref_state.ρ)
-        Limiters.apply_limiter!(state.ρq, state.ρ, limiter)
-        return nothing
-    end
-
-    function dss!(state, _, t)
-        Spaces.weighted_dss!(state.ρ)
-        Spaces.weighted_dss!(state.ρq)
-    end
-
-    function analytic_sol(t)
-        t ∈ (0, τ) || error("Analytic solution only defined at start and end")
-        return copy(init_state)
-    end
-
-    tendency_func = ClimaODEFunction(; T_lim!, lim!, dss!)
-    split_tendency_func = tendency_func
-    make_prob(func) = ODEProblem(func, init_state, (FT(0), τ), nothing)
-    IntegratorTestCase(
-        "Horizontal Deformational Flow",
-        false,
-        τ,
         analytic_sol,
         make_prob(tendency_func),
         make_prob(split_tendency_func),

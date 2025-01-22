@@ -1,5 +1,6 @@
 import ODEConvergenceTester as OCT
 import ClimaTimeSteppers as CTS
+import OrdinaryDiffEq as ODE
 
 """
     DirectSolver
@@ -12,7 +13,7 @@ DirectSolver(args...) = DirectSolver()
 
 function (::DirectSolver)(x, A, b, matrix_updated; kwargs...)
     n = length(x)
-    M = mapslices(y -> mul!(zero(y), A, y), Matrix{eltype(x)}(I, n, n), dims = 1)
+    M = mapslices(y -> mul!(similar(y), A, y), Matrix{eltype(x)}(I, n, n), dims = 1)
     x .= M \ b
 end
 
@@ -51,8 +52,8 @@ function convergence_order(prob, sol, method, dts; kwargs...)
     return order_est
 end
 
-default_expected_order(alg, tab::CTS.AbstractAlgorithmName) = SciMLBase.alg_order(tab)
-# default_expected_order(alg, tab) = SciMLBase.alg_order(alg)
+default_expected_order(alg, tab::CTS.AbstractAlgorithmName) = ODE.alg_order(tab)
+# default_expected_order(alg, tab) = ODE.alg_order(alg)
 
 function test_convergence_order!(test_case, tab, results = Dict(); refinement_range)
     prob = problem(test_case, tab)

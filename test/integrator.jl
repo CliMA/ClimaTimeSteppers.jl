@@ -1,16 +1,14 @@
-import ClimaTimeSteppers as CTS
 using ClimaTimeSteppers, Test
-import SciMLBase
+import OrdinaryDiffEq
 
 include("integrator_utils.jl")
 include("problems.jl")
 
 @testset "integrator save times" begin
-    for (alg, test_case) in ((ExplicitAlgorithm(SSP33ShuOsher()), clima_constant_tendency_test(Float64)),),
-        reverse_prob in (false, true),
-        n_dt_steps in (10, 10000)
+    test_case = constant_tendency_test(Float64)
+    (; prob, analytic_sol) = test_case
+    for alg in (SSPRK33ShuOsher(), OrdinaryDiffEq.SSPRK33()), reverse_prob in (false, true), n_dt_steps in (10, 10000)
 
-        (; prob, analytic_sol) = test_case
         if reverse_prob
             prob = reverse_problem(prob, analytic_sol)
         end
@@ -40,7 +38,7 @@ include("problems.jl")
             isnothing(next_saving_time_index) && return
             add_tstop!(integrator, save_dt_times[next_saving_time_index])
         end
-        adding_callback = SciMLBase.DiscreteCallback(
+        adding_callback = DiffEqBase.DiscreteCallback(
             (u, t, integrator) -> true,
             adding_function!;
             initialize = (cb, u, t, integrator) -> adding_function!(integrator),
@@ -48,7 +46,7 @@ include("problems.jl")
         )
 
         setting_function!(integrator) = ClimaTimeSteppers.set_dt!(integrator, 2 * DiffEqBase.get_dt(integrator))
-        setting_callback = SciMLBase.DiscreteCallback((u, t, integrator) -> true, setting_function!)
+        setting_callback = DiffEqBase.DiscreteCallback((u, t, integrator) -> true, setting_function!)
         n_set_steps = floor(Int, log2(1 + abs(tf - t0) / dt)) - 1
         setting_times = [accumulate(+, [t0, (tdir * dt * 2 .^ (0:n_set_steps))...])..., tf]
 
@@ -111,8 +109,8 @@ end
 @testset "integrator save times with reinit!" begin
     # OrdinaryDiffEq does not save at t0′ after reinit! unless erase_sol is
     # true, so this test does not include a comparison with OrdinaryDiffEq.
-    alg = ExplicitAlgorithm(SSP33ShuOsher())
-    test_case = clima_constant_tendency_test(Float64)
+    alg = SSPRK33ShuOsher()
+    test_case = constant_tendency_test(Float64)
     (; prob, analytic_sol) = test_case
     for reverse_prob in (false, true)
         if reverse_prob
@@ -141,7 +139,7 @@ end
             ((; saveat = save_dt, tstops = all_times), (; erase_sol = false), all_times),
         )
             integrator = init(deepcopy(prob), alg; dt, init_kwargs...)
-            @test !@any_reltype(integrator, (UnionAll, DataType))
+            @test !@has_DataType_or_UnionAll(integrator)
             solve!(integrator)
             reinit!(integrator, u0′; t0 = t0′, tf = tf′, reinit_kwargs...)
             sol = solve!(integrator)
@@ -152,8 +150,8 @@ end
 end
 
 @testset "integrator step past end time" begin
-    alg = ExplicitAlgorithm(SSP33ShuOsher())
-    test_case = clima_constant_tendency_test(Float64)
+    alg = SSPRK33ShuOsher()
+    test_case = constant_tendency_test(Float64)
     (; prob, analytic_sol) = test_case
     t0, tf = prob.tspan
     dt = tf - t0

@@ -51,36 +51,6 @@ end
 get_trial(f::Nothing, args, name; device, with_cu_prof = :bprofile, trace = false, crop = false, hcrop = nothing) =
     nothing
 function get_trial(f, args, name; device, with_cu_prof = :bprofile, trace = false, crop = false, hcrop = nothing)
-    f(args...) # compile first
-    b = if device isa ClimaComms.CUDADevice
-        BenchmarkTools.@benchmarkable CUDA.@sync $f($(args)...)
-    else
-        BenchmarkTools.@benchmarkable $f($(args)...)
-    end
-    sample_limit = 10
-    println("--------------- Benchmarking/profiling $name...")
-    trial = BenchmarkTools.run(b, samples = sample_limit)
-    if device isa ClimaComms.CUDADevice
-        p = if with_cu_prof == :bprofile
-            CUDA.@bprofile trace = trace f(args...)
-        else
-            CUDA.@profile trace = trace f(args...)
-        end
-        if crop
-            println(p) # crops by default
-        else
-            # use "COLUMNS" to set how many horizontal characters to crop:
-            # See https://github.com/ronisbr/PrettyTables.jl/issues/11#issuecomment-2145550354
-            envs = isnothing(hcrop) ? () : ("COLUMNS" => hcrop,)
-            withenv(envs...) do
-                io = IOContext(stdout, :crop => :horizontal, :limit => true, :displaysize => displaysize())
-                show(io, p)
-            end
-            println()
-        end
-    end
-    println()
-    return trial
 end
 
 get_W(i::CTS.DistributedODEIntegrator) = hasproperty(i.cache, :W) ? i.cache.W : i.cache.newtons_method_cache.j

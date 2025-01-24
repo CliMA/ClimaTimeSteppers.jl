@@ -55,7 +55,7 @@ end
 function step_u!(integrator, cache::IMEXSSPRKCache)
     (; u, p, t, dt, alg) = integrator
     (; f) = integrator.sol.prob
-    (; post_explicit!, post_implicit!) = f
+    (; cache!, cache_imp!) = f
     (; T_exp_T_lim!, T_lim!, T_exp!, T_imp!, lim!, dss!) = f
     (; tableau, newtons_method) = alg
     (; a_imp, b_imp, c_exp, c_imp) = tableau
@@ -105,16 +105,15 @@ function step_u!(integrator, cache::IMEXSSPRKCache)
         i ≠ 1 && dss!(U, p, t_exp)
 
         if isnothing(T_imp!) || iszero(a_imp[i, i])
-            i ≠ 1 && post_explicit!(U, p, t_exp)
+            i ≠ 1 && cache!(U, p, t_exp)
             if !all(iszero, a_imp[:, i]) || !iszero(b_imp[i])
                 # If its coefficient is 0, T_imp[i] is being treated explicitly.
                 isnothing(T_imp!) || T_imp!(T_imp[i], U, p, t_imp)
             end
         else # Implicit solve
             @assert !isnothing(newtons_method)
-            i ≠ 1 && post_implicit!(U, p, t_imp)
+            i ≠ 1 && cache_imp!(U, p, t_imp)
             @. temp = U
-            # TODO: can/should we remove these closures?
             implicit_equation_residual! = (residual, Ui) -> begin
                 T_imp!(residual, Ui, p, t_imp)
                 @. residual = temp + dt * a_imp[i, i] * residual - Ui
@@ -122,15 +121,14 @@ function step_u!(integrator, cache::IMEXSSPRKCache)
             implicit_equation_jacobian! = (jacobian, Ui) -> begin
                 T_imp!.Wfact(jacobian, Ui, p, dt * a_imp[i, i], t_imp)
             end
-            call_post_implicit! = Ui -> post_implicit!(Ui, p, t_imp)
+            implicit_equation_cache! = Ui -> cache_imp!(Ui, p, t_imp)
             solve_newton!(
                 newtons_method,
                 newtons_method_cache,
                 U,
                 implicit_equation_residual!,
                 implicit_equation_jacobian!,
-                call_post_implicit!,
-                nothing,
+                implicit_equation_cache!,
             )
             if !all(iszero, a_imp[:, i]) || !iszero(b_imp[i])
                 # If T_imp[i] is being treated implicitly, ensure that it
@@ -138,7 +136,7 @@ function step_u!(integrator, cache::IMEXSSPRKCache)
                 @. T_imp[i] = (U - temp) / (dt * a_imp[i, i])
             end
             dss!(U, p, t_imp)
-            post_explicit!(U, p, t_imp)
+            cache!(U, p, t_imp)
         end
 
         if !iszero(β[i])
@@ -173,7 +171,7 @@ function step_u!(integrator, cache::IMEXSSPRKCache)
     end
 
     dss!(u, p, t_final)
-    post_explicit!(u, p, t_final)
+    cache!(u, p, t_final)
 
     return u
 end

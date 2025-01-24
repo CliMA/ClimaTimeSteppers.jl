@@ -7,6 +7,7 @@ CurrentModule = ClimaTimeSteppers
 ## Interface
 
 ```@docs
+ClimaODEFunction
 AbstractAlgorithmConstraint
 Unconstrained
 SSP

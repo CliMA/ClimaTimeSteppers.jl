@@ -4,7 +4,7 @@ function step_u!(integrator, cache::IMEXARKCache, ::ARS343)
     (; u, p, t, dt, sol, alg) = integrator
     (; f) = sol.prob
     (; T_imp!, lim!, dss!) = f
-    (; post_explicit!, post_implicit!) = f
+    (; cache!, cache_imp!) = f
     (; tableau, newtons_method) = alg
     (; a_exp, b_exp, a_imp, b_imp, c_exp, c_imp) = tableau
     (; U, T_lim, T_exp, T_imp, temp, γ, newtons_method_cache) = cache
@@ -35,7 +35,7 @@ function step_u!(integrator, cache::IMEXARKCache, ::ARS343)
     @. temp = U # used in closures
     let i = i
         t_imp = t + dt * c_imp[i]
-        post_implicit!(U, p, t_imp)
+        cache_imp!(U, p, t_imp)
         implicit_equation_residual! = (residual, Ui) -> begin
             T_imp!(residual, Ui, p, t_imp)
             @. residual = temp + dt * a_imp[i, i] * residual - Ui
@@ -43,19 +43,19 @@ function step_u!(integrator, cache::IMEXARKCache, ::ARS343)
         implicit_equation_jacobian! = (jacobian, Ui) -> begin
             T_imp!.Wfact(jacobian, Ui, p, dt * a_imp[i, i], t_imp)
         end
-        call_post_implicit! = Ui -> post_implicit!(Ui, p, t_imp)
+        call_cache_imp! = Ui -> cache_imp!(Ui, p, t_imp)
         solve_newton!(
             newtons_method,
             newtons_method_cache,
             U,
             implicit_equation_residual!,
             implicit_equation_jacobian!,
-            call_post_implicit!,
+            call_cache_imp!,
             nothing,
         )
         @. T_imp[i] = (U - temp) / (dt * a_imp[i, i])
         dss!(U, p, t_imp)
-        post_explicit!(U, p, t_imp)
+        cache!(U, p, t_imp)
     end
     T_lim!(T_lim[i], U, p, t_exp)
     T_exp!(T_exp[i], U, p, t_exp)
@@ -69,7 +69,7 @@ function step_u!(integrator, cache::IMEXARKCache, ::ARS343)
     @. temp = U # used in closures
     let i = i
         t_imp = t + dt * c_imp[i]
-        post_implicit!(U, p, t_imp)
+        cache_imp!(U, p, t_imp)
         implicit_equation_residual! = (residual, Ui) -> begin
             T_imp!(residual, Ui, p, t_imp)
             @. residual = temp + dt * a_imp[i, i] * residual - Ui
@@ -77,19 +77,19 @@ function step_u!(integrator, cache::IMEXARKCache, ::ARS343)
         implicit_equation_jacobian! = (jacobian, Ui) -> begin
             T_imp!.Wfact(jacobian, Ui, p, dt * a_imp[i, i], t_imp)
         end
-        call_post_implicit! = Ui -> post_implicit!(Ui, p, t_imp)
+        call_cache_imp! = Ui -> cache_imp!(Ui, p, t_imp)
         solve_newton!(
             newtons_method,
             newtons_method_cache,
             U,
             implicit_equation_residual!,
             implicit_equation_jacobian!,
-            call_post_implicit!,
+            call_cache_imp!,
             nothing,
         )
         @. T_imp[i] = (U - temp) / (dt * a_imp[i, i])
         dss!(U, p, t_imp)
-        post_explicit!(U, p, t_imp)
+        cache!(U, p, t_imp)
     end
     T_lim!(T_lim[i], U, p, t_exp)
     T_exp!(T_exp[i], U, p, t_exp)
@@ -108,7 +108,7 @@ function step_u!(integrator, cache::IMEXARKCache, ::ARS343)
     @. temp = U # used in closures
     let i = i
         t_imp = t + dt * c_imp[i]
-        post_implicit!(U, p, t_imp)
+        cache_imp!(U, p, t_imp)
         implicit_equation_residual! = (residual, Ui) -> begin
             T_imp!(residual, Ui, p, t_imp)
             @. residual = temp + dt * a_imp[i, i] * residual - Ui
@@ -116,19 +116,19 @@ function step_u!(integrator, cache::IMEXARKCache, ::ARS343)
         implicit_equation_jacobian! = (jacobian, Ui) -> begin
             T_imp!.Wfact(jacobian, Ui, p, dt * a_imp[i, i], t_imp)
         end
-        call_post_implicit! = Ui -> post_implicit!(Ui, p, t_imp)
+        call_cache_imp! = Ui -> cache_imp!(Ui, p, t_imp)
         solve_newton!(
             newtons_method,
             newtons_method_cache,
             U,
             implicit_equation_residual!,
             implicit_equation_jacobian!,
-            call_post_implicit!,
+            call_cache_imp!,
             nothing,
         )
         @. T_imp[i] = (U - temp) / (dt * a_imp[i, i])
         dss!(U, p, t_imp)
-        post_explicit!(U, p, t_imp)
+        cache!(U, p, t_imp)
     end
     T_lim!(T_lim[i], U, p, t_exp)
     T_exp!(T_exp[i], U, p, t_exp)
@@ -145,6 +145,6 @@ function step_u!(integrator, cache::IMEXARKCache, ::ARS343)
         dt * b_imp[3] * T_imp[3] +
         dt * b_imp[4] * T_imp[4]
     dss!(u, p, t_final)
-    post_explicit!(u, p, t_final)
+    cache!(u, p, t_final)
     return u
 end

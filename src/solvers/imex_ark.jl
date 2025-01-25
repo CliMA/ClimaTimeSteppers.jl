@@ -49,7 +49,7 @@ end
 function step_u!(integrator, cache::IMEXARKCache)
     (; u, p, t, dt, alg) = integrator
     (; f) = integrator.sol.prob
-    (; post_explicit!, post_implicit!) = f
+    (; cache!, cache_imp!) = f
     (; T_lim!, T_exp!, T_imp!, lim!, dss!) = f
     (; tableau, newtons_method) = alg
     (; a_exp, b_exp, a_imp, b_imp, c_exp, c_imp) = tableau
@@ -83,7 +83,7 @@ function step_u!(integrator, cache::IMEXARKCache)
     isnothing(T_imp!) || fused_increment!(u, dt, b_imp, T_imp, Val(s))
 
     dss!(u, p, t_final)
-    post_explicit!(u, p, t_final)
+    cache!(u, p, t_final)
 
     return u
 end
@@ -98,7 +98,7 @@ end
 @inline function update_stage!(integrator, cache::IMEXARKCache, i::Int)
     (; u, p, t, dt, alg) = integrator
     (; f) = integrator.sol.prob
-    (; post_explicit!, post_implicit!) = f
+    (; cache!, cache_imp!) = f
     (; T_exp_T_lim!, T_lim!, T_exp!, T_imp!, lim!, dss!) = f
     (; tableau, newtons_method) = alg
     (; a_exp, b_exp, a_imp, b_imp, c_exp, c_imp) = tableau
@@ -119,50 +119,41 @@ end
     has_T_exp(f) && fused_increment!(U, dt, a_exp, T_exp, Val(i))
     isnothing(T_imp!) || fused_increment!(U, dt, a_imp, T_imp, Val(i))
 
+    i ≠ 1 && dss!(U, p, t_exp)
+
     if isnothing(T_imp!) || iszero(a_imp[i, i])
-        i ≠ 1 && dss!(U, p, t_imp)
-        i ≠ 1 && post_explicit!(U, p, t_imp)
+        i ≠ 1 && cache!(U, p, t_exp)
+        if !all(iszero, a_imp[:, i]) || !iszero(b_imp[i])
+            # If its coefficient is 0, T_imp[i] is being treated explicitly.
+            isnothing(T_imp!) || T_imp!(T_imp[i], U, p, t_imp)
+        end
     else # Implicit solve
         @assert !isnothing(newtons_method)
+        i ≠ 1 && cache_imp!(U, p, t_imp)
         @. temp = U
-        # We do not need to apply DSS yet because the implicit solve does not
-        # involve any horizontal derivatives.
-        i ≠ 1 && post_explicit!(U, p, t_imp)
-        # TODO: can/should we remove these closures?
         implicit_equation_residual! = (residual, Ui) -> begin
             T_imp!(residual, Ui, p, t_imp)
             @. residual = temp + dt * a_imp[i, i] * residual - Ui
         end
-        implicit_equation_jacobian! = (jacobian, Ui) -> T_imp!.Wfact(jacobian, Ui, p, dt * a_imp[i, i], t_imp)
-        call_post_implicit! = Ui -> begin
-            post_implicit!(Ui, p, t_imp)
+        implicit_equation_jacobian! = (jacobian, Ui) -> begin
+            T_imp!.Wfact(jacobian, Ui, p, dt * a_imp[i, i], t_imp)
         end
-        call_post_implicit_last! = Ui -> begin
-            dss!(Ui, p, t_imp)
-            post_implicit!(Ui, p, t_imp)
-        end
-
+        implicit_equation_cache! = Ui -> cache_imp!(Ui, p, t_imp)
         solve_newton!(
             newtons_method,
             newtons_method_cache,
             U,
             implicit_equation_residual!,
             implicit_equation_jacobian!,
-            call_post_implicit!,
-            call_post_implicit_last!,
+            implicit_equation_cache!,
         )
-    end
-
-    if !all(iszero, a_imp[:, i]) || !iszero(b_imp[i])
-        if iszero(a_imp[i, i])
-            # If its coefficient is 0, T_imp[i] is effectively being
-            # treated explicitly.
-            isnothing(T_imp!) || T_imp!(T_imp[i], U, p, t_imp)
-        else
+        if !all(iszero, a_imp[:, i]) || !iszero(b_imp[i])
             # If T_imp[i] is being treated implicitly, ensure that it
-            # exactly satisfies the implicit equation.
-            isnothing(T_imp!) || @. T_imp[i] = (U - temp) / (dt * a_imp[i, i])
+            # exactly satisfies the implicit equation before applying DSS.
+            @. T_imp[i] = (U - temp) / (dt * a_imp[i, i])
         end
+        dss!(U, p, t_imp)
+        cache!(U, p, t_imp)
     end
 
     if !all(iszero, a_exp[:, i]) || !iszero(b_exp[i])

@@ -102,11 +102,12 @@ end
     (; T_exp_T_lim!, T_lim!, T_exp!, T_imp!, lim!, dss!) = f
     (; tableau, newtons_method) = alg
     (; a_exp, b_exp, a_imp, b_imp, c_exp, c_imp) = tableau
-    (; U, T_lim, T_exp, T_imp, temp, γ, newtons_method_cache) = cache
+    (; U, T_lim, T_exp, T_imp, temp, newtons_method_cache) = cache
     s = length(b_exp)
 
     t_exp = t + dt * c_exp[i]
     t_imp = t + dt * c_imp[i]
+    dtγ = dt * a_imp[i, i]
 
     if has_T_lim(f) # Update based on limited tendencies from previous stages
         assign_fused_increment!(U, u, dt, a_exp, T_lim, Val(i))
@@ -123,20 +124,16 @@ end
 
     if isnothing(T_imp!) || iszero(a_imp[i, i])
         i ≠ 1 && cache!(U, p, t_exp)
-        if !all(iszero, a_imp[:, i]) || !iszero(b_imp[i])
-            # If its coefficient is 0, T_imp[i] is being treated explicitly.
-            isnothing(T_imp!) || T_imp!(T_imp[i], U, p, t_imp)
-        end
     else # Implicit solve
         @assert !isnothing(newtons_method)
         i ≠ 1 && cache_imp!(U, p, t_imp)
         @. temp = U
         implicit_equation_residual! = (residual, Ui) -> begin
             T_imp!(residual, Ui, p, t_imp)
-            @. residual = temp + dt * a_imp[i, i] * residual - Ui
+            @. residual = temp + dtγ * residual - Ui
         end
         implicit_equation_jacobian! = (jacobian, Ui) -> begin
-            T_imp!.Wfact(jacobian, Ui, p, dt * a_imp[i, i], t_imp)
+            T_imp!.Wfact(jacobian, Ui, p, dtγ, t_imp)
         end
         implicit_equation_cache! = Ui -> cache_imp!(Ui, p, t_imp)
         solve_newton!(
@@ -147,21 +144,23 @@ end
             implicit_equation_jacobian!,
             implicit_equation_cache!,
         )
-        if !all(iszero, a_imp[:, i]) || !iszero(b_imp[i])
-            # If T_imp[i] is being treated implicitly, ensure that it
-            # exactly satisfies the implicit equation before applying DSS.
-            @. T_imp[i] = (U - temp) / (dt * a_imp[i, i])
-        end
         dss!(U, p, t_imp)
         cache!(U, p, t_imp)
     end
 
     if !all(iszero, a_exp[:, i]) || !iszero(b_exp[i])
-        if !isnothing(T_exp_T_lim!)
-            T_exp_T_lim!(T_exp[i], T_lim[i], U, p, t_exp)
+        isnothing(T_exp_T_lim!) || T_exp_T_lim!(T_exp[i], T_lim[i], U, p, t_exp)
+        isnothing(T_lim!) || T_lim!(T_lim[i], U, p, t_exp)
+        isnothing(T_exp!) || T_exp!(T_exp[i], U, p, t_exp)
+    end
+    if !all(iszero, a_imp[:, i]) || !iszero(b_imp[i])
+        if iszero(a_imp[i, i])
+            # If its coefficient is 0, T_imp[i] is being treated explicitly.
+            isnothing(T_imp!) || T_imp!(T_imp[i], U, p, t_imp)
         else
-            isnothing(T_lim!) || T_lim!(T_lim[i], U, p, t_exp)
-            isnothing(T_exp!) || T_exp!(T_exp[i], U, p, t_exp)
+            # If T_imp[i] is being treated implicitly, ensure that it
+            # exactly satisfies the implicit equation after applying DSS.
+            isnothing(T_imp!) || @. T_imp[i] = (U - temp) / dtγ
         end
     end
 

@@ -19,13 +19,13 @@ function init_cache(prob::DiffEqBase.AbstractODEProblem, alg::IMEXAlgorithm{SSP}
     s = length(b_exp)
     inds = ntuple(i -> i, s)
     inds_T_imp = filter(i -> !all(iszero, a_imp[:, i]) || !iszero(b_imp[i]), inds)
-    U = similar(u0)
-    U_exp = similar(u0)
-    T_lim = similar(u0)
-    T_exp = similar(u0)
-    U_lim = similar(u0)
-    T_imp = SparseContainer(map(i -> similar(u0), collect(1:length(inds_T_imp))), inds_T_imp)
-    temp = similar(u0)
+    U = zero(u0)
+    U_exp = zero(u0)
+    T_lim = zero(u0)
+    T_exp = zero(u0)
+    U_lim = zero(u0)
+    T_imp = SparseContainer(map(i -> zero(u0), collect(1:length(inds_T_imp))), inds_T_imp)
+    temp = zero(u0)
     â_exp = SparseCoeffs(vcat(a_exp.coeffs, b_exp.coeffs'))
     β = SparseCoeffs(diag(â_exp, -1))
     for i in 1:length(β)
@@ -55,7 +55,7 @@ end
 function step_u!(integrator, cache::IMEXSSPRKCache)
     (; u, p, t, dt, alg) = integrator
     (; f) = integrator.sol.prob
-    (; post_explicit!, post_implicit!) = f
+    (; cache!, cache_imp!) = f
     (; T_exp_T_lim!, T_lim!, T_exp!, T_imp!, lim!, dss!) = f
     (; tableau, newtons_method) = alg
     (; a_imp, b_imp, c_exp, c_imp) = tableau
@@ -79,6 +79,7 @@ function step_u!(integrator, cache::IMEXSSPRKCache)
     for i in 1:s
         t_exp = t + dt * c_exp[i]
         t_imp = t + dt * c_imp[i]
+        dtγ = dt * a_imp[i, i]
 
         if i == 1
             @. U_exp = u
@@ -94,8 +95,6 @@ function step_u!(integrator, cache::IMEXSSPRKCache)
             @. U_exp = (1 - β[i - 1]) * u + β[i - 1] * U_exp
         end
 
-        i ≠ 1 && dss!(U_exp, p, t_exp)
-
         @. U = U_exp
         if !isnothing(T_imp!) # Update based on implicit tendencies from previous stages
             for j in 1:(i - 1)
@@ -104,60 +103,47 @@ function step_u!(integrator, cache::IMEXSSPRKCache)
             end
         end
 
-        if !(!isnothing(T_imp!) && !iszero(a_imp[i, i]))
-            i ≠ 1 && post_explicit!(U, p, t_imp)
+        i ≠ 1 && dss!(U, p, t_exp)
+
+        if isnothing(T_imp!) || iszero(a_imp[i, i])
+            i ≠ 1 && cache!(U, p, t_exp)
         else # Implicit solve
             @assert !isnothing(newtons_method)
+            i ≠ 1 && cache_imp!(U, p, t_imp)
             @. temp = U
-            post_explicit!(U, p, t_imp)
-            # TODO: can/should we remove these closures?
             implicit_equation_residual! = (residual, Ui) -> begin
                 T_imp!(residual, Ui, p, t_imp)
-                @. residual = temp + dt * a_imp[i, i] * residual - Ui
+                @. residual = temp + dtγ * residual - Ui
             end
-            implicit_equation_jacobian! = (jacobian, Ui) -> T_imp!.Wfact(jacobian, Ui, p, dt * a_imp[i, i], t_imp)
-            call_post_implicit! = Ui -> begin
-                post_implicit!(Ui, p, t_imp)
+            implicit_equation_jacobian! = (jacobian, Ui) -> begin
+                T_imp!.Wfact(jacobian, Ui, p, dtγ, t_imp)
             end
-            call_post_implicit_last! =
-                Ui -> begin
-                    if (!all(iszero, a_imp[:, i]) || !iszero(b_imp[i])) && !iszero(a_imp[i, i])
-                        # If T_imp[i] is being treated implicitly, ensure that it
-                        # exactly satisfies the implicit equation.
-                        @. T_imp[i] = (Ui - temp) / (dt * a_imp[i, i])
-                    end
-                    post_implicit!(Ui, p, t_imp)
-                end
-
+            implicit_equation_cache! = Ui -> cache_imp!(Ui, p, t_imp)
             solve_newton!(
                 newtons_method,
                 newtons_method_cache,
                 U,
                 implicit_equation_residual!,
                 implicit_equation_jacobian!,
-                call_post_implicit!,
-                call_post_implicit_last!,
+                implicit_equation_cache!,
             )
-        end
-
-        # We do not need to DSS U again because the implicit solve should
-        # give the same results for redundant columns (as long as the implicit
-        # tendency only acts in the vertical direction).
-
-        if !all(iszero, a_imp[:, i]) || !iszero(b_imp[i])
-            if iszero(a_imp[i, i]) && !isnothing(T_imp!)
-                # If its coefficient is 0, T_imp[i] is effectively being
-                # treated explicitly.
-                T_imp!(T_imp[i], U, p, t_imp)
-            end
+            dss!(U, p, t_imp)
+            cache!(U, p, t_imp)
         end
 
         if !iszero(β[i])
-            if !isnothing(T_exp_T_lim!)
-                T_exp_T_lim!(T_lim, T_exp, U, p, t_exp)
+            isnothing(T_exp_T_lim!) || T_exp_T_lim!(T_lim, T_exp, U, p, t_exp)
+            isnothing(T_lim!) || T_lim!(T_lim, U, p, t_exp)
+            isnothing(T_exp!) || T_exp!(T_exp, U, p, t_exp)
+        end
+        if !all(iszero, a_imp[:, i]) || !iszero(b_imp[i])
+            if iszero(a_imp[i, i])
+                # If its coefficient is 0, T_imp[i] is being treated explicitly.
+                isnothing(T_imp!) || T_imp!(T_imp[i], U, p, t_imp)
             else
-                isnothing(T_lim!) || T_lim!(T_lim, U, p, t_exp)
-                isnothing(T_exp!) || T_exp!(T_exp, U, p, t_exp)
+                # If T_imp[i] is being treated implicitly, ensure that it
+                # exactly satisfies the implicit equation after applying DSS.
+                isnothing(T_imp!) || @. T_imp[i] = (U - temp) / dtγ
             end
         end
     end
@@ -184,7 +170,7 @@ function step_u!(integrator, cache::IMEXSSPRKCache)
     end
 
     dss!(u, p, t_final)
-    post_explicit!(u, p, t_final)
+    cache!(u, p, t_final)
 
     return u
 end

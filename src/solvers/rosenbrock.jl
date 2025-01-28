@@ -94,7 +94,7 @@ function init_cache(prob::DiffEqBase.AbstractODEProblem, alg::RosenbrockAlgorith
     fU_exp = zero(prob.u0)
     fU_lim = zero(prob.u0)
     ∂Y∂t = zero(prob.u0)
-    k = ntuple(n -> similar(prob.u0), Nstages)
+    k = ntuple(n -> zero(prob.u0), Nstages)
     if !isnothing(prob.f.T_imp!)
         W = prob.f.T_imp!.jac_prototype
     else
@@ -123,7 +123,7 @@ function step_u!(int, cache::RosenbrockCache{Nstages}) where {Nstages}
     T_exp_lim! = int.sol.prob.f.T_exp_T_lim!
     tgrad! = isnothing(T_imp!) ? nothing : T_imp!.tgrad
 
-    (; post_explicit!, post_implicit!, dss!) = int.sol.prob.f
+    (; cache!, dss!) = int.sol.prob.f
 
     # TODO: This is only valid when Γ[i, i] is constant, otherwise we have to
     # move this in the for loop
@@ -150,14 +150,13 @@ function step_u!(int, cache::RosenbrockCache{Nstages}) where {Nstages}
             U .+= A[i, j] .* k[j]
         end
 
-        # NOTE: post_implicit! is a misnomer
-        if !isnothing(post_implicit!)
-            # We update p on every stage but the first, and at the end of each
-            # timestep. Since the first stage is unchanged from the end of the
-            # previous timestep, this order of operations ensures that p is
-            # always consistent with the state, including between timesteps.
-            (i != 1) && post_implicit!(U, p, t + αi * dt)
-        end
+        # We apply DSS and update the cache on every stage but the first,
+        # and at the end of each timestep. Since the first stage is
+        # unchanged from the end of the previous timestep, this order of
+        # operations ensures that the state is always continuous and
+        # consistent with the cache, including between timesteps.
+        (i != 1) && dss!(U, p, t + αi * dt)
+        (i != 1) && cache!(U, p, t + αi * dt)
 
         if !isnothing(T_imp!)
             T_imp!(fU_imp, U, p, t + αi * dt)
@@ -178,10 +177,6 @@ function step_u!(int, cache::RosenbrockCache{Nstages}) where {Nstages}
         if !isnothing(tgrad!)
             fU .+= γi .* dt .* ∂Y∂t
         end
-
-        # We dss the tendency at every stage but the last. At the last stage, we
-        # dss the incremented state
-        (i != Nstages) && dss!(fU, p, t + αi * dt)
 
         for j in 1:(i - 1)
             fU .+= (C[i, j] / dt) .* k[j]
@@ -205,7 +200,7 @@ function step_u!(int, cache::RosenbrockCache{Nstages}) where {Nstages}
     end
 
     dss!(u, p, t + dt)
-    post_implicit!(u, p, t + dt)
+    cache!(u, p, t + dt)
     return nothing
 end
 

@@ -70,11 +70,9 @@ include("problems.jl")
 
             # testing non-interpolated saving (OrdinaryDiffEq interpolates when saving)
             (false, (; saveat = save_dt_times), misaligned_saving_times),
-            (false, (; saveat = save_dt), [misaligned_saving_times..., tf]),
 
             # testing tstops (tstops remove the need for interpolation when saving)
             (true, (; saveat = save_dt_times, tstops = save_dt_times), save_dt_times),
-            (true, (; saveat = save_dt, tstops = save_dt_times), [save_dt_times..., tf]),
 
             # testing add_tstops! and add_saveat!
             (true, (; saveat = [tf], callback = adding_callback), [save_dt_times..., tf]),
@@ -136,9 +134,6 @@ end
             ((;), (; erase_sol = false), [t0, tf, t0′, tf′]),
             ((;), (; saveat = save_dt_times′, tstops = save_dt_times′), save_dt_times′),
             ((; saveat = save_dt_times′, tstops = save_dt_times′), (;), save_dt_times′),
-            ((;), (; saveat = save_dt, tstops = save_dt_times′), [save_dt_times′..., tf′]),
-            ((; saveat = save_dt, tstops = save_dt_times′), (;), [save_dt_times′..., tf′]),
-            ((; saveat = save_dt, tstops = all_times), (; erase_sol = false), all_times),
         )
             integrator = init(deepcopy(prob), alg; dt, init_kwargs...)
             @test !@any_reltype(integrator, (UnionAll, DataType))

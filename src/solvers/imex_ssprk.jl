@@ -103,29 +103,28 @@ function step_u!(integrator, cache::IMEXSSPRKCache)
             end
         end
 
+        # Run the implicit solver, apply DSS, and update the cache. When γ == 0,
+        # the implicit solver does not need to be run. On stage i == 1, we do
+        # not need to apply DSS and update the cache because we did that at the
+        # end of the previous timestep.
         i ≠ 1 && dss!(U, p, t_exp)
-
         if isnothing(T_imp!) || iszero(a_imp[i, i])
             i ≠ 1 && cache!(U, p, t_exp)
-        else # Implicit solve
+        else
             @assert !isnothing(newtons_method)
             i ≠ 1 && cache_imp!(U, p, t_imp)
             @. temp = U
-            implicit_equation_residual! = (residual, Ui) -> begin
-                T_imp!(residual, Ui, p, t_imp)
-                @. residual = temp + dtγ * residual - Ui
+            implicit_equation_residual! = (residual, U′) -> begin
+                T_imp!(residual, U′, p, t_imp)
+                @. residual = temp + dtγ * residual - U′
             end
-            implicit_equation_jacobian! = (jacobian, Ui) -> begin
-                T_imp!.Wfact(jacobian, Ui, p, dtγ, t_imp)
-            end
-            implicit_equation_cache! = Ui -> cache_imp!(Ui, p, t_imp)
             solve_newton!(
                 newtons_method,
                 newtons_method_cache,
                 U,
                 implicit_equation_residual!,
-                implicit_equation_jacobian!,
-                implicit_equation_cache!,
+                (jacobian, U′) -> T_imp!.Wfact(jacobian, U′, p, dtγ, t_imp),
+                U′ -> cache_imp!(U′, p, t_imp),
             )
             dss!(U, p, t_imp)
             cache!(U, p, t_imp)
@@ -138,11 +137,12 @@ function step_u!(integrator, cache::IMEXSSPRKCache)
         end
         if !all(iszero, a_imp[:, i]) || !iszero(b_imp[i])
             if iszero(a_imp[i, i])
-                # If its coefficient is 0, T_imp[i] is being treated explicitly.
+                # When γ == 0, T_imp[i] is treated explicitly.
                 isnothing(T_imp!) || T_imp!(T_imp[i], U, p, t_imp)
             else
-                # If T_imp[i] is being treated implicitly, ensure that it
-                # exactly satisfies the implicit equation after applying DSS.
+                # When γ != 0, T_imp[i] is treated implicitly, so it must satisfy
+                # the implicit equation. To ensure that T_imp[i] only includes the
+                # effect of applying DSS to T_imp!, U and temp must be DSSed.
                 isnothing(T_imp!) || @. T_imp[i] = (U - temp) / dtγ
             end
         end

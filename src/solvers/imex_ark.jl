@@ -107,7 +107,7 @@ end
 
     t_exp = t + dt * c_exp[i]
     t_imp = t + dt * c_imp[i]
-    dtγ = dt * a_imp[i, i]
+    dtγ = float(dt) * a_imp[i, i]
 
     if has_T_lim(f) # Update based on limited tendencies from previous stages
         assign_fused_increment!(U, u, dt, a_exp, T_lim, Val(i))

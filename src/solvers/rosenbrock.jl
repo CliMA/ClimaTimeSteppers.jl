@@ -127,7 +127,7 @@ function step_u!(int, cache::RosenbrockCache{Nstages}) where {Nstages}
 
     # TODO: This is only valid when Γ[i, i] is constant, otherwise we have to
     # move this in the for loop
-    @inbounds dtγ = dt * Γ[1, 1]
+    @inbounds dtγ = float(dt) * Γ[1, 1]
 
     if !isnothing(T_imp!)
         Wfact! = int.sol.prob.f.T_imp!.Wfact
@@ -175,14 +175,14 @@ function step_u!(int, cache::RosenbrockCache{Nstages}) where {Nstages}
         end
 
         if !isnothing(tgrad!)
-            fU .+= γi .* dt .* ∂Y∂t
+            fU .+= γi .* float(dt) .* ∂Y∂t
         end
 
         for j in 1:(i - 1)
-            fU .+= (C[i, j] / dt) .* k[j]
+            fU .+= (C[i, j] / float(dt)) .* k[j]
         end
 
-        fU .*= -dtγ
+        fU .*= -float(dtγ)
 
         if !isnothing(T_imp!)
             if W isa Matrix

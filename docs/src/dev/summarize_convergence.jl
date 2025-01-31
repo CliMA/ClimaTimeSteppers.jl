@@ -77,7 +77,7 @@ function algorithm_names_by_availability(out_dict, test_name, algorithm_names_al
 end
 
 function summarize_convergence(
-    out_dict,
+    out_dict_test,
     alg_name,
     test_case,
     num_steps;
@@ -100,11 +100,11 @@ function summarize_convergence(
 
     keep_alg = true
     plot1_dts = t_end ./ round.(Int, num_steps .* num_steps_scaling_factor .^ (-1:0.5:1))
-    algorithm_names = algorithm_names_by_availability(out_dict, test_name, algorithm_names_all, plot1_dts)
+    algorithm_names = algorithm_names_by_availability(out_dict_test, test_name, algorithm_names_all, plot1_dts)
     @show algorithm_names
 
-    # out_dict = Dict()
-    # out_dict[key2] = Dict()
+    # out_dict_test = Dict()
+    # out_dict_test[key2] = Dict()
 
     prob = test_case.split_prob
     FT = typeof(t_end)
@@ -124,7 +124,7 @@ function summarize_convergence(
         ref_dt = t_end / numerical_reference_num_steps
         verbose &&
             @info "Generating numerical reference solution for $test_name with $ref_alg_str (dt = $ref_dt)..."
-        out_dict["numerical_ref_sol"] # solve(deepcopy(prob), ref_alg; dt = ref_dt, save_everystep = !only_endpoints)
+        out_dict_test["numerical_ref_sol"] # solve(deepcopy(prob), ref_alg; dt = ref_dt, save_everystep = !only_endpoints)
     end
 
     cur_avg_err(u, t, integrator) = average_function(abs.(u .- ref_sol(t)))
@@ -188,7 +188,7 @@ function summarize_convergence(
     scb_cur_avg_sol_and_err = make_saving_callback(cur_avg_sol_and_err, prob.u0, t_end, nothing)
 
     for algorithm_name in algorithm_names
-        cur_avg_errs_dict = out_dict[string(algorithm_name)]["cur_avg_errs_dict"]
+        cur_avg_errs_dict = out_dict_test[string(algorithm_name)]["cur_avg_errs_dict"]
         alg = algorithm(algorithm_name)
         alg_str = string(nameof(typeof(algorithm_name)))
         predicted_order = predicted_convergence_order(algorithm_name, prob.f)
@@ -226,17 +226,17 @@ function summarize_convergence(
 
         # Remove all 0s from plot2_cur_avg_errs because they cannot be plotted on a
         # logarithmic scale. Record the extrema of plot2_cur_avg_errs to set ylim.
-        plot2_values = out_dict[string(algorithm_name)]["plot2_values"]
-        # plot2_values = solve(
+        plot2_data = out_dict_test[string(algorithm_name)]["plot2_data"]
+        # plot2_data = solve(
         #     deepcopy(prob),
         #     alg;
         #     dt = default_dt,
         #     save_everystep = !only_endpoints,
         #     callback = scb_cur_avg_sol_and_err,
         # )
-        plot2_ts = plot2_values.t
-        plot2_cur_avg_sols = first.(plot2_values.u)
-        plot2_cur_avg_errs = last.(plot2_values.u)
+        plot2_ts = plot2_data.t
+        plot2_cur_avg_sols = first.(plot2_data.u)
+        plot2_cur_avg_errs = last.(plot2_data.u)
         plot2b_min = min(plot2b_min, minimum(x -> x == 0 ? typemax(FT) : x, plot2_cur_avg_errs))
         plot2b_max = max(plot2b_max, maximum(plot2_cur_avg_errs))
         plot2_cur_avg_errs .= max.(plot2_cur_avg_errs, eps(FT(0)))
@@ -267,7 +267,7 @@ function summarize_convergence(
     if !isnothing(full_history_algorithm_name)
         history_alg = algorithm(full_history_algorithm_name)
         history_alg_name = string(nameof(typeof(full_history_algorithm_name)))
-        history_solve_results = out_dict[history_alg_name]["history_solve_results"]
+        history_solve_results = out_dict_test[history_alg_name]["history_solve_results"]
         # history_solve_results = solve(
         #     deepcopy(prob),
         #     history_alg;

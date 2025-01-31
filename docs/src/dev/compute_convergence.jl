@@ -163,8 +163,8 @@ function compute_convergence!(
         out_dict[string(test_name)]["numerical_ref_sol"] = sol
     end
 
-    cur_avg_err(u, t, integrator) = average_function(abs.(u .- ref_sol(t)))
-    cur_avg_sol_and_err(u, t, integrator) = (average_function(u), average_function(abs.(u .- ref_sol(t))))
+    cur_avg_err(u, t) = average_function(abs.(u .- ref_sol(t)))
+    cur_avg_sol_and_err(u, t) = (average_function(u), average_function(abs.(u .- ref_sol(t))))
 
     float_str(x) = @sprintf "%.4f" x
     pow_str(x) = "10^{$(@sprintf "%.1f" log10(x))}"
@@ -221,9 +221,6 @@ function compute_convergence!(
         plot_kwargs...,
     )
 
-    scb_cur_avg_err = make_saving_callback(cur_avg_err, prob.u0, t_end, nothing)
-    scb_cur_avg_sol_and_err = make_saving_callback(cur_avg_sol_and_err, prob.u0, t_end, nothing)
-
     cur_avg_errs_dict = Dict()
     # for algorithm_name in algorithm_names
     algorithm_name = alg_name
@@ -235,8 +232,9 @@ function compute_convergence!(
     verbose && @info "Running $test_name with $alg_str..."
     @info "Using plot1_dts=$plot1_dts"
     plot1_net_avg_errs = map(plot1_dts) do plot1_dt
-        cur_avg_errs =
-            solve(deepcopy(prob), alg; dt = plot1_dt, save_everystep = !only_endpoints, callback = scb_cur_avg_err).u
+        plot1_sol = solve(deepcopy(prob), alg; dt = plot1_dt, save_everystep = !only_endpoints)
+        (; u, t) = plot1_sol
+        cur_avg_errs = cur_avg_err.(u, t)
         cur_avg_errs_dict[plot1_dt] = cur_avg_errs
         verbose && @info "RMS_error(dt = $plot1_dt) = $(average_function(cur_avg_errs))"
         return average_function(cur_avg_errs)
@@ -260,29 +258,21 @@ function compute_convergence!(
 
     # Remove all 0s from plot2_cur_avg_errs because they cannot be plotted on a
     # logarithmic scale. Record the extrema of plot2_cur_avg_errs to set ylim.
-    plot2_values = solve(
-        deepcopy(prob),
-        alg;
-        dt = default_dt,
-        save_everystep = !only_endpoints,
-        callback = scb_cur_avg_sol_and_err,
-    )
-    if any(isnan, plot2_values)
-        error("NaN found in plot2_values in problem $(test_name)")
+    plot2_data = solve(deepcopy(prob), alg; dt = default_dt, save_everystep = true)
+    if any(isnan, plot2_data)
+        error("NaN found in plot2_data in problem $(test_name)")
     end
-    out_dict[key1][key2]["plot2_values"] = plot2_values
-
+    (; u, t) = plot2_data
+    cur_sols_and_errs = cur_avg_sol_and_err.(u, t)
+    out_dict[key1][key2]["plot2_data"] = (; u = cur_sols_and_errs, t)
 
     if !isnothing(full_history_algorithm_name)
         history_alg = algorithm(full_history_algorithm_name)
         history_alg_name = string(nameof(typeof(full_history_algorithm_name)))
-        history_solve_results = solve(
-            deepcopy(prob),
-            history_alg;
-            dt = default_dt,
-            save_everystep = !only_endpoints,
-            callback = make_saving_callback((u, t, integrator) -> u .- ref_sol(t), prob.u0, t_end, nothing),
-        )
+        history_solve_sol = solve(deepcopy(prob), history_alg; dt = default_dt, save_everystep = true)
+        (; u, t) = history_solve_sol
+        history_solve_results = map(X -> X[1] .- ref_sol(X[2]), zip(u, t))
+        history_solve_results = (; u = history_solve_results, t)
         out_dict[key1][key2]["history_solve_results"] = history_solve_results
     end
     return out_dict

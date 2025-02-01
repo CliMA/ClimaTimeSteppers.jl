@@ -267,6 +267,12 @@ steps:
       - label: "Convergence: IMKG343a"
         command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg IMKG343a"
 
+      - label: "Convergence: ARK437L2SA1"
+        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg ARK437L2SA1"
+
+      - label: "Convergence: ARK548L2SA2"
+        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg ARK548L2SA2"
+
       - label: "Convergence: SSPKnoth"
         command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg SSPKnoth"
 
@@ -276,10 +282,10 @@ steps:
 
       - label: "Summarize convergence"
         command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/summarize_convergence.jl"
-        artifact_paths: "output/*"
+        artifact_paths: "output/convergence_*.png"
         depends_on: alg_convergence
 
       - label: "Summarize limiter analysis"
         command: "julia --color=yes --project=.buildkite docs/src/dev/limiter_summary.jl"
-        artifact_paths: "output/*"
+        artifact_paths: "output/limiter_*.png"
         depends_on: limiters_analysis

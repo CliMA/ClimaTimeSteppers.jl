@@ -7,6 +7,7 @@ v0.8.2
 - ![][badge-💥breaking] If saveat is a number, then it does not automatically expand to `tspan[1]:saveat:tspan[2]`. To fix this, update
 `saveat`, which is a keyword in the integrator, to be an array. For example, if `saveat` is a scalar, replace it with
 `[tspan[1]:saveat:tspan[2]..., tspan[2]]` to achieve the same behavior as before.
+- IMEXAlgorithms and SSPKnoth are compatible with ITime. See ClimaUtilities for more information about ITime.
 
 v0.7.18
 -------

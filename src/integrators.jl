@@ -67,7 +67,8 @@ end
 
 # helper function for setting up min/max heaps for tstops and saveat
 function tstops_and_saveat_heaps(t0, tf, tstops, saveat = [])
-    FT = typeof(tf)
+    # We promote to a common type to ensure that t0 and tf have the same type
+    FT = typeof(first(promote(t0, tf)))
     ordering = tf > t0 ? DataStructures.FasterForward : DataStructures.FasterReverse
 
     # ensure that tstops includes tf and only has values ahead of t0
@@ -81,7 +82,7 @@ function tstops_and_saveat_heaps(t0, tf, tstops, saveat = [])
     return tstops, saveat
 end
 
-compute_tdir(ts) = ts[1] > ts[end] ? sign(ts[end] - ts[1]) : eltype(ts)(1)
+compute_tdir(ts) = ts[1] > ts[end] ? sign(ts[end] - ts[1]) : oneunit(ts[1])
 
 # called by DiffEqBase.init and DiffEqBase.solve
 function DiffEqBase.__init(
@@ -102,8 +103,10 @@ function DiffEqBase.__init(
 )
     (; u0, p) = prob
     t0, tf = prob.tspan
+    t0, tf, dt = promote(t0, tf, dt)
 
-    dt > zero(dt) || error("dt must be positive")
+    # We need zero(oneunit()) because there's no zerounit
+    dt > zero(oneunit(dt)) || error("dt must be positive")
     _dt = dt
     dt = tf > t0 ? dt : -dt
 
@@ -243,8 +246,9 @@ function __step!(integrator)
     # is taken from OrdinaryDiffEq.jl
     t_plus_dt = integrator.t + integrator.dt
     t_unit = oneunit(integrator.t)
-    max_t_error = 100 * eps(float(integrator.t / t_unit)) * t_unit
-    integrator.t = !isempty(tstops) && abs(first(tstops) - t_plus_dt) < max_t_error ? first(tstops) : t_plus_dt
+    max_t_error = 100 * eps(float(integrator.t / t_unit)) * float(t_unit)
+    integrator.t =
+        !isempty(tstops) && abs(float(first(tstops)) - float(t_plus_dt)) < max_t_error ? first(tstops) : t_plus_dt
 
     # apply callbacks
     discrete_callbacks = integrator.callback.discrete_callbacks

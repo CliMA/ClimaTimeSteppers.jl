@@ -128,6 +128,7 @@ include("solvers/rosenbrock.jl")
 
 include("Callbacks.jl")
 
+include("arbitrary_number_types.jl")
 
 benchmark_step(integrator, device) =
     @warn "Must load CUDA, BenchmarkTools, OrderedCollections, StatsBase, PrettyTables to trigger the ClimaTimeSteppersBenchmarkToolsExt extension"

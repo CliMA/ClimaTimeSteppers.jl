@@ -1,27 +1,9 @@
-import JLD2
-import Plots
+using ClimaTimeSteppers
+using InteractiveUtils: subtypes
 using Distributions: quantile, TDist
-using Printf: @sprintf
-using LaTeXStrings: latexstring
-import DiffEqCallbacks
-import ClimaTimeSteppers as CTS
+using LinearAlgebra: norm
 
-function get_algorithm_names()
-    all_subtypes(::Type{T}) where {T} = isabstracttype(T) ? vcat(all_subtypes.(subtypes(T))...) : [T]
-    algorithm_names = map(T -> T(), all_subtypes(ClimaTimeSteppers.AbstractAlgorithmName))
-    return filter(name -> !(name isa ARK437L2SA1 || name isa ARK548L2SA2), algorithm_names) # too high order
-end
-
-function get_imex_ssprk_algorithm_names()
-    all_subtypes(::Type{T}) where {T} = isabstracttype(T) ? vcat(all_subtypes.(subtypes(T))...) : [T]
-    algorithm_names = map(T -> T(), all_subtypes(ClimaTimeSteppers.IMEXSSPRKAlgorithmName))
-    return algorithm_names
-end
-
-function make_saving_callback(cb, u, t, integrator)
-    savevalType = typeof(cb(u, t, integrator))
-    return DiffEqCallbacks.SavingCallback(cb, DiffEqCallbacks.SavedValues(typeof(t), savevalType))
-end
+all_subtypes(::Type{T}) where {T} = isabstracttype(T) ? vcat(all_subtypes.(subtypes(T))...) : [T]
 
 """
     imex_convergence_orders(algorithm_name)
@@ -60,8 +42,7 @@ imex_convergence_orders(::ARK548L2SA2) = (5, 5, 5)
 imex_convergence_orders(::SSP22Heuns) = (2, 2, 2)
 imex_convergence_orders(::SSP33ShuOsher) = (3, 3, 3)
 imex_convergence_orders(::RK4) = (4, 4, 4)
-# SSPKnoth is not really an IMEX method
-imex_convergence_orders(::SSPKnoth) = (2, 2, 2)
+imex_convergence_orders(::SSPKnoth) = (2, 3, 2)
 
 # Compute a confidence interval for the convergence order, returning the
 # estimated convergence order and its uncertainty.
@@ -103,192 +84,136 @@ function (assuming that the algorithm converges).
 function predicted_convergence_order(algorithm_name::AbstractAlgorithmName, ode_function::AbstractClimaODEFunction)
     (imp_order, exp_order, combined_order) = imex_convergence_orders(algorithm_name)
     has_imp = !isnothing(ode_function.T_imp!)
-    has_exp = CTS.has_T_exp(ode_function)
+    has_exp = ClimaTimeSteppers.has_T_exp(ode_function)
     has_imp && !has_exp && return imp_order
     !has_imp && has_exp && return exp_order
     has_imp && has_exp && return combined_order
     return 0
 end
 
-function export_convergence_results(alg_name, test_problem, num_steps; kwargs...)
-    out_dict = Dict()
-    (; test_name) = test_problem
-    out_dict[string(test_name)] = Dict()
-    out_dict[string(test_name)][string(alg_name)] = Dict()
-    out_dict[string(test_name)]["args"] = (alg_name, test_problem, num_steps)
-    out_dict[string(test_name)]["kwargs"] = kwargs
-    compute_convergence!(out_dict, alg_name, test_problem, num_steps; kwargs...)
-    JLD2.save_object("convergence_$(alg_name)_$(test_problem.test_name).jld2", out_dict)
-end
+"""
+    algorithm(algorithm_name, [linear_implicit])
 
+Generates an appropriate `DistributedODEAlgorithm` from an `AbstractAlgorithmName`.
+For `IMEXAlgorithmNames`, `linear_implicit` must also be specified. One Newton
+iteration is used for linear implicit problems, and two iterations are used for
+nonlinear implicit problems.
+"""
+algorithm(algorithm_name, _) = algorithm(algorithm_name)
+algorithm(algorithm_name::ClimaTimeSteppers.ERKAlgorithmName) = ExplicitAlgorithm(algorithm_name)
+algorithm(algorithm_name::ClimaTimeSteppers.SSPKnoth) =
+    ClimaTimeSteppers.RosenbrockAlgorithm(ClimaTimeSteppers.tableau(ClimaTimeSteppers.SSPKnoth()))
+algorithm(algorithm_name::ClimaTimeSteppers.IMEXARKAlgorithmName, linear_implicit) =
+    IMEXAlgorithm(algorithm_name, NewtonsMethod(; max_iters = linear_implicit ? 1 : 2))
 
-function compute_convergence!(
-    out_dict,
-    alg_name,
+rms(array) = norm(array) / sqrt(length(array))
+rms_error(u, t, sol) = rms(abs.(u .- sol(t)))
+
+function test_convergence!(
+    convergence_results,
+    algorithm_name,
     test_case,
-    num_steps;
-    num_steps_scaling_factor = 10,
-    order_confidence_percent = 99,
-    super_convergence = (),
+    default_num_steps;
+    super_convergence_algorithm_names = (),
+    num_steps_scaling_factor = 4,
+    high_order_sample_shifts = 1,
     numerical_reference_algorithm_name = nothing,
-    numerical_reference_num_steps = num_steps_scaling_factor^3 * num_steps,
-    full_history_algorithm_name = nothing,
-    average_function = array -> norm(array) / sqrt(length(array)),
-    average_function_str = "RMS",
-    only_endpoints = false,
+    numerical_reference_num_steps = num_steps_scaling_factor^3 * default_num_steps,
+    broken_tests = (),
+    error_on_failure = true,
     verbose = false,
 )
     (; test_name, t_end, linear_implicit, analytic_sol) = test_case
     prob = test_case.split_prob
-    FT = typeof(t_end)
-    default_dt = t_end / num_steps
-    key1 = string(test_name)
-    key2 = string(alg_name)
 
-    algorithm(algorithm_name::ClimaTimeSteppers.ERKAlgorithmName) = ExplicitAlgorithm(algorithm_name)
-    algorithm(algorithm_name::ClimaTimeSteppers.SSPKnoth) =
-        ClimaTimeSteppers.RosenbrockAlgorithm(ClimaTimeSteppers.tableau(ClimaTimeSteppers.SSPKnoth()))
-    algorithm(algorithm_name::ClimaTimeSteppers.IMEXARKAlgorithmName) =
-        IMEXAlgorithm(algorithm_name, NewtonsMethod(; max_iters = linear_implicit ? 1 : 2))
-
+    default_dt = t_end / default_num_steps
     ref_sol = if isnothing(numerical_reference_algorithm_name)
         analytic_sol
     else
-        ref_alg = algorithm(numerical_reference_algorithm_name)
+        # TODO: Do not regenerate the reference solution for every algorithm!!
         ref_alg_str = string(nameof(typeof(numerical_reference_algorithm_name)))
+        ref_alg = algorithm(numerical_reference_algorithm_name, linear_implicit)
         ref_dt = t_end / numerical_reference_num_steps
-        verbose &&
-            @info "Generating numerical reference solution for $test_name with $ref_alg_str (dt = $ref_dt)..."
-        sol = solve(deepcopy(prob), ref_alg; dt = ref_dt, save_everystep = !only_endpoints)
-        out_dict[string(test_name)]["numerical_ref_sol"] = sol
+        verbose && @info "Generating reference solution for $test_name with $ref_alg_str and dt = $ref_dt"
+        solve(deepcopy(prob), ref_alg; dt = ref_dt, save_everystep = true)
     end
-
-    cur_avg_err(u, t) = average_function(abs.(u .- ref_sol(t)))
-    cur_avg_sol_and_err(u, t) = (average_function(u), average_function(abs.(u .- ref_sol(t))))
-
-    float_str(x) = @sprintf "%.4f" x
-    pow_str(x) = "10^{$(@sprintf "%.1f" log10(x))}"
-    function si_str(x)
-        if isnan(x) || x in (0, Inf, -Inf)
-            return string(x)
-        end
-        exponent = floor(Int, log10(x))
-        mantissa = x / 10.0^exponent
-        return "$(float_str(mantissa)) \\times 10^{$exponent}"
-    end
-
-    net_avg_sol_str = "\\textrm{$average_function_str}\\_\\textrm{solution}"
-    net_avg_err_str = "\\textrm{$average_function_str}\\_\\textrm{error}"
-    cur_avg_sol_str = "\\textrm{current}\\_$net_avg_sol_str"
-    cur_avg_err_str = "\\textrm{current}\\_$net_avg_err_str"
-
-    linestyles = (:solid, :dash, :dot, :dashdot, :dashdotdot)
-    marker_kwargs = (; markershape = :circle, markeralpha = 0.5, markerstrokewidth = 0)
-    plot_kwargs = (;
-        legendposition = :outerright,
-        legendtitlefontpointsize = 8,
-        palette = :glasbey_bw_minc_20_maxl_70_n256,
-        size = (1000, 2000), # size in px
-        leftmargin = 60Plots.px,
-        rightmargin = 0Plots.px,
-        topmargin = 0Plots.px,
-        bottommargin = 30Plots.px,
-    )
-
-    plot1_dts = t_end ./ round.(Int, num_steps .* num_steps_scaling_factor .^ (-1:0.5:1))
-    plot1 = Plots.plot(;
-        title = "Convergence Orders",
-        xaxis = (latexstring("dt"), :log10),
-        yaxis = (latexstring(net_avg_err_str), :log10),
-        legendtitle = "Convergence Order ($order_confidence_percent% CI)",
-        plot_kwargs...,
-    )
-
-    plot2b_min = typemax(FT)
-    plot2b_max = typemin(FT)
-    plot2a = Plots.plot(;
-        title = latexstring("Solutions with \$dt = $(pow_str(default_dt))\$"),
-        xaxis = (latexstring("t"),),
-        yaxis = (latexstring(cur_avg_sol_str),),
-        legendtitle = latexstring(net_avg_sol_str),
-        plot_kwargs...,
-    )
-    plot2b = Plots.plot(;
-        title = latexstring("Errors with \$dt = $(pow_str(default_dt))\$"),
-        xaxis = (latexstring("t"),),
-        yaxis = (latexstring(cur_avg_err_str), :log10),
-        legendtitle = latexstring(net_avg_err_str),
-        plot_kwargs...,
-    )
-
-    cur_avg_errs_dict = Dict()
-    # for algorithm_name in algorithm_names
-    algorithm_name = alg_name
-    alg = algorithm(algorithm_name)
-    alg_str = string(nameof(typeof(algorithm_name)))
-    predicted_order = predicted_convergence_order(algorithm_name, prob.f)
-    linestyle = linestyles[(predicted_order - 1) % length(linestyles) + 1]
-
-    verbose && @info "Running $test_name with $alg_str..."
-    @info "Using plot1_dts=$plot1_dts"
-    plot1_net_avg_errs = map(plot1_dts) do plot1_dt
-        plot1_sol = solve(deepcopy(prob), alg; dt = plot1_dt, save_everystep = !only_endpoints)
-        (; u, t) = plot1_sol
-        cur_avg_errs = cur_avg_err.(u, t)
-        cur_avg_errs_dict[plot1_dt] = cur_avg_errs
-        verbose && @info "RMS_error(dt = $plot1_dt) = $(average_function(cur_avg_errs))"
-        return average_function(cur_avg_errs)
-    end
-    out_dict[key1][key2]["cur_avg_errs_dict"] = cur_avg_errs_dict
-    order, order_uncertainty = convergence_order(plot1_dts, plot1_net_avg_errs, order_confidence_percent / 100)
-    order_str = "$(float_str(order)) \\pm $(float_str(order_uncertainty))"
-    if algorithm_name in super_convergence
-        predicted_order += 1
-        plot1_label = "$alg_str: \$$order_str\\ \\ \\ \\textbf{\\textit{SC}}\$"
+    numerical_reference_info = if isnothing(numerical_reference_algorithm_name)
+        nothing
     else
-        plot1_label = "$alg_str: \$$order_str\$"
-    end
-    verbose && @info "Order = $order ± $order_uncertainty"
-    if abs(order - predicted_order) > order_uncertainty
-        @warn "Predicted order outside error bars for $alg_str ($test_name)"
-    end
-    if order_uncertainty > predicted_order / 10
-        @warn "Order uncertainty too large for $alg_str ($test_name)"
+        ref_average_rms_error = rms(rms_error.(ref_sol.u, ref_sol.t, (analytic_sol,)))
+        (ref_alg_str, ref_dt, ref_average_rms_error)
     end
 
-    # Remove all 0s from plot2_cur_avg_errs because they cannot be plotted on a
-    # logarithmic scale. Record the extrema of plot2_cur_avg_errs to set ylim.
-    plot2_data = solve(deepcopy(prob), alg; dt = default_dt, save_everystep = true)
-    if any(isnan, plot2_data)
-        error("NaN found in plot2_data in problem $(test_name)")
-    end
-    (; u, t) = plot2_data
-    cur_sols_and_errs = cur_avg_sol_and_err.(u, t)
-    out_dict[key1][key2]["plot2_data"] = (; u = cur_sols_and_errs, t)
+    alg_str = string(nameof(typeof(algorithm_name)))
+    alg = algorithm(algorithm_name, linear_implicit)
+    verbose && @info "Testing convergence of $alg_str for $test_name"
 
-    if !isnothing(full_history_algorithm_name)
-        history_alg = algorithm(full_history_algorithm_name)
-        history_alg_name = string(nameof(typeof(full_history_algorithm_name)))
-        history_solve_sol = solve(deepcopy(prob), history_alg; dt = default_dt, save_everystep = true)
-        (; u, t) = history_solve_sol
-        history_solve_results = map(X -> X[1] .- ref_sol(X[2]), zip(u, t))
-        history_solve_results = (; u = history_solve_results, t)
-        out_dict[key1][key2]["history_solve_results"] = history_solve_results
+    predicted_order = predicted_convergence_order(algorithm_name, prob.f)
+    predicted_super_convergence = algorithm_name in super_convergence_algorithm_names
+    num_steps_powers = (-1:0.5:1) .- high_order_sample_shifts * max(0, predicted_order - 3) / 2
+    sampled_num_steps = default_num_steps .* num_steps_scaling_factor .^ num_steps_powers
+    sampled_dts = t_end ./ round.(Int, sampled_num_steps)
+    average_rms_errors = map(sampled_dts) do dt
+        sol = solve(deepcopy(prob), alg; dt = dt, save_everystep = true)
+        rms(rms_error.(sol.u, sol.t, (ref_sol,)))
     end
-    return out_dict
+    verbose && @info "Sampled timesteps = $sampled_dts"
+    verbose && @info "Average RMS errors = $average_rms_errors"
+
+    # Compute a 99% confidence interval for the convergence order
+    order, order_uncertainty = convergence_order(sampled_dts, average_rms_errors, 0.99)
+    verbose && @info "Convergence order = $order ± $order_uncertainty"
+    actual_predicted_order = predicted_order + Bool(predicted_super_convergence)
+    convergence_test_error = if isnan(order)
+        "Timestepper does not converge for $alg_str ($test_name)"
+    elseif abs(order - actual_predicted_order) > order_uncertainty
+        "Predicted order outside error bars for $alg_str ($test_name)"
+    elseif order_uncertainty > actual_predicted_order / 10
+        "Order uncertainty too large for $alg_str ($test_name)"
+    else
+        nothing
+    end
+    if isnothing(convergence_test_error)
+        @assert !(algorithm_name in broken_tests)
+    elseif error_on_failure && !(algorithm_name in broken_tests)
+        error(convergence_test_error)
+    else
+        @warn convergence_test_error
+    end
+
+    default_dt_sol = solve(deepcopy(prob), alg; dt = default_dt, save_everystep = true)
+    default_dt_times = default_dt_sol.t
+    default_dt_solutions = rms.(default_dt_sol.u)
+    default_dt_errors = rms_error.(default_dt_sol.u, default_dt_sol.t, (ref_sol,))
+
+    convergence_results[test_name] = Dict()
+    convergence_results[test_name]["default_dt"] = default_dt
+    convergence_results[test_name]["numerical_reference_info"] = numerical_reference_info
+    convergence_results[test_name]["all_alg_results"] = Dict()
+    convergence_results[test_name]["all_alg_results"][alg_str] = Dict()
+    alg_results = convergence_results[test_name]["all_alg_results"][alg_str]
+    alg_results["predicted_order"] = predicted_order
+    alg_results["predicted_super_convergence"] = predicted_super_convergence
+    alg_results["sampled_dts"] = sampled_dts
+    alg_results["average_rms_errors"] = average_rms_errors
+    alg_results["default_dt_times"] = default_dt_times
+    alg_results["default_dt_solutions"] = default_dt_solutions
+    alg_results["default_dt_errors"] = default_dt_errors
+    return convergence_results
 end
 
-function test_unconstrained_vs_ssp_without_limiters(alg_name, test_case, num_steps)
+function test_unconstrained_vs_ssp_without_limiters(algorithm_name, test_case, num_steps)
     prob = test_case.split_prob
     dt = test_case.t_end / num_steps
     newtons_method = NewtonsMethod(; max_iters = test_case.linear_implicit ? 1 : 2)
-    algorithm = IMEXAlgorithm(alg_name, newtons_method)
-    reference_algorithm = IMEXAlgorithm(alg_name, newtons_method, Unconstrained())
+    algorithm = IMEXAlgorithm(algorithm_name, newtons_method)
+    reference_algorithm = IMEXAlgorithm(algorithm_name, newtons_method, Unconstrained())
     solution = solve(deepcopy(prob), algorithm; dt).u[end]
     reference_solution = solve(deepcopy(prob), reference_algorithm; dt).u[end]
-    if norm(solution .- reference_solution) / norm(reference_solution) > 30 * eps(Float64)
-        alg_str = string(nameof(typeof(alg_name)))
-        @warn "Unconstrained and SSP versions of $alg_str \
-               give different results for $(test_case.test_name)"
+    relative_error = norm(solution .- reference_solution) / norm(reference_solution)
+    if relative_error > 100 * eps(Float64)
+        error("Unconstrained and SSP versions of $algorithm_name give \
+               different results for $(test_case.test_name): relative \
+               error = $(round(Int, relative_error / eps(Float64))) * eps")
     end
 end

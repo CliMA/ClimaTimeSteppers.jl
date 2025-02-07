@@ -1,150 +1,50 @@
-#=
-julia --project=docs
-using Revise; include(joinpath("docs", "src", "dev", "summarize_convergence.jl"))
-=#
-
-using ClimaTimeSteppers
+import Plots
 import JLD2
-using Test
+using LaTeXStrings: latexstring
 using Printf: @sprintf
+
 ENV["GKSwstype"] = "nul" # avoid displaying plots
 
-using InteractiveUtils: subtypes
-
 include(joinpath(@__DIR__, "compute_convergence.jl"))
-include(joinpath(pkgdir(ClimaTimeSteppers), "test", "problems.jl"))
 
-all_subtypes(::Type{T}) where {T} = isabstracttype(T) ? vcat(all_subtypes.(subtypes(T))...) : [T]
-
-function _rprint_dict_structure(io::IO, x::T, pc, xname) where {T <: NamedTuple}
-    for pn in propertynames(x)
-        pc_full = (pc..., ".", pn)
-        xi = getproperty(x, pn)
-        _rprint_dict_structure(io, xi; pc = pc_full, xname)
+float_str(x) = @sprintf "%.4f" x
+pow_str(x) = "10^{$(@sprintf "%.1f" log10(x))}"
+function si_str(x)
+    if isnan(x) || x in (0, Inf, -Inf)
+        return string(x)
     end
-end;
-
-function _rprint_dict_structure(io::IO, x::Dict; pc, xname)
-    for k in keys(x)
-        pc_full = (pc..., "[$k]")
-        xi = getindex(x, k)
-        _rprint_dict_structure(io, xi; pc = pc_full, xname)
-    end
-end;
-
-function _rprint_dict_structure(io::IO, xi; pc, xname)
-    println(io, "$(xname * string(join(pc)))")
+    exponent = floor(Int, log10(x))
+    mantissa = x / 10.0^exponent
+    return "$(float_str(mantissa)) \\times 10^{$exponent}"
 end
 
-_rprint_dict_structure(io::IO, x::T, xname) where {T <: Union{NamedTuple, Dict}} =
-    _rprint_dict_structure(io, x; pc = (), xname)
-_rprint_dict_structure(x::T, xname) where {T <: Union{NamedTuple, Dict}} = _rprint_dict_structure(stdout, x, xname)
-
-"""
-    @rprint_dict_structure(::T) where {T <: Union{NamedTuple, Dict}}
-
-Recursively print keys of a (potentially nested) dict.
-"""
-macro rprint_dict_structure(x)
-    return :(_rprint_dict_structure(stdout, $(esc(x)), $(string(x))))
-end
-
-function algorithm_names_by_availability(out_dict, test_name, algorithm_names_all, plot1_dts)
-    # @rprint_dict_structure out_dict # for debugging
-    algorithm_names = []
-    for algorithm_name in algorithm_names_all
-        key2 = string(algorithm_name)
-        keep_alg = true
-        if !haskey(out_dict, key2)
-            keep_alg = false
-            @warn "out_dict has no key $key2"
-        else
-            if !haskey(out_dict[key2], "cur_avg_errs_dict")
-                keep_alg = false
-                @warn "out_dict[$key2] has no key cur_avg_errs_dict"
-            else
-                for plot1_dt in plot1_dts
-                    if !haskey(out_dict[key2]["cur_avg_errs_dict"], plot1_dt)
-                        keep_alg = false
-                        @warn "out_dict[$key2][cur_avg_errs_dict] has no key plot1_dt"
-                    end
-                end
-            end
-        end
-        keep_alg && push!(algorithm_names, algorithm_name)
+function summarize_convergence(test_name, test_results, default_dt, numerical_reference_info)
+    rms_solution_str = "\\textrm{rms}\\_\\textrm{solution}"
+    rms_error_str = "\\textrm{rms}\\_\\textrm{error}"
+    average_rms_solution_str = "\\textrm{average}\\_$rms_solution_str"
+    average_rms_error_str = "\\textrm{average}\\_$rms_error_str"
+    default_dt_str = "\$dt = $(pow_str(default_dt))\$"
+    reference_str =
+        isnothing(numerical_reference_info) ? "Y_{analytic}(t)[\\textrm{index}]" : "Y_{ref}(t)[\\textrm{index}]"
+    rms_solution_def_str = "\\textrm{RMS}_{\\textrm{index}}\\{Y(t)[\\textrm{index}]\\}"
+    rms_error_def_str = "\\textrm{RMS}_{\\textrm{index}}\\{Y(t)[\\textrm{index}] - $reference_str\\}"
+    average_rms_solution_def_str = "\\textrm{RMS}_t\\{$rms_solution_str(t)\\}"
+    average_rms_error_def_str = "\\textrm{RMS}_t\\{$rms_error_str(t)\\}"
+    footnote = """
+        Terminology:
+            \$$rms_solution_str(t) = $rms_solution_def_str\$
+            \$$rms_error_str(t) = $rms_error_def_str\$
+            \$$average_rms_solution_str = $average_rms_solution_def_str\$
+            \$$average_rms_error_str = $average_rms_error_def_str\$"""
+    if !isnothing(numerical_reference_info)
+        (ref_alg_str, ref_dt, ref_average_rms_error) = numerical_reference_info
+        ref_error_def_str = "Y_{ref}(t)[\\textrm{index}] - Y_{analytic}(t)[\\textrm{index}]"
+        ref_average_rms_error_def_str = "\\textrm{RMS}_{t,\\,\\textrm{index}}\\{$ref_error_def_str\\}"
+        footnote = "$footnote\n\n\nThe numerical reference solution \$Y_{ref}\$ is \
+                    computed using $ref_alg_str with\n\$dt = $(pow_str(ref_dt)),\\ \
+                    \\textrm{and}\\ $ref_average_rms_error_def_str = \
+                    $(si_str(ref_average_rms_error))\$"
     end
-    return algorithm_names
-end
-
-function summarize_convergence(
-    out_dict_test,
-    alg_name,
-    test_case,
-    num_steps;
-    num_steps_scaling_factor = 10,
-    order_confidence_percent = 99,
-    super_convergence = (),
-    numerical_reference_algorithm_name = nothing,
-    numerical_reference_num_steps = num_steps_scaling_factor^3 * num_steps,
-    full_history_algorithm_name = nothing,
-    average_function = array -> norm(array) / sqrt(length(array)),
-    average_function_str = "RMS",
-    only_endpoints = false,
-    verbose = false,
-)
-
-    title = "All Algorithms"
-    algorithm_names_all = get_algorithm_names()
-
-    (; test_name, t_end, linear_implicit, analytic_sol) = test_case
-
-    keep_alg = true
-    plot1_dts = t_end ./ round.(Int, num_steps .* num_steps_scaling_factor .^ (-1:0.5:1))
-    algorithm_names = algorithm_names_by_availability(out_dict_test, test_name, algorithm_names_all, plot1_dts)
-    @show algorithm_names
-
-    # out_dict_test = Dict()
-    # out_dict_test[key2] = Dict()
-
-    prob = test_case.split_prob
-    FT = typeof(t_end)
-    default_dt = t_end / num_steps
-
-    algorithm(algorithm_name::ClimaTimeSteppers.ERKAlgorithmName) = ExplicitAlgorithm(algorithm_name)
-    algorithm(algorithm_name::ClimaTimeSteppers.SSPKnoth) =
-        ClimaTimeSteppers.RosenbrockAlgorithm(ClimaTimeSteppers.tableau(ClimaTimeSteppers.SSPKnoth()))
-    algorithm(algorithm_name::ClimaTimeSteppers.IMEXARKAlgorithmName) =
-        IMEXAlgorithm(algorithm_name, NewtonsMethod(; max_iters = linear_implicit ? 1 : 2))
-
-    ref_sol = if isnothing(numerical_reference_algorithm_name)
-        analytic_sol
-    else
-        ref_alg = algorithm(numerical_reference_algorithm_name)
-        ref_alg_str = string(nameof(typeof(numerical_reference_algorithm_name)))
-        ref_dt = t_end / numerical_reference_num_steps
-        verbose &&
-            @info "Generating numerical reference solution for $test_name with $ref_alg_str (dt = $ref_dt)..."
-        out_dict_test["numerical_ref_sol"] # solve(deepcopy(prob), ref_alg; dt = ref_dt, save_everystep = !only_endpoints)
-    end
-
-    cur_avg_err(u, t, integrator) = average_function(abs.(u .- ref_sol(t)))
-    cur_avg_sol_and_err(u, t, integrator) = (average_function(u), average_function(abs.(u .- ref_sol(t))))
-
-    float_str(x) = @sprintf "%.4f" x
-    pow_str(x) = "10^{$(@sprintf "%.1f" log10(x))}"
-    function si_str(x)
-        if isnan(x) || x in (0, Inf, -Inf)
-            return string(x)
-        end
-        exponent = floor(Int, log10(x))
-        mantissa = x / 10.0^exponent
-        return "$(float_str(mantissa)) \\times 10^{$exponent}"
-    end
-
-    net_avg_sol_str = "\\textrm{$average_function_str}\\_\\textrm{solution}"
-    net_avg_err_str = "\\textrm{$average_function_str}\\_\\textrm{error}"
-    cur_avg_sol_str = "\\textrm{current}\\_$net_avg_sol_str"
-    cur_avg_err_str = "\\textrm{current}\\_$net_avg_err_str"
 
     linestyles = (:solid, :dash, :dot, :dashdot, :dashdotdot)
     marker_kwargs = (; markershape = :circle, markeralpha = 0.5, markerstrokewidth = 0)
@@ -159,163 +59,110 @@ function summarize_convergence(
         bottommargin = 30Plots.px,
     )
 
+    plot1_min = Inf
+    plot1_max = -Inf
     plot1 = Plots.plot(;
         title = "Convergence Orders",
         xaxis = (latexstring("dt"), :log10),
-        yaxis = (latexstring(net_avg_err_str), :log10),
-        legendtitle = "Convergence Order ($order_confidence_percent% CI)",
+        yaxis = (latexstring(average_rms_error_str), :log10),
+        legendtitle = "Convergence Order (99% CI)",
         plot_kwargs...,
     )
 
-    plot2b_min = typemax(FT)
-    plot2b_max = typemin(FT)
+    plot2a_min = Inf
+    plot2a_max = -Inf
     plot2a = Plots.plot(;
-        title = latexstring("Solutions with \$dt = $(pow_str(default_dt))\$"),
+        title = latexstring("Solutions with $default_dt_str"),
         xaxis = (latexstring("t"),),
-        yaxis = (latexstring(cur_avg_sol_str),),
-        legendtitle = latexstring(net_avg_sol_str),
+        yaxis = (latexstring(rms_solution_str),),
+        legendtitle = latexstring(average_rms_solution_str),
         plot_kwargs...,
     )
+
+    plot2b_min = Inf
+    plot2b_max = -Inf
     plot2b = Plots.plot(;
-        title = latexstring("Errors with \$dt = $(pow_str(default_dt))\$"),
+        title = latexstring("Errors with $default_dt_str"),
         xaxis = (latexstring("t"),),
-        yaxis = (latexstring(cur_avg_err_str), :log10),
-        legendtitle = latexstring(net_avg_err_str),
+        yaxis = (latexstring(rms_error_str), :log10),
+        legendtitle = latexstring(average_rms_error_str),
         plot_kwargs...,
     )
 
-    scb_cur_avg_err = make_saving_callback(cur_avg_err, prob.u0, t_end, nothing)
-    scb_cur_avg_sol_and_err = make_saving_callback(cur_avg_sol_and_err, prob.u0, t_end, nothing)
+    alg_strs = collect(keys(test_results))
+    for alg_str in all_subtypes(ClimaTimeSteppers.AbstractAlgorithmName)
+        if !(string(alg_str) in alg_strs)
+            @warn "Convergence of $alg_str has not been tested with $test_name"
+        end
+    end
+    sort_by(alg_str) = (
+        test_results[alg_str]["predicted_order"],
+        -round(test_results[alg_str]["average_rms_errors"][end]; sigdigits = 2),
+        alg_str,
+    ) # sort by predicted order, then by rounded error at large dt, then by name
+    sort!(alg_strs; by = sort_by)
+    for alg_str in alg_strs
+        predicted_order = test_results[alg_str]["predicted_order"]
+        predicted_super_convergence = test_results[alg_str]["predicted_super_convergence"]
+        sampled_dts = test_results[alg_str]["sampled_dts"]
+        average_rms_errors = test_results[alg_str]["average_rms_errors"]
+        default_dt_times = test_results[alg_str]["default_dt_times"]
+        default_dt_solutions = test_results[alg_str]["default_dt_solutions"]
+        default_dt_errors = test_results[alg_str]["default_dt_errors"]
 
-    for algorithm_name in algorithm_names
-        cur_avg_errs_dict = out_dict_test[string(algorithm_name)]["cur_avg_errs_dict"]
-        alg = algorithm(algorithm_name)
-        alg_str = string(nameof(typeof(algorithm_name)))
-        predicted_order = predicted_convergence_order(algorithm_name, prob.f)
         linestyle = linestyles[(predicted_order - 1) % length(linestyles) + 1]
-
-        verbose && @info "Running $test_name with $alg_str..."
-        plot1_net_avg_errs = map(plot1_dts) do plot1_dt
-            cur_avg_errs = cur_avg_errs_dict[plot1_dt]
-            # solve(
-            #     deepcopy(prob),
-            #     alg;
-            #     dt = plot1_dt,
-            #     save_everystep = !only_endpoints,
-            #     callback = scb_cur_avg_err,
-            # ).u
-            verbose && @info "RMS_error(dt = $plot1_dt) = $(average_function(cur_avg_errs))"
-            return average_function(cur_avg_errs)
-        end
-        order, order_uncertainty = convergence_order(plot1_dts, plot1_net_avg_errs, order_confidence_percent / 100)
+        order, order_uncertainty = convergence_order(sampled_dts, average_rms_errors, 0.99)
         order_str = "$(float_str(order)) \\pm $(float_str(order_uncertainty))"
-        if algorithm_name in super_convergence
-            predicted_order += 1
-            plot1_label = "$alg_str: \$$order_str\\ \\ \\ \\textbf{\\textit{SC}}\$"
-        else
-            plot1_label = "$alg_str: \$$order_str\$"
-        end
-        verbose && @info "Order = $order ± $order_uncertainty"
-        if abs(order - predicted_order) > order_uncertainty
-            @warn "Predicted order outside error bars for $alg_str ($test_name)"
-        end
-        if order_uncertainty > predicted_order / 10
-            @warn "Order uncertainty too large for $alg_str ($test_name)"
-        end
-        Plots.plot!(plot1, plot1_dts, plot1_net_avg_errs; label = latexstring(plot1_label), linestyle, marker_kwargs...)
 
-        # Remove all 0s from plot2_cur_avg_errs because they cannot be plotted on a
-        # logarithmic scale. Record the extrema of plot2_cur_avg_errs to set ylim.
-        plot2_data = out_dict_test[string(algorithm_name)]["plot2_data"]
-        # plot2_data = solve(
-        #     deepcopy(prob),
-        #     alg;
-        #     dt = default_dt,
-        #     save_everystep = !only_endpoints,
-        #     callback = scb_cur_avg_sol_and_err,
-        # )
-        plot2_ts = plot2_data.t
-        plot2_cur_avg_sols = first.(plot2_data.u)
-        plot2_cur_avg_errs = last.(plot2_data.u)
-        plot2b_min = min(plot2b_min, minimum(x -> x == 0 ? typemax(FT) : x, plot2_cur_avg_errs))
-        plot2b_max = max(plot2b_max, maximum(plot2_cur_avg_errs))
-        plot2_cur_avg_errs .= max.(plot2_cur_avg_errs, eps(FT(0)))
-        plot2_net_avg_sol = average_function(plot2_cur_avg_sols)
-        plot2_net_avg_err = average_function(plot2_cur_avg_errs)
+        # Ignore large values from algorithms without reasonable order estimates.
+        ignore_max = isnan(order_uncertainty) || order_uncertainty > 10
+
+        plot1_min = min(plot1_min, minimum(filter(!isnan, average_rms_errors); init = Inf))
+        ignore_max || (plot1_max = max(plot1_max, maximum(average_rms_errors)))
+        plot1_label =
+            predicted_super_convergence ? "$alg_str: \$$order_str\\ \\ \\ \\textbf{\\textit{SC}}\$" :
+            "$alg_str: \$$order_str\$"
+        Plots.plot!(
+            plot1,
+            sampled_dts,
+            average_rms_errors;
+            label = latexstring(plot1_label),
+            linestyle,
+            marker_kwargs...,
+        )
+
+        plot2a_min = min(plot2a_min, minimum(filter(!isnan, default_dt_solutions)))
+        ignore_max || (plot2a_max = max(plot2a_max, maximum(default_dt_solutions)))
         Plots.plot!(
             plot2a,
-            plot2_ts,
-            plot2_cur_avg_sols;
-            label = latexstring("$alg_str: \$$(si_str(plot2_net_avg_sol))\$"),
+            default_dt_times,
+            default_dt_solutions;
+            label = latexstring("$alg_str: \$$(si_str(rms(default_dt_solutions)))\$"),
             linestyle,
-            (only_endpoints ? marker_kwargs : (;))...,
         )
+
+        # Remove all 0s from default_dt_errors because they cannot be plotted on
+        # a logarithmic scale.
+        plot2b_min = min(plot2b_min, minimum(filter(!iszero, filter(!isnan, default_dt_errors))))
+        ignore_max || (plot2b_max = max(plot2b_max, maximum(default_dt_errors)))
+        default_dt_errors .= max.(default_dt_errors, eps(0.0))
         Plots.plot!(
             plot2b,
-            plot2_ts,
-            plot2_cur_avg_errs;
-            label = latexstring("$alg_str: \$$(si_str(plot2_net_avg_err))\$"),
+            default_dt_times,
+            default_dt_errors;
+            label = latexstring("$alg_str: \$$(si_str(rms(default_dt_errors)))\$"),
             linestyle,
-            (only_endpoints ? marker_kwargs : (;))...,
         )
     end
 
+    # Add a factor of 2 for padding in the log plots.
+    Plots.plot!(plot1; ylim = (plot1_min / 2, plot1_max * 2))
     Plots.plot!(plot2b; ylim = (plot2b_min / 2, plot2b_max * 2))
 
-    plots = (plot1, plot2a, plot2b)
+    # Add 3% of the range for padding in the linear plot.
+    plot2a_padding = (plot2a_max - plot2a_min) * 0.03
+    Plots.plot!(plot2a; ylim = (plot2a_min - plot2a_padding, plot2a_max + plot2a_padding))
 
-    if !isnothing(full_history_algorithm_name)
-        history_alg = algorithm(full_history_algorithm_name)
-        history_alg_name = string(nameof(typeof(full_history_algorithm_name)))
-        history_solve_results = out_dict_test[history_alg_name]["history_solve_results"]
-        # history_solve_results = solve(
-        #     deepcopy(prob),
-        #     history_alg;
-        #     dt = default_dt,
-        #     save_everystep = !only_endpoints,
-        #     callback = make_saving_callback((u, t, integrator) -> u .- ref_sol(t), prob.u0, t_end, nothing),
-        # )
-        history_array = hcat(history_solve_results.u...)
-        history_plot_title = "Errors for $history_alg_name with \$dt = $(pow_str(default_dt))\$"
-        history_plot = Plots.heatmap(
-            history_solve_results.t,
-            1:size(history_array, 1),
-            history_array;
-            title = latexstring(history_plot_title),
-            xaxis = (latexstring("t"),),
-            yaxis = ("index",),
-            plot_kwargs...,
-        )
-        plots = (plots..., history_plot)
-    end
-
-    avg_def_str(val_str, var_str) = "\\textrm{$average_function_str}(\\{$val_str\\,\\forall\\,$var_str\\})"
-    ref_sol_def_str =
-        isnothing(numerical_reference_algorithm_name) ? "Y_{analytic}(t)[\\textrm{index}]" :
-        "Y_{ref}(t)[\\textrm{index}]"
-    cur_avg_sol_def_str = avg_def_str("Y(t)[\\textrm{index}]", "\\textrm{index}")
-    cur_avg_err_def_str = avg_def_str("|Y(t)[\\textrm{index}] - $ref_sol_def_str|", "\\textrm{index}")
-    net_avg_sol_def_str = avg_def_str("$cur_avg_sol_str(t)", "t")
-    net_avg_err_def_str = avg_def_str("$cur_avg_err_str(t)", "t")
-    footnote = """
-        Terminology:
-            \$$cur_avg_sol_str(t) = $cur_avg_sol_def_str\$
-            \$$cur_avg_err_str(t) = $cur_avg_err_def_str\$
-            \$$net_avg_sol_str = $net_avg_sol_def_str\$
-            \$$net_avg_err_str = $net_avg_err_def_str\$"""
-    if !isnothing(numerical_reference_algorithm_name)
-        ref_cur_avg_errs = map(ref_sol.u, ref_sol.t) do u, t
-            average_function(abs.(u .- analytic_sol(t)))
-        end
-        ref_net_avg_err = average_function(ref_cur_avg_errs)
-        ref_cur_avg_err_def_str =
-            avg_def_str("|Y_{ref}(t)[\\textrm{index}] - Y_{analytic}(t)[\\textrm{index}]|", "\\textrm{index}")
-        ref_net_avg_err_def_str = avg_def_str(ref_cur_avg_err_def_str, "t")
-        footnote = "$footnote\n\n\nNote: The \"reference solution\" \$Y_{ref}\$ was \
-                    computed using $ref_alg_str with\n\$dt = $(pow_str(ref_dt)),\\ \
-                    \\textrm{and}\\ $ref_net_avg_err_def_str = \
-                    $(si_str(ref_net_avg_err))\$"
-    end
     footnote_plot = Plots.plot(;
         title = latexstring(footnote),
         titlelocation = :left,
@@ -325,52 +172,56 @@ function summarize_convergence(
         margin = 0Plots.px,
         bottommargin = 10Plots.px,
     )
-    plots = (plots..., footnote_plot)
 
-    n_plots = length(plots)
+    all_plots = (plot1, plot2a, plot2b, footnote_plot)
+    n_plots = length(all_plots)
     heights₀ = repeat([1 / (n_plots - 1)], n_plots - 1)
     footnote_height = eps()
     heights = [heights₀ .- footnote_height / n_plots..., footnote_height]
     layout = Plots.grid(n_plots, 1; heights)
-    plot = Plots.plot(
-        plots...;
-        plot_title = "Analysis of $title for \"$test_name\"",
+    full_plot = Plots.plot(
+        all_plots...;
+        plot_title = "Convergence analysis for \"$test_name\"",
         layout = layout,
         fontfamily = "Computer Modern",
     )
 
     mkpath("output")
-    file_suffix = lowercase(replace(test_name * ' ' * title, " " => "_"))
-    Plots.savefig(plot, joinpath("output", "convergence_$file_suffix.png"))
+    file_suffix = lowercase(replace(test_name, " " => "_"))
+    Plots.savefig(full_plot, joinpath("output", "convergence_$file_suffix.png"))
 end
 
-
-function merge_tests(v::Vector)
-    test_names = collect(Set(map(x -> first(keys(x)), v)))
-    return Dict(map(test_names) do tn
-        matched_dicts = filter(x -> first(keys(x)) == tn, v)
-        inner_dicts = map(x -> first(values(x)), matched_dicts)
-        inner_merged = merge(inner_dicts...)
-        Pair(tn, inner_merged)
-    end...)
+convergence_results_filenames = filter(readdir("output"; join = true)) do filename
+    startswith(basename(filename), "convergence_") && endswith(filename, ".jld2")
 end
-
-let # Convergence
-    # NOTE: Some imperfections in the convergence order for SSPKnoth are to be
-    # expected because we are not using the exact Jacobian
-    vector_of_dicts = []
-    files = readdir()
-    filter!(x -> endswith(x, ".jld2"), files)
-    filter!(x -> startswith(basename(x), "convergence_"), files)
-    for f in files
-        push!(vector_of_dicts, JLD2.load_object(f))
+all_convergence_results = map(JLD2.load_object, convergence_results_filenames)
+representative_test_data = merge(all_convergence_results...)
+test_names = collect(keys(representative_test_data))
+for test_name in test_names, convergence_results in all_convergence_results
+    test_name in keys(convergence_results) || continue
+    @assert convergence_results[test_name]["default_dt"] == representative_test_data[test_name]["default_dt"]
+    @assert convergence_results[test_name]["numerical_reference_info"] ==
+            representative_test_data[test_name]["numerical_reference_info"]
+end # Check that each test has a consistent default dt and reference solution
+for test_name in test_names
+    all_alg_results = map(all_convergence_results) do convergence_results
+        test_name in keys(convergence_results) ? convergence_results[test_name]["all_alg_results"] : Dict()
     end
-
-    out_dict = merge_tests(vector_of_dicts)
-    for test_name in keys(out_dict)
-        out_dict_test = out_dict[test_name]
-        args = out_dict_test["args"]
-        kwargs = out_dict_test["kwargs"]
-        summarize_convergence(out_dict_test, args...; kwargs...)
-    end
+    summarize_convergence(
+        test_name,
+        merge(all_alg_results...),
+        representative_test_data[test_name]["default_dt"],
+        representative_test_data[test_name]["numerical_reference_info"],
+    )
 end
+
+#= TO TEST CONVERGENCE OF ALL ALGORITHMS:
+include("docs/src/dev/compute_convergence.jl")
+for alg_name in all_subtypes(AbstractAlgorithmName)
+    empty!(ARGS)
+    push!(ARGS, "--alg", string(alg_name))
+    @info "Testing convergence of $alg_name"
+    include("docs/src/dev/report_gen_alg.jl")
+end
+include("docs/src/dev/summarize_convergence.jl")
+=#

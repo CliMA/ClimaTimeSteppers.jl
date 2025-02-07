@@ -108,7 +108,6 @@ function CTS.benchmark_step(
             @assert all(x -> x in allowed_names, only) "Allowed names in `only` are: $allowed_names"
         end
 
-        W = get_W(integrator)
         X = similar(u)
         Xlim = similar(u)
         @. X = u
@@ -116,10 +115,15 @@ function CTS.benchmark_step(
         trials₀ = OrderedCollections.OrderedDict()
         kwargs = (; device, with_cu_prof, trace, crop, hcrop)
 #! format: off
-        maybe_push!(trials₀, "Wfact", wfact_fun(integrator), (W, u, p, dt, t), kwargs, only)
-        maybe_push!(trials₀, "ldiv!", LA.ldiv!, (X, W, u), kwargs, only)
-        maybe_push!(trials₀, "T_imp!", implicit_fun(integrator), implicit_args(integrator), kwargs, only)
-        maybe_push!(trials₀, "T_exp_T_lim!", remaining_fun(integrator), remaining_args(integrator), kwargs, only)
+        if !isnothing(implicit_fun(integrator))
+            W = get_W(integrator)
+            maybe_push!(trials₀, "Wfact", wfact_fun(integrator), (W, u, p, dt, t), kwargs, only)
+            maybe_push!(trials₀, "ldiv!", LA.ldiv!, (X, W, u), kwargs, only)
+            maybe_push!(trials₀, "T_imp!", implicit_fun(integrator), implicit_args(integrator), kwargs, only)
+        end
+        if !isnothing(remaining_fun(integrator))
+            maybe_push!(trials₀, "T_exp_T_lim!", remaining_fun(integrator), remaining_args(integrator), kwargs, only)
+        end
         maybe_push!(trials₀, "lim!", f.lim!, (Xlim, p, t, u), kwargs, only)
         maybe_push!(trials₀, "dss!", f.dss!, (u, p, t), kwargs, only)
         maybe_push!(trials₀, "cache!", f.cache!, (u, p, t), kwargs, only)

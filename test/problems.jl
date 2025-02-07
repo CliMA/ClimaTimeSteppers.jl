@@ -439,8 +439,6 @@ function onewaycouple_mri_test_cts(::Type{FT}) where {FT}
     )
 end
 
-Wfact!(W, Y, p, dtγ, t) = nothing
-
 """
     climacore_2Dheat_test_cts(::Type{<:AbstractFloat})
 
@@ -491,21 +489,7 @@ function climacore_2Dheat_test_cts(::Type{FT}) where {FT}
         return state
     end
 
-    # we add implicit pieces here for inference analysis
-    T_lim! = (Yₜ, u, _, t) -> nothing
-    cache_imp! = (u, _, t) -> nothing
-    cache! = (u, _, t) -> nothing
-
-    jacobian = ClimaCore.MatrixFields.FieldMatrix((@name(u), @name(u)) => FT(-1) * LinearAlgebra.I)
-
-    T_imp! = SciMLBase.ODEFunction(
-        (Yₜ, u, _, t) -> (Yₜ .= 0);
-        jac_prototype = FieldMatrixWithSolver(jacobian, init_state),
-        Wfact = Wfact!,
-        tgrad = (∂Y∂t, Y, p, t) -> (∂Y∂t .= 0),
-    )
-
-    tendency_func = ClimaODEFunction(; T_exp!, T_imp!, dss!, cache_imp!, cache!)
+    tendency_func = ClimaODEFunction(; T_exp!, dss!)
     split_tendency_func = tendency_func
     make_prob(func) = ODEProblem(func, init_state, (FT(0), t_end), nothing)
     IntegratorTestCase(
@@ -561,9 +545,9 @@ function climacore_1Dheat_test_cts(::Type{FT}) where {FT}
 end
 
 function climacore_1Dheat_test_implicit_cts(::Type{FT}) where {FT}
-    n_elem_z = 10000
+    n_elem_z = 100 # this should be larger than the explicit problem's n_elem_z
     n_z = 1
-    f_0 = FT(0.0) # denoted by f̂₀ above
+    f_0 = FT(0) # denoted by f̂₀ above
     Δλ = FT(1) # denoted by Δλ̂ above
     t_end = FT(0.1) # denoted by t̂ above
 
@@ -577,21 +561,19 @@ function climacore_1Dheat_test_implicit_cts(::Type{FT}) where {FT}
 
     init_state = Fields.FieldVector(; u = φ_sin)
 
-    diverg = Operators.DivergenceC2F(; bottom = Operators.SetDivergence(FT(0)), top = Operators.SetDivergence(FT(0)))
+    div = Operators.DivergenceC2F(; bottom = Operators.SetDivergence(FT(0)), top = Operators.SetDivergence(FT(0)))
     grad = Operators.GradientF2C()
+    function T_imp_func!(tendency, state, _, t)
+        @. tendency.u = div(grad(state.u)) + f_0 * exp(-(λ + Δλ) * t) * φ_sin
+    end
 
-    diverg_matrix = ClimaCore.MatrixFields.operator_matrix(diverg)
+    div_matrix = ClimaCore.MatrixFields.operator_matrix(div)
     grad_matrix = ClimaCore.MatrixFields.operator_matrix(grad)
-
     function Wfact(W, Y, p, dtγ, t)
         name = @name(u)
         # NOTE: We need MatrixFields.⋅, not LinearAlgebra.⋅
-        @. W.matrix[name, name] = dtγ * diverg_matrix() ⋅ grad_matrix() - (LinearAlgebra.I,)
+        @. W.matrix[name, name] = dtγ * div_matrix() ⋅ grad_matrix() - (LinearAlgebra.I,)
         return nothing
-    end
-
-    function T_imp_func!(tendency, state, _, t)
-        @. tendency.u = diverg.(grad.(state.u)) + f_0 * exp(-(λ + Δλ) * t) * φ_sin
     end
 
     function tgrad(∂Y∂t, state, _, t)

@@ -1,4 +1,5 @@
 import NVTX
+import Base.Cartesian: @nexprs
 
 has_jac(T_imp!) =
     hasfield(typeof(T_imp!), :Wfact) &&
@@ -68,7 +69,7 @@ function step_u!(integrator, cache::IMEXARKCache)
         end
     end
 
-    update_stage!(integrator, cache, ntuple(i -> i, Val(s)))
+    update_stage!(Val(s), integrator, cache)
 
     t_final = t + dt
 
@@ -88,13 +89,10 @@ function step_u!(integrator, cache::IMEXARKCache)
     return u
 end
 
-
-@inline update_stage!(integrator, cache, ::Tuple{}) = nothing
-@inline update_stage!(integrator, cache, is::Tuple{Int}) = update_stage!(integrator, cache, first(is))
-@inline function update_stage!(integrator, cache, is::Tuple)
-    update_stage!(integrator, cache, first(is))
-    update_stage!(integrator, cache, Base.tail(is))
+@generated update_stage!(::Val{s}, integrator, cache::IMEXARKCache) where {s} = quote
+    @nexprs $s i -> update_stage!(integrator, cache, i)
 end
+
 @inline function update_stage!(integrator, cache::IMEXARKCache, i::Int)
     (; u, p, t, dt, alg) = integrator
     (; f) = integrator.sol.prob

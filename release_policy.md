@@ -9,5 +9,5 @@ As such, we decided to enforce a release policy:
 Before making breaking releases, a stable patch release must be exercised by
 user repos and without new issues for at lease one week.
 
-This will help users to avoid issues when updates, and developers to avoid the
+This will help users to avoid issues when making updates, and developers to avoid the
 need to create patch releases along old minor versions.

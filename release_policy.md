@@ -1,7 +1,7 @@
 # Release policy
 
 ClimaTimesteppers.jl is a core component to the CliMA ecosystem, and can have
-a significant impact on user since most experiments and examples relies on this
+a significant impact on users since most experiments and examples rely on this
 infrastructure.
 
 As such, we decided to enforce a release policy:

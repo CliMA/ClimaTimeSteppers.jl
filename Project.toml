@@ -1,7 +1,7 @@
 name = "ClimaTimeSteppers"
 uuid = "595c0a79-7f3d-439a-bc5a-b232dc3bde79"
 authors = ["Climate Modeling Alliance"]
-version = "0.8.2"
+version = "0.8.3"
 
 [deps]
 ClimaComms = "3a4d1b5c-c61d-41fd-a00a-5873ba7a1b0d"
@@ -41,7 +41,7 @@ Krylov = "0.8, 0.9"
 LinearAlgebra = "1"
 LinearOperators = "2"
 MPI = "0.20"
-NVTX = "0.3"
+NVTX = "0.3, 1"
 ODEConvergenceTester = "0.2"
 OrderedCollections = "1"
 PrettyTables = "2"

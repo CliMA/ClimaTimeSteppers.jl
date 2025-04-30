@@ -49,7 +49,6 @@ using LinearAlgebra
 using LinearOperators
 using StaticArrays
 import ClimaComms
-using Colors
 using NVTX
 
 export AbstractAlgorithmName, AbstractAlgorithmConstraint, Unconstrained, SSP

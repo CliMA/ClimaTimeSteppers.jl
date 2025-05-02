@@ -17,6 +17,10 @@ struct Verbose <: AbstractVerbosity end
 struct Silent <: AbstractVerbosity end
 is_verbose(v::AbstractVerbosity) = v isa Verbose
 
+const KrylovWorkspace = @static pkgversion(Krylov) < v"0.10" ? Krylov.KrylovSolver : Krylov.KrylovWorkspace
+const krylov_solve! = @static pkgversion(Krylov) < v"0.10" ? Krylov.solve! : Krylov.krylov_solve!
+const GmresWorkspace = @static pkgversion(Krylov) < v"0.10" ? Krylov.GmresSolver : Krylov.GmresWorkspace
+
 """
     ForwardDiffStepSize
 
@@ -393,7 +397,7 @@ each iteration of the Krylov method. If a debugger is specified, it is run
 before the call to `Kyrlov.solve!`.
 """
 Base.@kwdef struct KrylovMethod{
-    T <: Val{<:Krylov.KrylovSolver},
+    T <: Val{<:KrylovWorkspace},
     J <: Union{Nothing, JacobianFreeJVP},
     F <: ForcingTerm,
     A <: Tuple,
@@ -402,11 +406,11 @@ Base.@kwdef struct KrylovMethod{
     V <: AbstractVerbosity,
     D <: Union{Nothing, KrylovMethodDebugger},
 }
-    type::T = Val(Krylov.GmresSolver)
+    type::T = Val(GmresWorkspace)
     jacobian_free_jvp::J = nothing
     forcing_term::F = ConstantForcing(0)
-    args::A = (20,)
-    kwargs::K = (;)
+    args::A = ()
+    kwargs::K = (; memory = 20)
     solve_kwargs::S = (;)
     disable_preconditioner::Bool = false
     verbose::V = Silent()
@@ -419,6 +423,13 @@ function allocate_cache(alg::KrylovMethod, x_prototype)
     (; jacobian_free_jvp, forcing_term, args, kwargs, debugger) = alg
     type = solver_type(alg)
     l = length(x_prototype)
+
+    # Version 0.10 changed how the memory is set
+    if pkgversion(Krylov) < v"0.10"
+        args = isempty(args) ? (20,) : ()
+        kwargs = haskey(kwargs, :memory) ? Base.structdiff(kwargs, NamedTuple{(:memory,)}((kwargs[:memory],))) : kwargs
+    end
+
     return (;
         jacobian_free_jvp_cache = isnothing(jacobian_free_jvp) ? nothing :
                                   allocate_cache(jacobian_free_jvp, x_prototype),
@@ -443,7 +454,7 @@ NVTX.@annotate function solve_krylov!(alg::KrylovMethod, cache, Δx, x, f!, f, n
     atol = zero(eltype(Δx))
     rtol = get_rtol!(forcing_term, forcing_term_cache, f, n)
     verbose = Int(is_verbose(alg.verbose))
-    Krylov.solve!(solver, opj, f; M, ldiv, atol, rtol, verbose, solve_kwargs...)
+    krylov_solve!(solver, opj, f; M, ldiv, atol, rtol, verbose, solve_kwargs...)
     iter = solver.stats.niter
     if !solver.stats.solved
         str1 = isnothing(j) ? () : ("the Jacobian",)

@@ -23,7 +23,7 @@ struct IMEXARKCache{SCU, SCE, SCI, T, Γ, NMC}
     newtons_method_cache::NMC
 end
 
-function init_cache(prob::DiffEqBase.AbstractODEProblem, alg::IMEXAlgorithm{Unconstrained}; kwargs...)
+function init_cache(prob, alg::IMEXAlgorithm{Unconstrained}; kwargs...)
     (; u0, f) = prob
     (; T_imp!) = f
     (; tableau, newtons_method) = alg

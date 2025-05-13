@@ -55,11 +55,7 @@ end
 
 n_stages(cache::MultirateInfinitesimalStepCache) = n_stages(cache.tableau)
 
-function init_cache(
-    prob::DiffEqBase.AbstractODEProblem{uType, tType, true},
-    alg::MultirateInfinitesimalStep;
-    kwargs...,
-) where {uType, tType}
+function init_cache(prob, alg::MultirateInfinitesimalStep; kwargs...)
 
     tab = tableau(alg, eltype(prob.u0))
     N = length(tab.d)

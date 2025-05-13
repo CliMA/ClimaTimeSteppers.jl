@@ -11,7 +11,7 @@ struct IMEXSSPRKCache{U, SCI, B, Γ, NMC}
     newtons_method_cache::NMC
 end
 
-function init_cache(prob::DiffEqBase.AbstractODEProblem, alg::IMEXAlgorithm{SSP}; kwargs...)
+function init_cache(prob, alg::IMEXAlgorithm{SSP}; kwargs...)
     (; u0, f) = prob
     (; T_imp!) = f
     (; tableau, newtons_method) = alg

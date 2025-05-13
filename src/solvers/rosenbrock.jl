@@ -86,7 +86,7 @@ struct RosenbrockCache{Nstages, A, WT}
     ∂Y∂t::A
 end
 
-function init_cache(prob::DiffEqBase.AbstractODEProblem, alg::RosenbrockAlgorithm; kwargs...)
+function init_cache(prob, alg::RosenbrockAlgorithm; kwargs...)
     Nstages = length(alg.tableau.m)
     U = zero(prob.u0)
     fU = zero(prob.u0)

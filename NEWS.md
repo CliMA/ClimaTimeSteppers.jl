@@ -3,7 +3,13 @@ ClimaTimeSteppers.jl Release Notes
 
 Main
 -------
+
+v0.8.5
+------
+- Removed SciMLBase` type `restriction on `step_u!`.
+
 v0.8.2
+------
 - ![][badge-💥breaking] If saveat is a number, then it does not automatically expand to `tspan[1]:saveat:tspan[2]`. To fix this, update
 `saveat`, which is a keyword in the integrator, to be an array. For example, if `saveat` is a scalar, replace it with
 `[tspan[1]:saveat:tspan[2]..., tspan[2]]` to achieve the same behavior as before.

@@ -580,7 +580,7 @@ end
 
 solve_newton!(alg::NewtonsMethod, cache::Nothing, x, f!, j! = nothing, prepare_for_f! = nothing) = nothing
 
-NVTX.@annotate function solve_newton!(alg::NewtonsMethod, cache, x, f!, j! = nothing, prepare_for_f! = nothing)
+function solve_newton!(alg::NewtonsMethod, cache, x, f!, j! = nothing, prepare_for_f! = nothing)
     (; max_iters, update_j, krylov_method, convergence_checker, verbose) = alg
     (; krylov_method_cache, convergence_checker_cache) = cache
     (; Δx, f, j) = cache

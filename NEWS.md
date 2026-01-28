@@ -4,6 +4,12 @@ ClimaTimeSteppers.jl Release Notes
 Main
 -------
 
+v0.8.6
+------
+- ![][badge-🔥behavioralΔ] Deprecate `ClimaODEFunction` keyword argument `dss!`
+    in favor of `constrain_state!`.
+    The keyword argument `dss!` will be removed in a future major release.
+
 v0.8.5
 ------
 - Removed SciMLBase` type `restriction on `step_u!`.

@@ -479,7 +479,7 @@ function climacore_2Dheat_test_cts(::Type{FT}) where {FT}
         dss_tendency && Spaces.weighted_dss!(tendency.u)
     end
 
-    function dss!(state, _, t)
+    function constrain_state!(state, _, t)
         dss_tendency || Spaces.weighted_dss!(state.u)
     end
 
@@ -489,7 +489,7 @@ function climacore_2Dheat_test_cts(::Type{FT}) where {FT}
         return state
     end
 
-    tendency_func = ClimaODEFunction(; T_exp!, dss!)
+    tendency_func = ClimaODEFunction(; T_exp!, constrain_state!)
     split_tendency_func = tendency_func
     make_prob(func) = ODEProblem(func, init_state, (FT(0), t_end), nothing)
     IntegratorTestCase(
@@ -749,7 +749,7 @@ function deformational_flow_test(::Type{FT}; use_limiter = true, use_hyperdiffus
         @. tendency.cent_ρq = -vert_div(vert_interp(state.cent_ρq) * current_face_wind_vector)
     end
 
-    function dss!(state, _, t)
+    function constrain_state!(state, _, t)
         Spaces.weighted_dss!(state.q)
     end
 
@@ -758,7 +758,7 @@ function deformational_flow_test(::Type{FT}; use_limiter = true, use_hyperdiffus
         return copy(init_state)
     end
 
-    tendency_func = ClimaODEFunction(; T_lim!, T_exp!, lim!, dss!)
+    tendency_func = ClimaODEFunction(; T_lim!, T_exp!, lim!, constrain_state!)
     split_tendency_func = tendency_func
     make_prob(func) = ODEProblem(func, init_state, (FT(0), τ), nothing)
     IntegratorTestCase(
@@ -877,7 +877,7 @@ function horizontal_deformational_flow_test(::Type{FT}; use_limiter = true, use_
         return nothing
     end
 
-    function dss!(state, _, t)
+    function constrain_state!(state, _, t)
         Spaces.weighted_dss!(state.ρ)
         Spaces.weighted_dss!(state.ρq)
     end
@@ -887,7 +887,7 @@ function horizontal_deformational_flow_test(::Type{FT}; use_limiter = true, use_
         return copy(init_state)
     end
 
-    tendency_func = ClimaODEFunction(; T_lim!, lim!, dss!)
+    tendency_func = ClimaODEFunction(; T_lim!, lim!, constrain_state!)
     split_tendency_func = tendency_func
     make_prob(func) = ODEProblem(func, init_state, (FT(0), τ), nothing)
     IntegratorTestCase(

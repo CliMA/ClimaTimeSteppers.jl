@@ -34,7 +34,8 @@ n_calls_per_step(::CTS.ARS343, max_newton_iters) = Dict(
     "T_imp!" => 3 * max_newton_iters,
     "T_exp_T_lim!" => 4,
     "lim!" => 4,
-    "dss!" => 4,
+    "constrain_state!" => 4,
+    "dss!" => 4, # deprecated
     "cache!" => 3,
     "cache_imp!" => 4,
     "step!" => 1,
@@ -46,7 +47,8 @@ function n_calls_per_step(alg::CTS.RosenbrockAlgorithm)
         "T_imp!" => CTS.n_stages(alg.tableau),
         "T_exp_T_lim!" => CTS.n_stages(alg.tableau),
         "lim!" => 0,
-        "dss!" => CTS.n_stages(alg.tableau),
+        "constrain_state!" => CTS.n_stages(alg.tableau),
+        "dss!" => CTS.n_stages(alg.tableau), # deprecated
         "cache!" => 0,
         "cache_imp!" => CTS.n_stages(alg.tableau),
         "step!" => 1,
@@ -59,7 +61,7 @@ function maybe_push!(trials₀, name, f!, args, kwargs, only)
     end
 end
 
-const allowed_names = ["Wfact", "ldiv!", "T_imp!", "T_exp_T_lim!", "lim!", "dss!", "cache!", "cache_imp!", "step!"]
+const allowed_names = ["Wfact", "ldiv!", "T_imp!", "T_exp_T_lim!", "lim!", "constrain_state!", "dss!", "cache!", "cache_imp!", "step!"]
 
 """
     benchmark_step(
@@ -87,7 +89,8 @@ Benchmark a DistributedODEIntegrator given:
  - "T_imp!"
  - "T_exp_T_lim!"
  - "lim!"
- - "dss!"
+ - "constrain_state!"
+ - "dss!"  # deprecated
  - "cache!"
  - "cache_imp!"
  - "step!"
@@ -125,7 +128,11 @@ function CTS.benchmark_step(
             maybe_push!(trials₀, "T_exp_T_lim!", remaining_fun(integrator), remaining_args(integrator), kwargs, only)
         end
         maybe_push!(trials₀, "lim!", f.lim!, (Xlim, p, t, u), kwargs, only)
-        maybe_push!(trials₀, "dss!", f.dss!, (u, p, t), kwargs, only)
+        maybe_push!(trials₀, "constrain_state!", f.constrain_state!, (u, p, t), kwargs, only)
+        if !isnothing(only) && "dss!" in only
+            Base.depwarn("`dss!` is deprecated in benchmark `only` list, use `constrain_state!`", :benchmark_step)
+            trials₀["dss!"] = get_trial(f.constrain_state!, (u, p, t), "dss!"; kwargs...)
+        end
         maybe_push!(trials₀, "cache!", f.cache!, (u, p, t), kwargs, only)
         maybe_push!(trials₀, "cache_imp!", f.cache_imp!, (u, p, t), kwargs, only)
         maybe_push!(trials₀, "step!", SciMLBase.step!, (integrator, ), kwargs, only)

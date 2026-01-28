@@ -171,7 +171,7 @@ T_imp_wrapper! =
     SciMLBase.ODEFunction(T_imp!; jac_prototype = FieldMatrixWithSolver(jacobian_matrix, Y₀), Wfact = Wfact);
 
 # On this type of spaces, we need to apply DSS to ensure continuity
-function dss!(state, p, t)
+function constrain_state!(state, p, t)
     ClimaCore.Spaces.weighted_dss!(state.my_var)
 end
 
@@ -181,7 +181,7 @@ t_end = 500seconds
 dt = 5seconds
 
 prob = SciMLBase.ODEProblem(
-    ClimaTimeSteppers.ClimaODEFunction(; T_imp! = T_imp_wrapper!, T_exp!, dss!),
+    ClimaTimeSteppers.ClimaODEFunction(; T_imp! = T_imp_wrapper!, T_exp!, constrain_state!),
     Y₀,
     (t0, t_end),
     nothing,

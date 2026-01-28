@@ -64,6 +64,7 @@ function CTS.benchmark_step(
         T_exp_T_lim!,
         lim!,
         dss!,
+        constrain_state!,
         initialize_imp!,
         cache!,
         cache_imp!,
@@ -76,6 +77,7 @@ function CTS.benchmark_step(
         "T_exp!" => 0,
         "lim!" => 0,
         "dss!" => 0,
+        "constrain_state!" => 0,
         "initialize_imp!" => 0,
         "cache!" => 0,
         "cache_imp!" => 0,
@@ -103,6 +105,7 @@ function CTS.benchmark_step(
         T_exp_T_lim! = with_count(T_exp_T_lim!, "T_exp!"),
         lim! = with_count(lim!, "lim!"),
         dss! = with_count(dss!, "dss!"),
+        constrain_state! = with_count(constrain_state!, "constrain_state!"),
         initialize_imp! = with_count(initialize_imp!, "initialize_imp!"),
         cache! = with_count(cache!, "cache!"),
         cache_imp! = with_count(cache_imp!, "cache_imp!"),
@@ -122,6 +125,8 @@ function CTS.benchmark_step(
         (call_signatures["T_exp!"] = (T_exp_T_lim!, (uₜ, uₜ, u, p, t)))
     is_default(lim!) || (call_signatures["lim!"] = (lim!, (u, p, t, u)))
     is_default(dss!) || (call_signatures["dss!"] = (dss!, (u, p, t)))
+    is_default(constrain_state!) ||
+        (call_signatures["constrain_state!"] = (constrain_state!, (u, p, t)))
     is_default(initialize_imp!) ||
         (call_signatures["initialize_imp!"] = (initialize_imp!, (u, p, t)))
     is_default(cache!) || (call_signatures["cache!"] = (cache!, (u, p, t)))

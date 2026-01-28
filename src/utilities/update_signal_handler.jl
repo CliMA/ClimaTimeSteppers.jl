@@ -1,4 +1,5 @@
 export UpdateSignal, NewTimeStep, NewNewtonSolve, NewNewtonIteration
+export EndOfStage, EndOfStep, WithDSS
 export UpdateSignalHandler, UpdateEvery, UpdateEveryN, UpdateEveryDt
 
 """
@@ -44,16 +45,58 @@ The signal for a new iteration of Newton's method.
 """
 struct NewNewtonIteration <: UpdateSignal end
 
+# Signal hierarchy for DSS-related events:
+#
+#   EndOfStep <: EndOfStage <: WithDSS <: UpdateSignal
+#
+# Because `UpdateEvery`'s dispatch responds to any *subtype* of its target,
+# a broader handler automatically fires on narrower events. For example
+# `UpdateEvery(WithDSS)` fires at every DSS site (including `EndOfStage`
+# and `EndOfStep`), while `UpdateEvery(EndOfStep)` fires only at end of step.
+# Concrete singleton subtypes (`WithDSSSignal`, `EndOfStageSignal`,
+# `EndOfStepSignal`) are what the integrator actually fires at call sites.
+
+"""
+    WithDSS
+
+Broadest DSS-site signal type. Use `UpdateEvery(WithDSS)` to fire a hook
+at every `dss!` call (including pre-implicit and post-`initialize_imp!`).
+"""
+abstract type WithDSS <: UpdateSignal end
+
+"""
+    EndOfStage
+
+Signal type for state-ready-for-tendency-evaluation moments (post-Newton
+in implicit stages, right after DSS in explicit-only stages, and end of
+step). A subset of [`WithDSS`](@ref).
+"""
+abstract type EndOfStage <: WithDSS end
+
+"""
+    EndOfStep
+
+Signal type for the end of a full time step. A subset of [`EndOfStage`](@ref).
+"""
+abstract type EndOfStep <: EndOfStage end
+
+# Concrete singleton signal instances (fired internally at call sites).
+struct WithDSSSignal <: WithDSS end
+struct EndOfStageSignal <: EndOfStage end
+struct EndOfStepSignal <: EndOfStep end
+
 """
     UpdateEvery(update_signal_type)
 
-Perform the update whenever `needs_update!` receives an `UpdateSignal` of
-type `update_signal_type`.
+Perform the update whenever `needs_update!` receives an `UpdateSignal`
+whose type is `update_signal_type` **or a subtype of it**. The subtype
+matching means a broad handler like `UpdateEvery(WithDSS)` fires on any
+`EndOfStage` / `EndOfStep` event as well.
 """
 struct UpdateEvery{U <: UpdateSignal} <: UpdateSignalHandler end
 UpdateEvery(::Type{U}) where {U} = UpdateEvery{U}()
 
-needs_update!(alg::UpdateEvery{U}, ::U) where {U <: UpdateSignal} = true
+needs_update!(alg::UpdateEvery{U}, ::S) where {U <: UpdateSignal, S <: U} = true
 
 """
     UpdateEveryN(n, update_signal_type, reset_signal_type = Nothing)

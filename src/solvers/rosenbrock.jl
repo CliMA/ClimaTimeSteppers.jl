@@ -142,7 +142,8 @@ function step_u!(int, cache::RosenbrockCache{Nstages}) where {Nstages}
     T_exp_T_lim! = f.T_exp_T_lim!
     tgrad! = isnothing(T_imp!) ? nothing : T_imp!.tgrad
 
-    (; cache!, dss!) = f
+    (; cache!, dss!, constrain_state!) = f
+    (; update_cache, update_constrain_state) = f
 
     # TODO: This is only valid when Γ[i, i] is constant, otherwise we have to
     # move this in the for loop
@@ -182,8 +183,14 @@ function step_u!(int, cache::RosenbrockCache{Nstages}) where {Nstages}
         # unchanged from the end of the previous timestep, this order of
         # operations ensures that the state is always continuous and
         # consistent with the cache, including between timesteps.
-        (i != 1) && dss!(U, p, t + αi * dt)
-        (i != 1) && cache!(U, p, t + αi * dt)
+        # State is ready for tendency evaluation right after assembly + DSS;
+        # fire `EndOfStageSignal` (subtype of `WithDSS`).
+        if i != 1
+            dss!(U, p, t + αi * dt)
+            needs_update!(update_constrain_state, EndOfStageSignal()) &&
+                constrain_state!(U, p, t + αi * dt)
+            needs_update!(update_cache, EndOfStageSignal()) && cache!(U, p, t + αi * dt)
+        end
 
         if !isnothing(T_imp!)
             T_imp!(fU_imp, U, p, t + αi * dt)
@@ -221,8 +228,12 @@ function step_u!(int, cache::RosenbrockCache{Nstages}) where {Nstages}
         u .+= m[i] .* k[i]
     end
 
+    # End of step: `EndOfStepSignal <: EndOfStage <: WithDSS` fires all
+    # three handler families with a single signal.
     dss!(u, p, t + dt)
-    cache!(u, p, t + dt)
+    needs_update!(update_constrain_state, EndOfStepSignal()) &&
+        constrain_state!(u, p, t + dt)
+    needs_update!(update_cache, EndOfStepSignal()) && cache!(u, p, t + dt)
     return nothing
 end
 

@@ -95,7 +95,7 @@ end
 function step_u!(integrator, cache::IMEXSSPRKCache)
     (; u, p, t, dt) = integrator
     (; f) = integrator.sol.prob
-    (; cache!, T_imp!, lim!, dss!) = f
+    (; cache!, T_imp!, lim!, dss!, constrain_state!) = f
     (; b_imp) = cache.tableau
     (; U_exp, U_lim, T_lim, T_exp, T_imp, β) = cache
     v_s = get_val_S(b_imp)
@@ -127,8 +127,13 @@ function step_u!(integrator, cache::IMEXSSPRKCache)
         end
     end
 
+    # End of step: fire `EndOfStepSignal` unconditionally. Because
+    # `EndOfStep <: EndOfStage <: WithDSS`, all three handler families see
+    # this single signal.
     dss!(u, p, t_final)
-    cache!(u, p, t_final)
+    needs_update!(f.update_constrain_state, EndOfStepSignal()) &&
+        constrain_state!(u, p, t_final)
+    needs_update!(f.update_cache, EndOfStepSignal()) && cache!(u, p, t_final)
 
     return u
 end
@@ -137,7 +142,8 @@ end
     (; u, p, t, dt, alg) = integrator
     (; f) = integrator.sol.prob
     (; newtons_method) = alg
-    (; cache!, cache_imp!, T_imp!, lim!, dss!) = f
+    (; cache!, cache_imp!, T_imp!, lim!, dss!, constrain_state!) = f
+    (; update_constrain_state, update_cache) = f
     (; a_imp, b_imp, c_exp, c_imp) = cache.tableau
     (; U, U_lim, U_exp, T_lim, T_exp, T_imp, temp, β, newtons_method_cache) = cache
 
@@ -166,18 +172,34 @@ end
     # the implicit solver does not need to be run. On stage i == 1, we do
     # not need to apply DSS and update the cache because we did that at the
     # end of the previous timestep.
-    i ≠ 1 && dss!(U, p, t_exp)
-    if isnothing(T_imp!) || iszero(a_imp[i, i])
-        i ≠ 1 && cache!(U, p, t_exp)
-    else
+    # No-implicit stage → state is ready for tendency eval right after DSS
+    # (fire `EndOfStageSignal`, which is `<: WithDSS`). Otherwise fire only
+    # `WithDSSSignal` (pre-implicit DSS).
+    no_implicit_stage = isnothing(T_imp!) || iszero(a_imp[i, i])
+    stage_top_sig = no_implicit_stage ? EndOfStageSignal() : WithDSSSignal()
+    if i ≠ 1
+        dss!(U, p, t_exp)
+        needs_update!(update_constrain_state, stage_top_sig) &&
+            constrain_state!(U, p, t_exp)
+        no_implicit_stage &&
+            needs_update!(update_cache, EndOfStageSignal()) && cache!(U, p, t_exp)
+    end
+    if !no_implicit_stage
         @assert !isnothing(newtons_method)
         i ≠ 1 && cache_imp!(U, p, t_imp)
         @. temp = U
         solve_implicit_equation!(
             U, temp, p, t_imp, dtγ,
-            T_imp!, newtons_method, newtons_method_cache,
-            cache_imp!, dss!, cache!,
+            T_imp!, newtons_method, newtons_method_cache, cache_imp!,
         )
+        # Post-Newton DSS is required for `T_imp[i] = (U − temp) / dtγ`
+        # to see a DSSed `U`. SSPRK's Shu-Osher update does not satisfy
+        # `u ≡ U_s`, so we don't apply the ARK FSAL last-stage skip here
+        # and always fire `EndOfStageSignal`.
+        dss!(U, p, t_imp)
+        needs_update!(update_constrain_state, EndOfStageSignal()) &&
+            constrain_state!(U, p, t_imp)
+        needs_update!(update_cache, EndOfStageSignal()) && cache!(U, p, t_imp)
     end
 
     if !iszero(β[i])

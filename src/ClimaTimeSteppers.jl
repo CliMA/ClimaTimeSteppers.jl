@@ -53,6 +53,7 @@ import LinearAlgebra, Krylov
 
 include(joinpath("utilities", "sparse_coeffs.jl"))
 include(joinpath("utilities", "fused_increment.jl"))
+include("utilities/update_signal_handler.jl")
 include("sparse_containers.jl")
 include("problems.jl")
 include("functions.jl")
@@ -178,7 +179,6 @@ end
 
 include("integrators.jl")
 
-include("utilities/update_signal_handler.jl")
 include(joinpath("utilities", "async_utils.jl"))
 include("utilities/convergence_condition.jl")
 include("utilities/convergence_checker.jl")

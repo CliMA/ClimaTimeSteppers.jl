@@ -1,6 +1,6 @@
 # Verifying Correctness
 
-The `IMEXAlgorithm` supports problems that specify any combination of the following: an implicit tendency `T_imp!`, an explicit tendency `T_exp!`, a limited tendency `T_lim!`, a function `dss!` that applies a direct stiffness summation, and a function `lim!` that applies a monotonicity-preserving limiter.
+The `IMEXAlgorithm` supports problems that specify any combination of the following: an implicit tendency `T_imp!`, an explicit tendency `T_exp!`, a limited tendency `T_lim!`, a function `dss!` that applies a direct stiffness summation, a function `constrain_state!` that applies additional state constraints, and a function `lim!` that applies a monotonicity-preserving limiter.
 
 ## Convergence without a Limiter
 

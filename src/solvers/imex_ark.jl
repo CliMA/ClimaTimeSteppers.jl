@@ -129,12 +129,14 @@ end
         i ≠ 1 && cache!(U, p, t_exp)
     else
         @assert !isnothing(newtons_method)
-        i ≠ 1 && cache_imp!(U, p, t_imp)
         @. temp = U
         implicit_equation_residual! = (residual, U′) -> begin
             T_imp!(residual, U′, p, t_imp)
             @. residual = temp + dtγ * residual - U′
         end
+        fused_initialize_Newton!(U, dt, a_imp, T_imp, c_imp, Val(i))
+        dss!(U, p, t_exp)
+        cache_imp!(U, p, t_imp)
         solve_newton!(
             newtons_method,
             newtons_method_cache,

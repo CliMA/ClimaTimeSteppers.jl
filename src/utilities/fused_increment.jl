@@ -146,3 +146,57 @@ this lowers to
     Base.Broadcast.materialize!(U, bc)
     return nothing
 end
+
+"""
+    fused_increment_row!(U, dt, sc, tend, ::Val{n}, ::Val{row})
+
+Calls a row-shifted fused implicit increment and materializes
+a broadcast expression in the form:
+
+    `@. U += ∑ⱼ dt a_imp[row, j] tendⱼ`   for `j = 1:(n-1)`
+
+This is equivalent to [`fused_increment!`](@ref) for stage `n`,
+but with coefficients taken from tableau row `row` instead of row `n`.
+
+In the edge case (coeffs are zero, `j` range is empty),
+this lowers to `nothing` (no-op)
+"""
+@inline function fused_increment_row!(U, dt, sc::SparseCoeffs, tend,
+                                      ::Val{n}, ::Val{row}) where {n,row}
+    # same range as Val(n): j = 1:(n-1), but row = row
+    bc = _fused_increment_ij(ntuple(j -> j, Val(n - 1)), row, U, float(dt), sc, tend)
+    bc isa Base.Broadcast.Broadcasted && Base.Broadcast.materialize!(U, bc)
+    nothing
+end
+
+"""
+    fused_initialize_Newton!(U, dt, sc, tend, c, ::Val{i})
+
+Initialize the Newton iterate for stage `i` by replacing the implicit
+tableau contribution from row `i` with the contribution from row `i-1`,
+and extrapolating the previous stage tendency forward to the base point
+of stage `i`.
+
+Performs:
+
+    U ← U
+        - ∑ⱼ₌₁^{i-1} dt * a_imp[i,   j] * T_imp[j]
+        + ∑ⱼ₌₁^{i-1} dt * a_imp[i-1, j] * T_imp[j]
+        + (c[i] - c[i-1]) * dt * T_imp[i-1]
+"""
+@inline function fused_initialize_Newton!(U, dt, sc::SparseCoeffs, tend, c, ::Val{i}) where {i}
+
+    # subtract row i (range 1:(i-1))
+    fused_increment!(U, -dt, sc, tend, Val(i))
+
+    # add row i-1 over the SAME range (1:(i-1))
+    fused_increment_row!(U, dt, sc, tend, Val(i), Val(i-1))
+
+    # extrapolate last tendency to the new stage base point
+    last_index = length(c) - 1
+    i == 2 && @. U += (c[2] - c[1]) * float(dt) * tend[last_index]  
+    i > 2 && @. U += (c[i] - c[i - 1]) * float(dt) * tend[i - 1]
+
+    nothing
+end
+

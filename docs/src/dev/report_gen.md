@@ -1,6 +1,6 @@
 # Verifying Correctness
 
-The `IMEXAlgorithm` supports problems that specify any combination of the following: an implicit tendency `T_imp!`, an explicit tendency `T_exp!`, a limited tendency `T_lim!`, a function `dss!` that applies a direct stiffness summation, and a function `lim!` that applies a monotonicity-preserving limiter.
+The `IMEXAlgorithm` supports problems that specify any combination of the following: an implicit tendency `T_imp!`, an explicit tendency `T_exp!`, a limited tendency `T_lim!`, a function `constrain_state!` that applies state constraints (e.g., direct stiffness summation), and a function `lim!` that applies a monotonicity-preserving limiter.
 
 ## Convergence without a Limiter
 
@@ -12,13 +12,13 @@ The test cases we use for this analysis are:
     - `ark_analytic`, which uses a nonlinear `T_exp!` and a linear `T_imp!`
     - `ark_analytic_sys` and `ark_onewaycouple_mri`, which use a linear `T_imp!`
     - `ark_analytic_nonlin`, which uses a nonlinear `T_imp!`
-    - `1d_heat_equation` and `2d_heat_equation`, which use a nonlinear `T_exp!` and `dss!`, where the spatial discretization is implemented using `ClimaCore`
+    - `1d_heat_equation` and `2d_heat_equation`, which use a nonlinear `T_exp!` and `constrain_state!`, where the spatial discretization is implemented using `ClimaCore`
 
 Please see the `Summaries` section of our [buildkite results](https://buildkite.com/clima/climatimesteppers-ci/), which has a comprehensive report.
 
 ## Errors with a Limiter
 
-In order to verify the correctness of our algorithms with a limiter, we recreate Table 1 from ["Optimization-based limiters for the spectral element method" by Guba et al.](https://www.sciencedirect.com/science/article/pii/S0021999114001491) This involves running the `horizontal_deformational_flow` test case (from ["A standard test case suite for two-dimensional linear transport on the sphere" by Lauritzen et al.](https://gmd.copernicus.org/articles/5/887/2012/gmd-5-887-2012.pdf)) with and without a limiter, and also with and without hyperdiffusion. This test case uses a limited tendency `T_lim!` (which consists of advection and, optionally, hyperdiffusion), along with `dss!` and `lim!`. The spatial discretization is implemented using `ClimaCore`. Since this analysis is relatively expensive to run, we only check the results for `SSP333` and `ARS343`. Note that it is possible to limit undershoots and overshoots to 0 (up to floating-point roundoff error) when using the `SSP` `SSP333`, but not when using the `Unconstrained` `ARS343`.
+In order to verify the correctness of our algorithms with a limiter, we recreate Table 1 from ["Optimization-based limiters for the spectral element method" by Guba et al.](https://www.sciencedirect.com/science/article/pii/S0021999114001491) This involves running the `horizontal_deformational_flow` test case (from ["A standard test case suite for two-dimensional linear transport on the sphere" by Lauritzen et al.](https://gmd.copernicus.org/articles/5/887/2012/gmd-5-887-2012.pdf)) with and without a limiter, and also with and without hyperdiffusion. This test case uses a limited tendency `T_lim!` (which consists of advection and, optionally, hyperdiffusion), along with `constrain_state!` and `lim!`. The spatial discretization is implemented using `ClimaCore`. Since this analysis is relatively expensive to run, we only check the results for `SSP333` and `ARS343`. Note that it is possible to limit undershoots and overshoots to 0 (up to floating-point roundoff error) when using the `SSP` `SSP333`, but not when using the `Unconstrained` `ARS343`.
 
 Please see the `Summaries` section of our [buildkite results](https://buildkite.com/clima/climatimesteppers-ci/), which has a comprehensive report.
 

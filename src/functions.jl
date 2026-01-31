@@ -43,9 +43,9 @@ struct ClimaODEFunction{TEL, TL, TE, TI, L, D, C, CI} <: AbstractClimaODEFunctio
         T_lim! = nothing,
         T_exp! = nothing,
         T_imp! = nothing,
-        lim! = (u, p, t, u_ref) -> nothing,
-        dss! = (u, p, t) -> nothing,
-        cache! = (u, p, t) -> nothing,
+        lim! = Returns(nothing),
+        dss! = Returns(nothing),
+        cache! = Returns(nothing),
         cache_imp! = cache!,
     )
         args = (T_exp_T_lim!, T_lim!, T_exp!, T_imp!, lim!, dss!, cache!, cache_imp!)

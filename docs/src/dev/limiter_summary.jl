@@ -2,7 +2,8 @@ import Plots
 import JLD2
 using ClimaCorePlots
 using LinearAlgebra: norm
-using PrettyTables: pretty_table, ft_printf
+using PrettyTables: pretty_table, TextTableFormat
+using Printf: @sprintf
 
 title_str(name) = titlecase(replace(string(name), '_' => ' '))
 
@@ -76,7 +77,7 @@ function limiter_summary(sol_dicts, alg_strs)
     end
     table = pretty_table(
         vcat(table_rows...);
-        header = [
+        column_labels = [[
             "Algorithm",
             "Limiter",
             "Hyperdiffusion",
@@ -86,10 +87,9 @@ function limiter_summary(sol_dicts, alg_strs)
             "1-Norm Error",
             "2-Norm Error",
             "∞-Norm Error",
-        ],
-        crop = :none,
-        body_hlines = collect(3:3:(length(table_rows) - 1)),
-        formatters = ft_printf("%.4e"),
+        ]],
+        table_format = TextTableFormat(horizontal_lines_at_data_rows = collect(3:3:(length(table_rows) - 1))),
+        formatters = [(v, i, j) -> (v isa Number ? @sprintf("%.4e", v) : v)],
     )
     println(table)
 end

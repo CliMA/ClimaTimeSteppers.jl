@@ -103,27 +103,25 @@ function tabulate_convergence_orders(prob_names, algs, results, expected_orders;
     table_data = hcat(alg_names, data_summary)
     precentage_fail = sum(fail_conv.(getindex.(data, 1), getindex.(data, 2))) / length(data) * 100
     @info "Percentage of failed convergence order tests: $precentage_fail"
-    fail_conv_hl = PrettyTables.Highlighter(
+    fail_conv_hl = PrettyTables.TextHighlighter(
         (data, i, j) -> j ≠ 1 && fail_conv(expected_orders[i], data[i, j]),
         PrettyTables.crayon"red bold",
     )
-    super_conv_hl = PrettyTables.Highlighter(
+    super_conv_hl = PrettyTables.TextHighlighter(
         (data, i, j) -> j ≠ 1 && super_conv(expected_orders[i], data[i, j]),
         PrettyTables.crayon"yellow bold",
     )
-    tab_column_hl = PrettyTables.Highlighter((data, i, j) -> j == 1, PrettyTables.crayon"green bold")
+    tab_column_hl = PrettyTables.TextHighlighter((data, i, j) -> j == 1, PrettyTables.crayon"green bold")
 
-    header = (["Tableau (theoretic)", prob_names...],
-    # ["", ["" for tc in test_case_names]...],
-    )
+    column_labels = ["Tableau (theoretic)", prob_names...]
 
     PrettyTables.pretty_table(
         table_data;
-        header_crayon = PrettyTables.crayon"green bold",
-        highlighters = (tab_column_hl, fail_conv_hl, super_conv_hl),
+        highlighters = [tab_column_hl, fail_conv_hl, super_conv_hl],
         title = "Computed convergence orders, red=fail, yellow=super-convergence",
-        header,
+        column_labels,
         alignment = :c,
-        crop = :none,
+        fit_table_in_display_vertically = false,
+        fit_table_in_display_horizontally = false,
     )
 end

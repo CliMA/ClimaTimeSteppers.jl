@@ -35,16 +35,17 @@ function tabulate_summary(summary; n_calls_per_step)
     end
     table_data = hcat(func_names, mem, nalloc, t_min, t_max, t_mean, t_med, n_samples, percentage)
 
-    header = (
+    column_labels = [
         ["Function", "Memory", "allocs", "Time", "Time", "Time", "Time", "N-samples", "step! percentage"],
         [" ", "estimate", "estimate", "min", "max", "mean", "median", "", ""],
-    )
+    ]
 
     PrettyTables.pretty_table(
         table_data;
-        header,
-        crop = :none,
-        alignment = vcat(:l, repeat([:r], length(header[1]) - 1)),
+        column_labels,
+        fit_table_in_display_vertically = false,
+        fit_table_in_display_horizontally = false,
+        alignment = vcat(:l, repeat([:r], length(column_labels[1]) - 1)),
     )
 end
 

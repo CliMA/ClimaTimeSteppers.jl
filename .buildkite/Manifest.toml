@@ -327,7 +327,7 @@ version = "0.2.11"
 deps = ["ClimaComms", "DataStructures", "DiffEqBase", "KernelAbstractions", "Krylov", "LinearAlgebra", "LinearOperators", "NVTX", "SciMLBase", "StaticArrays"]
 path = ".."
 uuid = "595c0a79-7f3d-439a-bc5a-b232dc3bde79"
-version = "0.8.5"
+version = "0.8.6"
 weakdeps = ["BenchmarkTools", "CUDA", "OrderedCollections", "PrettyTables", "StatsBase"]
 
     [deps.ClimaTimeSteppers.extensions]

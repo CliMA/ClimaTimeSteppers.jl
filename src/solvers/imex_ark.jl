@@ -50,7 +50,7 @@ function step_u!(integrator, cache::IMEXARKCache)
     (; u, p, t, dt, alg) = integrator
     (; f) = integrator.sol.prob
     (; cache!, cache_imp!) = f
-    (; T_lim!, T_exp!, T_imp!, lim!, dss!) = f
+    (; T_lim!, T_exp!, T_imp!, lim!, dss!, constrain_state!) = f
     (; tableau, newtons_method) = alg
     (; a_exp, b_exp, a_imp, b_imp, c_exp, c_imp) = tableau
     (; U, T_lim, T_exp, T_imp, temp, γ, newtons_method_cache) = cache
@@ -82,6 +82,7 @@ function step_u!(integrator, cache::IMEXARKCache)
     has_T_exp(f) && fused_increment!(u, dt, b_exp, T_exp, Val(s))
     isnothing(T_imp!) || fused_increment!(u, dt, b_imp, T_imp, Val(s))
 
+    constrain_state!(u, p, t_final)
     dss!(u, p, t_final)
     cache!(u, p, t_final)
 
@@ -99,7 +100,7 @@ end
     (; u, p, t, dt, alg) = integrator
     (; f) = integrator.sol.prob
     (; cache!, cache_imp!) = f
-    (; T_exp_T_lim!, T_lim!, T_exp!, T_imp!, lim!, dss!) = f
+    (; T_exp_T_lim!, T_lim!, T_exp!, T_imp!, lim!, dss!, constrain_state!) = f
     (; tableau, newtons_method) = alg
     (; a_exp, b_exp, a_imp, b_imp, c_exp, c_imp) = tableau
     (; U, T_lim, T_exp, T_imp, temp, newtons_method_cache) = cache
@@ -124,6 +125,7 @@ end
     # the implicit solver does not need to be run. On stage i == 1, we do not
     # need to apply DSS and update the cache because we did that at the end of
     # the previous timestep.
+    i ≠ 1 && constrain_state!(U, p, t_exp)
     i ≠ 1 && dss!(U, p, t_exp)
     if isnothing(T_imp!) || iszero(a_imp[i, i])
         i ≠ 1 && cache!(U, p, t_exp)
@@ -143,6 +145,7 @@ end
             (jacobian, U′) -> T_imp!.Wfact(jacobian, U′, p, dtγ, t_imp),
             U′ -> cache_imp!(U′, p, t_imp),
         )
+        constrain_state!(U, p, t_imp)
         dss!(U, p, t_imp)
         cache!(U, p, t_imp)
     end

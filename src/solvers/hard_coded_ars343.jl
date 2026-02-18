@@ -3,7 +3,7 @@
 function step_u!(integrator, cache::IMEXARKCache, ::ARS343)
     (; u, p, t, dt, sol, alg) = integrator
     (; f) = sol.prob
-    (; T_imp!, lim!, dss!) = f
+    (; T_imp!, lim!, dss!, constrain_state!) = f
     (; cache!, cache_imp!) = f
     (; tableau, newtons_method) = alg
     (; a_exp, b_exp, a_imp, b_imp, c_exp, c_imp) = tableau
@@ -32,6 +32,7 @@ function step_u!(integrator, cache::IMEXARKCache, ::ARS343)
     @. U = u + dt * a_exp[i, 1] * T_lim[1]
     lim!(U, p, t_exp, u)
     @. U += dt * a_exp[i, 1] * T_exp[1]
+    constrain_state!(U, p, t_exp)
     dss!(U, p, t_exp)
     @. temp = U # used in closures
     let i = i
@@ -49,6 +50,7 @@ function step_u!(integrator, cache::IMEXARKCache, ::ARS343)
             (jacobian, U′) -> T_imp!.Wfact(jacobian, U′, p, dtγ, t_imp),
             U′ -> cache_imp!(U′, p, t_imp),
         )
+        constrain_state!(U, p, t_imp)
         dss!(U, p, t_imp)
         cache!(U, p, t_imp)
     end
@@ -61,6 +63,7 @@ function step_u!(integrator, cache::IMEXARKCache, ::ARS343)
     @. U = u + dt * a_exp[i, 1] * T_lim[1] + dt * a_exp[i, 2] * T_lim[2]
     lim!(U, p, t_exp, u)
     @. U += dt * a_exp[i, 1] * T_exp[1] + dt * a_exp[i, 2] * T_exp[2] + dt * a_imp[i, 2] * T_imp[2]
+    constrain_state!(U, p, t_exp)
     dss!(U, p, t_exp)
     @. temp = U # used in closures
     let i = i
@@ -78,6 +81,7 @@ function step_u!(integrator, cache::IMEXARKCache, ::ARS343)
             (jacobian, U′) -> T_imp!.Wfact(jacobian, U′, p, dtγ, t_imp),
             U′ -> cache_imp!(U′, p, t_imp),
         )
+        constrain_state!(U, p, t_imp)
         dss!(U, p, t_imp)
         cache!(U, p, t_imp)
     end
@@ -95,6 +99,7 @@ function step_u!(integrator, cache::IMEXARKCache, ::ARS343)
         dt * a_exp[i, 3] * T_exp[3] +
         dt * a_imp[i, 2] * T_imp[2] +
         dt * a_imp[i, 3] * T_imp[3]
+    constrain_state!(U, p, t_exp)
     dss!(U, p, t_exp)
     @. temp = U # used in closures
     let i = i
@@ -112,6 +117,7 @@ function step_u!(integrator, cache::IMEXARKCache, ::ARS343)
             (jacobian, U′) -> T_imp!.Wfact(jacobian, U′, p, dtγ, t_imp),
             U′ -> cache_imp!(U′, p, t_imp),
         )
+        constrain_state!(U, p, t_imp)
         dss!(U, p, t_imp)
         cache!(U, p, t_imp)
     end
@@ -130,6 +136,7 @@ function step_u!(integrator, cache::IMEXARKCache, ::ARS343)
         dt * b_imp[2] * T_imp[2] +
         dt * b_imp[3] * T_imp[3] +
         dt * b_imp[4] * T_imp[4]
+    constrain_state!(u, p, t_final)
     dss!(u, p, t_final)
     cache!(u, p, t_final)
     return u

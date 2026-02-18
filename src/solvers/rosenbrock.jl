@@ -123,7 +123,7 @@ function step_u!(int, cache::RosenbrockCache{Nstages}) where {Nstages}
     T_exp_lim! = int.sol.prob.f.T_exp_T_lim!
     tgrad! = isnothing(T_imp!) ? nothing : T_imp!.tgrad
 
-    (; cache!, dss!) = int.sol.prob.f
+    (; cache!, dss!, constrain_state!) = int.sol.prob.f
 
     # TODO: This is only valid when Γ[i, i] is constant, otherwise we have to
     # move this in the for loop
@@ -155,6 +155,7 @@ function step_u!(int, cache::RosenbrockCache{Nstages}) where {Nstages}
         # unchanged from the end of the previous timestep, this order of
         # operations ensures that the state is always continuous and
         # consistent with the cache, including between timesteps.
+        (i != 1) && constrain_state!(U, p, t + αi * dt)
         (i != 1) && dss!(U, p, t + αi * dt)
         (i != 1) && cache!(U, p, t + αi * dt)
 
@@ -199,6 +200,7 @@ function step_u!(int, cache::RosenbrockCache{Nstages}) where {Nstages}
         u .+= m[i] .* k[i]
     end
 
+    constrain_state!(u, p, t + dt)
     dss!(u, p, t + dt)
     cache!(u, p, t + dt)
     return nothing

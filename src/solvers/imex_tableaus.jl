@@ -180,14 +180,14 @@ function IMEXTableau(::ARS222)
     γ = 1 - √2 / 2
     δ = 1 - 1 / 2γ
     IMEXTableau(; a_exp = @SArray([
-        0 0 0
-        γ 0 0
-        δ (1-δ) 0
-    ]), a_imp = @SArray([
-        0 0 0
-        0 γ 0
-        0 (1-γ) γ
-    ]))
+            0 0 0
+            γ 0 0
+            δ (1-δ) 0
+        ]), a_imp = @SArray([
+            0 0 0
+            0 γ 0
+            0 (1-γ) γ
+        ]))
 end
 
 """

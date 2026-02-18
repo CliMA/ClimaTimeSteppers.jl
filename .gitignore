@@ -34,3 +34,6 @@ Manifest.toml
 # Agent files
 .claude/
 AGENTS.md
+# VSCode settings
+.DS_Store
+.vscode/

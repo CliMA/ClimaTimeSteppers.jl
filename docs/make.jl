@@ -88,6 +88,7 @@ pages = [
         "Types" => "dev/types.md",
         "Developer Guide" => "dev/report_gen.md",
     ],
+    "contributing.md",
     "references.md",
 ]
 #! format: on

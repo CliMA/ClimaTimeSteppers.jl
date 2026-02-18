@@ -20,3 +20,5 @@
 [codecov-url]: https://codecov.io/gh/CliMA/ClimaTimeSteppers.jl
 
 A CPU- and GPU-friendly package for solving ordinary differential equations
+
+See the [contributor guide](https://CliMA.github.io/ClimaTimeSteppers.jl/dev/contributing/) for information on contributing.

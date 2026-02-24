@@ -482,6 +482,7 @@ end
         krylov_method = nothing,
         convergence_checker = nothing,
         verbose = Silent(),
+        line_search = false,
     )
 
 Solves the equation `f(x) = 0`, using the Jacobian (or an approximation of the
@@ -506,6 +507,11 @@ Since `f(x̂) = 0`, the error on the `n`-th iteration is roughly
 Newton's method sets `x[n + 1]` to be the value of `x̂` given by this
 approximation:
     `x[n + 1] = x[n] - Δx[n]`.
+
+If `line_search = true`, a simple backtracking line search is applied to the
+Newton update. The full Newton step is attempted first. If the residual norm
+does not decrease or becomes `NaN`, the step length is repeatedly halved,
+up to five times. The final iterate corresponds to the last step tested.
 
 If a Krylov method is specified, it gets used to compute the error
 `Δx[n] = j(x[n]) \\ f(x[n])`; otherwise, the error is directly computed by
@@ -557,12 +563,14 @@ Base.@kwdef struct NewtonsMethod{
     K <: Union{Nothing, KrylovMethod},
     C <: Union{Nothing, ConvergenceChecker},
     V <: AbstractVerbosity,
+    L <: Union{Nothing, LineSearch},
 }
     max_iters::Int = 1
     update_j::U = UpdateEvery(NewNewtonIteration)
     krylov_method::K = nothing
     convergence_checker::C = nothing
     verbose::V = Silent()
+    line_search::L = nothing
 end
 
 function allocate_cache(alg::NewtonsMethod, x_prototype, j_prototype = nothing)
@@ -581,18 +589,18 @@ end
 solve_newton!(alg::NewtonsMethod, cache::Nothing, x, f!, j! = nothing, prepare_for_f! = nothing) = nothing
 
 NVTX.@annotate function solve_newton!(alg::NewtonsMethod, cache, x, f!, j! = nothing, prepare_for_f! = nothing)
-    (; max_iters, update_j, krylov_method, convergence_checker, verbose) = alg
+    (; max_iters, update_j, krylov_method, convergence_checker, verbose, line_search) = alg
     (; krylov_method_cache, convergence_checker_cache) = cache
     (; Δx, f, j) = cache
     if (!isnothing(j)) && needs_update!(update_j, NewNewtonSolve())
         j!(j, x)
     end
+    f!(f, x)
     for n in 1:max_iters
         # Compute Δx[n].
         if (!isnothing(j)) && needs_update!(update_j, NewNewtonIteration())
             j!(j, x)
         end
-        f!(f, x)
         if isnothing(krylov_method)
             if j isa DenseMatrix
                 ldiv!(Δx, lu(j), f) # Highly inefficient! Only used for testing.
@@ -605,13 +613,16 @@ NVTX.@annotate function solve_newton!(alg::NewtonsMethod, cache, x, f!, j! = not
         is_verbose(verbose) && @info "Newton iteration $n: ‖x‖ = $(norm(x)), ‖Δx‖ = $(norm(Δx))"
 
         x .-= Δx
+        line_search!(line_search, x, Δx, f, f!, prepare_for_f!)
+
         # Update x[n] with Δx[n - 1], and exit the loop if Δx[n] is not needed.
         # Check for convergence if necessary.
         if is_converged!(convergence_checker, convergence_checker_cache, x, Δx, n)
             break
-        elseif n < max_iters
+        elseif n < max_iters && isnothing(line_search)
             isnothing(prepare_for_f!) || prepare_for_f!(x)
-        elseif is_verbose(verbose)
+            f!(f, x)
+        elseif n == max_iters && is_verbose(verbose)
             @warn "Newton's method did not converge within $n iterations: ‖x‖ = $(norm(x)), ‖Δx‖ = $(norm(Δx))"
         end
     end

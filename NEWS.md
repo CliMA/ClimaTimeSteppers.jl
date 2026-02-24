@@ -4,6 +4,10 @@ ClimaTimeSteppers.jl Release Notes
 Main
 -------
 
+v0.8.7
+------
+- Added a simple line search algorithm to Newtons method.
+
 v0.8.5
 ------
 - Removed SciMLBase` type `restriction on `step_u!`.

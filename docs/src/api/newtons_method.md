@@ -6,6 +6,7 @@ CurrentModule = ClimaTimeSteppers
 
 ```@docs
 NewtonsMethod
+LineSearch
 ```
 
 ## Newton-Krylov Method
@@ -50,3 +51,5 @@ NewTimeStep
 NewNewtonSolve
 NewNewtonIteration
 ```
+
+## Optimi

@@ -106,6 +106,7 @@ include("integrators.jl")
 include("utilities/update_signal_handler.jl")
 include("utilities/convergence_condition.jl")
 include("utilities/convergence_checker.jl")
+include("utilities/line_search.jl")
 include("nl_solvers/newtons_method.jl")
 
 

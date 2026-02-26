@@ -56,8 +56,9 @@ end
             ),
             convergence_checker,
         )
+        alg4 = NewtonsMethod(; max_iters, convergence_checker, line_search = LineSearch())
         f!, j!, x_exact, x_init = equation(FT, n)
-        for (alg, use_j) in ((alg1, true), (alg2, true), (alg3, false))
+        for (alg, use_j) in ((alg1, true), (alg2, true), (alg3, false), (alg4, true))
             x = copy(x_init)
             j_prototype = similar(x, length(x), length(x))
             cache = CTS.allocate_cache(alg, x, use_j ? j_prototype : nothing)

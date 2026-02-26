@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Report generator · ClimaTimeSteppers</title><meta name="title" content="Report generator · ClimaTimeSteppers"/><meta property="og:title" content="Report generator · ClimaTimeSteppers"/><meta property="twitter:title" content="Report generator · ClimaTimeSteppers"/><meta name="description" content="Documentation for ClimaTimeSteppers."/><meta property="og:description" content="Documentation for ClimaTimeSteppers."/><meta property="twitter:description" content="Documentation for ClimaTimeSteppers."/><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../search_index.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../../">ClimaTimeSteppers</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../../">ClimaTimeSteppers.jl</a></li><li><input class="collapse-toggle" id="menuitem-2" type="checkbox"/><label class="tocitem" for="menuitem-2"><span class="docs-label">Algorithm Formulations</span><i class="docs-chevron"></i></label><ul class="collapsed"><li><a class="tocitem" href="../../algorithm_formulations/ode_solvers/">ODE Solvers</a></li><li><a class="tocitem" href="../../algorithm_formulations/newtons_method/">Newtons Method</a></li><li><a class="tocitem" href="../../algorithm_formulations/lsrk/">Old LSRK Formulations</a></li><li><a class="tocitem" href="../../algorithm_formulations/mrrk/">Old MRRK Formulations</a></li></ul></li><li><input class="collapse-toggle" id="menuitem-3" type="checkbox"/><label class="tocitem" for="menuitem-3"><span class="docs-label">Test problems</span><i class="docs-chevron"></i></label><ul class="collapsed"><li><a class="tocitem" href="../../test_problems/">Test problems</a></li></ul></li><li><input class="collapse-toggle" id="menuitem-4" type="checkbox"/><label class="tocitem" for="menuitem-4"><span class="docs-label">API docs</span><i class="docs-chevron"></i></label><ul class="collapsed"><li><a class="tocitem" href="../../api/ode_solvers/">ODE Solvers</a></li><li><a class="tocitem" href="../../api/newtons_method/">Newtons Method</a></li><li><a class="tocitem" href="../../api/callbacks/">Callbacks</a></li></ul></li><li><input class="collapse-toggle" id="menuitem-5" type="checkbox" checked/><label class="tocitem" for="menuitem-5"><span class="docs-label">Developer docs</span><i class="docs-chevron"></i></label><ul class="collapsed"><li><a class="tocitem" href="../types/">Types</a></li><li class="is-active"><a class="tocitem" href>Report generator</a><ul class="internal"><li><a class="tocitem" href="#Convergence-without-a-Limiter"><span>Convergence without a Limiter</span></a></li><li><a class="tocitem" href="#Errors-with-a-Limiter"><span>Errors with a Limiter</span></a></li><li><a class="tocitem" href="#References"><span>References</span></a></li></ul></li></ul></li><li><a class="tocitem" href="../../references/">References</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Developer docs</a></li><li class="is-active"><a href>Report generator</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Report generator</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/CliMA/ClimaTimeSteppers.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/CliMA/ClimaTimeSteppers.jl/blob/main/docs/src/dev/report_gen.md" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Verifying-Correctness"><a class="docs-heading-anchor" href="#Verifying-Correctness">Verifying Correctness</a><a id="Verifying-Correctness-1"></a><a class="docs-heading-anchor-permalink" href="#Verifying-Correctness" title="Permalink"></a></h1><p>The <code>IMEXAlgorithm</code> supports problems that specify any combination of the following: an implicit tendency <code>T_imp!</code>, an explicit tendency <code>T_exp!</code>, a limited tendency <code>T_lim!</code>, a function <code>dss!</code> that applies a direct stiffness summation, and a function <code>lim!</code> that applies a monotonicity-preserving limiter.</p><h2 id="Convergence-without-a-Limiter"><a class="docs-heading-anchor" href="#Convergence-without-a-Limiter">Convergence without a Limiter</a><a id="Convergence-without-a-Limiter-1"></a><a class="docs-heading-anchor-permalink" href="#Convergence-without-a-Limiter" title="Permalink"></a></h2><p>In order to verify the correctness of our algorithms without a limiter, we compute their convergence orders for a variety of test cases. For each case, we estimate the convergence order of the algorithm over a range of stable timesteps, ensuring that the estimate <code>computed_order ± order_uncertainty</code> satisfies <code>|computed_order - predicted_order| ≤ order_uncertainty</code> and <code>order_uncertainty ≤ predicted_order / 10</code>. We also generate a plot that shows each algorithm&#39;s convergence as the timestep is reduced, along with plots that show the norms of each algorithm&#39;s solution and error over time (for some stable timestep). In addition, we verify that <code>SSP</code> algorithms produce the same results (up to floating-point roundoff error) when run in <code>Unconstrained</code> mode (at least, when run without a limiter).</p><p>By <a href="https://en.wikipedia.org/wiki/Godunov%27s_theorem">Godunov&#39;s theorem</a>, the use of a monotonicity-preserving limiter reduces the convergence order of any algorithm to 1, so we do not include any test cases that use <code>T_lim!</code> and <code>lim!</code>.</p><p>The test cases we use for this analysis are:     - <code>ark_analytic</code>, which uses a nonlinear <code>T_exp!</code> and a linear <code>T_imp!</code>     - <code>ark_analytic_sys</code> and <code>ark_onewaycouple_mri</code>, which use a linear <code>T_imp!</code>     - <code>ark_analytic_nonlin</code>, which uses a nonlinear <code>T_imp!</code>     - <code>1d_heat_equation</code> and <code>2d_heat_equation</code>, which use a nonlinear <code>T_exp!</code> and <code>dss!</code>, where the spatial discretization is implemented using <code>ClimaCore</code></p><pre><code class="language-julia hljs">include(&quot;report_gen.jl&quot;)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">┌ Warning: Predicted order outside error bars for RK4 (ark_analytic_nonlin)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:215
+┌ Warning: Predicted order outside error bars for ARS122 (ark_analytic_nonlin)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:215
+┌ Warning: Predicted order outside error bars for ARS233 (ark_analytic_nonlin)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:215
+┌ Warning: Predicted order outside error bars for RK4 (ark_analytic_sys)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:215
+┌ Warning: Predicted order outside error bars for ARS122 (ark_analytic_sys)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:215
+┌ Warning: Predicted order outside error bars for ARS233 (ark_analytic_sys)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:215
+┌ Warning: Predicted order outside error bars for RK4 (ark_analytic)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:215
+┌ Warning: Predicted order outside error bars for ARK2GKC (ark_analytic)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:215
+┌ Warning: Predicted order outside error bars for ARS121 (ark_analytic)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:215
+┌ Warning: Predicted order outside error bars for ARS122 (ark_analytic)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:215
+┌ Warning: Predicted order outside error bars for ARS232 (ark_analytic)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:215
+┌ Warning: Predicted order outside error bars for ARS233 (ark_analytic)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:215
+┌ Warning: Predicted order outside error bars for ARS343 (ark_analytic)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:215
+┌ Warning: Predicted order outside error bars for DBM453 (ark_analytic)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:215
+┌ Warning: Predicted order outside error bars for RK4 (ark_onewaycouple_mri)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:215
+┌ Warning: Predicted order outside error bars for ARS122 (ark_onewaycouple_mri)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:215
+┌ Warning: Predicted order outside error bars for ARS233 (ark_onewaycouple_mri)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:215
+┌ Warning: Order uncertainty too large for SSP22Heuns (1D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:218
+┌ Warning: Predicted order outside error bars for SSP33ShuOsher (1D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:215
+┌ Warning: Predicted order outside error bars for RK4 (1D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:215
+┌ Warning: Order uncertainty too large for RK4 (1D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:218
+┌ Warning: Predicted order outside error bars for ARK2GKC (1D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:215
+┌ Warning: Predicted order outside error bars for ARS122 (1D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:215
+┌ Warning: Order uncertainty too large for ARS222 (1D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:218
+┌ Warning: Predicted order outside error bars for ARS232 (1D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:215
+┌ Warning: Predicted order outside error bars for ARS233 (1D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:215
+┌ Warning: Predicted order outside error bars for ARS343 (1D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:215
+┌ Warning: Predicted order outside error bars for ARS443 (1D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:215
+┌ Warning: Order uncertainty too large for SSP222 (1D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:218
+┌ Warning: Order uncertainty too large for SSP322 (1D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:218
+┌ Warning: Predicted order outside error bars for SSP332 (1D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:215
+┌ Warning: Predicted order outside error bars for SSP333 (1D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:215
+┌ Warning: Predicted order outside error bars for SSP433 (1D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:215
+┌ Warning: Predicted order outside error bars for DBM453 (1D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:215
+┌ Warning: Predicted order outside error bars for HOMMEM1 (1D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:215
+┌ Warning: Predicted order outside error bars for IMKG232a (1D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:215
+┌ Warning: Order uncertainty too large for IMKG232a (1D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:218
+┌ Warning: Predicted order outside error bars for IMKG232b (1D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:215
+┌ Warning: Order uncertainty too large for IMKG232b (1D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:218
+┌ Warning: Predicted order outside error bars for IMKG242a (1D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:215
+┌ Warning: Predicted order outside error bars for IMKG242b (1D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:215
+┌ Warning: Predicted order outside error bars for IMKG243a (1D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:215
+┌ Warning: Predicted order outside error bars for IMKG252a (1D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:215
+┌ Warning: Order uncertainty too large for IMKG252a (1D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:218
+┌ Warning: Predicted order outside error bars for IMKG252b (1D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:215
+┌ Warning: Order uncertainty too large for IMKG252b (1D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:218
+┌ Warning: Predicted order outside error bars for IMKG253a (1D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:215
+┌ Warning: Order uncertainty too large for IMKG253a (1D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:218
+┌ Warning: Predicted order outside error bars for IMKG253b (1D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:215
+┌ Warning: Order uncertainty too large for IMKG253b (1D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:218
+┌ Warning: Predicted order outside error bars for IMKG254a (1D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:215
+┌ Warning: Order uncertainty too large for IMKG254a (1D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:218
+┌ Warning: Predicted order outside error bars for IMKG254b (1D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:215
+┌ Warning: Order uncertainty too large for IMKG254b (1D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:218
+┌ Warning: Predicted order outside error bars for IMKG254c (1D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:215
+┌ Warning: Order uncertainty too large for IMKG254c (1D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:218
+┌ Warning: Predicted order outside error bars for IMKG342a (1D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:215
+┌ Warning: Predicted order outside error bars for IMKG343a (1D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:215
+┌ Warning: Order uncertainty too large for SSP22Heuns (2D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:218
+┌ Warning: Order uncertainty too large for SSP33ShuOsher (2D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:218
+┌ Warning: Predicted order outside error bars for RK4 (2D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:215
+┌ Warning: Order uncertainty too large for RK4 (2D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:218
+┌ Warning: Order uncertainty too large for ARK2GKC (2D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:218
+┌ Warning: Order uncertainty too large for ARS111 (2D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:218
+┌ Warning: Order uncertainty too large for ARS121 (2D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:218
+┌ Warning: Order uncertainty too large for ARS122 (2D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:218
+┌ Warning: Order uncertainty too large for ARS222 (2D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:218
+┌ Warning: Order uncertainty too large for ARS232 (2D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:218
+┌ Warning: Order uncertainty too large for ARS233 (2D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:218
+┌ Warning: Predicted order outside error bars for ARS343 (2D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:215
+┌ Warning: Order uncertainty too large for ARS343 (2D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:218
+┌ Warning: Order uncertainty too large for ARS443 (2D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:218
+┌ Warning: Order uncertainty too large for SSP222 (2D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:218
+┌ Warning: Order uncertainty too large for SSP322 (2D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:218
+┌ Warning: Order uncertainty too large for SSP332 (2D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:218
+┌ Warning: Order uncertainty too large for SSP333 (2D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:218
+┌ Warning: Order uncertainty too large for SSP433 (2D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:218
+┌ Warning: Order uncertainty too large for DBM453 (2D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:218
+┌ Warning: Order uncertainty too large for HOMMEM1 (2D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:218
+┌ Warning: Order uncertainty too large for IMKG232a (2D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:218
+┌ Warning: Order uncertainty too large for IMKG232b (2D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:218
+┌ Warning: Order uncertainty too large for IMKG242a (2D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:218
+┌ Warning: Order uncertainty too large for IMKG242b (2D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:218
+┌ Warning: Order uncertainty too large for IMKG243a (2D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:218
+┌ Warning: Order uncertainty too large for IMKG252a (2D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:218
+┌ Warning: Order uncertainty too large for IMKG252b (2D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:218
+┌ Warning: Order uncertainty too large for IMKG253a (2D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:218
+┌ Warning: Order uncertainty too large for IMKG253b (2D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:218
+┌ Warning: Order uncertainty too large for IMKG254a (2D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:218
+┌ Warning: Order uncertainty too large for IMKG254b (2D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:218
+┌ Warning: Order uncertainty too large for IMKG254c (2D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:218
+┌ Warning: Order uncertainty too large for IMKG342a (2D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:218
+┌ Warning: Order uncertainty too large for IMKG343a (2D Heat Equation)
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/plotting_utils.jl:218
+┌ Warning: Unconstrained and SSP versions of SSP222 give different results for ark_analytic_nonlin
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/dev/report_gen.jl:58
+┌ Warning: Unconstrained and SSP versions of SSP332 give different results for ark_analytic_nonlin
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/dev/report_gen.jl:58
+┌ Warning: Unconstrained and SSP versions of SSP333 give different results for ark_analytic_nonlin
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/dev/report_gen.jl:58
+┌ Warning: Unconstrained and SSP versions of SSP433 give different results for ark_analytic_nonlin
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/dev/report_gen.jl:58
+┌ Warning: Unconstrained and SSP versions of SSP222 give different results for ark_analytic_sys
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/dev/report_gen.jl:58
+┌ Warning: Unconstrained and SSP versions of SSP332 give different results for ark_analytic_sys
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/dev/report_gen.jl:58
+┌ Warning: Unconstrained and SSP versions of SSP333 give different results for ark_analytic_sys
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/dev/report_gen.jl:58
+┌ Warning: Unconstrained and SSP versions of SSP433 give different results for ark_analytic_sys
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/dev/report_gen.jl:58
+┌ Warning: Unconstrained and SSP versions of SSP222 give different results for ark_analytic
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/dev/report_gen.jl:58
+┌ Warning: Unconstrained and SSP versions of SSP322 give different results for ark_analytic
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/dev/report_gen.jl:58
+┌ Warning: Unconstrained and SSP versions of SSP332 give different results for ark_analytic
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/dev/report_gen.jl:58
+┌ Warning: Unconstrained and SSP versions of SSP333 give different results for ark_analytic
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/dev/report_gen.jl:58
+┌ Warning: Unconstrained and SSP versions of SSP433 give different results for ark_analytic
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/dev/report_gen.jl:58
+┌ Warning: Unconstrained and SSP versions of SSP222 give different results for ark_onewaycouple_mri
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/dev/report_gen.jl:58
+┌ Warning: Unconstrained and SSP versions of SSP332 give different results for ark_onewaycouple_mri
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/dev/report_gen.jl:58
+┌ Warning: Unconstrained and SSP versions of SSP333 give different results for ark_onewaycouple_mri
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/dev/report_gen.jl:58
+┌ Warning: Unconstrained and SSP versions of SSP433 give different results for ark_onewaycouple_mri
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/dev/report_gen.jl:58
+┌ Warning: Unconstrained and SSP versions of SSP222 give different results for 1D Heat Equation
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/dev/report_gen.jl:58
+┌ Warning: Unconstrained and SSP versions of SSP322 give different results for 1D Heat Equation
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/dev/report_gen.jl:58
+┌ Warning: Unconstrained and SSP versions of SSP332 give different results for 1D Heat Equation
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/dev/report_gen.jl:58
+┌ Warning: Unconstrained and SSP versions of SSP333 give different results for 1D Heat Equation
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/dev/report_gen.jl:58
+┌ Warning: Unconstrained and SSP versions of SSP433 give different results for 1D Heat Equation
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/dev/report_gen.jl:58
+┌ Warning: Unconstrained and SSP versions of SSP222 give different results for 2D Heat Equation
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/dev/report_gen.jl:58
+┌ Warning: Unconstrained and SSP versions of SSP322 give different results for 2D Heat Equation
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/dev/report_gen.jl:58
+┌ Warning: Unconstrained and SSP versions of SSP332 give different results for 2D Heat Equation
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/dev/report_gen.jl:58
+┌ Warning: Unconstrained and SSP versions of SSP333 give different results for 2D Heat Equation
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/dev/report_gen.jl:58
+┌ Warning: Unconstrained and SSP versions of SSP433 give different results for 2D Heat Equation
+└ @ Main ~/work/ClimaTimeSteppers.jl/ClimaTimeSteppers.jl/docs/build/dev/report_gen.jl:58</code></pre><p><img src="../output/convergence_ark_analytic_all_algorithms.png" alt/>  <img src="../output/convergence_ark_analytic_sys_all_algorithms.png" alt/>  <img src="../output/convergence_ark_onewaycouple_mri_all_algorithms.png" alt/>  <img src="../output/convergence_ark_analytic_nonlin_all_algorithms.png" alt/>  <img src="../output/convergence_1d_heat_equation_all_algorithms.png" alt/>  <img src="../output/convergence_2d_heat_equation_all_algorithms.png" alt/></p><h2 id="Errors-with-a-Limiter"><a class="docs-heading-anchor" href="#Errors-with-a-Limiter">Errors with a Limiter</a><a id="Errors-with-a-Limiter-1"></a><a class="docs-heading-anchor-permalink" href="#Errors-with-a-Limiter" title="Permalink"></a></h2><p>In order to verify the correctness of our algorithms with a limiter, we recreate Table 1 from <a href="https://www.sciencedirect.com/science/article/pii/S0021999114001491">&quot;Optimization-based limiters for the spectral element method&quot; by Guba et al.</a> This involves running the <code>horizontal_deformational_flow</code> test case (from <a href="https://gmd.copernicus.org/articles/5/887/2012/gmd-5-887-2012.pdf">&quot;A standard test case suite for two-dimensional linear transport on the sphere&quot; by Lauritzen et al.</a>) with and without a limiter, and also with and without hyperdiffusion. This test case uses a limited tendency <code>T_lim!</code> (which consists of advection and, optionally, hyperdiffusion), along with <code>dss!</code> and <code>lim!</code>. The spatial discretization is implemented using <code>ClimaCore</code>. Since this analysis is relatively expensive to run, we only check the results for <code>SSP333</code> and <code>ARS343</code>. Note that it is possible to limit undershoots and overshoots to 0 (up to floating-point roundoff error) when using the <code>SSP</code> <code>SSP333</code>, but not when using the <code>Unconstrained</code> <code>ARS343</code>.</p><pre><code class="language-julia hljs"># This also runs with num_steps = 1000, but with larger under/overshoots; 4800
+# is the value used in the paper.
+limiter_summary(Float64, [SSP333(), ARS343()], horizontal_deformational_flow_test, 4800)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">GKS: Rectangle definition is invalid in routine SET_VIEWPORT
+GKS: Rectangle definition is invalid in routine SET_VIEWPORT
+GKS: Rectangle definition is invalid in routine SET_VIEWPORT
+GKS: Rectangle definition is invalid in routine SET_VIEWPORT
+┌───────────┬─────────┬────────────────┬───────────────────┬────────────────┬───────────────┬──────────────┬──────────────┬──────────────┐
+│ Algorithm │ Limiter │ Hyperdiffusion │       Tracer Name │ Max Undershoot │ Max Overshoot │ 1-Norm Error │ 2-Norm Error │ ∞-Norm Error │
+├───────────┼─────────┼────────────────┼───────────────────┼────────────────┼───────────────┼──────────────┼──────────────┼──────────────┤
+│    SSP333 │   false │          false │    Gaussian Hills │     2.5173e-01 │    3.4281e-02 │   1.6313e-01 │   9.7109e-02 │   4.1052e-01 │
+│    SSP333 │   false │          false │      Cosine Bells │     6.3452e-01 │    5.3262e-02 │   2.7035e-01 │   2.7119e-01 │   8.9240e-01 │
+│    SSP333 │   false │          false │ Slotted Cylinders │     1.1137e+01 │    3.3678e+00 │   8.0731e-01 │   6.9494e-01 │   1.0024e+01 │
+├───────────┼─────────┼────────────────┼───────────────────┼────────────────┼───────────────┼──────────────┼──────────────┼──────────────┤
+│    SSP333 │   false │           true │    Gaussian Hills │     2.2338e-02 │    0.0000e+00 │   4.6164e-02 │   4.1011e-02 │   5.3688e-02 │
+│    SSP333 │   false │           true │      Cosine Bells │     7.1319e-02 │    0.0000e+00 │   6.8494e-02 │   1.2382e-01 │   1.5159e-01 │
+│    SSP333 │   false │           true │ Slotted Cylinders │     9.8359e-02 │    1.5970e-01 │   2.3591e-01 │   3.3006e-01 │   8.9983e-01 │
+├───────────┼─────────┼────────────────┼───────────────────┼────────────────┼───────────────┼──────────────┼──────────────┼──────────────┤
+│    SSP333 │    true │          false │    Gaussian Hills │     0.0000e+00 │    0.0000e+00 │   4.5663e-02 │   5.2441e-02 │   1.2709e-01 │
+│    SSP333 │    true │          false │      Cosine Bells │     1.4949e-13 │    0.0000e+00 │   4.6850e-02 │   1.2601e-01 │   2.4857e-01 │
+│    SSP333 │    true │          false │ Slotted Cylinders │     1.4970e-13 │    0.0000e+00 │   2.0560e-01 │   3.2336e-01 │   8.8715e-01 │
+├───────────┼─────────┼────────────────┼───────────────────┼────────────────┼───────────────┼──────────────┼──────────────┼──────────────┤
+│    SSP333 │    true │           true │    Gaussian Hills │     0.0000e+00 │    0.0000e+00 │   4.5253e-02 │   4.9512e-02 │   1.0247e-01 │
+│    SSP333 │    true │           true │      Cosine Bells │     1.5401e-13 │    0.0000e+00 │   5.1223e-02 │   1.3108e-01 │   2.2218e-01 │
+│    SSP333 │    true │           true │ Slotted Cylinders │     1.5443e-13 │    0.0000e+00 │   2.1719e-01 │   3.4331e-01 │   8.7972e-01 │
+├───────────┼─────────┼────────────────┼───────────────────┼────────────────┼───────────────┼──────────────┼──────────────┼──────────────┤
+│    ARS343 │   false │          false │    Gaussian Hills │     1.3059e-01 │    0.0000e+00 │   1.3079e-01 │   9.0506e-02 │   2.9716e-01 │
+│    ARS343 │   false │          false │      Cosine Bells │     3.3719e-01 │    0.0000e+00 │   1.7155e-01 │   2.0441e-01 │   6.4930e-01 │
+│    ARS343 │   false │          false │ Slotted Cylinders │     1.0070e+01 │    3.0271e+00 │   4.2628e-01 │   4.8243e-01 │   9.0626e+00 │
+├───────────┼─────────┼────────────────┼───────────────────┼────────────────┼───────────────┼──────────────┼──────────────┼──────────────┤
+│    ARS343 │   false │           true │    Gaussian Hills │     8.1608e-03 │    0.0000e+00 │   8.8504e-02 │   8.7564e-02 │   1.3343e-01 │
+│    ARS343 │   false │           true │      Cosine Bells │     4.1489e-02 │    0.0000e+00 │   8.5819e-02 │   1.8004e-01 │   2.4396e-01 │
+│    ARS343 │   false │           true │ Slotted Cylinders │     5.3199e-02 │    1.0967e-01 │   2.5464e-01 │   3.6244e-01 │   8.7672e-01 │
+├───────────┼─────────┼────────────────┼───────────────────┼────────────────┼───────────────┼──────────────┼──────────────┼──────────────┤
+│    ARS343 │    true │          false │    Gaussian Hills │     1.2525e-09 │    0.0000e+00 │   7.7685e-02 │   8.2439e-02 │   1.6741e-01 │
+│    ARS343 │    true │          false │      Cosine Bells │     9.4084e-07 │    0.0000e+00 │   6.8447e-02 │   1.7075e-01 │   2.9645e-01 │
+│    ARS343 │    true │          false │ Slotted Cylinders │     5.9663e-04 │    0.0000e+00 │   2.4024e-01 │   3.5679e-01 │   8.8153e-01 │
+├───────────┼─────────┼────────────────┼───────────────────┼────────────────┼───────────────┼──────────────┼──────────────┼──────────────┤
+│    ARS343 │    true │           true │    Gaussian Hills │     0.0000e+00 │    0.0000e+00 │   8.7506e-02 │   9.1290e-02 │   1.5909e-01 │
+│    ARS343 │    true │           true │      Cosine Bells │     8.7457e-07 │    0.0000e+00 │   7.6622e-02 │   1.8553e-01 │   2.8574e-01 │
+│    ARS343 │    true │           true │ Slotted Cylinders │     5.6891e-04 │    0.0000e+00 │   2.5065e-01 │   3.7267e-01 │   8.6432e-01 │
+└───────────┴─────────┴────────────────┴───────────────────┴────────────────┴───────────────┴──────────────┴──────────────┴──────────────┘
+nothing</code></pre><p>Plots of the tracer specific humidities that were used to compute this table are shown below.  <img src="../output/limiter_summary_SSP333.png" alt/>  <img src="../output/limiter_summary_ARS343.png" alt/></p><h2 id="References"><a class="docs-heading-anchor" href="#References">References</a><a id="References-1"></a><a class="docs-heading-anchor-permalink" href="#References" title="Permalink"></a></h2><ul><li><a href="http://runge.math.smu.edu/ARKode_example.pdf">Example Programs for ARK ode (SUNDIALS)</a></li><li><a href="https://www.sciencedirect.com/science/article/pii/S0021999114001491">&quot;Optimization-based limiters for the spectral element method&quot; by Guba et al.</a></li><li><a href="https://gmd.copernicus.org/articles/5/887/2012/gmd-5-887-2012.pdf">&quot;A standard test case suite for two-dimensional linear transport on the sphere&quot; by Lauritzen et al.</a></li></ul></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../types/">« Types</a><a class="docs-footer-nextpage" href="../../references/">References »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="auto">Automatic (OS)</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.2.1 on <span class="colophon-date" title="Wednesday 3 April 2024 17:53">Wednesday 3 April 2024</span>. Using Julia version 1.10.2.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>

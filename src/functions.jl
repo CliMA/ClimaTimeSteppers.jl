@@ -29,26 +29,41 @@ By default, `lim!`, `dss!`, and `cache!` all do nothing, and `cache_imp!` is
 identical to `cache!`. Any of the tendency functions can be set to `nothing` in
 order to avoid corresponding allocations in the integrator.
 """
-struct ClimaODEFunction{TEL, TL, TE, TI, L, D, C, CI} <: AbstractClimaODEFunction
+struct ClimaODEFunction{TEL, TL, TE, TIS, TI, L, D, IS, C, CI} <: AbstractClimaODEFunction
     T_exp_T_lim!::TEL
     T_lim!::TL
     T_exp!::TE
+    T_imp_subproblem!::TIS
     T_imp!::TI
     lim!::L
     dss!::D
+    initialize_subproblem!::IS
     cache!::C
     cache_imp!::CI
     function ClimaODEFunction(;
         T_exp_T_lim! = nothing,
         T_lim! = nothing,
         T_exp! = nothing,
+        T_imp_subproblem! = nothing,
         T_imp! = nothing,
         lim! = (u, p, t, u_ref) -> nothing,
         dss! = (u, p, t) -> nothing,
+        initialize_subproblem! = (u, p, γdt) -> nothing,
         cache! = (u, p, t) -> nothing,
         cache_imp! = cache!,
     )
-        args = (T_exp_T_lim!, T_lim!, T_exp!, T_imp!, lim!, dss!, cache!, cache_imp!)
+        args = (
+            T_exp_T_lim!,
+            T_lim!,
+            T_exp!,
+            T_imp_subproblem!,
+            T_imp!,
+            lim!,
+            dss!,
+            initialize_subproblem!,
+            cache!,
+            cache_imp!,
+        )
 
         if !isnothing(T_exp_T_lim!)
             @assert isnothing(T_exp!) "`T_exp_T_lim!` was passed, `T_exp!` must be `nothing`"

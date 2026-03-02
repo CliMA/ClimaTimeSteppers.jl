@@ -60,17 +60,28 @@ struct IMEXAlgorithm{
     C <: AbstractAlgorithmConstraint,
     N <: Union{Nothing, AbstractAlgorithmName},
     T <: IMEXTableau,
+    NMS <: Union{Nothing, NewtonsMethod},
     NM <: Union{Nothing, NewtonsMethod},
 } <: DistributedODEAlgorithm
     constraint::C
     name::N
     tableau::T
+    newtons_method_subproblem::NMS
     newtons_method::NM
 end
-IMEXAlgorithm(tableau::IMEXTableau, newtons_method, constraint = Unconstrained()) =
-    IMEXAlgorithm(constraint, nothing, tableau, newtons_method)
-IMEXAlgorithm(name::IMEXARKAlgorithmName, newtons_method, constraint = default_constraint(name)) =
-    IMEXAlgorithm(constraint, name, IMEXTableau(name), newtons_method)
+IMEXAlgorithm(tableau::IMEXTableau, newtons_method::Union{Nothing, NewtonsMethod}, constraint = Unconstrained()) =
+    IMEXAlgorithm(constraint, nothing, tableau, nothing, newtons_method)
+IMEXAlgorithm(
+    name::IMEXARKAlgorithmName,
+    newtons_method::Union{Nothing, NewtonsMethod},
+    constraint = default_constraint(name),
+) = IMEXAlgorithm(name, nothing, newtons_method, constraint)
+IMEXAlgorithm(
+    name::IMEXARKAlgorithmName,
+    newtons_method_subproblem::Union{Nothing, NewtonsMethod},
+    newtons_method::Union{Nothing, NewtonsMethod},
+    constraint = default_constraint(name),
+) = IMEXAlgorithm(constraint, name, IMEXTableau(name), newtons_method_subproblem, newtons_method)
 
 ################################################################################
 

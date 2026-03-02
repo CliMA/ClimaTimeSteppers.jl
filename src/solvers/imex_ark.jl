@@ -13,20 +13,22 @@ sdirk_error(name) = error("$(isnothing(name) ? "The given IMEXTableau" : name) \
                            stage. Do not update on the NewTimeStep signal when \
                            using $(isnothing(name) ? "this tableau" : name).")
 
-struct IMEXARKCache{SCU, SCE, SCI, T, Γ, NMC}
+struct IMEXARKCache{SCU, SCE, SCI, TS, T, Γ, NMSC, NMC}
     U::SCU     # sparse container of length s
     T_lim::SCE # sparse container of length s
     T_exp::SCE # sparse container of length s
     T_imp::SCI # sparse container of length s
+    temp_subproblem::TS
     temp::T
     γ::Γ
+    newtons_method_subproblem_cache::NMSC
     newtons_method_cache::NMC
 end
 
 function init_cache(prob, alg::IMEXAlgorithm{Unconstrained}; kwargs...)
     (; u0, f) = prob
-    (; T_imp!) = f
-    (; tableau, newtons_method) = alg
+    (; T_imp_subproblem!, T_imp!) = f
+    (; tableau, newtons_method_subproblem, newtons_method) = alg
     (; a_exp, b_exp, a_imp, b_imp) = tableau
     s = length(b_exp)
     inds = ntuple(i -> i, s)
@@ -36,13 +38,28 @@ function init_cache(prob, alg::IMEXAlgorithm{Unconstrained}; kwargs...)
     T_lim = SparseContainer(map(i -> zero(u0), collect(1:length(inds_T_exp))), inds_T_exp)
     T_exp = SparseContainer(map(i -> zero(u0), collect(1:length(inds_T_exp))), inds_T_exp)
     T_imp = SparseContainer(map(i -> zero(u0), collect(1:length(inds_T_imp))), inds_T_imp)
+    temp_subproblem = zero(u0)
     temp = zero(u0)
     γs = unique(filter(!iszero, diag(a_imp)))
     γ = length(γs) == 1 ? γs[1] : nothing # TODO: This could just be a constant.
+    jac_prototype_subproblem = has_jac(T_imp_subproblem!) ? T_imp_subproblem!.jac_prototype : nothing
+    newtons_method_subproblem_cache =
+        isnothing(T_imp_subproblem!) || isnothing(newtons_method_subproblem) ? nothing :
+        allocate_cache(newtons_method_subproblem, u0, jac_prototype_subproblem)
     jac_prototype = has_jac(T_imp!) ? T_imp!.jac_prototype : nothing
     newtons_method_cache =
         isnothing(T_imp!) || isnothing(newtons_method) ? nothing : allocate_cache(newtons_method, u0, jac_prototype)
-    return IMEXARKCache(U, T_lim, T_exp, T_imp, temp, γ, newtons_method_cache)
+    return IMEXARKCache(
+        U,
+        T_lim,
+        T_exp,
+        T_imp,
+        temp_subproblem,
+        temp,
+        γ,
+        newtons_method_subproblem_cache,
+        newtons_method_cache,
+    )
 end
 
 # generic fallback
@@ -99,10 +116,10 @@ end
     (; u, p, t, dt, alg) = integrator
     (; f) = integrator.sol.prob
     (; cache!, cache_imp!) = f
-    (; T_exp_T_lim!, T_lim!, T_exp!, T_imp!, lim!, dss!) = f
-    (; tableau, newtons_method) = alg
+    (; T_exp_T_lim!, T_lim!, T_exp!, T_imp_subproblem!, T_imp!, lim!, dss!, initialize_subproblem!) = f
+    (; tableau, newtons_method_subproblem, newtons_method) = alg
     (; a_exp, b_exp, a_imp, b_imp, c_exp, c_imp) = tableau
-    (; U, T_lim, T_exp, T_imp, temp, newtons_method_cache) = cache
+    (; U, T_lim, T_exp, T_imp, temp_subproblem, temp, newtons_method_subproblem_cache, newtons_method_cache) = cache
     s = length(b_exp)
 
     t_exp = t + dt * c_exp[i]
@@ -129,22 +146,41 @@ end
         i ≠ 1 && cache!(U, p, t_exp)
     else
         @assert !isnothing(newtons_method)
-        i ≠ 1 && cache_imp!(U, p, t_imp)
         @. temp = U
-        implicit_equation_residual! = (residual, U′) -> begin
-            T_imp!(residual, U′, p, t_imp)
-            @. residual = temp + dtγ * residual - U′
+        if isnothing(T_imp_subproblem!)
+            i ≠ 1 && cache_imp!(U, p, t_imp)
+        else
+            initialize_subproblem!(U, p, dtγ)
+            dss!(U, p, t_exp)
+            cache_imp!(U, p, t_imp)
+            solve_implicit_equation!(
+                U,
+                temp,
+                p,
+                t_imp,
+                dtγ,
+                T_imp_subproblem!,
+                newtons_method_subproblem,
+                newtons_method_subproblem_cache,
+                cache_imp!,
+                dss!,
+                cache!,
+            )
         end
-        solve_newton!(
+        @. temp_subproblem = U
+        solve_implicit_equation!(
+            U,
+            temp_subproblem,
+            p,
+            t_imp,
+            dtγ,
+            T_imp!,
             newtons_method,
             newtons_method_cache,
-            U,
-            implicit_equation_residual!,
-            (jacobian, U′) -> T_imp!.Wfact(jacobian, U′, p, dtγ, t_imp),
-            U′ -> cache_imp!(U′, p, t_imp),
+            cache_imp!,
+            dss!,
+            cache!,
         )
-        dss!(U, p, t_imp)
-        cache!(U, p, t_imp)
     end
 
     if !all(iszero, a_exp[:, i]) || !iszero(b_exp[i])
@@ -156,6 +192,8 @@ end
         if iszero(a_imp[i, i])
             # When γ == 0, T_imp[i] is treated explicitly.
             isnothing(T_imp!) || T_imp!(T_imp[i], U, p, t_imp)
+            isnothing(T_imp_subproblem!) || T_imp_subproblem!(temp_subproblem, U, p, t_imp)
+            isnothing(T_imp_subproblem!) || (@. T_imp[i] += temp_subproblem)
         else
             # When γ != 0, T_imp[i] is treated implicitly, so it must satisfy
             # the implicit equation. To ensure that T_imp[i] only includes the
@@ -164,5 +202,35 @@ end
         end
     end
 
+    return nothing
+end
+
+@inline function solve_implicit_equation!(
+    U,
+    U₀,
+    p,
+    t_imp,
+    dtγ,
+    T!,
+    newtons_method,
+    newtons_method_cache,
+    cache_imp!,
+    dss!,
+    cache!,
+)
+    implicit_equation_residual! = (residual, U′) -> begin
+        T!(residual, U′, p, t_imp)
+        @. residual = U₀ + dtγ * residual - U′
+    end
+    solve_newton!(
+        newtons_method,
+        newtons_method_cache,
+        U,
+        implicit_equation_residual!,
+        (jacobian, U′) -> T!.Wfact(jacobian, U′, p, dtγ, t_imp),
+        U′ -> cache_imp!(U′, p, t_imp),
+    )
+    dss!(U, p, t_imp)
+    cache!(U, p, t_imp)
     return nothing
 end

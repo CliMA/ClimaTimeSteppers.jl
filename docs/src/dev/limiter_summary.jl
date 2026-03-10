@@ -30,7 +30,14 @@ function limiter_summary(sol_dicts, alg_strs)
 
             if isempty(plots)
                 for name in names
-                    push!(plots, Plots.plot(initial_q.:($name); plot_kwargs..., title = title_str(name)))
+                    push!(
+                        plots,
+                        Plots.plot(
+                            initial_q.:($name);
+                            plot_kwargs...,
+                            title = title_str(name),
+                        ),
+                    )
                 end
             end
             for name in names
@@ -88,7 +95,9 @@ function limiter_summary(sol_dicts, alg_strs)
             "2-Norm Error",
             "∞-Norm Error",
         ]],
-        table_format = TextTableFormat(horizontal_lines_at_data_rows = collect(3:3:(length(table_rows) - 1))),
+        table_format = TextTableFormat(
+            horizontal_lines_at_data_rows = collect(3:3:(length(table_rows) - 1)),
+        ),
         formatters = [(v, i, j) -> (v isa Number ? @sprintf("%.4e", v) : v)],
     )
     println(table)

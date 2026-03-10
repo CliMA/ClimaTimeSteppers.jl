@@ -1,5 +1,9 @@
 export ConvergenceCondition,
-    MaximumError, MaximumRelativeError, MaximumErrorReduction, MinimumRateOfConvergence, MultipleConditions
+    MaximumError,
+    MaximumRelativeError,
+    MaximumErrorReduction,
+    MinimumRateOfConvergence,
+    MultipleConditions
 
 """
     ConvergenceCondition
@@ -48,7 +52,8 @@ Checks whether `err[iter] ≤ max_rel_err * val[iter]`. Since `err[iter] ≥ 0` 
 struct MaximumRelativeError{FT} <: ConvergenceCondition
     max_rel_err::FT
 end
-has_converged((; max_rel_err)::MaximumRelativeError, cache, val, err, iter) = err <= max_rel_err * val
+has_converged((; max_rel_err)::MaximumRelativeError, cache, val, err, iter) =
+    err <= max_rel_err * val
 
 """
     MaximumErrorReduction(max_reduction)
@@ -61,10 +66,13 @@ be the case that `max_reduction ≤ 1` in order for the sequence to not diverge
 struct MaximumErrorReduction{FT} <: ConvergenceCondition
     max_reduction::FT
 end
-cache_type(::MaximumErrorReduction, ::Type{FT}) where {FT} = NamedTuple{(:max_err,), Tuple{FT}}
-has_converged(::MaximumErrorReduction, cache, val, err, iter) = iter >= 1 && err <= cache.max_err
+cache_type(::MaximumErrorReduction, ::Type{FT}) where {FT} =
+    NamedTuple{(:max_err,), Tuple{FT}}
+has_converged(::MaximumErrorReduction, cache, val, err, iter) =
+    iter >= 1 && err <= cache.max_err
 needs_cache_update(::MaximumErrorReduction, iter) = iter == 0
-updated_cache((; max_reduction)::MaximumErrorReduction, cache, val, err, iter) = (; max_err = max_reduction * err)
+updated_cache((; max_reduction)::MaximumErrorReduction, cache, val, err, iter) =
+    (; max_err = max_reduction * err)
 
 """
     MinimumRateOfConvergence(rate, order = 1)
@@ -81,10 +89,13 @@ struct MinimumRateOfConvergence{FT, FT2} <: ConvergenceCondition
     order::FT2
 end
 MinimumRateOfConvergence(rate) = MinimumRateOfConvergence(rate, 1)
-cache_type(::MinimumRateOfConvergence, ::Type{FT}) where {FT} = NamedTuple{(:min_err,), Tuple{FT}}
-has_converged(::MinimumRateOfConvergence, cache, val, err, iter) = iter >= 1 && err >= cache.min_err
+cache_type(::MinimumRateOfConvergence, ::Type{FT}) where {FT} =
+    NamedTuple{(:min_err,), Tuple{FT}}
+has_converged(::MinimumRateOfConvergence, cache, val, err, iter) =
+    iter >= 1 && err >= cache.min_err
 needs_cache_update(::MinimumRateOfConvergence, iter) = true
-updated_cache((; rate, order)::MinimumRateOfConvergence, cache, val, err, iter) = (; min_err = rate * err^order)
+updated_cache((; rate, order)::MinimumRateOfConvergence, cache, val, err, iter) =
+    (; min_err = rate * err^order)
 
 """
     MultipleConditions(condition_combiner = all, conditions...)
@@ -99,11 +110,15 @@ struct MultipleConditions{CC, C} <: ConvergenceCondition
         condition_combiner::Union{typeof(all), typeof(any)},
         conditions::Vararg{ConvergenceCondition},
     )
-        return new{typeof(condition_combiner), typeof(conditions)}(condition_combiner, conditions)
+        return new{typeof(condition_combiner), typeof(conditions)}(
+            condition_combiner,
+            conditions,
+        )
     end
 end
 
-MultipleConditions(conditions::ConvergenceCondition...) = MultipleConditions(all, conditions)
+MultipleConditions(conditions::ConvergenceCondition...) =
+    MultipleConditions(all, conditions)
 cache_type((; conditions)::MultipleConditions, ::Type{FT}) where {FT} =
     Tuple{map(condition -> cache_type(condition, FT), conditions)...}
 has_converged(alg::MultipleConditions, caches, val, err, iter) = alg.condition_combiner(
@@ -114,7 +129,8 @@ needs_cache_update((; conditions)::MultipleConditions, iter) =
     any(condition -> needs_cache_update(condition, iter), conditions)
 updated_cache((; conditions)::MultipleConditions, caches, val, err, iter) = map(
     (condition, cache) ->
-        needs_cache_update(condition, iter) ? updated_cache(condition, cache, val, err, iter) : cache,
+        needs_cache_update(condition, iter) ?
+        updated_cache(condition, cache, val, err, iter) : cache,
     conditions,
     caches,
 )

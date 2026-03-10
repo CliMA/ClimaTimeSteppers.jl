@@ -42,13 +42,15 @@ function init_cache(prob, alg::IMEXAlgorithm{Unconstrained}; kwargs...)
     temp = zero(u0)
     γs = unique(filter(!iszero, diag(a_imp)))
     γ = length(γs) == 1 ? γs[1] : nothing # TODO: This could just be a constant.
-    jac_prototype_subproblem = has_jac(T_imp_subproblem!) ? T_imp_subproblem!.jac_prototype : nothing
+    jac_prototype_subproblem =
+        has_jac(T_imp_subproblem!) ? T_imp_subproblem!.jac_prototype : nothing
     newtons_method_subproblem_cache =
         isnothing(T_imp_subproblem!) || isnothing(newtons_method_subproblem) ? nothing :
         allocate_cache(newtons_method_subproblem, u0, jac_prototype_subproblem)
     jac_prototype = has_jac(T_imp!) ? T_imp!.jac_prototype : nothing
     newtons_method_cache =
-        isnothing(T_imp!) || isnothing(newtons_method) ? nothing : allocate_cache(newtons_method, u0, jac_prototype)
+        isnothing(T_imp!) || isnothing(newtons_method) ? nothing :
+        allocate_cache(newtons_method, u0, jac_prototype)
     return IMEXARKCache(
         U,
         T_lim,
@@ -107,7 +109,8 @@ end
 
 
 @inline update_stage!(integrator, cache, ::Tuple{}) = nothing
-@inline update_stage!(integrator, cache, is::Tuple{Int}) = update_stage!(integrator, cache, first(is))
+@inline update_stage!(integrator, cache, is::Tuple{Int}) =
+    update_stage!(integrator, cache, first(is))
 @inline function update_stage!(integrator, cache, is::Tuple)
     update_stage!(integrator, cache, first(is))
     update_stage!(integrator, cache, Base.tail(is))
@@ -116,10 +119,28 @@ end
     (; u, p, t, dt, alg) = integrator
     (; f) = integrator.sol.prob
     (; cache!, cache_imp!) = f
-    (; T_exp_T_lim!, T_lim!, T_exp!, T_imp_subproblem!, T_imp!, lim!, dss!, initialize_subproblem!) = f
+    (;
+        T_exp_T_lim!,
+        T_lim!,
+        T_exp!,
+        T_imp_subproblem!,
+        T_imp!,
+        lim!,
+        dss!,
+        initialize_subproblem!,
+    ) = f
     (; tableau, newtons_method_subproblem, newtons_method) = alg
     (; a_exp, b_exp, a_imp, b_imp, c_exp, c_imp) = tableau
-    (; U, T_lim, T_exp, T_imp, temp_subproblem, temp, newtons_method_subproblem_cache, newtons_method_cache) = cache
+    (;
+        U,
+        T_lim,
+        T_exp,
+        T_imp,
+        temp_subproblem,
+        temp,
+        newtons_method_subproblem_cache,
+        newtons_method_cache,
+    ) = cache
     s = length(b_exp)
 
     t_exp = t + dt * c_exp[i]
@@ -218,10 +239,11 @@ end
     dss!,
     cache!,
 )
-    implicit_equation_residual! = (residual, U′) -> begin
-        T!(residual, U′, p, t_imp)
-        @. residual = U₀ + dtγ * residual - U′
-    end
+    implicit_equation_residual! =
+        (residual, U′) -> begin
+            T!(residual, U′, p, t_imp)
+            @. residual = U₀ + dtγ * residual - U′
+        end
     solve_newton!(
         newtons_method,
         newtons_method_cache,

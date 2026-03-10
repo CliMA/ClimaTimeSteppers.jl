@@ -22,101 +22,161 @@ steps:
       - "julia --project -e 'using Pkg; Pkg.status()'"
 
 
-  # - label: "init gpu env"
-  #   key: "init_gpu_env"
-  #   command:
-  #     - echo "--- Configure MPI"
-  #     - julia -e 'using Pkg; Pkg.add("MPIPreferences"); using MPIPreferences; use_system_binary()'
+  - label: "init gpu env"
+    key: "init_gpu_env"
+    command:
+      - echo "--- Configure MPI"
+      - julia -e 'using Pkg; Pkg.add("MPIPreferences"); using MPIPreferences; use_system_binary()'
 
-  #     - echo "--- Instantiate project"
-  #     - "julia --project -e 'using Pkg; Pkg.instantiate(;verbose=true); Pkg.precompile(;strict=true)'"
+      - echo "--- Instantiate project"
+      - "julia --project -e 'using Pkg; Pkg.instantiate(;verbose=true); Pkg.precompile(;strict=true)'"
 
-  #     - echo "--- Instantiate test"
-  #     - "julia --project=.buildkite -e 'using Pkg; Pkg.develop(path=\".\"); Pkg.instantiate(;verbose=true); Pkg.precompile()'"
+      - echo "--- Instantiate test"
+      - "julia --project=.buildkite -e 'using Pkg; Pkg.develop(path=\".\"); Pkg.instantiate(;verbose=true); Pkg.precompile()'"
 
-  #     - echo "--- Initialize CUDA runtime"
-  #     - "julia --project -e 'using CUDA; CUDA.precompile_runtime(); CUDA.versioninfo()'"
+      - echo "--- Initialize CUDA runtime"
+      - "julia --project -e 'using CUDA; CUDA.precompile_runtime(); CUDA.versioninfo()'"
 
-  #     - echo "--- Package status"
-  #     - "julia --project -e 'using Pkg; Pkg.status()'"
-  #     slurm_gres: "gpu:1"
+      - echo "--- Package status"
+      - "julia --project -e 'using Pkg; Pkg.status()'"
+    agents:
+      slurm_gres: "gpu:1"
 
   - wait
 
+  # ================================================================== #
+  # Unit tests (fast, no convergence studies)
+  # ================================================================== #
   - group: "Unit tests"
     key: unit_tests
     steps:
 
       - label: "unit: sparse_containers"
-        command: "julia --project=.buildkite --check-bounds=yes test/sparse_containers.jl"
-        artifact_paths: "output/*"
+        command: "julia --project=.buildkite --check-bounds=yes test/unit/sparse_containers.jl"
 
       - label: "unit: fused_increment"
-        command: "julia --project=.buildkite --check-bounds=yes test/fused_increment.jl"
-        artifact_paths: "output/*"
+        command: "julia --project=.buildkite --check-bounds=yes test/unit/fused_increment.jl"
 
-      - label: "unit: test_newtons_method"
-        command: "julia --project=.buildkite --check-bounds=yes test/test_newtons_method.jl"
-        artifact_paths: "output/*"
+      - label: "unit: tableaus"
+        command: "julia --project=.buildkite --check-bounds=yes test/unit/tableaus.jl"
 
-      - label: "unit: single_column_ARS_test"
-        command: "julia --project=.buildkite --check-bounds=yes test/single_column_ARS_test.jl"
-        artifact_paths: "output/*"
+      - label: "unit: update_signal_handler"
+        command: "julia --project=.buildkite --check-bounds=yes test/unit/update_signal_handler.jl"
 
-      - label: "unit: callbacks"
-        command: "julia --project=.buildkite --check-bounds=yes test/callbacks.jl"
-        artifact_paths: "output/*"
+      - label: "unit: line_search"
+        command: "julia --project=.buildkite --check-bounds=yes test/unit/line_search.jl"
 
-      - label: "unit: callbacks"
-        command: "julia --project=.buildkite --check-bounds=yes test/callbacks.jl"
-        artifact_paths: "output/*"
-        env:
-          CLIMACOMMS_CONTEXT: "MPI"
+      - label: "unit: convergence_checker"
+        command: "julia --project=.buildkite --check-bounds=yes test/utils/convergence_checker.jl"
+
+      - label: "unit: forward_euler"
+        command: "julia --project=.buildkite --check-bounds=yes test/unit/forward_euler.jl"
+
+      - label: "unit: incrementing_ode"
+        command: "julia --project=.buildkite --check-bounds=yes test/unit/incrementing_ode.jl"
+
+      - label: "unit: edge_cases"
+        command: "julia --project=.buildkite --check-bounds=yes test/unit/edge_cases.jl"
 
       - label: "unit: aqua"
         command: "julia --project=.buildkite --check-bounds=yes test/aqua.jl"
-        artifact_paths: "output/*"
 
-      - label: "unit: integrator"
-        command: "julia --project=.buildkite --check-bounds=yes test/integrator.jl"
-        artifact_paths: "output/*"
-
-      - label: "unit: test_convergence_checker"
-        command: "julia --project=.buildkite --check-bounds=yes test/test_convergence_checker.jl"
-        artifact_paths: "output/*"
-
-  - group: "Test convergence"
-    key: test_convergence
+  # ================================================================== #
+  # Solver correctness
+  # ================================================================== #
+  - group: "Solver correctness"
+    key: solver_correctness
     steps:
+
+      - label: "solver: newtons_method"
+        command: "julia --project=.buildkite --check-bounds=yes test/solvers/newtons_method.jl"
+
+  # ================================================================== #
+  # Integration / system-level tests
+  # ================================================================== #
+  - group: "Integration tests"
+    key: integration_tests
+    steps:
+
+      - label: "integration: single_column_ars"
+        command: "julia --project=.buildkite --check-bounds=yes test/integration/single_column_ars.jl"
+
+      - label: "integration: callbacks (CPU)"
+        command: "julia --project=.buildkite --check-bounds=yes test/integration/callbacks.jl"
+
+      - label: "integration: callbacks (MPI)"
+        command: "julia --project=.buildkite --check-bounds=yes test/integration/callbacks.jl"
+        env:
+          CLIMACOMMS_CONTEXT: "MPI"
+
+      - label: "integration: integrator"
+        command: "julia --project=.buildkite --check-bounds=yes test/integration/integrator.jl"
+
+      - label: "integration: limiter"
+        command: "julia --project=.buildkite --check-bounds=yes test/integration/limiter.jl"
+
+      - label: "integration: second_newton"
+        command: "julia --project=.buildkite --check-bounds=yes test/integration/second_newton.jl"
+
+      - label: "integration: ssp_monotonicity"
+        command: "julia --project=.buildkite --check-bounds=yes test/integration/ssp_monotonicity.jl"
+
+  # ================================================================== #
+  # Performance / allocation tests
+  # ================================================================== #
+  - group: "Performance tests"
+    key: performance_tests
+    steps:
+
+      - label: "perf: type_stability"
+        command: "julia --project=.buildkite --check-bounds=yes test/performance/type_stability.jl"
+
+      - label: "perf: allocations"
+        command: "julia --project=.buildkite --check-bounds=yes test/performance/allocations.jl"
+
+  # ================================================================== #
+  # Convergence order tests (parallelized across solvers)
+  # ================================================================== #
+  - group: "Convergence tests"
+    key: convergence_tests
+    steps:
+
+      - label: "conv: explicit_rk"
+        command: "julia --project=.buildkite --check-bounds=yes test/solvers/explicit_rk.jl"
 
       - label: "conv: lsrk"
-        command: "julia --project=.buildkite --check-bounds=yes test/convergence_lsrk.jl"
+        command: "julia --project=.buildkite --check-bounds=yes test/solvers/lsrk.jl"
 
-  - group: "Tabulate convergence"
-    key: tabulate_convergence
+      - label: "conv: multirate"
+        command: "julia --project=.buildkite --check-bounds=yes test/solvers/multirate.jl"
+
+      - label: "conv: rosenbrock"
+        command: "julia --project=.buildkite --check-bounds=yes test/solvers/rosenbrock.jl"
+
+      - label: "conv: imex_ssprk"
+        command: "julia --project=.buildkite --check-bounds=yes test/solvers/imex_ssprk.jl"
+
+      - label: "conv: imex_ark"
+        command: "julia --project=.buildkite --check-bounds=yes test/solvers/imex_ark.jl"
+
+  # ================================================================== #
+  # GPU tests
+  # ================================================================== #
+  - group: "GPU tests"
+    key: gpu_tests
     steps:
 
-      - label: "conv: tabulate_convergence_orders_multirate"
-        command: "julia --project=.buildkite --check-bounds=yes test/tabulate_convergence_orders_multirate.jl"
+      - label: "GPU: runtests"
+        command: "julia --project=.buildkite --check-bounds=yes test/runtests.jl CuArray"
+        artifact_paths: "output/*"
+        agents:
+          slurm_gres: "gpu:1"
 
-      - label: "conv: tabulate_convergence_orders_rosenbrock"
-        command: "julia --project=.buildkite --check-bounds=yes test/tabulate_convergence_orders_rosenbrock.jl"
-
-      - label: "conv: tabulate_convergence_orders_imex_ssp"
-        command: "julia --project=.buildkite --check-bounds=yes test/tabulate_convergence_orders_imex_ssp.jl"
-
-      - label: "conv: tabulate_convergence_orders_imex_ark"
-        command: "julia --project=.buildkite --check-bounds=yes test/tabulate_convergence_orders_imex_ark.jl"
-
-
-      # - label: "GPU tests"
-      #   command:
-      #     - "julia --project=.buildkite --check-bounds=yes test/runtests.jl CuArray"
-      #   artifact_paths: "output/*"
-      #     slurm_gres: "gpu:1"
-
-  - group: "Performance"
-    key: performance
+  # ================================================================== #
+  # Profiling / benchmarks
+  # ================================================================== #
+  - group: "Profiling"
+    key: profiling
     steps:
 
       - label: "Perf: Flame graph (1D diffusion)"
@@ -134,158 +194,3 @@ steps:
 
       - label: "Perf: Benchmark"
         command: "julia --project=.buildkite perf/benchmark.jl"
-
-
-  - group: "Limiters analysis"
-    key: limiters_analysis
-    steps:
-
-      - label: "Limiters analysis: SSP333_LT_HT"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/limiter_analysis.jl --alg SSP333 --use_limiter true --use_hyperdiffusion true"
-
-      - label: "Limiters analysis: ARS343_LT_HT"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/limiter_analysis.jl --alg ARS343 --use_limiter true --use_hyperdiffusion true"
-
-      - label: "Limiters analysis: SSP333_LF_HT"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/limiter_analysis.jl --alg SSP333 --use_limiter false --use_hyperdiffusion true"
-
-      - label: "Limiters analysis: ARS343_LF_HT"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/limiter_analysis.jl --alg ARS343 --use_limiter false --use_hyperdiffusion true"
-
-      - label: "Limiters analysis: SSP333_LT_HF"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/limiter_analysis.jl --alg SSP333 --use_limiter true --use_hyperdiffusion false"
-
-      - label: "Limiters analysis: ARS343_LT_HF"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/limiter_analysis.jl --alg ARS343 --use_limiter true --use_hyperdiffusion false"
-
-      - label: "Limiters analysis: SSP333_LF_HF"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/limiter_analysis.jl --alg SSP333 --use_limiter false --use_hyperdiffusion false"
-
-      - label: "Limiters analysis: ARS343_LF_HF"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/limiter_analysis.jl --alg ARS343 --use_limiter false --use_hyperdiffusion false"
-
-  - group: "Algorithm convergence"
-    key: alg_convergence
-    steps:
-
-      - label: "Convergence: SSP22Heuns"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg SSP22Heuns"
-
-      - label: "Convergence: SSP33ShuOsher"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg SSP33ShuOsher"
-
-      - label: "Convergence: RK4"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg RK4"
-
-      - label: "Convergence: ARK2GKC"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg ARK2GKC"
-
-      - label: "Convergence: ARS111"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg ARS111"
-
-      - label: "Convergence: ARS121"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg ARS121"
-
-      - label: "Convergence: ARS122"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg ARS122"
-
-      - label: "Convergence: ARS222"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg ARS222"
-
-      - label: "Convergence: ARS232"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg ARS232"
-
-      - label: "Convergence: ARS233"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg ARS233"
-
-      - label: "Convergence: ARS343"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg ARS343"
-
-      - label: "Convergence: ARS443"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg ARS443"
-
-      - label: "Convergence: SSP222"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg SSP222"
-
-      - label: "Convergence: SSP322"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg SSP322"
-
-      - label: "Convergence: SSP332"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg SSP332"
-
-      - label: "Convergence: SSP333"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg SSP333"
-
-      - label: "Convergence: SSP433"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg SSP433"
-
-      - label: "Convergence: DBM453"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg DBM453"
-
-      - label: "Convergence: HOMMEM1"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg HOMMEM1"
-
-      - label: "Convergence: IMKG232a"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg IMKG232a"
-
-      - label: "Convergence: IMKG232b"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg IMKG232b"
-
-      - label: "Convergence: IMKG242a"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg IMKG242a"
-
-      - label: "Convergence: IMKG242b"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg IMKG242b"
-
-      - label: "Convergence: IMKG243a"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg IMKG243a"
-
-      - label: "Convergence: IMKG252a"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg IMKG252a"
-
-      - label: "Convergence: IMKG252b"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg IMKG252b"
-
-      - label: "Convergence: IMKG253a"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg IMKG253a"
-
-      - label: "Convergence: IMKG253b"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg IMKG253b"
-
-      - label: "Convergence: IMKG254a"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg IMKG254a"
-
-      - label: "Convergence: IMKG254b"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg IMKG254b"
-
-      - label: "Convergence: IMKG254c"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg IMKG254c"
-
-      - label: "Convergence: IMKG342a"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg IMKG342a"
-
-      - label: "Convergence: IMKG343a"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg IMKG343a"
-
-      - label: "Convergence: ARK437L2SA1"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg ARK437L2SA1"
-
-      - label: "Convergence: ARK548L2SA2"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg ARK548L2SA2"
-
-      - label: "Convergence: SSPKnoth"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/report_gen_alg.jl --alg SSPKnoth"
-
-  - group: "Summaries"
-    key: summaries
-    steps:
-
-      - label: "Summarize convergence"
-        command: "julia --color=yes --check-bounds=yes --project=.buildkite docs/src/dev/summarize_convergence.jl"
-        artifact_paths: "output/convergence_*.png"
-        depends_on: alg_convergence
-
-      - label: "Summarize limiter analysis"
-        command: "julia --color=yes --project=.buildkite docs/src/dev/limiter_summary.jl"
-        artifact_paths: "output/limiter_*.png"
-        depends_on: limiters_analysis

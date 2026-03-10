@@ -4,7 +4,9 @@
 
 Return `true`. Enable RosenbrockAlgorithms to run with `ClimaUtilities.ITime`.
 """
-function SciMLBase.allows_arbitrary_number_types(alg::T) where {T <: ClimaTimeSteppers.RosenbrockAlgorithm}
+function SciMLBase.allows_arbitrary_number_types(
+    alg::T,
+) where {T <: ClimaTimeSteppers.RosenbrockAlgorithm}
     true
 end
 
@@ -14,6 +16,8 @@ end
 
 Return `true`. Enable IMEXAlgorithms to run with `ClimaUtilities.ITime`.
 """
-function SciMLBase.allows_arbitrary_number_types(alg::T) where {T <: ClimaTimeSteppers.IMEXAlgorithm}
+function SciMLBase.allows_arbitrary_number_types(
+    alg::T,
+) where {T <: ClimaTimeSteppers.IMEXAlgorithm}
     true
 end

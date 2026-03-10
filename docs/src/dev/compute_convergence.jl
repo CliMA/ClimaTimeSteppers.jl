@@ -3,7 +3,8 @@ using InteractiveUtils: subtypes
 using Distributions: quantile, TDist
 using LinearAlgebra: norm
 
-all_subtypes(::Type{T}) where {T} = isabstracttype(T) ? vcat(all_subtypes.(subtypes(T))...) : [T]
+all_subtypes(::Type{T}) where {T} =
+    isabstracttype(T) ? vcat(all_subtypes.(subtypes(T))...) : [T]
 
 """
     imex_convergence_orders(algorithm_name)
@@ -64,10 +65,12 @@ function convergence_order(dts, errs, confidence)
     confidence_interval_t_value = -quantile(TDist(n_dof), (1 - confidence) / 2)
 
     # standard deviation of linear regression
-    regression_standard_deviation = sqrt(sum((log_errs .- (log_dts .* order .+ log_err_of_dt1)) .^ 2) / n_dof)
+    regression_standard_deviation =
+        sqrt(sum((log_errs .- (log_dts .* order .+ log_err_of_dt1)) .^ 2) / n_dof)
 
     # standard deviation of slope
-    order_standard_deviation = regression_standard_deviation / sqrt(sum((log_dts .- sum(log_dts) / n_dts) .^ 2))
+    order_standard_deviation =
+        regression_standard_deviation / sqrt(sum((log_dts .- sum(log_dts) / n_dts) .^ 2))
 
     # "uncertainty" in slope (half of width of confidence interval)
     order_uncertainty = confidence_interval_t_value * order_standard_deviation
@@ -81,7 +84,10 @@ end
 Return the predicted convergence order of the algorithm for the given ODE
 function (assuming that the algorithm converges).
 """
-function predicted_convergence_order(algorithm_name::AbstractAlgorithmName, ode_function::AbstractClimaODEFunction)
+function predicted_convergence_order(
+    algorithm_name::AbstractAlgorithmName,
+    ode_function::AbstractClimaODEFunction,
+)
     (imp_order, exp_order, combined_order) = imex_convergence_orders(algorithm_name)
     has_imp = !isnothing(ode_function.T_imp!)
     has_exp = ClimaTimeSteppers.has_T_exp(ode_function)
@@ -100,9 +106,12 @@ iteration is used for linear implicit problems, and two iterations are used for
 nonlinear implicit problems.
 """
 algorithm(algorithm_name, _) = algorithm(algorithm_name)
-algorithm(algorithm_name::ClimaTimeSteppers.ERKAlgorithmName) = ExplicitAlgorithm(algorithm_name)
+algorithm(algorithm_name::ClimaTimeSteppers.ERKAlgorithmName) =
+    ExplicitAlgorithm(algorithm_name)
 algorithm(algorithm_name::ClimaTimeSteppers.SSPKnoth) =
-    ClimaTimeSteppers.RosenbrockAlgorithm(ClimaTimeSteppers.tableau(ClimaTimeSteppers.SSPKnoth()))
+    ClimaTimeSteppers.RosenbrockAlgorithm(
+        ClimaTimeSteppers.tableau(ClimaTimeSteppers.SSPKnoth()),
+    )
 algorithm(algorithm_name::ClimaTimeSteppers.IMEXARKAlgorithmName, linear_implicit) =
     IMEXAlgorithm(algorithm_name, NewtonsMethod(; max_iters = linear_implicit ? 1 : 2))
 
@@ -134,7 +143,8 @@ function test_convergence!(
         ref_alg_str = string(nameof(typeof(numerical_reference_algorithm_name)))
         ref_alg = algorithm(numerical_reference_algorithm_name, linear_implicit)
         ref_dt = t_end / numerical_reference_num_steps
-        verbose && @info "Generating reference solution for $test_name with $ref_alg_str and dt = $ref_dt"
+        verbose &&
+            @info "Generating reference solution for $test_name with $ref_alg_str and dt = $ref_dt"
         solve(deepcopy(prob), ref_alg; dt = ref_dt, save_everystep = true)
     end
     numerical_reference_info = if isnothing(numerical_reference_algorithm_name)
@@ -150,7 +160,8 @@ function test_convergence!(
 
     predicted_order = predicted_convergence_order(algorithm_name, prob.f)
     predicted_super_convergence = algorithm_name in super_convergence_algorithm_names
-    num_steps_powers = (-1:0.5:1) .- high_order_sample_shifts * max(0, predicted_order - 3) / 2
+    num_steps_powers =
+        (-1:0.5:1) .- high_order_sample_shifts * max(0, predicted_order - 3) / 2
     sampled_num_steps = default_num_steps .* num_steps_scaling_factor .^ num_steps_powers
     sampled_dts = t_end ./ round.(Int, sampled_num_steps)
     average_rms_errors = map(sampled_dts) do dt

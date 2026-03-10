@@ -1,16 +1,13 @@
 #=
 julia --project=test
-using Revise; include("test/tabulate_convergence_orders_rosenbrock.jl")
+using Revise; include("test/solvers/rosenbrock.jl")
 =#
 using ClimaTimeSteppers, LinearAlgebra, Test
 import PrettyTables
 import SciMLBase
 
 if !@isdefined(IntegratorTestCase)
-    include(joinpath(@__DIR__, "convergence_orders.jl"))
-    include(joinpath(@__DIR__, "convergence_utils.jl"))
-    include(joinpath(@__DIR__, "utils.jl"))
-    include(joinpath(@__DIR__, "problems.jl"))
+    include(joinpath(@__DIR__, "..", "utils", "convergence_utils.jl"))
 end
 
 function tabulate_convergence_orders_rosenbrock()
@@ -24,6 +21,9 @@ function tabulate_convergence_orders_rosenbrock()
     algs = algorithm.(tabs)
 
     tabulate_convergence_orders(prob_names, algs, results, expected_orders; tabs)
+    # SSPKnoth passes convergence on all current non-PDE test problems.
+    reliable_probs = filter(n -> !endswith(n, "(FD)"), prob_names)
+    verify_convergence_orders(results, expected_orders, algs; prob_names = reliable_probs)
     return results
 end
 

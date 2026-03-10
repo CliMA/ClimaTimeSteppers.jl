@@ -17,9 +17,12 @@ struct Verbose <: AbstractVerbosity end
 struct Silent <: AbstractVerbosity end
 is_verbose(v::AbstractVerbosity) = v isa Verbose
 
-const KrylovWorkspace = @static pkgversion(Krylov) < v"0.10" ? Krylov.KrylovSolver : Krylov.KrylovWorkspace
-const krylov_solve! = @static pkgversion(Krylov) < v"0.10" ? Krylov.solve! : Krylov.krylov_solve!
-const GmresWorkspace = @static pkgversion(Krylov) < v"0.10" ? Krylov.GmresSolver : Krylov.GmresWorkspace
+const KrylovWorkspace =
+    @static pkgversion(Krylov) < v"0.10" ? Krylov.KrylovSolver : Krylov.KrylovWorkspace
+const krylov_solve! =
+    @static pkgversion(Krylov) < v"0.10" ? Krylov.solve! : Krylov.krylov_solve!
+const GmresWorkspace =
+    @static pkgversion(Krylov) < v"0.10" ? Krylov.GmresSolver : Krylov.GmresWorkspace
 
 """
     ForwardDiffStepSize
@@ -126,7 +129,8 @@ and D.E. Keyes. According to the paper, this is the average step size one gets
 when using a certain forward difference approximation for each Jacobian element.
 """
 struct ForwardDiffStepSize3 <: ForwardDiffStepSize end
-(::ForwardDiffStepSize3)(Δx, x) = sqrt(eps(eltype(Δx))) * sum(x_i -> 1 + abs(x_i), x) / (length(x) * norm(Δx))
+(::ForwardDiffStepSize3)(Δx, x) =
+    sqrt(eps(eltype(Δx))) * sum(x_i -> 1 + abs(x_i), x) / (length(x) * norm(Δx))
 
 """
     JacobianFreeJVP
@@ -153,7 +157,8 @@ Base.@kwdef struct ForwardDiffJVP{S <: ForwardDiffStepSize, T} <: JacobianFreeJV
     step_adjustment::T = 1
 end
 
-allocate_cache(::ForwardDiffJVP, x_prototype) = (; x2 = zero(x_prototype), f2 = zero(x_prototype))
+allocate_cache(::ForwardDiffJVP, x_prototype) =
+    (; x2 = zero(x_prototype), f2 = zero(x_prototype))
 
 function jvp!(alg::ForwardDiffJVP, cache, jΔx, Δx, x, f!, f, prepare_for_f!)
     (; default_step, step_adjustment) = alg
@@ -427,7 +432,9 @@ function allocate_cache(alg::KrylovMethod, x_prototype)
     # Version 0.10 changed how the memory is set
     if pkgversion(Krylov) < v"0.10"
         args = isempty(args) ? (20,) : ()
-        kwargs = haskey(kwargs, :memory) ? Base.structdiff(kwargs, NamedTuple{(:memory,)}((kwargs[:memory],))) : kwargs
+        kwargs =
+            haskey(kwargs, :memory) ?
+            Base.structdiff(kwargs, NamedTuple{(:memory,)}((kwargs[:memory],))) : kwargs
     end
 
     return (;
@@ -435,11 +442,22 @@ function allocate_cache(alg::KrylovMethod, x_prototype)
                                   allocate_cache(jacobian_free_jvp, x_prototype),
         forcing_term_cache = allocate_cache(forcing_term, x_prototype),
         solver = type(l, l, args..., Krylov.ktypeof(x_prototype); kwargs...),
-        debugger_cache = isnothing(debugger) ? nothing : allocate_cache(debugger, x_prototype),
+        debugger_cache = isnothing(debugger) ? nothing :
+                         allocate_cache(debugger, x_prototype),
     )
 end
 
-NVTX.@annotate function solve_krylov!(alg::KrylovMethod, cache, Δx, x, f!, f, n, prepare_for_f!, j = nothing)
+NVTX.@annotate function solve_krylov!(
+    alg::KrylovMethod,
+    cache,
+    Δx,
+    x,
+    f!,
+    f,
+    n,
+    prepare_for_f!,
+    j = nothing,
+)
     (; jacobian_free_jvp, forcing_term, solve_kwargs) = alg
     (; disable_preconditioner, debugger) = alg
     type = solver_type(alg)
@@ -575,9 +593,13 @@ end
 
 function allocate_cache(alg::NewtonsMethod, x_prototype, j_prototype = nothing)
     (; update_j, krylov_method, convergence_checker) = alg
-    @assert !(isnothing(j_prototype) && (isnothing(krylov_method) || isnothing(krylov_method.jacobian_free_jvp)))
+    @assert !(
+        isnothing(j_prototype) &&
+        (isnothing(krylov_method) || isnothing(krylov_method.jacobian_free_jvp))
+    )
     return (;
-        krylov_method_cache = isnothing(krylov_method) ? nothing : allocate_cache(krylov_method, x_prototype),
+        krylov_method_cache = isnothing(krylov_method) ? nothing :
+                              allocate_cache(krylov_method, x_prototype),
         convergence_checker_cache = isnothing(convergence_checker) ? nothing :
                                     allocate_cache(convergence_checker, x_prototype),
         Δx = zero(x_prototype),
@@ -586,9 +608,23 @@ function allocate_cache(alg::NewtonsMethod, x_prototype, j_prototype = nothing)
     )
 end
 
-solve_newton!(alg::NewtonsMethod, cache::Nothing, x, f!, j! = nothing, prepare_for_f! = nothing) = nothing
+solve_newton!(
+    alg::NewtonsMethod,
+    cache::Nothing,
+    x,
+    f!,
+    j! = nothing,
+    prepare_for_f! = nothing,
+) = nothing
 
-NVTX.@annotate function solve_newton!(alg::NewtonsMethod, cache, x, f!, j! = nothing, prepare_for_f! = nothing)
+NVTX.@annotate function solve_newton!(
+    alg::NewtonsMethod,
+    cache,
+    x,
+    f!,
+    j! = nothing,
+    prepare_for_f! = nothing,
+)
     (; max_iters, update_j, krylov_method, convergence_checker, verbose, line_search) = alg
     (; krylov_method_cache, convergence_checker_cache) = cache
     (; Δx, f, j) = cache
@@ -608,9 +644,20 @@ NVTX.@annotate function solve_newton!(alg::NewtonsMethod, cache, x, f!, j! = not
                 ldiv!(Δx, j, f)
             end
         else
-            solve_krylov!(krylov_method, krylov_method_cache, Δx, x, f!, f, n, prepare_for_f!, j)
+            solve_krylov!(
+                krylov_method,
+                krylov_method_cache,
+                Δx,
+                x,
+                f!,
+                f,
+                n,
+                prepare_for_f!,
+                j,
+            )
         end
-        is_verbose(verbose) && @info "Newton iteration $n: ‖x‖ = $(norm(x)), ‖Δx‖ = $(norm(Δx))"
+        is_verbose(verbose) &&
+            @info "Newton iteration $n: ‖x‖ = $(norm(x)), ‖Δx‖ = $(norm(Δx))"
 
         x .-= Δx
         line_search!(line_search, x, Δx, f, f!, prepare_for_f!)

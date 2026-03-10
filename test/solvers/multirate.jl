@@ -1,16 +1,13 @@
 #=
 julia --project=test
-using Revise; include("test/tabulate_convergence_orders_multirate.jl")
+using Revise; include("test/solvers/multirate.jl")
 =#
 using ClimaTimeSteppers, LinearAlgebra, Test
 import PrettyTables
 import SciMLBase
 
 if !@isdefined(IntegratorTestCase)
-    include(joinpath(@__DIR__, "convergence_orders.jl"))
-    include(joinpath(@__DIR__, "convergence_utils.jl"))
-    include(joinpath(@__DIR__, "utils.jl"))
-    include(joinpath(@__DIR__, "problems.jl"))
+    include(joinpath(@__DIR__, "..", "utils", "convergence_utils.jl"))
 end
 
 function tabulate_convergence_orders_multirate()
@@ -19,7 +16,6 @@ function tabulate_convergence_orders_multirate()
     names_probs_sols = [
         (:imex_auto, imex_autonomous_prob(Array{Float64}), imex_autonomous_sol),
         (:imex_nonauto, imex_nonautonomous_prob(Array{Float64}), imex_nonautonomous_sol),
-        # (:kpr_multirate, kpr_multirate_prob(), kpr_sol),
     ]
     dts = 0.5 .^ (4:7)
 
@@ -40,7 +36,8 @@ function tabulate_convergence_orders_multirate()
 
     for (name, prob, sol) in names_probs_sols
         for (alg, ord) in algs_orders
-            co[name, typeof(alg)] = (ord, convergence_order(prob, sol, alg, dts; fast_dt = 0.5^12))
+            co[name, typeof(alg)] =
+                (ord, convergence_order(prob, sol, alg, dts; fast_dt = 0.5^12))
         end
     end
 
@@ -48,6 +45,11 @@ function tabulate_convergence_orders_multirate()
     algs = first.(algs_orders)
     expected_orders = last.(algs_orders)
     tabulate_convergence_orders(prob_names, algs, co, expected_orders)
+
+    # TODO: Enable once multirate convergence is fixed. All multirate algorithms
+    # currently show convergence orders ≈ 0 on both test problems (errors don't
+    # decrease with dt refinement), suggesting a fundamental issue.
+    # verify_multirate_convergence_orders(co, algs_orders, names_probs_sols)
 end
 
 tabulate_convergence_orders_multirate()

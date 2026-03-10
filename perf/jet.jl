@@ -35,7 +35,12 @@ end
 function config_integrators(problem)
     algorithm = CTS.IMEXAlgorithm(ARS343(), NewtonsMethod(; max_iters = 2))
     dt = 0.01
-    discrete_callbacks = (discrete_cb(Foo(), 0), discrete_cb(Bar(), 0), discrete_cb(Foo(), 1), discrete_cb(Bar(), 1))
+    discrete_callbacks = (
+        discrete_cb(Foo(), 0),
+        discrete_cb(Bar(), 0),
+        discrete_cb(Foo(), 1),
+        discrete_cb(Bar(), 1),
+    )
     callback = SciMLBase.CallbackSet((), discrete_callbacks)
 
     integrator = SciMLBase.init(problem, algorithm; dt, callback)

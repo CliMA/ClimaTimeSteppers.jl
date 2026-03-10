@@ -59,7 +59,6 @@ function DecayingTemperatureProfile(z::Float64; T_virt_surf, T_min_ref, _R_m, _g
 end
 
 function spatial_residual!(du, u, ss::Single_Stack, t)
-    # u is a 3N+1 vector
     N, L = ss.N, ss.L
     Δz = L / N
     _grav = ss._grav
@@ -95,11 +94,12 @@ function jacobian!(J, u, ss, t)
     P, dP = ss.P, ss.dP
     Δz = ss.Δz
 
-    # N cells
     N = div(length(u) - 1, 3)
 
     ρ, ρθ, w = u[1:N], u[(N + 1):(2N)], u[(2N + 1):(3N + 1)]
 
+    # u is a 3N+1 vector
+    # N cells
     # interpolate ρ and ρθ to cell face values
     ρh = [ρ[1]; (ρ[1:(N - 1)] + ρ[2:N]) / 2.0; ρ[N]]
     ρθh = [ρθ[1]; (ρθ[1:(N - 1)] + ρθ[2:N]) / 2.0; ρθ[N]]
@@ -111,10 +111,6 @@ function jacobian!(J, u, ss, t)
     # half cell size
     Δzh = [NaN64; (Δz[1:(N - 1)] + Δz[2:N]) / 2.0; NaN64]
 
-    # P = ([zeros(N,N)     zeros(N,N)      ∂ρ/∂w ;
-    #       zeros(N,N)     zeros(N,N)      ∂ρθ/∂w
-    #       ∂w/∂ρ          ∂w/∂ρθ      zeros(N+1,N+1)])
-
     for i in 1:N
         J[i, i + 2N] = ρh[i] / Δz[i]
         J[i, i + 2N + 1] = -ρh[i + 1] / Δz[i]
@@ -125,7 +121,11 @@ function jacobian!(J, u, ss, t)
         J[i + N, i + 2N + 1] = -ρθh[i + 1] / Δz[i]
     end
 
-    for i in 2:N #(dw_i+1/2)
+    # P = ([zeros(N,N)     zeros(N,N)      ∂ρ/∂w ;
+    #       zeros(N,N)     zeros(N,N)      ∂ρθ/∂w
+    #       ∂w/∂ρ          ∂w/∂ρθ      zeros(N+1,N+1)])
+    # for i in 2:N #(dw_i+1/2)
+    for i in 2:N
         J[i + 2N, (i - 1)] = (pc[i] - pc[i - 1]) / Δzh[i] / (2 * ρh[i]^2)
         J[i + 2N, (i - 1) + 1] = (pc[i] - pc[i - 1]) / Δzh[i] / (2 * ρh[i]^2)
 
@@ -166,7 +166,8 @@ end
 
 
     P(ρθ) = _MSLP^(-_R_m / _C_v) * _R_m^(_C_p / _C_v) * (ρθ)^(_C_p / _C_v)
-    dP(ρθ) = _C_p / _C_v * _MSLP^(-_R_m / _C_v) * _R_m^(_C_p / _C_v) * (ρθ)^(_C_p / _C_v - 1)
+    dP(ρθ) =
+        _C_p / _C_v * _MSLP^(-_R_m / _C_v) * _R_m^(_C_p / _C_v) * (ρθ)^(_C_p / _C_v - 1)
 
 
     # Initialization
@@ -187,14 +188,25 @@ end
         ρ[i] = ρᵢ
         ρθ[i] = ρᵢ * Tvᵢ * (_MSLP / pᵢ)^(_R_m / _C_p)
     end
-    ss = Single_Stack(L, N, 0.0, Δz, copy(ρ), copy(w), copy(ρθ), copy(ρ), copy(w), copy(ρθ), _grav, γ, _R_m, P, dP)
+    ss = Single_Stack(
+        L,
+        N,
+        0.0,
+        Δz,
+        copy(ρ),
+        copy(w),
+        copy(ρθ),
+        copy(ρ),
+        copy(w),
+        copy(ρθ),
+        _grav,
+        γ,
+        _R_m,
+        P,
+        dP,
+    )
     u0 = zeros(3 * N + 1)
     combine!(ρ, w, ρθ, u0)
-
-
-
-
-
 
     # Generate reference values
     begin
@@ -204,7 +216,6 @@ end
         end
         function f_imp(du, u)
             spatial_residual!(du, u, ss, 0.0)
-
         end
         function jac_imp(J, u)
             jacobian!(J, u, ss, 0.0)
@@ -216,44 +227,46 @@ end
             J0 = zeros(3 * N + 1, 3 * N + 1)
             f_imp(k0, u0)
             jac_imp(J0, u0)
-
             k = (I - γ * J0) \ k0
             return k
         end
 
         # TIME_INTEGRATOR == "ARS343"
-        γ = 0.4358665215084590
+        γ_ars = 0.4358665215084590
         a42 = 0.5529291480359398
         a43 = 0.5529291480359398
-        b1 = -3 / 2 * γ^2 + 4 * γ - 1 / 4
-        b2 = 3 / 2 * γ^2 - 5 * γ + 5 / 4
+        b1 = -3 / 2 * γ_ars^2 + 4 * γ_ars - 1 / 4
+        b2 = 3 / 2 * γ_ars^2 - 5 * γ_ars + 5 / 4
         a31 =
-            (1 - 9 / 2 * γ + 3 / 2 * γ^2) * a42 + (11 / 4 - 21 / 2 * γ + 15 / 4 * γ^2) * a43 - 7 / 2 + 13 * γ -
-            9 / 2 * γ^2
+            (1 - 9 / 2 * γ_ars + 3 / 2 * γ_ars^2) * a42 +
+            (11 / 4 - 21 / 2 * γ_ars + 15 / 4 * γ_ars^2) * a43 - 7 / 2 + 13 * γ_ars -
+            9 / 2 * γ_ars^2
         a32 =
-            (-1 + 9 / 2 * γ - 3 / 2 * γ^2) * a42 + (-11 / 4 + 21 / 2 * γ - 15 / 4 * γ^2) * a43 + 4 - 25 / 2 * γ +
-            9 / 2 * γ^2
+            (-1 + 9 / 2 * γ_ars - 3 / 2 * γ_ars^2) * a42 +
+            (-11 / 4 + 21 / 2 * γ_ars - 15 / 4 * γ_ars^2) * a43 +
+            4 - 25 / 2 * γ_ars + 9 / 2 * γ_ars^2
         a41 = 1 - a42 - a43
         a_exp = [
             0 0 0 0
-            γ 0 0 0
+            γ_ars 0 0 0
             a31 a32 0 0
             a41 a42 a43 0
         ]
-        b_exp = [0, b1, b2, γ]
+        b_exp = [0, b1, b2, γ_ars]
         a_imp = [
             0 0 0 0
-            0 γ 0 0
-            0 (1 - γ)/2 γ 0
-            0 b1 b2 γ
+            0 γ_ars 0 0
+            0 (1 - γ_ars)/2 γ_ars 0
+            0 b1 b2 γ_ars
         ]
-        b_imp = [0, b1, b2, γ]
-
+        b_imp = [0, b1, b2, γ_ars]
 
         n_stage = size(a_imp)[1] - 1
         K_exp = zeros(3 * N + 1, n_stage + 1)
         K_imp = zeros(3 * N + 1, n_stage + 1)
         u = copy(u0)
+
+        # ARS solve
         for i in 1:N_iter
             u_stage = copy(u)
             for i_stage in 1:n_stage
@@ -265,20 +278,24 @@ end
                         K_exp[:, 1:i_stage] * a_exp[i_stage + 1, 1:i_stage]
                     )
 
-                K_imp[:, i_stage] = f_imp_solve(f_imp, jac_imp, u_stage_temp, dt * a_imp[i_stage + 1, i_stage + 1])
-                u_stage = u_stage_temp + dt * K_imp[:, i_stage] * a_imp[i_stage + 1, i_stage + 1]
+                K_imp[:, i_stage] = f_imp_solve(
+                    f_imp,
+                    jac_imp,
+                    u_stage_temp,
+                    dt * a_imp[i_stage + 1, i_stage + 1],
+                )
+                u_stage =
+                    u_stage_temp + dt * K_imp[:, i_stage] * a_imp[i_stage + 1, i_stage + 1]
             end
             f_exp(@view(K_exp[:, n_stage + 1]), u_stage)
             u .+=
-                dt * (K_exp[:, 1:(n_stage + 1)] * b_exp[1:(n_stage + 1)] + K_imp[:, 1:n_stage] * b_imp[2:(n_stage + 1)])
+                dt * (
+                    K_exp[:, 1:(n_stage + 1)] * b_exp[1:(n_stage + 1)] +
+                    K_imp[:, 1:n_stage] * b_imp[2:(n_stage + 1)]
+                )
         end
         ref_ARS343 = norm(u)
     end
-
-
-
-
-
 
     algorithms = (
         CTS.IMEXAlgorithm(ARS111(), NewtonsMethod(; max_iters = 1)),
@@ -297,21 +314,19 @@ end
         ref_ARS343
     ]
 
-
-
-    # ARS solve
     for (i, algo) in (enumerate(algorithms))
 
-        func_kwargs = (; jac_prototype = zeros(Float64, 3N + 1, 3N + 1), Wfact = single_column_Wfact!)
+        func_kwargs =
+            (; jac_prototype = zeros(Float64, 3N + 1, 3N + 1), Wfact = single_column_Wfact!)
         tendency_func = ClimaODEFunction(;
             T_exp! = ODEFunction((du, u, p, t) -> (du .= 0.0)),
             T_imp! = ODEFunction(spatial_residual!; func_kwargs...),
         )
 
-        single_column_prob_wfact_split = ODEProblem(tendency_func, copy(u0), (0.0, N_iter * dt), ss)
+        single_column_prob_wfact_split =
+            ODEProblem(tendency_func, copy(u0), (0.0, N_iter * dt), ss)
 
         u = solve(single_column_prob_wfact_split, algo; dt = dt)
-        # @info norm(u.u[end])
         @test norm(u.u[end]) ≈ reference_sol_norm[i] atol = 2e3eps()
     end
 

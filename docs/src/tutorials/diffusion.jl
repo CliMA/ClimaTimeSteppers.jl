@@ -153,22 +153,27 @@ end
 # we are working with gradient/divergence operations, our operations are
 # tridiagonal, so have that
 jacobian_matrix = ClimaCore.MatrixFields.FieldMatrix(
-    (@name(my_var), @name(my_var)) => similar(φ_gauss, ClimaCore.MatrixFields.TridiagonalMatrixRow{Float64}),
+    (@name(my_var), @name(my_var)) =>
+        similar(φ_gauss, ClimaCore.MatrixFields.TridiagonalMatrixRow{Float64}),
 );
 
 # Similarly, we define `Wfact`, as `dtγ J - I`.
 div_matrix = ClimaCore.MatrixFields.operator_matrix(diverg_vert)
 grad_matrix = ClimaCore.MatrixFields.operator_matrix(grad_vert)
 function Wfact(W, Y, p, dtγ, t)
-    @. W.matrix[@name(my_var), @name(my_var)] = dtγ * div_matrix() ⋅ grad_matrix() - (LinearAlgebra.I,)
+    @. W.matrix[@name(my_var), @name(my_var)] =
+        dtγ * div_matrix() ⋅ grad_matrix() - (LinearAlgebra.I,)
     return nothing
 end
 
 # With all of this, we are ready to define the implicit tendency. Implicit
 # tendencies are `SciMLBase.ODEFunction`s and take in the actual tendency
 # (similar to `T_exp!`), the Jacobian and `Wfact`:
-T_imp_wrapper! =
-    SciMLBase.ODEFunction(T_imp!; jac_prototype = FieldMatrixWithSolver(jacobian_matrix, Y₀), Wfact = Wfact);
+T_imp_wrapper! = SciMLBase.ODEFunction(
+    T_imp!;
+    jac_prototype = FieldMatrixWithSolver(jacobian_matrix, Y₀),
+    Wfact = Wfact,
+);
 
 # On this type of spaces, we need to apply DSS to ensure continuity
 function dss!(state, p, t)
@@ -188,7 +193,9 @@ prob = SciMLBase.ODEProblem(
 );
 
 # We use SSPKnoth for this example
-algo = ClimaTimeSteppers.RosenbrockAlgorithm(ClimaTimeSteppers.tableau(ClimaTimeSteppers.SSPKnoth()));
+algo = ClimaTimeSteppers.RosenbrockAlgorithm(
+    ClimaTimeSteppers.tableau(ClimaTimeSteppers.SSPKnoth()),
+);
 
 # And here is the integrator, where we set `saveat = t0:dt:t_end` to save a snapshot of
 # the solution at every timestep.
@@ -203,7 +210,8 @@ integrator = SciMLBase.init(prob, algo; dt, saveat = t0:dt:t_end);
 function remap(; target_z = 0.0, integrator = integrator)
     longpts = range(-180.0, 180.0, 180)
     latpts = range(-90.0, 90.0, 90)
-    hcoords = [ClimaCore.Geometry.LatLongPoint(lat, long) for long in longpts, lat in latpts]
+    hcoords =
+        [ClimaCore.Geometry.LatLongPoint(lat, long) for long in longpts, lat in latpts]
     zcoords = [ClimaCore.Geometry.ZPoint(target_z)]
     field = integrator.u.my_var
     space = axes(field)

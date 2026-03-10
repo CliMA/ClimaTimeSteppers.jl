@@ -60,7 +60,16 @@ end
 function init_inner(prob, outercache::LowStorageRungeKutta2NIncCache, dt)
     OffsetODEFunction(prob.f.f1, zero(dt), one(dt), zero(dt), outercache.du)
 end
-function update_inner!(innerinteg, outercache::LowStorageRungeKutta2NIncCache, f_slow, u, p, t, dt, stage)
+function update_inner!(
+    innerinteg,
+    outercache::LowStorageRungeKutta2NIncCache,
+    f_slow,
+    u,
+    p,
+    t,
+    dt,
+    stage,
+)
 
     (; C, A, B) = outercache.tableau
     f_offset = innerinteg.sol.prob.f

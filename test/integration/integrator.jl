@@ -2,11 +2,12 @@ import ClimaTimeSteppers as CTS
 using ClimaTimeSteppers, Test
 import SciMLBase
 
-include("integrator_utils.jl")
-include("problems.jl")
+include(joinpath(@__DIR__, "integrator_utils.jl"))
+include(joinpath(@__DIR__, "..", "problems.jl"))
 
 @testset "integrator save times" begin
-    for (alg, test_case) in ((ExplicitAlgorithm(SSP33ShuOsher()), clima_constant_tendency_test(Float64)),),
+    for (alg, test_case) in
+        ((ExplicitAlgorithm(SSP33ShuOsher()), clima_constant_tendency_test(Float64)),),
         reverse_prob in (false, true),
         n_dt_steps in (10, 10000)
 
@@ -24,31 +25,15 @@ include("problems.jl")
         save_dt_times = t0:(tdir * save_dt):tf
 
         is_just_past_saving_time(t) = any(
-            saving_time -> tf > t0 ? saving_time <= t < saving_time + dt : saving_time - dt < t <= saving_time,
+            saving_time ->
+                tf > t0 ? saving_time <= t < saving_time + dt :
+                saving_time - dt < t <= saving_time,
             save_dt_times,
         )
         misaligned_saving_times = filter(is_just_past_saving_time, exact_dt_times)
 
-        function adding_function!(integrator)
-            if integrator.t in save_dt_times
-                add_saveat!(integrator, integrator.t)
-            end
-            next_saving_time_index = findfirst(
-                saving_time -> tf > t0 ? saving_time > integrator.t : saving_time < integrator.t,
-                save_dt_times,
-            )
-            isnothing(next_saving_time_index) && return
-            add_tstop!(integrator, save_dt_times[next_saving_time_index])
-        end
-        adding_callback = SciMLBase.DiscreteCallback(
-            (u, t, integrator) -> true,
-            adding_function!;
-            initialize = (cb, u, t, integrator) -> adding_function!(integrator),
-            save_positions = (false, false), # stop OrdinaryDiffEq from saving
-        )
-
-        setting_function!(integrator) = ClimaTimeSteppers.set_dt!(integrator, 2 * DiffEqBase.get_dt(integrator))
-        setting_callback = SciMLBase.DiscreteCallback((u, t, integrator) -> true, setting_function!)
+        adding_callback = get_adding_callback(save_dt_times, t0, tf)
+        setting_callback = get_setting_callback()
         n_set_steps = floor(Int, log2(1 + abs(tf - t0) / dt)) - 1
         setting_times = [accumulate(+, [t0, (tdir * dt * 2 .^ (0:n_set_steps))...])..., tf]
 
@@ -57,33 +42,29 @@ include("problems.jl")
         for (compare_to_ode, kwargs, times) in (
             # testing default saving behavior (OrdinaryDiffEq saves every step by default)
             (false, (;), [t0, tf]),
-
             # testing save_everystep
             (true, (; save_everystep = false), [t0, tf]),
             (true, (; save_everystep = true), [exact_dt_times..., tf]),
             (true, (; save_everystep = true, saveat = [t0]), [exact_dt_times..., tf]),
-
             # testing simple saveat (OrdinaryDiffEq saves at [t0, tf] when saveat is empty)
             (false, (; saveat = []), []),
             (true, (; saveat = [t0]), [t0]),
             (true, (; saveat = [tf]), [tf]),
-
             # testing non-interpolated saving (OrdinaryDiffEq interpolates when saving)
             (false, (; saveat = save_dt_times), misaligned_saving_times),
-
             # testing tstops (tstops remove the need for interpolation when saving)
             (true, (; saveat = save_dt_times, tstops = save_dt_times), save_dt_times),
-
             # testing add_tstops! and add_saveat!
             (true, (; saveat = [tf], callback = adding_callback), [save_dt_times..., tf]),
-
             # testing set_dt! (OrdinaryDiffEq does not support this function)
             (false, (; save_everystep = true, callback = setting_callback), setting_times),
-
             # testing dtchangeable (OrdinaryDiffEq does not support this kwarg)
             (false, (; save_everystep = true, dtchangeable = false), fixed_dt_times),
-            (false, (; save_everystep = true, dtchangeable = false, tstops = save_dt_times), fixed_dt_times),
-
+            (
+                false,
+                (; save_everystep = true, dtchangeable = false, tstops = save_dt_times),
+                fixed_dt_times,
+            ),
             # testing stepstop (OrdinaryDiffEq does not support this kwarg)
             (false, (; save_everystep = true, stepstop = 0), exact_dt_times[1:1]),
             (false, (; save_everystep = true, stepstop = 4), exact_dt_times[1:5]),

@@ -2,24 +2,42 @@ using ClimaTimeSteppers, Test
 import ClimaTimeSteppers as CTS
 
 @testset "ConvergenceChecker" begin
+    # We test with arbitrary multi-component values (iter 0: [60, -80])
     val_func(iter) = [60.0, -80.0]
+
+    # Error function 1 decreases geometrically with magnitude 10, hitting minimum at iter=11.
     err_func1(iter) = [6, -8] .* (-1 / 10)^min(iter, 11)
+
+    # Error function 2 starts higher but decreases geometrically, hitting minimum at iter=12.
     err_func2(iter) = [60, -80] .* (-1 / 10)^min(iter, 12)
+
+    # We test combinations of absolute norm, relative norm, error reduction, and convergence rates
+    # The `+ eps()` buffers ensure that exact theoretical values pass the inequalities without fp errors.
     conditions = (
         MaximumError(1e-10 + eps()),
         MaximumRelativeError(1e-10 + eps()),
         MaximumErrorReduction(1e-10 + eps()),
         MinimumRateOfConvergence(0.1 + eps(), 1),
     )
+
+    # The expected iteration numbers where each condition above is first met 
+    # for err_func1 and err_func2 respectively.
     last_iters1 = (11, 9, 10, 12)
     last_iters2 = (12, 10, 10, 13)
     function test_func(checker, last_iter1, last_iter2)
         cache = CTS.allocate_cache(checker, val_func(0))
         for (err_func, last_iter) in ((err_func1, last_iter1), (err_func2, last_iter2))
             for iter in 0:(last_iter - 1)
-                CTS.is_converged!(checker, cache, val_func(iter), err_func(iter), iter) && return false
+                CTS.is_converged!(checker, cache, val_func(iter), err_func(iter), iter) &&
+                    return false
             end
-            CTS.is_converged!(checker, cache, val_func(last_iter), err_func(last_iter), last_iter) || return false
+            CTS.is_converged!(
+                checker,
+                cache,
+                val_func(last_iter),
+                err_func(last_iter),
+                last_iter,
+            ) || return false
         end
         return true
     end

@@ -64,11 +64,13 @@ specified, then the counter (which gets incremented from 0 to `n` and then gets
 reset to 0 when it is time to perform another update) is reset to 0 whenever the
 signal handler is `needs_update!` with an `UpdateSignal` of type `reset_signal_type`.
 """
-struct UpdateEveryN{U <: UpdateSignal, C, R <: Union{Nothing, UpdateSignal}} <: UpdateSignalHandler
+struct UpdateEveryN{U <: UpdateSignal, C, R <: Union{Nothing, UpdateSignal}} <:
+       UpdateSignalHandler
     n::Int
     counter::C
 end
-UpdateEveryN(n, ::Type{U}, ::Type{R} = Nothing) where {U, R} = UpdateEveryN{U, typeof(Ref(0)), R}(n, Ref(0))
+UpdateEveryN(n, ::Type{U}, ::Type{R} = Nothing) where {U, R} =
+    UpdateEveryN{U, typeof(Ref(0)), R}(n, Ref(0))
 
 function needs_update!(alg::UpdateEveryN{U}, ::U) where {U <: UpdateSignal}
     (; n, counter) = alg

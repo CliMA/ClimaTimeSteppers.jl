@@ -1,7 +1,8 @@
 using Test
 import Base.Broadcast: broadcasted, materialize
 using StaticArrays
-using ClimaTimeSteppers: SparseCoeffs, fused_increment, fused_increment!, assign_fused_increment!, zero_coeff
+using ClimaTimeSteppers:
+    SparseCoeffs, fused_increment, fused_increment!, assign_fused_increment!, zero_coeff
 using Random
 
 mat(args...) = materialize(args...)
@@ -74,9 +75,15 @@ import Random
 
     bc2 = broadcasted(+, u, broadcasted(*, dt * coeffs[2, 1], tend[1]))
     @test fused_increment(u, dt, sc, tend, Val(2)) == bc2
-    @test mat(fused_increment(u, dt, sc, tend, Val(2))) == @. u + dt * coeffs[2, 1] * tend[1]
+    @test mat(fused_increment(u, dt, sc, tend, Val(2))) ==
+          @. u + dt * coeffs[2, 1] * tend[1]
 
-    bc3 = broadcasted(+, u, broadcasted(*, dt * coeffs[3, 1], tend[1]), broadcasted(*, dt * coeffs[3, 2], tend[2]))
+    bc3 = broadcasted(
+        +,
+        u,
+        broadcasted(*, dt * coeffs[3, 1], tend[1]),
+        broadcasted(*, dt * coeffs[3, 2], tend[2]),
+    )
     @test mat(fused_increment(u, dt, sc, tend, Val(3))) == mat(bc3)
 
     @test materialize(bc2) == @. u + dt * coeffs[2, 1] * tend[1]
@@ -119,7 +126,12 @@ end
     bc2 = broadcasted(+, u, broadcasted(*, dt * coeffs[1], tend[1]))
     @test fused_increment(u, dt, sc, tend, Val(1)) == bc2
 
-    bc3 = broadcasted(+, u, broadcasted(*, dt * coeffs[1], tend[1]), broadcasted(*, dt * coeffs[2], tend[2]))
+    bc3 = broadcasted(
+        +,
+        u,
+        broadcasted(*, dt * coeffs[1], tend[1]),
+        broadcasted(*, dt * coeffs[2], tend[2]),
+    )
     @test fused_increment(u, dt, sc, tend, Val(2)) == bc3
 
     @test Base.Broadcast.materialize(bc2) == @. u + dt * coeffs[1] * tend[1]

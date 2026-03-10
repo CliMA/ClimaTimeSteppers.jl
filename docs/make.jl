@@ -16,7 +16,10 @@ for filename in jl_files_in_basedir
         execute = true,
         flavor = Literate.CommonMarkFlavor(),
     )
-    push!(generated_tutorials, joinpath(tutorial_basedir, replace(filename, ".jl" => ".md")))
+    push!(
+        generated_tutorials,
+        joinpath(tutorial_basedir, replace(filename, ".jl" => ".md")),
+    )
 end
 
 # https://github.com/jheinen/GR.jl/issues/278#issuecomment-587090846
@@ -52,9 +55,15 @@ pages = [
 ]
 #! format: on
 
-mathengine = MathJax(Dict(:TeX => Dict(:equationNumbers => Dict(:autoNumber => "AMS"), :Macros => Dict())))
+mathengine = MathJax(
+    Dict(:TeX => Dict(:equationNumbers => Dict(:autoNumber => "AMS"), :Macros => Dict())),
+)
 
-format = Documenter.HTML(prettyurls = get(ENV, "CI", nothing) == "true", mathengine = mathengine, collapselevel = 1)
+format = Documenter.HTML(
+    prettyurls = get(ENV, "CI", nothing) == "true",
+    mathengine = mathengine,
+    collapselevel = 1,
+)
 
 makedocs(;
     plugins = [bib],

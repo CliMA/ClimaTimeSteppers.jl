@@ -168,7 +168,7 @@ function verify_convergence_orders(results, expected_orders, algs; prob_names, r
             (; computed_order) = results[name, typeof(alg)]
             pass = computed_order > expected * (1 - rtol) || computed_order > expected
             if !pass
-                @warn "Convergence order shortfall" alg=nameof(typeof(alg)) name expected computed_order
+                @warn "Convergence order shortfall" alg = nameof(typeof(alg)) name expected computed_order
             end
             @test pass
         end
@@ -207,7 +207,7 @@ function tabulate_convergence_orders(
     )
     tab_column_hl = PrettyTables.TextHighlighter(
         (data, i, j) -> j == 1,
-        PrettyTables.crayon"green bold"
+        PrettyTables.crayon"green bold",
     )
 
     column_labels = ["Tableau (theoretic)", prob_names...]

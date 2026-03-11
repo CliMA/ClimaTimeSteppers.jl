@@ -29,7 +29,8 @@ function sincos_prob()
     ODEProblem(
         IncrementingODEFunction{true}(
             (du, u, p, t, α = true, β = false) ->
-                (du[1] = α * p * u[2] + β * du[1]; du[2] = -α * p * u[1] + β * du[2]),
+                (du[1] = α * p * u[2] + β * du[1];
+                    du[2] = -α * p * u[1] + β * du[2]),
         ),
         [0.0, 1.0],
         (0.0, 1.0),

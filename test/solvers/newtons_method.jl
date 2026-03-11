@@ -31,7 +31,7 @@ function nonlinear_equation_gentle(FT, n)
     rng = MersenneTwister(1)
     A = rand(rng, FT, n, n)
     # Ensure diagonally dominant for easier convergence with frozen Jacobian
-    A = A + I*n
+    A = A + I * n
     b = rand(rng, FT, n)
     f!(f, x) = f .= A * x .+ 0.1 .* sin.(x) .- b
     j!(j, x) = j .= A .+ diagm(0.1 .* cos.(x))

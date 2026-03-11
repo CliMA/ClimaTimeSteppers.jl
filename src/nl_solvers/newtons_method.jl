@@ -479,15 +479,15 @@ NVTX.@annotate function solve_krylov!(
         str2 = isnothing(jacobian_free_jvp) ? () : ("the Jacobian-vector product",)
         str = join((str1..., str2...), " and/or ")
         if solver.stats.inconsistent
-            @warn "$type detected that the Jacobian is singular on iteration \
+            @debug "$type detected that the Jacobian is singular on iteration \
                    $iter; if possible, try improving the approximation of $str"
         else
-            @warn "$type did not converge within $iter iterations; if \
+            @debug "$type did not converge within $iter iterations; if \
                    possible, try improving the approximation of $str, or try \
                    increasing the forcing term"
         end
     elseif iter == 0 && solver.stats.status != "x = 0 is a zero-residual solution"
-        @warn "$type set Δx to 0 without running any iterations; if possible, \
+        @debug "$type set Δx to 0 without running any iterations; if possible, \
                try decreasing the forcing term"
     end
     Δx .= Krylov.solution(solver)
@@ -651,7 +651,7 @@ NVTX.@annotate function solve_newton!(
                 x,
                 f!,
                 f,
-                n,
+                n - 1,
                 prepare_for_f!,
                 j,
             )

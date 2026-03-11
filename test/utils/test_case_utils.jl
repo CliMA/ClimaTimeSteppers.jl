@@ -64,6 +64,6 @@ function clima_constant_tendency_test(::Type{FT}) where {FT}
         Y₀ = FT[0, 0, 0],
         analytic_sol = (t) -> tendency .* t,
         tendency! = (Yₜ, Y, _, t) -> Yₜ .= tendency,
-        Wfact! = (W, Y, _, Δt, t) -> W .= -1,
+        Wfact! = (W, Y, _, dtγ, t) -> (W .= 0; W[LinearAlgebra.diagind(W)] .= -1),
     )
 end

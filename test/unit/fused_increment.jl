@@ -98,8 +98,12 @@ import Random
     sc = SparseCoeffs(coeffs)
     dt = 0.5
 
-    bcb = fused_increment(u, dt, sc, tend, Val(4))
+    # Row 4 has nonzero coefficients at columns 1, 2, 3
+    expected = @. u + dt * coeffs[4, 1] * tend[1] + dt * coeffs[4, 2] * tend[2] +
+       dt * coeffs[4, 3] * tend[3]
+    @test mat(fused_increment(u, dt, sc, tend, Val(4))) ≈ expected
     fused_increment!(u, dt, sc, tend, Val(4))
+    @test u ≈ expected
 end
 
 @testset "increment 1D" begin

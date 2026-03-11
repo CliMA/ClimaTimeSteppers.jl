@@ -4,8 +4,11 @@
 
 """
 2D heat equation test utilizing standard finite differences.
-PDE: ∂u/∂t = ∇²u
-Tests the integration of timesteppers with a simple array-based spatial discretization.
+PDE: ∂u/∂t = ∇²u on [0,1]² with homogeneous Dirichlet BCs.
+
+The full Laplacian is treated explicitly (T_exp!). The analytic solution
+uses the discrete eigenvalue of the finite-difference Laplacian, so the
+convergence test measures only the temporal discretization error.
 """
 function finitediff_2Dheat_test_cts(::Type{FT}) where {FT}
     Nx = 5
@@ -25,7 +28,7 @@ function finitediff_2Dheat_test_cts(::Type{FT}) where {FT}
     end
     init_state = vec(init_state)
 
-    # 2D Laplacian matrix
+    # 2D Laplacian matrix (Kronecker product of 1D operators)
     I_x = Matrix{FT}(I, Nx - 1, Nx - 1)
     I_y = Matrix{FT}(I, Ny - 1, Ny - 1)
     A_x = Matrix(
@@ -48,6 +51,7 @@ function finitediff_2Dheat_test_cts(::Type{FT}) where {FT}
         mul!(tendency, A, state)
     end
 
+    # Analytic solution via discrete eigenvalue (exact for the FD discretization)
     function analytic_sol(t)
         λ_x = (4 / Δx^2) * sin(FT(π) * n_x * Δx / 2)^2
         λ_y = (4 / Δy^2) * sin(FT(π) * n_y * Δy / 2)^2
@@ -66,15 +70,18 @@ function finitediff_2Dheat_test_cts(::Type{FT}) where {FT}
         analytic_sol,
         make_prob(tendency_func),
         make_prob(split_tendency_func),
-        10,
+        50,
         1,
     )
 end
 
 """
 1D heat equation test utilizing standard finite differences.
-PDE: ∂u/∂t = ∂²u/∂z²
-Tests the integration of timesteppers with a simple array-based spatial discretization.
+PDE: ∂u/∂t = ∂²u/∂z² on [0,1] with homogeneous Dirichlet BCs.
+
+The full Laplacian is treated explicitly (T_exp!). The analytic solution
+uses the discrete eigenvalue of the finite-difference Laplacian, so the
+convergence test measures only the temporal discretization error.
 """
 function finitediff_1Dheat_test_cts(::Type{FT}) where {FT}
     N = 10
@@ -101,6 +108,7 @@ function finitediff_1Dheat_test_cts(::Type{FT}) where {FT}
         mul!(tendency, A, state)
     end
 
+    # Analytic solution via discrete eigenvalue (exact for the FD discretization)
     function analytic_sol(t)
         λ_discrete = (4 / Δz^2) * sin(FT(π) * n_z * Δz / 2)^2
         return exp(-λ_discrete * t) .* init_state
@@ -117,7 +125,7 @@ function finitediff_1Dheat_test_cts(::Type{FT}) where {FT}
         analytic_sol,
         make_prob(tendency_func),
         make_prob(split_tendency_func),
-        10,
+        50,
         1,
     )
 end

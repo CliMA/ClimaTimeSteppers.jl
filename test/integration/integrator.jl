@@ -81,8 +81,9 @@ include(joinpath(@__DIR__, "..", "problems.jl"))
             @test sol_times == times
 
             isempty(times) && continue
+            # For constant tendency, RK is exact; error is O(n_dt_steps * eps()).
+            # 1e6 * eps() covers the worst case (n_dt_steps = 10000).
             @test sol.u ≈ map(analytic_sol, sol.t) atol = 1000000 * eps()
-            # the atol has to be very large for when n_dt_steps is big
         end
     end
 end

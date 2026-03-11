@@ -124,7 +124,6 @@ function jacobian!(J, u, ss, t)
     # P = ([zeros(N,N)     zeros(N,N)      ∂ρ/∂w ;
     #       zeros(N,N)     zeros(N,N)      ∂ρθ/∂w
     #       ∂w/∂ρ          ∂w/∂ρθ      zeros(N+1,N+1)])
-    # for i in 2:N #(dw_i+1/2)
     for i in 2:N
         J[i + 2N, (i - 1)] = (pc[i] - pc[i - 1]) / Δzh[i] / (2 * ρh[i]^2)
         J[i + 2N, (i - 1) + 1] = (pc[i] - pc[i - 1]) / Δzh[i] / (2 * ρh[i]^2)

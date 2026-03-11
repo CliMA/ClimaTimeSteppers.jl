@@ -13,7 +13,7 @@ using ClimaTimeSteppers: SparseCoeffs, fused_increment, SparseContainer
         coeffs = ones(3, 3)
         sc = SparseCoeffs(coeffs)
         dt = 0.5
-        @test (@inferred fused_increment(u, dt, sc, tend, Val(3))) isa Any
+        @inferred fused_increment(u, dt, sc, tend, Val(3))
     end
 
     @testset "SparseContainer" begin
@@ -29,17 +29,16 @@ using ClimaTimeSteppers: SparseCoeffs, fused_increment, SparseContainer
         @test (@inferred CTS.needs_update!(handler, NewTimeStep(0.0))) == true
 
         handler_n = UpdateEveryN(3, NewNewtonIteration)
-        @test (@inferred CTS.needs_update!(handler_n, NewNewtonIteration())) isa Bool
+        @inferred CTS.needs_update!(handler_n, NewNewtonIteration())
     end
 
     @testset "ConvergenceChecker" begin
         checker = ConvergenceChecker(; norm_condition = MaximumRelativeError(1e-8))
         cache = CTS.allocate_cache(checker, [1.0, 2.0])
-        @test (@inferred CTS.is_converged!(checker, cache, [1.0, 2.0], [0.01, 0.02], 1)) isa
-              Bool
+        @inferred CTS.is_converged!(checker, cache, [1.0, 2.0], [0.01, 0.02], 1)
     end
 
-    @testset "Solver stepping — step_u!" begin
+    @testset "Solver stepping smoke tests" begin
         hide = (; kwargshandle = DiffEqBase.KeywordArgSilent)
 
         @testset "Explicit RK (SSP33ShuOsher)" begin
@@ -88,7 +87,7 @@ using ClimaTimeSteppers: SparseCoeffs, fused_increment, SparseContainer
                     T_imp! = DiffEqBase.ODEFunction(
                         (du, u, p, t) -> (du .= -0.5 .* u);
                         jac_prototype = zeros(n, n),
-                        Wfact = (W, u, p, γ, t) -> (W .= -0.5 * γ .* Id .- Id),
+                        Wfact = (W, u, p, dtγ, t) -> (W .= -0.5 * dtγ .* Id .- Id),
                     ),
                 ),
                 ones(n),
@@ -117,7 +116,7 @@ using ClimaTimeSteppers: SparseCoeffs, fused_increment, SparseContainer
                     T_imp! = DiffEqBase.ODEFunction(
                         (du, u, p, t) -> (du .= -0.5 .* u);
                         jac_prototype = zeros(n, n),
-                        Wfact = (W, u, p, γ, t) -> (W .= -0.5 * γ .* Id .- Id),
+                        Wfact = (W, u, p, dtγ, t) -> (W .= -0.5 * dtγ .* Id .- Id),
                     ),
                 ),
                 ones(n),
@@ -166,7 +165,7 @@ using ClimaTimeSteppers: SparseCoeffs, fused_increment, SparseContainer
         end
     end
 
-    @testset "Solver stepping — Float32" begin
+    @testset "Float32 stepping smoke tests" begin
         hide = (; kwargshandle = DiffEqBase.KeywordArgSilent)
 
         @testset "Explicit RK Float32" begin
@@ -216,7 +215,8 @@ using ClimaTimeSteppers: SparseCoeffs, fused_increment, SparseContainer
                     T_imp! = DiffEqBase.ODEFunction(
                         (du, u, p, t) -> (du .= -0.5f0 .* u);
                         jac_prototype = zeros(Float32, n, n),
-                        Wfact = (W, u, p, γ, t) -> (W .= Float32(-0.5) * γ .* Id .- Id),
+                        Wfact = (W, u, p, dtγ, t) ->
+                            (W .= Float32(-0.5) * dtγ .* Id .- Id),
                     ),
                 ),
                 ones(Float32, n),

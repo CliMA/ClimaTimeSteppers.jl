@@ -6,12 +6,12 @@
 Single variable linear ODE: du/dt = αu, u₀ = 1/2, α = 1.01.
 Solution: u(t) = u₀ exp(αt).
 """
-function linear_prob()
+function linear_prob(::Type{FT} = Float64) where {FT}
     ODEProblem(
         IncrementingODEFunction{true}(
             (du, u, p, t, α = true, β = false) -> (du .= α .* p .* u .+ β .* du),
         ),
-        [1 / 2],
+        FT[1 / 2],
         (0.0, 1.0),
         1.01,
     )
@@ -41,9 +41,4 @@ end
 function sincos_sol(u0, p, t)
     s, c = sincos(p * t)
     [c s; -s c] * u0
-end
-
-# Float32 variant: same analytic solution, works for any eltype.
-function linear_sol_f32(u0, p, t)
-    u0 .* exp(p * t)
 end

@@ -8,6 +8,7 @@ using ClimaTimeSteppers, DiffEqBase, LinearAlgebra, Test
 import ClimaTimeSteppers as CTS
 
 @testset "T_lim! and lim! integration" begin
+    hide_warning = (; kwargshandle = DiffEqBase.KeywordArgSilent)
     @testset "Explicit algorithm with limiter" begin
         # Problem: du/dt = -u (decay), split into T_lim (limited) component.
         # The limiter clips values to [0, ∞).
@@ -25,7 +26,7 @@ import ClimaTimeSteppers as CTS
         )
 
         alg = ExplicitAlgorithm(SSP33ShuOsher())
-        hide_warning = (; kwargshandle = DiffEqBase.KeywordArgSilent)
+
         sol = solve(prob, alg; dt = 0.01, save_everystep = false, hide_warning...)
         u_final = sol.u[end]
 
@@ -52,7 +53,7 @@ import ClimaTimeSteppers as CTS
         )
 
         alg = ExplicitAlgorithm(SSP33ShuOsher())
-        hide_warning = (; kwargshandle = DiffEqBase.KeywordArgSilent)
+
         sol = solve(prob, alg; dt = 0.1, save_everystep = true, hide_warning...)
 
         # All saved values should be non-negative due to limiter
@@ -61,18 +62,22 @@ import ClimaTimeSteppers as CTS
         end
     end
 
-    @testset "IMEX with T_exp! and T_lim!" begin
-        # Split problem: T_exp! handles one part, T_lim! handles another.
-        # du/dt = -0.1*u (T_exp) + -0.1*u (T_lim), with limiter ensuring non-negativity.
+    @testset "IMEX with T_exp_T_lim!" begin
+        # Split problem: T_exp_T_lim! handles both explicit and limited tendencies.
+        # du/dt = 0.01*u (T_exp) + -0.1*u (T_lim), with limiter ensuring non-negativity.
+        # T_exp! uses a small positive coefficient so that it can never drive u
+        # negative, making the non-negativity test robust to any dt.
         Id = Matrix{Float64}(LinearAlgebra.I, 2, 2)
         prob = ODEProblem(
             ClimaODEFunction(;
-                T_exp! = (du, u, p, t) -> (du .= -0.1 .* u),
-                T_lim! = (du, u, p, t) -> (du .= -0.1 .* u),
+                T_exp_T_lim! = (du_exp, du_lim, u, p, t) -> begin
+                    du_exp .= 0.01 .* u
+                    du_lim .= -0.1 .* u
+                end,
                 T_imp! = DiffEqBase.ODEFunction(
                     (du, u, p, t) -> (du .= 0);
                     jac_prototype = zeros(2, 2),
-                    Wfact = (W, u, p, γ, t) -> (W .= -Id),
+                    Wfact = (W, u, p, dtγ, t) -> (W .= -Id),
                 ),
                 lim! = (u, p, t, u_ref) -> (u .= max.(u, 0.0)),
             ),
@@ -82,13 +87,14 @@ import ClimaTimeSteppers as CTS
         )
 
         alg = CTS.IMEXAlgorithm(ARS343(), NewtonsMethod(; max_iters = 1))
-        hide_warning = (; kwargshandle = DiffEqBase.KeywordArgSilent)
+
         sol = solve(prob, alg; dt = 0.05, save_everystep = false, hide_warning...)
         u_final = sol.u[end]
 
-        # Combined rate is -0.2, so solution ≈ exp(-0.2) * u₀
-        @test u_final[1] ≈ exp(-0.2) atol = 0.05
-        @test u_final[2] ≈ 2 * exp(-0.2) atol = 0.1
+        # Combined rate is -0.09, so solution ≈ exp(-0.09) * u₀
+        # ARS343 is 3rd order, dt=0.05, so error ≈ O(dt^3 * t_end/dt) ≈ O(1e-4)
+        @test u_final[1] ≈ exp(-0.09) atol = 0.005
+        @test u_final[2] ≈ 2 * exp(-0.09) atol = 0.01
         @test all(u_final .>= 0)
     end
 end

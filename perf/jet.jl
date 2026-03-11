@@ -1,69 +1,93 @@
-# using Revise; include("perf/jet.jl")
+#=
+JET optimization analysis for ClimaTimeSteppers step functions.
+
+Runs JET.@test_opt on step_u! and __step! to detect type-instabilities and
+unresolvable dispatches. Also measures allocations as a regression check.
+
+Usage:
+    julia --project=perf perf/jet.jl --problem ark_sys
+    julia --project=perf perf/jet.jl --problem diffusion2d
+=#
 using ArgParse, JET, Test, BenchmarkTools, SciMLBase, ClimaTimeSteppers
 import ClimaTimeSteppers as CTS
+
+# ── Command-line interface ──────────────────────────────────────────────── #
+
 function parse_commandline()
     s = ArgParse.ArgParseSettings()
     ArgParse.@add_arg_table s begin
         "--problem"
-        help = "Problem type [`ode_fun`, `fe`]"
+        help = "Problem name: 'ark_sys' or 'diffusion2d'"
         arg_type = String
         default = "diffusion2d"
     end
-    parsed_args = ArgParse.parse_args(ARGS, s)
-    return (s, parsed_args)
+    return ArgParse.parse_args(ARGS, s)
 end
-(s, parsed_args) = parse_commandline()
-cts = joinpath(dirname(@__DIR__));
-include(joinpath(cts, "test", "problems.jl"))
-config_integrators(itc::IntegratorTestCase) = config_integrators(itc.prob)
 
+parsed_args = parse_commandline()
+
+# ── Problem setup ────────────────────────────────────────────────────────── #
+
+cts_root = dirname(@__DIR__)
+include(joinpath(cts_root, "test", "problems.jl"))
+
+# Minimal no-op callback functors (must be concrete types for JET analysis)
 struct Foo end
-foo!(integrator) = nothing
-(::Foo)(integrator) = foo!(integrator)
+(::Foo)(integrator) = nothing
 struct Bar end
-bar!(integrator) = nothing
-(::Bar)(integrator) = bar!(integrator)
+(::Bar)(integrator) = nothing
 
+"""
+    discrete_cb(cb!, n)
+
+Create a `DiscreteCallback` with a concrete-typed `cb!` functor.
+When `n == 1`, the condition always fires; otherwise it fires randomly.
+This exercises both code paths during JET analysis.
+"""
 function discrete_cb(cb!, n)
     cond = if n == 1
         (u, t, integrator) -> isnothing(cb!(integrator))
     else
         (u, t, integrator) -> isnothing(cb!(integrator)) || rand() ≤ 0.5
     end
-    SciMLBase.DiscreteCallback(cond, cb!;)
+    SciMLBase.DiscreteCallback(cond, cb!)
 end
-function config_integrators(problem)
-    algorithm = CTS.IMEXAlgorithm(ARS343(), NewtonsMethod(; max_iters = 2))
-    dt = 0.01
-    discrete_callbacks = (
-        discrete_cb(Foo(), 0),
-        discrete_cb(Bar(), 0),
-        discrete_cb(Foo(), 1),
-        discrete_cb(Bar(), 1),
-    )
-    callback = SciMLBase.CallbackSet((), discrete_callbacks)
 
-    integrator = SciMLBase.init(problem, algorithm; dt, callback)
+function make_integrator(problem)
+    algorithm = CTS.IMEXAlgorithm(ARS343(), NewtonsMethod(; max_iters = 2))
+    callbacks = SciMLBase.CallbackSet(
+        (),
+        (discrete_cb(Foo(), 0), discrete_cb(Bar(), 0),
+            discrete_cb(Foo(), 1), discrete_cb(Bar(), 1)),
+    )
+    integrator = SciMLBase.init(problem, algorithm; dt = 0.01, callback = callbacks)
     integrator.cache = CTS.init_cache(problem, algorithm)
-    return (; integrator)
+    return integrator
 end
-prob = if parsed_args["problem"] == "diffusion2d"
-    climacore_2Dheat_test_cts(Float64)
-elseif parsed_args["problem"] == "ode_fun"
-    split_linear_prob_wfact_split()
-elseif parsed_args["problem"] == "fe"
-    split_linear_prob_wfact_split_fe()
+make_integrator(itc::IntegratorTestCase) = make_integrator(itc.split_prob)
+
+# Select the test problem
+test_case = if parsed_args["problem"] == "diffusion2d"
+    finitediff_2Dheat_test_cts(Float64)
+elseif parsed_args["problem"] == "ark_sys"
+    ark_analytic_sys_test_cts(Float64)
 else
-    error("Bad option")
+    error("Unknown problem '$(parsed_args["problem"])'. Valid: diffusion2d, ark_sys")
 end
-(; integrator) = config_integrators(prob)
+
+integrator = make_integrator(test_case)
+
+# ── JET analysis ─────────────────────────────────────────────────────────── #
 
 @testset "JET / allocations" begin
-    CTS.step_u!(integrator, integrator.cache) # compile first, and make sure it runs
+    # Warm-up (compile all code paths)
+    CTS.step_u!(integrator, integrator.cache)
     step_allocs = @allocated CTS.step_u!(integrator, integrator.cache)
     @show step_allocs
+
+    # Check for type instabilities and unresolvable dispatches
     JET.@test_opt CTS.step_u!(integrator, integrator.cache)
 
-    CTS.__step!(integrator) # compile first, and make sure it runs
+    CTS.__step!(integrator)
     JET.@test_opt CTS.__step!(integrator)
 end

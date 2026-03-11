@@ -8,98 +8,71 @@ if !@isdefined(IntegratorTestCase)
     include(joinpath(@__DIR__, "..", "utils", "convergence_utils.jl"))
 end
 
-# Explicit RK uses ExplicitAlgorithm which wraps IMEXAlgorithm, so it needs
-# ClimaODEFunction problems (not IncrementingODEFunction).
-
-function explicit_linear_prob()
-    ODEProblem(
+function explicit_linear_test_cts(::Type{FT}) where {FT}
+    prob = ODEProblem(
         ClimaODEFunction(; T_exp! = (du, u, p, t) -> (du .= p .* u)),
-        [1 / 2],
-        (0.0, 1.0),
-        1.01,
+        FT[1 / 2],
+        (FT(0.0), FT(1.0)),
+        FT(1.01),
+    )
+    return IntegratorTestCase(
+        "Explicit Linear (T_exp)",
+        false,
+        FT(1.0),
+        (t) -> linear_sol(prob.u0, prob.p, t),
+        prob,
+        prob,
+        200,
+        1,
     )
 end
 
-function explicit_sincos_prob()
-    ODEProblem(
-        ClimaODEFunction(; T_exp! = (du, u, p, t) -> (du[1] = p * u[2]; du[2] = -p * u[1])),
-        [0.0, 1.0],
-        (0.0, 1.0),
-        2.0,
+function explicit_sincos_test_cts(::Type{FT}) where {FT}
+    prob = ODEProblem(
+        ClimaODEFunction(;
+            T_exp! = (du, u, p, t) -> (du[1] = p * u[2]; du[2] = -p * u[1]; nothing),
+        ),
+        FT[0.0, 1.0],
+        (FT(0.0), FT(1.0)),
+        FT(2.0),
+    )
+    return IntegratorTestCase(
+        "Explicit SinCos (T_exp)",
+        false,
+        FT(1.0),
+        (t) -> sincos_sol(prob.u0, prob.p, t),
+        prob,
+        prob,
+        200,
+        1,
     )
 end
 
-@testset "Explicit RK convergence" begin
-    dts = 0.5 .^ (4:7)
+EXPLICIT_ALGORITHMS = (
+    SSP22Heuns,
+    SSP33ShuOsher,
+    RK4,
+)
 
-    for (prob, sol, tscale, name) in [
-        (explicit_linear_prob(), linear_sol, 1, "linear")
-        (explicit_sincos_prob(), sincos_sol, 1, "sincos")
-    ]
-        @testset "$name" begin
-            @testset "SSP22Heuns" begin
-                @test convergence_order(
-                    prob,
-                    sol,
-                    ExplicitAlgorithm(SSP22Heuns()),
-                    dts .* tscale,
-                ) ≈ 2 atol = 0.1
-            end
+@testset "Explicit RK Algorithms Convergence" begin
+    # IMEX SSP methods run in purely explicit mode for these tests.
+    algorithm(algorithm_name::ClimaTimeSteppers.IMEXSSPRKAlgorithmName, linear_implicit) =
+        ExplicitAlgorithm(algorithm_name)
 
-            @testset "SSP33ShuOsher" begin
-                @test convergence_order(
-                    prob,
-                    sol,
-                    ExplicitAlgorithm(SSP33ShuOsher()),
-                    dts .* tscale,
-                ) ≈ 3 atol = 0.1
-            end
+    for alg in EXPLICIT_ALGORITHMS
+        alg_name = alg()
+        @testset "$(nameof(alg))" begin
+            test_convergence!(alg_name, explicit_linear_test_cts(Float64), 100)
+            test_convergence!(alg_name, explicit_sincos_test_cts(Float64), 800)
 
-            @testset "RK4" begin
-                @test convergence_order(
-                    prob,
-                    sol,
-                    ExplicitAlgorithm(RK4()),
-                    dts .* tscale,
-                ) ≈ 4 atol = 0.05
-            end
+            # Float32 convergence: rounding degrades observed order for low-order
+            # methods. SSP22Heuns consistently fails all Float32 tests.
+            test_convergence!(alg_name, explicit_linear_test_cts(Float32), 10;
+                num_steps_scaling_factor = 2,
+                broken_tests = (SSP22Heuns(),))
+            test_convergence!(alg_name, explicit_sincos_test_cts(Float32), 10;
+                num_steps_scaling_factor = 2,
+                broken_tests = (SSP22Heuns(), SSP33ShuOsher()))
         end
     end
-end
-
-# Float32 convergence: verify that Float32 state vectors achieve same convergence orders.
-# Use Float64 tspan/params since DiffEqBase requires consistent time types.
-function explicit_linear_prob_f32()
-    ODEProblem(
-        ClimaODEFunction(; T_exp! = (du, u, p, t) -> (du .= p .* u)),
-        Float32[1 / 2],
-        (0.0, 1.0),
-        1.01,
-    )
-end
-
-@testset "Explicit RK Float32 convergence" begin
-    # Use coarser dts for Float32 to stay above Float32 precision floor.
-    # Fine dts produce truncation errors below eps(Float32) ≈ 1.2e-7,
-    # causing the convergence study to break down.
-    # For high-order methods (order ≥ 3), Float32 rounding degrades the
-    # observed convergence order significantly (e.g., RK4 measures ~3.6
-    # instead of 4), so we only check order > 2.
-    dts_f32_low = 0.5 .^ (2:5)   # for order ≤ 2
-    dts_f32_high = 0.5 .^ (1:4)  # for order ≥ 3
-    prob = explicit_linear_prob_f32()
-    @test convergence_order(
-        prob,
-        linear_sol_f32,
-        ExplicitAlgorithm(SSP22Heuns()),
-        dts_f32_low,
-    ) ≈ 2 atol = 0.2
-    @test convergence_order(
-        prob,
-        linear_sol_f32,
-        ExplicitAlgorithm(SSP33ShuOsher()),
-        dts_f32_high,
-    ) > 2
-    @test convergence_order(prob, linear_sol_f32, ExplicitAlgorithm(RK4()), dts_f32_high) >
-          2
 end

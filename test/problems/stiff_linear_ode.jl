@@ -31,7 +31,7 @@ function stiff_linear_test_cts(::Type{FT}) where {FT}
         tendency! = (Yₜ, Y, _, t) -> mul!(Yₜ, A, Y),
         implicit_tendency! = (Yₜ, Y, _, t) -> mul!(Yₜ, A_imp, Y),
         explicit_tendency! = (Yₜ, Y, _, t) -> mul!(Yₜ, A_exp, Y),
-        Wfact! = (W, Y, _, Δt, t) -> W .= Δt .* A_imp .- Id,
+        Wfact! = (W, Y, _, dtγ, t) -> W .= dtγ .* A_imp .- Id,
         default_num_steps = 1000,
     )
 end

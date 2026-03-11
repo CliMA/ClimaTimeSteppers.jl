@@ -4,7 +4,6 @@ on:
   push:
     tags: '*'
   pull_request:
-  merge_group:
 
 jobs:
   format:

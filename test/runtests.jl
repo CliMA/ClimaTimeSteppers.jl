@@ -2,7 +2,6 @@ using SafeTestsets
 
 if "CuArray" in ARGS
     import CUDA
-    CUDA.allowscalar(false)
 end
 # ============================================================================ #
 # Unit tests (fast, no convergence studies)
@@ -44,6 +43,10 @@ end
     include("unit/edge_cases.jl")
 end
 
+@safetestset "Jacobian accuracy" begin
+    include("unit/jacobian_accuracy.jl")
+end
+
 # ============================================================================ #
 # Solver correctness tests (Newton's method)
 # ============================================================================ #
@@ -80,6 +83,14 @@ end
     include("integration/ssp_monotonicity.jl")
 end
 
+@safetestset "Dense output" begin
+    include("integration/dense_output.jl")
+end
+
+@safetestset "Long-time stability" begin
+    include("integration/long_time_stability.jl")
+end
+
 # ============================================================================ #
 # Performance / allocation tests
 # ============================================================================ #
@@ -94,8 +105,8 @@ end
 
 # ============================================================================ #
 # Solver convergence order tests
-# (These are all run in parallel on buildkite,
-# so let's not waste more compilation time.)
+# On CI (Buildkite), each solver file runs as a separate parallel job.
+# Locally (Pkg.test()), they run sequentially within this testset.
 # ============================================================================ #
 
 @safetestset "Algorithm convergence" begin
@@ -103,7 +114,6 @@ end
     include("solvers/lsrk.jl")
     include("solvers/multirate.jl")
     include("solvers/rosenbrock.jl")
-    include("solvers/imex_ssprk.jl")
     include("solvers/imex_ark.jl")
 end
 

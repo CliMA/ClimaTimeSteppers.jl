@@ -5,6 +5,8 @@ using ClimaTimeSteppers, Test, LinearAlgebra
 using StaticArrays
 import ClimaTimeSteppers as CTS
 
+include(joinpath(@__DIR__, "..", "utils", "all_subtypes.jl"))
+
 # Helper to extract dense Float64 matrix from SparseCoeffs
 dense(sc::CTS.SparseCoeffs) = Array(Float64.(sc.coeffs))
 
@@ -14,7 +16,7 @@ dense(sc::CTS.SparseCoeffs) = Array(Float64.(sc.coeffs))
     # Explicit tableaus
     # ========================================================================
     @testset "Explicit tableaus" begin
-        for name_type in (SSP22Heuns, SSP33ShuOsher, RK4)
+        for name_type in all_subtypes(CTS.ERKAlgorithmName)
             name = name_type()
             tab = ExplicitTableau(name)
             a = dense(tab.a)
@@ -25,6 +27,9 @@ dense(sc::CTS.SparseCoeffs) = Array(Float64.(sc.coeffs))
             @testset "$(nameof(name_type))" begin
                 # a must be strictly lower triangular
                 @test all(iszero, UpperTriangular(a))
+
+                # First stage evaluates at t_n
+                @test c[1] ≈ 0 atol = 1e-14
 
                 # Row-sum consistency: c[i] == sum(a[i,:])
                 for i in 1:s
@@ -41,46 +46,7 @@ dense(sc::CTS.SparseCoeffs) = Array(Float64.(sc.coeffs))
     # IMEX tableaus
     # ========================================================================
     @testset "IMEX tableaus" begin
-        imex_names = [
-            # ARS family
-            ARS111,
-            ARS121,
-            ARS122,
-            ARS232,
-            ARS222,
-            ARS233,
-            ARS343,
-            ARS443,
-            # IMKG family
-            IMKG232a,
-            IMKG232b,
-            IMKG242a,
-            IMKG242b,
-            IMKG243a,
-            IMKG252a,
-            IMKG252b,
-            IMKG253a,
-            IMKG253b,
-            IMKG254a,
-            IMKG254b,
-            IMKG254c,
-            IMKG342a,
-            IMKG343a,
-            # SSP family
-            SSP222,
-            SSP322,
-            SSP332,
-            SSP333,
-            SSP433,
-            # Others
-            DBM453,
-            HOMMEM1,
-            ARK2GKC,
-            ARK437L2SA1,
-            ARK548L2SA2,
-        ]
-
-        for name_type in imex_names
+        for name_type in all_subtypes(CTS.IMEXARKAlgorithmName)
             name = name_type()
             tab = CTS.IMEXTableau(name)
             a_exp = dense(tab.a_exp)
@@ -128,7 +94,8 @@ dense(sc::CTS.SparseCoeffs) = Array(Float64.(sc.coeffs))
     # SDIRK consistency: implicit diagonal should be constant for SDIRK methods
     # ========================================================================
     @testset "SDIRK diagonal consistency" begin
-        # These ARS methods are SDIRK (all nonzero diagonal entries are the same)
+        # These ARS methods are SDIRK (all nonzero diagonal entries are the same).
+        # Update this list when new SDIRK methods are added.
         sdirk_names = [ARS122, ARS232, ARS222, ARS233, ARS343, ARS443]
         for name_type in sdirk_names
             name = name_type()
@@ -147,6 +114,7 @@ dense(sc::CTS.SparseCoeffs) = Array(Float64.(sc.coeffs))
     # Weight non-negativity for SSP methods
     # ========================================================================
     @testset "SSP weight non-negativity" begin
+        # Update this list when new SSP methods are added.
         ssp_names = [SSP222, SSP322, SSP332, SSP333, SSP433]
         for name_type in ssp_names
             name = name_type()
@@ -159,6 +127,15 @@ dense(sc::CTS.SparseCoeffs) = Array(Float64.(sc.coeffs))
                 @test all(>=(0), b_exp)
             end
         end
+    end
+
+    # ========================================================================
+    # Parameter validation
+    # ========================================================================
+    @testset "SSP333 beta validation" begin
+        # β must be strictly > 1/2 (assertion in IMEXTableau constructor)
+        @test_throws AssertionError CTS.IMEXTableau(SSP333(β = 0.4))
+        @test_throws AssertionError CTS.IMEXTableau(SSP333(β = 0.5))
     end
 
     # ========================================================================

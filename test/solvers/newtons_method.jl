@@ -92,16 +92,17 @@ end
 
 @testset "EisenstatWalkerForcing" begin
     # Test that EisenstatWalkerForcing converges on a nonlinear problem.
-    # TODO: n≥10 fails because default GMRES workspace (10 Krylov vectors) is
-    # insufficient. Add n=10 once KrylovMethod exposes a subspace size parameter.
-    for (FT, n) in ((Float64, 1), (Float64, 3))
+    for (FT, n) in ((Float64, 1), (Float64, 3), (Float64, 10))
         f!, j!, x_exact, x_init = nonlinear_equation(FT, n)
         rtol = 100 * eps(FT)
         convergence_checker =
             ConvergenceChecker(; norm_condition = MaximumRelativeError(rtol))
         alg = NewtonsMethod(;
             max_iters = 30,
-            krylov_method = KrylovMethod(; forcing_term = EisenstatWalkerForcing()),
+            krylov_method = KrylovMethod(;
+                forcing_term = EisenstatWalkerForcing(),
+                kwargs = (; memory = 30),
+            ),
             convergence_checker,
         )
         x = copy(x_init)

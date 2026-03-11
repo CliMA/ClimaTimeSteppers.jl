@@ -3,28 +3,51 @@ julia --project=test
 using Revise; include("test/solvers/rosenbrock.jl")
 =#
 using ClimaTimeSteppers, LinearAlgebra, Test
-import PrettyTables
 import SciMLBase
 
 if !@isdefined(IntegratorTestCase)
     include(joinpath(@__DIR__, "..", "utils", "convergence_utils.jl"))
 end
 
-function tabulate_convergence_orders_rosenbrock()
-    tabs = [SSPKnoth]
-    tabs = map(t -> t(), tabs)
-    test_cases = all_test_cases(Float64)
-    results = convergence_order_results(tabs, test_cases)
+ROSENBROCK_ALGORITHMS = (
+    SSPKnoth,
+)
 
-    prob_names = map(t -> t.test_name, test_cases)
-    expected_orders = SciMLBase.alg_order.(tabs)
-    algs = algorithm.(tabs)
-
-    tabulate_convergence_orders(prob_names, algs, results, expected_orders; tabs)
-    # SSPKnoth passes convergence on all current non-PDE test problems.
-    reliable_probs = filter(n -> !endswith(n, "(FD)"), prob_names)
-    verify_convergence_orders(results, expected_orders, algs; prob_names = reliable_probs)
-    return results
+@testset "Rosenbrock Algorithms Convergence" begin
+    for alg in ROSENBROCK_ALGORITHMS
+        alg_name = alg()
+        @testset "$(nameof(alg))" begin
+            test_convergence!(alg_name, ark_analytic_nonlin_test_cts(Float64), 450)
+            test_convergence!(alg_name, ark_analytic_sys_test_cts(Float64), 200)
+            test_convergence!(
+                alg_name,
+                ark_analytic_test_cts(Float64),
+                25000;
+            )
+            test_convergence!(
+                alg_name,
+                onewaycouple_mri_test_cts(Float64),
+                9000;
+                high_order_sample_shifts = 3,
+            )
+            test_convergence!(
+                alg_name,
+                stiff_linear_test_cts(Float64),
+                1000;
+                numerical_reference_algorithm_name = ARK548L2SA2(),
+            )
+            test_convergence!(
+                alg_name,
+                finitediff_1Dheat_test_cts(Float64),
+                200;
+                numerical_reference_algorithm_name = ARK548L2SA2(),
+            )
+            test_convergence!(
+                alg_name,
+                finitediff_2Dheat_test_cts(Float64),
+                200;
+                numerical_reference_algorithm_name = ARK548L2SA2(),
+            )
+        end
+    end
 end
-
-tabulate_convergence_orders_rosenbrock()

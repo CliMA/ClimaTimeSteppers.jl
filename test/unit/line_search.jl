@@ -67,7 +67,11 @@ import ClimaTimeSteppers as CTS
         CTS.line_search!(ls, x, Δx, f_old, f!, nothing)
 
         # After backtracking, x should be back in valid region
-        @test x[1] >= 0 || norm(f_old) <= normf_old  # either recovered or didn't get worse
+        @test x[1] >= 0
+        # Residual at final x should be no worse than at x_old
+        f_final = similar(x)
+        f!(f_final, x)
+        @test norm(f_final) <= normf_old
     end
 
     @testset "No-op when line_search is nothing" begin

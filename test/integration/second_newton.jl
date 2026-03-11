@@ -51,15 +51,27 @@ import ClimaTimeSteppers as CTS
             NewtonsMethod(; max_iters = 10),
         )
         sol_sub =
-            solve(prob_sub, alg_sub; dt = 0.01, save_everystep = false, hide_warning...)
+            solve(
+                deepcopy(prob_sub),
+                alg_sub;
+                dt = 0.01,
+                save_everystep = false,
+                hide_warning...,
+            )
 
         prob_std =
             ODEProblem(ClimaODEFunction(; T_imp!), copy([1.0, 1.0]), (0.0, 1.0), nothing)
         alg_std = CTS.IMEXAlgorithm(ARS232(), NewtonsMethod(; max_iters = 10))
         sol_std =
-            solve(prob_std, alg_std; dt = 0.01, save_everystep = false, hide_warning...)
+            solve(
+                deepcopy(prob_std),
+                alg_std;
+                dt = 0.01,
+                save_everystep = false,
+                hide_warning...,
+            )
 
-        @test sol_sub.u[end] ≈ sol_std.u[end] rtol = 1e-10
+        @test sol_sub.u[end] == sol_std.u[end]
     end
 
     @testset "Decoupled subproblem runs correctly" begin
@@ -89,9 +101,14 @@ import ClimaTimeSteppers as CTS
             NewtonsMethod(; max_iters = 10),
             NewtonsMethod(; max_iters = 10),
         )
-        sol = solve(prob, alg; dt = 0.01, save_everystep = false, hide_warning...)
+        sol = solve(deepcopy(prob), alg; dt = 0.01, save_everystep = false, hide_warning...)
 
         @test all(isfinite, sol.u[end])
         @test all(sol.u[end] .> 0)
+
+        # Verify correctness against a higher-resolution reference
+        sol_ref =
+            solve(deepcopy(prob), alg; dt = 0.001, save_everystep = false, hide_warning...)
+        @test sol.u[end] ≈ sol_ref.u[end] rtol = 0.01
     end
 end

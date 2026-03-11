@@ -19,10 +19,7 @@ function all_test_cases(::Type{FT}) where {FT}
         ark_analytic_sys_test_cts(FT),
         ark_analytic_test_cts(FT),
         onewaycouple_mri_test_cts(FT),
-        # TODO: Enable once convergence test infrastructure supports per-problem
-        # dt ranges. The λ=1000 stiffness requires much smaller dt values than
-        # the current refinement_range 5:9 (dt ≈ 0.03–0.002).
-        # stiff_linear_test_cts(FT),
+        stiff_linear_test_cts(FT),
         finitediff_2Dheat_test_cts(FT),
         finitediff_1Dheat_test_cts(FT),
     ]

@@ -45,5 +45,9 @@ using ClimaTimeSteppers, Test
 
         # After dt elapsed from last update
         @test ClimaTimeSteppers.needs_update!(handler, NewTimeStep(1.0)) == true
+
+        # Non-matching signal does nothing
+        @test ClimaTimeSteppers.needs_update!(handler, NewNewtonSolve()) == false
+        @test ClimaTimeSteppers.needs_update!(handler, NewNewtonIteration()) == false
     end
 end

@@ -20,7 +20,7 @@ function ark_analytic_test_cts(::Type{FT}) where {FT}
         tendency! = (Yₜ, Y, _, t) -> Yₜ .= λ .* Y .+ source(t),
         implicit_tendency! = (Yₜ, Y, _, t) -> Yₜ .= λ .* Y,
         explicit_tendency! = (Yₜ, Y, _, t) -> Yₜ .= source(t),
-        Wfact! = (W, Y, _, Δt, t) -> W .= Δt * λ - 1,
+        Wfact! = (W, Y, _, dtγ, t) -> W .= dtγ * λ - 1,
         tgrad! = (∂Y∂t, Y, _, t) -> ∂Y∂t .= -(λ + 2 * t + λ * t^2) / (1 + t^2)^2,
         default_num_steps = 25000,
     )
@@ -40,7 +40,7 @@ function ark_analytic_nonlin_test_cts(::Type{FT}) where {FT}
         Y₀ = FT[0],
         analytic_sol = (t) -> [log(t^2 / 2 + t + 1)],
         tendency! = (Yₜ, Y, _, t) -> Yₜ .= (t + 1) .* exp.(.-Y),
-        Wfact! = (W, Y, _, Δt, t) -> W .= (-Δt * (t + 1) .* exp.(.-Y) .- 1),
+        Wfact! = (W, Y, _, dtγ, t) -> W .= (-dtγ * (t + 1) .* exp.(.-Y) .- 1),
         tgrad! = (∂Y∂t, Y, _, t) -> ∂Y∂t .= exp.(.-Y),
         default_num_steps = 450,
     )
@@ -66,7 +66,7 @@ function ark_analytic_sys_test_cts(::Type{FT}) where {FT}
         Y₀,
         analytic_sol = (t) -> V * exp(D * t) * V⁻¹ * Y₀,
         tendency! = (Yₜ, Y, _, t) -> mul!(Yₜ, A, Y),
-        Wfact! = (W, Y, _, Δt, t) -> W .= Δt .* A .- I,
+        Wfact! = (W, Y, _, dtγ, t) -> W .= dtγ .* A .- I,
         default_num_steps = 200,
     )
 end
@@ -94,7 +94,7 @@ function onewaycouple_mri_test_cts(::Type{FT}) where {FT}
         Y₀ = FT[1, 0, 2],
         analytic_sol,
         tendency! = (Yₜ, Y, _, t) -> mul!(Yₜ, L, Y),
-        Wfact! = (W, Y, _, Δt, t) -> W .= Δt .* L .- I,
+        Wfact! = (W, Y, _, dtγ, t) -> W .= dtγ .* L .- I,
         default_num_steps = 9000,
         high_order_sample_shifts = 3,
     )

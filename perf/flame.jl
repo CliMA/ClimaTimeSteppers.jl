@@ -48,9 +48,9 @@ end
 do_work!(integrator, cache)  # warm-up / compilation
 
 # Verify zero allocations after compilation
-allocs = @allocated do_work!(integrator, cache)
+n_allocs = @allocated do_work!(integrator, cache)
 @testset "Flame profiler allocations" begin
-    @test allocs == 0
+    @test n_allocs == 0
 end
 
 # Collect profile data

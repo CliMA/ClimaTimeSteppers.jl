@@ -16,26 +16,26 @@ steps:
     command:
 
       - echo "--- Instantiate test"
-      - "julia --project=test -e 'using Pkg; Pkg.develop(path=\".\"); Pkg.instantiate(;verbose=true); Pkg.precompile(;strict=true)'"
+      - "rm -rf test/Manifest.toml"
+      - "julia --project=test/ -e 'using Pkg; Pkg.instantiate(;verbose=true)'"
+      - "julia --project=test/ -e 'using Pkg; Pkg.develop(path=\".\"); Pkg.instantiate(;verbose=true); Pkg.precompile(;strict=true)'"
 
       - echo "--- Instantiate perf"
       - "julia --project=perf -e 'using Pkg; Pkg.develop(path=\".\"); Pkg.instantiate(;verbose=true); Pkg.precompile()'"
 
       - echo "--- Package status"
-      - "julia --project=test -e 'using Pkg; Pkg.status()'"
+      - "julia --project=test/ -e 'using Pkg; Pkg.status()'"
 
 
   - label: "init gpu env"
     key: "init_gpu_env"
+    depends_on: "init_cpu_env"
     command:
-      - echo "--- Instantiate test"
-      - "julia --project=test -e 'using Pkg; Pkg.develop(path=\".\"); Pkg.instantiate(;verbose=true); Pkg.precompile()'"
-
       - echo "--- Initialize CUDA runtime"
-      - "julia --project=test -e 'using CUDA; CUDA.precompile_runtime(); CUDA.versioninfo()'"
+      - "julia --project=test/ -e 'using CUDA; CUDA.precompile_runtime(); CUDA.versioninfo()'"
 
       - echo "--- Package status"
-      - "julia --project=test -e 'using Pkg; Pkg.status()'"
+      - "julia --project=test/ -e 'using Pkg; Pkg.status()'"
     agents:
       slurm_gres: "gpu:1"
 
@@ -49,37 +49,37 @@ steps:
     steps:
 
       - label: "unit: sparse_containers"
-        command: "julia --project=test --check-bounds=yes test/unit/sparse_containers.jl"
+        command: "julia --project=test/ --check-bounds=yes test/unit/sparse_containers.jl"
 
       - label: "unit: fused_increment"
-        command: "julia --project=test --check-bounds=yes test/unit/fused_increment.jl"
+        command: "julia --project=test/ --check-bounds=yes test/unit/fused_increment.jl"
 
       - label: "unit: tableaus"
-        command: "julia --project=test --check-bounds=yes test/unit/tableaus.jl"
+        command: "julia --project=test/ --check-bounds=yes test/unit/tableaus.jl"
 
       - label: "unit: update_signal_handler"
-        command: "julia --project=test --check-bounds=yes test/unit/update_signal_handler.jl"
+        command: "julia --project=test/ --check-bounds=yes test/unit/update_signal_handler.jl"
 
       - label: "unit: line_search"
-        command: "julia --project=test --check-bounds=yes test/unit/line_search.jl"
+        command: "julia --project=test/ --check-bounds=yes test/unit/line_search.jl"
 
       - label: "unit: convergence_checker"
-        command: "julia --project=test --check-bounds=yes test/utils/convergence_checker.jl"
+        command: "julia --project=test/ --check-bounds=yes test/utils/convergence_checker.jl"
 
       - label: "unit: forward_euler"
-        command: "julia --project=test --check-bounds=yes test/unit/forward_euler.jl"
+        command: "julia --project=test/ --check-bounds=yes test/unit/forward_euler.jl"
 
       - label: "unit: incrementing_ode"
-        command: "julia --project=test --check-bounds=yes test/unit/incrementing_ode.jl"
+        command: "julia --project=test/ --check-bounds=yes test/unit/incrementing_ode.jl"
 
       - label: "unit: edge_cases"
-        command: "julia --project=test --check-bounds=yes test/unit/edge_cases.jl"
+        command: "julia --project=test/ --check-bounds=yes test/unit/edge_cases.jl"
 
       - label: "unit: jacobian_accuracy"
-        command: "julia --project=test --check-bounds=yes test/unit/jacobian_accuracy.jl"
+        command: "julia --project=test/ --check-bounds=yes test/unit/jacobian_accuracy.jl"
 
       - label: "unit: aqua"
-        command: "julia --project=test --check-bounds=yes test/aqua.jl"
+        command: "julia --project=test/ --check-bounds=yes test/aqua.jl"
 
   # ================================================================== #
   # Solver correctness
@@ -89,7 +89,7 @@ steps:
     steps:
 
       - label: "solver: newtons_method"
-        command: "julia --project=test --check-bounds=yes test/solvers/newtons_method.jl"
+        command: "julia --project=test/ --check-bounds=yes test/solvers/newtons_method.jl"
 
   # ================================================================== #
   # Integration / system-level tests
@@ -99,33 +99,33 @@ steps:
     steps:
 
       - label: "integration: single_column_ars"
-        command: "julia --project=test --check-bounds=yes test/integration/single_column_ars.jl"
+        command: "julia --project=test/ --check-bounds=yes test/integration/single_column_ars.jl"
 
       - label: "integration: callbacks (CPU)"
-        command: "julia --project=test --check-bounds=yes test/integration/callbacks.jl"
+        command: "julia --project=test/ --check-bounds=yes test/integration/callbacks.jl"
 
       - label: "integration: callbacks (MPI)"
-        command: "julia --project=test --check-bounds=yes test/integration/callbacks.jl"
+        command: "julia --project=test/ --check-bounds=yes test/integration/callbacks.jl"
         env:
           CLIMACOMMS_CONTEXT: "MPI"
 
       - label: "integration: integrator"
-        command: "julia --project=test --check-bounds=yes test/integration/integrator.jl"
+        command: "julia --project=test/ --check-bounds=yes test/integration/integrator.jl"
 
       - label: "integration: limiter"
-        command: "julia --project=test --check-bounds=yes test/integration/limiter.jl"
+        command: "julia --project=test/ --check-bounds=yes test/integration/limiter.jl"
 
       - label: "integration: second_newton"
-        command: "julia --project=test --check-bounds=yes test/integration/second_newton.jl"
+        command: "julia --project=test/ --check-bounds=yes test/integration/second_newton.jl"
 
       - label: "integration: ssp_monotonicity"
-        command: "julia --project=test --check-bounds=yes test/integration/ssp_monotonicity.jl"
+        command: "julia --project=test/ --check-bounds=yes test/integration/ssp_monotonicity.jl"
 
       - label: "integration: dense_output"
-        command: "julia --project=test --check-bounds=yes test/integration/dense_output.jl"
+        command: "julia --project=test/ --check-bounds=yes test/integration/dense_output.jl"
 
       - label: "integration: long_time_stability"
-        command: "julia --project=test --check-bounds=yes test/integration/long_time_stability.jl"
+        command: "julia --project=test/ --check-bounds=yes test/integration/long_time_stability.jl"
 
   # ================================================================== #
   # Performance / allocation tests
@@ -135,10 +135,10 @@ steps:
     steps:
 
       - label: "perf: type_stability"
-        command: "julia --project=test --check-bounds=yes test/performance/type_stability.jl"
+        command: "julia --project=test/ --check-bounds=yes test/performance/type_stability.jl"
 
       - label: "perf: allocations"
-        command: "julia --project=test --check-bounds=yes test/performance/allocations.jl"
+        command: "julia --project=test/ --check-bounds=yes test/performance/allocations.jl"
 
   # ================================================================== #
   # Convergence order tests (parallelized across solvers)
@@ -148,19 +148,19 @@ steps:
     steps:
 
       - label: "conv: explicit_rk"
-        command: "julia --project=test --check-bounds=yes test/solvers/explicit_rk.jl"
+        command: "julia --project=test/ --check-bounds=yes test/solvers/explicit_rk.jl"
 
       - label: "conv: lsrk"
-        command: "julia --project=test --check-bounds=yes test/solvers/lsrk.jl"
+        command: "julia --project=test/ --check-bounds=yes test/solvers/lsrk.jl"
 
       - label: "conv: multirate"
-        command: "julia --project=test --check-bounds=yes test/solvers/multirate.jl"
+        command: "julia --project=test/ --check-bounds=yes test/solvers/multirate.jl"
 
       - label: "conv: rosenbrock"
-        command: "julia --project=test --check-bounds=yes test/solvers/rosenbrock.jl"
+        command: "julia --project=test/ --check-bounds=yes test/solvers/rosenbrock.jl"
 
       - label: "conv: imex_ark"
-        command: "julia --project=test --check-bounds=yes test/solvers/imex_ark.jl"
+        command: "julia --project=test/ --check-bounds=yes test/solvers/imex_ark.jl"
 
   # ================================================================== #
   # GPU tests
@@ -170,7 +170,7 @@ steps:
     steps:
 
       - label: "GPU: runtests"
-        command: "julia --project=test --check-bounds=yes test/runtests.jl CuArray"
+        command: "julia --project=test/ --check-bounds=yes test/runtests.jl CuArray"
         artifact_paths: "output/*"
         agents:
           slurm_gres: "gpu:1"

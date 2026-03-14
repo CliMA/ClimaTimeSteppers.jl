@@ -2,7 +2,11 @@ using Test
 using ClimaComms
 using ClimaTimeSteppers, DiffEqBase
 using ClimaTimeSteppers.Callbacks
-import MPI
+try
+    import MPI
+catch
+    @warn "MPI not available, running callbacks test in single-process mode"
+end
 @static isdefined(ClimaComms, :device_type) && ClimaComms.@import_required_backends
 device = ClimaComms.device()
 comm_ctx = ClimaComms.context(device)

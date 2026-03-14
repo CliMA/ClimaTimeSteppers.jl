@@ -15,7 +15,7 @@ We can define the stage values ``U^{(i)} = v_i(\tau_i)`` as the solution to the 
 \frac{dv_i}{d\tau}
   = \sum_{j=1}^i  \frac{a_{ij} - a_{i-1,j}}{c_i - c_{i-1}}  f_S (U^{(j)}, \tau_j)
     + f_F(v_i, \tau),
-\quad \tau \in [\tau_{i-1}, \tau]
+\quad \tau \in [\tau_{i-1}, \tau_i]
 ```
 where ``\tau_i = t + \Delta t c_i``, with initial condition ``v_i(\tau_{i-1}) = U^{(i-1)}``. If ``c_i == c_{i-1}``, we can treat it as a correction step:
 ```math
@@ -30,7 +30,7 @@ If using a low-storage Runge--Kutta method is used as an outer solver, then this
 \frac{dv_i}{d\tau}
   =  \frac{B_{i-1}}{c_i - c_{i-1}} dU_S^{(i-1)}
     + f_F(v_i, \tau),
-\quad \tau \in [\tau_{i-1}, \tau]
+\quad \tau \in [\tau_{i-1}, \tau_i]
 ```
 where
 ```math

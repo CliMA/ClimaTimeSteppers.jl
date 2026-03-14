@@ -1,29 +1,44 @@
-# Verifying Correctness
+# Developer Guide
 
-The `IMEXAlgorithm` supports problems that specify any combination of the following: an implicit tendency `T_imp!`, an explicit tendency `T_exp!`, a limited tendency `T_lim!`, a function `dss!` that applies a direct stiffness summation, and a function `lim!` that applies a monotonicity-preserving limiter.
+This section describes tools available in `docs/src/dev/` for generating convergence reports and testing algorithm correctness beyond the standard CI suite.
 
-## Convergence without a Limiter
+## Running Convergence Reports
 
-In order to verify the correctness of our algorithms without a limiter, we compute their convergence orders for a variety of test cases. For each case, we estimate the convergence order of the algorithm over a range of stable timesteps, ensuring that the estimate `computed_order ± order_uncertainty` satisfies `|computed_order - predicted_order| ≤ order_uncertainty` and `order_uncertainty ≤ predicted_order / 10`. We also generate a plot that shows each algorithm's convergence as the timestep is reduced, along with plots that show the norms of each algorithm's solution and error over time (for some stable timestep). In addition, we verify that `SSP` algorithms produce the same results (up to floating-point roundoff error) when run in `Unconstrained` mode (at least, when run without a limiter).
+The scripts in `docs/src/dev/` allow you to generate detailed, per-algorithm convergence analyses locally. These complement the [Algorithm Convergence Order](../algorithm_properties/convergence.md) page, which describes the test suite and shows the summary plot generated during the CI documentation build.
 
-By [Godunov's theorem](https://en.wikipedia.org/wiki/Godunov%27s_theorem), the use of a monotonicity-preserving limiter reduces the convergence order of any algorithm to 1, so we do not include any test cases that use `T_lim!` and `lim!`.
+To run convergence analysis for a specific algorithm:
 
-The test cases we use for this analysis are:
-    - `ark_analytic`, which uses a nonlinear `T_exp!` and a linear `T_imp!`
-    - `ark_analytic_sys` and `ark_onewaycouple_mri`, which use a linear `T_imp!`
-    - `ark_analytic_nonlin`, which uses a nonlinear `T_imp!`
-    - `1d_heat_equation` and `2d_heat_equation`, which use a nonlinear `T_exp!` and `dss!`, where the spatial discretization is implemented using `ClimaCore`
+```bash
+julia --project=docs -e '
+    using ClimaTimeSteppers
+    include("docs/src/dev/report_gen_alg.jl")
+' -- --alg ARS343
+```
 
-Please see the `Summaries` section of our [buildkite results](https://buildkite.com/clima/climatimesteppers-ci/), which has a comprehensive report.
+This produces a `.jld2` file in `output/` containing errors at each tested timestep. To generate summary plots for all previously computed algorithms:
 
-## Errors with a Limiter
+```bash
+julia --project=docs -e 'include("docs/src/dev/summarize_convergence.jl")'
+```
 
-In order to verify the correctness of our algorithms with a limiter, we recreate Table 1 from ["Optimization-based limiters for the spectral element method" by Guba et al.](https://www.sciencedirect.com/science/article/pii/S0021999114001491) This involves running the `horizontal_deformational_flow` test case (from ["A standard test case suite for two-dimensional linear transport on the sphere" by Lauritzen et al.](https://gmd.copernicus.org/articles/5/887/2012/gmd-5-887-2012.pdf)) with and without a limiter, and also with and without hyperdiffusion. This test case uses a limited tendency `T_lim!` (which consists of advection and, optionally, hyperdiffusion), along with `dss!` and `lim!`. The spatial discretization is implemented using `ClimaCore`. Since this analysis is relatively expensive to run, we only check the results for `SSP333` and `ARS343`. Note that it is possible to limit undershoots and overshoots to 0 (up to floating-point roundoff error) when using the `SSP` `SSP333`, but not when using the `Unconstrained` `ARS343`.
+To run all algorithms in sequence:
 
-Please see the `Summaries` section of our [buildkite results](https://buildkite.com/clima/climatimesteppers-ci/), which has a comprehensive report.
+```julia
+include("docs/src/dev/compute_convergence.jl")
+for alg_name in all_subtypes(AbstractAlgorithmName)
+    empty!(ARGS)
+    push!(ARGS, "--alg", string(alg_name))
+    include("docs/src/dev/report_gen_alg.jl")
+end
+include("docs/src/dev/summarize_convergence.jl")
+```
 
-## References
+The resulting PNG files in `output/` contain multi-panel convergence analyses (one per test case). These plots include all algorithms overlaid and show error vs. $\Delta t$ (log-log), RMS solution norm, and RMS error over time.
 
- - [Example Programs for ARK ode (SUNDIALS)](http://runge.math.smu.edu/ARKode_example.pdf)
- - ["Optimization-based limiters for the spectral element method" by Guba et al.](https://www.sciencedirect.com/science/article/pii/S0021999114001491)
- - ["A standard test case suite for two-dimensional linear transport on the sphere" by Lauritzen et al.](https://gmd.copernicus.org/articles/5/887/2012/gmd-5-887-2012.pdf)
+## Limiter Analysis
+
+`docs/src/dev/limiter_analysis.jl` provides an in-depth analysis of the `T_lim!`/`lim!` code path, based on the `horizontal_deformational_flow` test from Lauritzen et al. (2012). This is a ClimaCore-dependent analysis that is not part of the standard CI build. See `docs/src/dev/limiter_summary.jl` for the plot generation script.
+
+## Algorithm Type Hierarchy
+
+The algorithm and tableau type trees are listed in the [Types](types.md) page.

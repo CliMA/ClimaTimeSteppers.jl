@@ -2,9 +2,9 @@
 
 In this page, we introduce Rosenbrock-type methods to solve ordinary
 differential equations. In doing do, we roughly follow Chapter IV.7 of "Solving
-Ordinary Differential Equations II" by Hairer and Wanner. (Beware, notation is
-not the same.). In this spirit, let us introduce the need for Rosenbrock-type
-methods in the same way as Hairer and Wanner, by quoting Rosenbrock himself:
+Ordinary Differential Equations II" ([HW1996](@cite)). (Beware, notation is
+not the same). In this spirit, let us introduce the need for Rosenbrock-type
+methods in the same way as [HW1996](@cite), by quoting Rosenbrock himself:
 
 > When the functions are non-linear, implicit equations can in general be solved
 > only by iteration. This is a severe drawback, as it adds to the problem of
@@ -14,7 +14,7 @@ methods in the same way as Hairer and Wanner, by quoting Rosenbrock himself:
 Rosenbrock method!
 
 Before reading this page, we recommend reading the page on ODE solvers first
-[TODO: Add link]
+([ODE Solvers](ode_solvers.md)).
 
 ## Introduction to the formalism
 
@@ -43,25 +43,28 @@ k_i = \Delta t  T ( u_0 + \sum_{j=1}^{i-1}\alpha_{ij}k_j + \alpha_{ii} k_i)\,.
 ```
 $\alpha_{ij}$, $b_i$ are carefully chosen coefficients.
 
-Rosenbrock's idea consists in linearizing $T$. This operation can be interpreted
-as taking one iteration for Netwon solver and yields
+Rosenbrock's idea consists in linearizing $T$ around $g_i$. Rather than
+solving the resulting nonlinear system iteratively, this is equivalent to
+taking a single Newton step with the Jacobian frozen at $u_0$ (rather than
+at $g_i$), yielding
 
 ```math
-k_i = \Delta t T(g_i) + \Delta t T'(g_i) \alpha_{ii} k_i
+k_i = \Delta t T(g_i) + \Delta t J \alpha_{ii} k_i
 ```
 
-with $J(g_i)$ Jacobian of the tendency and with
+where $J = T'(u_0)$ is the Jacobian of the tendency evaluated at $u_0$, and
 
 ```math
 g_i = u_0 + \sum_{j=1}^{i-1}\alpha_{ij} k_j
 ```
 
-In Rosenbrock-type methods, the Jacobian $T'$ is replaced with linear combinations
-of the Jacobian evaluated at $u_0$, $J$:
+In Rosenbrock-type methods, the per-stage Jacobian $J(g_i)$ is replaced with
+a fixed reference $J = T'(u_0)$, evaluated once at the beginning of each
+timestep. Each stage then approximates:
 ```math
 T'(g_i) \alpha_{ii} k_i \approx J \sum_{j=1}^{i-1}\gamma_{ij} k_j + J \gamma_{ii} k_i\,,
 ```
-with $\gamma_{ij}$ other coefficients that can be chosen.
+with $\gamma_{ij}$ additional tableau coefficients.
 
 Now, each stage consists of solving a system of linear equations in $k_i$ with
 matrix $I - \Delta t \gamma_{ii}$:
@@ -126,11 +129,7 @@ $\alpha_{i} = \sum_{j=1}^{i-1}\alpha_{ij} $
 
 $ \gamma _{i} = \sum_{j=1}^{i}\gamma_{ij} $
 
-> :note: You may wonder, what is up with all these ugly minus signs? Why don't
-> we cancel them out? The reason for this is because we want to have the
-> prefactor $(J \Delta t \gamma_{ii} - 1)$. This is called `Wfact` in the
-> language of `DifferentialEquations.jl`. Most other algorithms specify this
-> quantity, so it is convenient to be consistent.
+> **Sign convention.** The system solved at each stage keeps the prefactor $(J \Delta t \gamma_{ii} - I)$ — the matrix known as `Wfact` in `DifferentialEquations.jl`. This sign convention is used throughout `ClimaTimeSteppers.jl` for consistency with that ecosystem.
 
 ## Implementation
 
@@ -149,8 +148,8 @@ previous section. Currently, the only Rosenbrock-type algorithm implemented is
 ```math
 \Gamma = \begin{bmatrix}
     1 & 0 & 0 \\
-    1 & 1 & 0 \\
-    -\frac{3}{4} & \frac{3}{4} & 1 \\
+    0 & 1 & 0 \\
+    -\frac{3}{4} & -\frac{3}{4} & 1 \\
     \end{bmatrix}
 ```
 
@@ -159,4 +158,4 @@ and
 b = (\frac{1}{6}, \frac{1}{6}, \frac{2}{3})
 ```
 
-At each stage, the state is updated to $g_i$ and precomputed quantities are updated. Tendencies are computed and, unless the stage is the last, DSS is applied to the sum of all the tendencies. After the last stage, DSS is applied to the incremented state.
+At each stage, the state $g_i$ is computed as a linear combination of the previous stage increments $k_j$. At stage $i > 1$, DSS and cache updates are applied to $g_i$ before evaluating tendencies, ensuring the state is continuous and consistent with the cache. The first stage is identical to the end of the previous timestep (which was already DSS'd), so DSS is skipped there. After all stages are complete, the final state $u$ is updated as $u \mathrel{+}= \sum_i m_i k_i$ and DSS is applied once more.

@@ -1,15 +1,17 @@
 # Low-storage Runge--Kutta methods
 
-LSRK methods are self-starting, with ``U^{(1)} = u^n``, and then using stage updates of the form
+LSRK methods are a class of explicit Runge--Kutta methods designed to minimize memory usage by storing only two copies of the state vector at any time. The $2N$-storage family was introduced by [Carpenter and Kennedy (1994)](@cite CK1994) and later extended with optimized stability regions by [Niegemann et al. (2012)](@cite NDB2012).
+
+Each timestep begins with $U^{(1)} = u^n$ and proceeds through $s$ stage updates of the form
 ```math
 \begin{aligned}
 dU^{(i)} &= f(U^{(i)}, t + c_i \Delta t) + A_i dU^{(i-1)}\\
 U^{(i+1)} &= U^{(i)} + \Delta t B_i dU^{(i)}
 \end{aligned}
 ```
-where ``A_1 = c_1 = 0`` (implying ``dU^{(1)} = f(u^n, t)``), with the value at the next step being the ``N+1``th stage value ``u^{n+1} = U^{(N+1)})``.
+where $A_1 = c_1 = 0$ (so the first accumulation reduces to $dU^{(1)} = f(u^n, t)$). The solution at the next timestep is $u^{n+1} = U^{(s+1)}$.
 
-This allows the updates to be performed with only two copies of the state vector (so long as `f` can be evaluated in incrementing form).
+Because each stage only needs $U^{(i)}$ and $dU^{(i-1)}$, the update can be performed with only two state-sized registers (provided $f$ can be evaluated in incrementing form).
 
 It can be written as an RK scheme with Butcher tableau coefficients defined by the recurrences
 ```math

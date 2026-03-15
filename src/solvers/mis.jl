@@ -137,8 +137,14 @@ function update_inner!(
     f_offset.α = t + c̃[i] * dt
     f_offset.β = (c[i] - c̃[i]) / d[i]
 
+    # Reset the inner integrator to run from τ=0 to τ=d[i]*dt.
+    # We must clear old tstops (including the original tspan end) to
+    # prevent solve! from running past the intended interval.
     innerinteg.t = zero(t)
-    DiffEqBase.add_tstop!(innerinteg, d[i] * dt) # TODO: verify correctness
+    while !isempty(innerinteg.tstops)
+        pop!(innerinteg.tstops)
+    end
+    push!(innerinteg.tstops, d[i] * dt)
 end
 
 @kernel function mis_update!(u, ΔU, F, innerinteg_u, f_offset_x, tab, i, N, dt)

@@ -78,8 +78,6 @@ function update_inner!(
     τ0 = t + C[stage] * dt
     τ1 = stage == N ? t + dt : t + C[stage + 1] * dt
     f_offset.α = τ0
-    innerinteg.t = zero(τ0)
-    DiffEqBase.add_tstop!(innerinteg, τ1 - τ0) # TODO: verify correctness
 
     #  du .= f(u, p, t + C[stage]*dt) .+ A[stage] .* du
     f_slow(f_offset.x, u, p, τ0, 1, A[stage])
@@ -87,6 +85,15 @@ function update_inner!(
     C0 = C[stage]
     C1 = stage == N ? one(C[stage]) : C[stage + 1]
     f_offset.γ = B[stage] / (C1 - C0)
+
+    # Reset the inner integrator to run from τ=0 to τ=τ1-τ0.
+    # We must clear old tstops (including the original tspan end) to
+    # prevent solve! from running past the intended interval.
+    innerinteg.t = zero(τ0)
+    while !isempty(innerinteg.tstops)
+        pop!(innerinteg.tstops)
+    end
+    push!(innerinteg.tstops, τ1 - τ0)
 end
 
 

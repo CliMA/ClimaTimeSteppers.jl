@@ -5,8 +5,8 @@ A suite of callback functions to be used with the ClimaTimeSteppers.jl ODE solve
 """
 module Callbacks
 
-import ClimaComms, DiffEqBase
-import SciMLBase
+import ClimaComms
+import ..DiscreteCallback
 
 """
     ClimaTimeSteppers.Callbacks.initialize!(f!::F, integrator)
@@ -77,16 +77,7 @@ function EveryXWallTimeSeconds(
         end
     end
 
-    if isdefined(DiffEqBase, :finalize!)
-        SciMLBase.DiscreteCallback(
-            condition,
-            f!;
-            initialize = _initialize,
-            finalize = _finalize,
-        )
-    else
-        SciMLBase.DiscreteCallback(condition, f!; initialize = _initialize)
-    end
+    DiscreteCallback(condition, f!; initialize = _initialize, finalize = _finalize)
 end
 
 """
@@ -125,16 +116,7 @@ function EveryXSimulationTime(f!, Δt; atinit = false)
             return false
         end
     end
-    if isdefined(DiffEqBase, :finalize!)
-        SciMLBase.DiscreteCallback(
-            condition,
-            f!;
-            initialize = _initialize,
-            finalize = _finalize,
-        )
-    else
-        SciMLBase.DiscreteCallback(condition, f!; initialize = _initialize)
-    end
+    DiscreteCallback(condition, f!; initialize = _initialize, finalize = _finalize)
 end
 
 """
@@ -174,16 +156,7 @@ function EveryXSimulationSteps(f!, Δsteps; atinit = false)
         end
     end
 
-    if isdefined(DiffEqBase, :finalize!)
-        SciMLBase.DiscreteCallback(
-            condition,
-            f!;
-            initialize = _initialize,
-            finalize = _finalize,
-        )
-    else
-        SciMLBase.DiscreteCallback(condition, f!; initialize = _initialize)
-    end
+    DiscreteCallback(condition, f!; initialize = _initialize, finalize = _finalize)
 end
 
 end # module

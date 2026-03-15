@@ -117,9 +117,7 @@ function DiffEqBase.__init(
     sol = DiffEqBase.build_solution(prob, alg, typeof(t0)[], typeof(save_func(u0, t0))[])
     saving_callback =
         NonInterpolatingSavingCallback(save_func, SavedValues(sol.t, sol.u), save_everystep)
-    callback = DiffEqBase.CallbackSet(callback, saving_callback)
-    isempty(callback.continuous_callbacks) ||
-        error("Continuous callbacks are not supported")
+    callback = CallbackSet(callback, saving_callback)
 
     integrator = DistributedODEIntegrator(
         alg,
@@ -146,7 +144,7 @@ function DiffEqBase.__init(
         (; cache!) = prob.f
         isnothing(cache!) || cache!(u0, p, t0)
     end
-    DiffEqBase.initialize!(callback, u0, t0, integrator)
+    initialize_callbacks!(callback, u0, t0, integrator)
     return integrator
 end
 
@@ -170,10 +168,10 @@ function DiffEqBase.reinit!(
         resize!(integrator.sol.u, 0)
     end
     if reinit_callbacks
-        DiffEqBase.initialize!(integrator.callback, u0, t0, integrator)
+        initialize_callbacks!(integrator.callback, u0, t0, integrator)
     else # always reinit the saving callback so that t0 can be saved if needed
         saving_callback = integrator.callback.discrete_callbacks[end]
-        DiffEqBase.initialize!(saving_callback, u0, t0, integrator)
+        saving_callback.initialize(saving_callback, u0, t0, integrator)
     end
 end
 
@@ -193,7 +191,7 @@ NVTX.@annotate function DiffEqBase.solve!(integrator::DistributedODEIntegrator)
     while !isempty(integrator.tstops) && integrator.step != integrator.stepstop
         __step!(integrator)
     end
-    DiffEqBase.finalize!(integrator.callback, integrator.u, integrator.t, integrator)
+    finalize_callbacks!(integrator.callback, integrator.u, integrator.t, integrator)
     return integrator.sol
 end
 
@@ -300,7 +298,8 @@ end
 
 # not sure what this should do?
 # defined as default initialize: https://github.com/SciML/DiffEqBase.jl/blob/master/src/callbacks.jl#L3
-DiffEqBase.u_modified!(i::DistributedODEIntegrator, bool) = nothing
+# u_modified! is a no-op; retained for DiffEqBase compatibility
+u_modified!(i::DistributedODEIntegrator, bool) = nothing
 
 # this is roughly based on SavingCallback from DiffEqCallbacks, except that it
 # doesn't interpolate; instead it will save the first step after
@@ -328,5 +327,5 @@ function NonInterpolatingSavingCallback(save_func, saved_values, save_everystep)
     initialize(cb, u, t, integrator) = condition(u, t, integrator) && affect!(integrator)
     finalize(cb, u, t, integrator) =
         !save_everystep && !isempty(integrator.saveat) && affect!(integrator)
-    SciMLBase.DiscreteCallback(condition, affect!; initialize, finalize)
+    DiscreteCallback(condition, affect!; initialize, finalize)
 end

@@ -44,7 +44,6 @@ JuliaDiffEq terminology:
 module ClimaTimeSteppers
 
 
-using KernelAbstractions
 using LinearAlgebra
 using LinearOperators
 using StaticArrays
@@ -53,8 +52,6 @@ using NVTX
 
 export AbstractAlgorithmName, AbstractAlgorithmConstraint, Unconstrained, SSP
 
-array_device(::Union{Array, SArray, MArray}) = CPU()
-array_device(x) = CUDADevice() # assume CUDA
 
 import DiffEqBase, SciMLBase, LinearAlgebra, Krylov
 
@@ -100,7 +97,62 @@ will be able to use limiters in a mathematically consistent way.
 """
 struct SSP <: AbstractAlgorithmConstraint end
 
-SciMLBase.allowscomplex(alg::DistributedODEAlgorithm) = true
+"""
+    DiscreteCallback(condition, affect!; initialize, finalize)
+
+A callback that is checked after each step of the integrator.
+If `condition(u, t, integrator)` returns `true`, `affect!(integrator)` is called.
+"""
+struct DiscreteCallback{C, A, I, F, S, T}
+    condition::C
+    affect!::A
+    initialize::I
+    finalize::F
+    save_positions::S
+    repeat_nudge::T
+end
+function DiscreteCallback(
+    condition, affect!;
+    initialize = (cb, u, t, integrator) -> nothing,
+    finalize = (cb, u, t, integrator) -> nothing,
+    save_positions = (false, false),
+    repeat_nudge = nothing,
+)
+    DiscreteCallback(condition, affect!, initialize, finalize, save_positions, repeat_nudge)
+end
+
+"""
+    CallbackSet(; discrete_callbacks...)
+
+A set of discrete callbacks to be applied during integration.
+"""
+struct CallbackSet{DC <: Tuple}
+    discrete_callbacks::DC
+end
+CallbackSet(cbs::DiscreteCallback...) = CallbackSet(cbs)
+function CallbackSet(cb_or_nothing, cbs::DiscreteCallback...)
+    if isnothing(cb_or_nothing)
+        CallbackSet(cbs)
+    elseif cb_or_nothing isa DiscreteCallback
+        CallbackSet((cb_or_nothing, cbs...))
+    elseif cb_or_nothing isa CallbackSet
+        CallbackSet((cb_or_nothing.discrete_callbacks..., cbs...))
+    else
+        error("Unsupported callback type: $(typeof(cb_or_nothing))")
+    end
+end
+
+function initialize_callbacks!(cbset::CallbackSet, u, t, integrator)
+    for cb in cbset.discrete_callbacks
+        cb.initialize(cb, u, t, integrator)
+    end
+end
+function finalize_callbacks!(cbset::CallbackSet, u, t, integrator)
+    for cb in cbset.discrete_callbacks
+        cb.finalize(cb, u, t, integrator)
+    end
+end
+
 include("integrators.jl")
 
 include("utilities/update_signal_handler.jl")

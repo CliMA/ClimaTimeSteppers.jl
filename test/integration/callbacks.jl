@@ -1,7 +1,8 @@
 using Test
 using ClimaComms
 using ClimaTimeSteppers, DiffEqBase
-using ClimaTimeSteppers.Callbacks
+using ClimaTimeSteppers: CallbackSet, Callbacks
+using .Callbacks
 try
     import MPI
 catch

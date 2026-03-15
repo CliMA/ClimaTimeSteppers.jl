@@ -6,7 +6,7 @@ a documentation-specific wrapper that collects results into a Dict for
 plotting by summarize_convergence.jl.
 =#
 using ClimaTimeSteppers
-using DiffEqBase
+
 using Distributions: quantile, TDist
 using LinearAlgebra: norm
 

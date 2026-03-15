@@ -1,6 +1,5 @@
 export SSPKnoth
 using StaticArrays
-import DiffEqBase
 import LinearAlgebra: ldiv!, diagm
 import LinearAlgebra
 
@@ -48,7 +47,7 @@ end
 Constructs a Rosenbrock algorithm for solving ODEs.
 """
 struct RosenbrockAlgorithm{T <: RosenbrockTableau} <:
-       ClimaTimeSteppers.DistributedODEAlgorithm
+       ClimaTimeSteppers.TimeSteppingAlgorithm
     tableau::T
 end
 

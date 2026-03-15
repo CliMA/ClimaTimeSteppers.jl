@@ -1,8 +1,7 @@
-import DiffEqBase
 export AbstractClimaODEFunction
 export ClimaODEFunction, ForwardEulerODEFunction
 
-abstract type AbstractClimaODEFunction <: DiffEqBase.AbstractODEFunction{true} end
+abstract type AbstractClimaODEFunction end
 
 """
     ClimaODEFunction(; T_imp!, [dss!], [cache!], [cache_imp!])
@@ -80,10 +79,6 @@ has_T_exp(f::ClimaODEFunction) = !isnothing(f.T_exp!) || !isnothing(f.T_exp_T_li
 has_T_lim(f::ClimaODEFunction) =
     !isnothing(f.lim!) && (!isnothing(f.T_lim!) || !isnothing(f.T_exp_T_lim!))
 
-# Don't wrap a AbstractClimaODEFunction in an ODEFunction (makes ODEProblem work).
-DiffEqBase.ODEFunction{iip}(f::AbstractClimaODEFunction) where {iip} = f
-DiffEqBase.ODEFunction(f::AbstractClimaODEFunction) = f
-
 """
     ForwardEulerODEFunction(f; jac_prototype, Wfact, tgrad)
 
@@ -93,7 +88,7 @@ un .= u .+ dt * f(u, p, t)
 ```
 
 """
-struct ForwardEulerODEFunction{F, J, W, T} <: DiffEqBase.AbstractODEFunction{true}
+struct ForwardEulerODEFunction{F, J, W, T}
     f::F
     jac_prototype::J
     Wfact::W
@@ -102,10 +97,6 @@ end
 ForwardEulerODEFunction(f; jac_prototype = nothing, Wfact = nothing, tgrad = nothing) =
     ForwardEulerODEFunction(f, jac_prototype, Wfact, tgrad)
 (f::ForwardEulerODEFunction{F})(un, u, p, t, dt) where {F} = f.f(un, u, p, t, dt)
-
-# Don't wrap a ForwardEulerODEFunction in an ODEFunction.
-DiffEqBase.ODEFunction{iip}(f::ForwardEulerODEFunction) where {iip} = f
-DiffEqBase.ODEFunction(f::ForwardEulerODEFunction) = f
 
 """
     OffsetODEFunction(f,α,β,γ,x)
@@ -119,19 +110,17 @@ f(u,p,α+β*t) .+ γ .* x
 
 It supports the 3, 4, 5, and 6 argument forms.
 """
-mutable struct OffsetODEFunction{iip, F, S, A} <: DiffEqBase.AbstractODEFunction{iip}
+mutable struct OffsetODEFunction{F, S, A}
     f::F
     α::S
     β::S
     γ::S
     x::A
 end
-function OffsetODEFunction{iip}(f, α, β, γ, x) where {iip}
+function OffsetODEFunction(f, α, β, γ, x)
     α, β, γ = promote(α, β, γ)
-    OffsetODEFunction{iip, typeof(f), typeof(γ), typeof(x)}(f, α, β, γ, x)
+    OffsetODEFunction{typeof(f), typeof(γ), typeof(x)}(f, α, β, γ, x)
 end
-OffsetODEFunction(f::DiffEqBase.AbstractODEFunction{iip}, α, β, γ, x) where {iip} =
-    OffsetODEFunction{iip}(f, α, β, γ, x)
 
 function (o::OffsetODEFunction)(u, p, t)
     o.f(u, p, o.α + o.β * t) .+ o.γ .* o.x

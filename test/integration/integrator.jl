@@ -1,6 +1,6 @@
 import ClimaTimeSteppers as CTS
+import ClimaTimeSteppers: solve, init, solve!, step!, reinit!, ODEProblem
 using ClimaTimeSteppers, Test
-import SciMLBase
 
 include(joinpath(@__DIR__, "integrator_utils.jl"))
 include(joinpath(@__DIR__, "..", "problems.jl"))
@@ -73,8 +73,7 @@ include(joinpath(@__DIR__, "..", "problems.jl"))
             is_ode && !compare_to_ode && continue
 
             # hide the warning about unrecognized kwargs from OrdinaryDiffEq
-            hide_warning = (; kwargshandle = DiffEqBase.KeywordArgSilent)
-            sol = solve(deepcopy(prob), alg; dt, kwargs..., hide_warning...)
+            sol = solve(deepcopy(prob), alg; dt, kwargs...)
 
             # remove the duplicate entries put in sol by OrdinaryDiffEq
             sol_times = is_ode ? unique(sol.t) : sol.t

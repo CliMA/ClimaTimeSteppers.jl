@@ -1,7 +1,8 @@
 #=
 Unit tests for IncrementingODEFunction.
 =#
-using ClimaTimeSteppers, DiffEqBase, LinearAlgebra, Test
+using ClimaTimeSteppers, LinearAlgebra, Test
+import ClimaTimeSteppers: IncrementingODEFunction, ODEProblem, solve
 
 @testset "IncrementingODEFunction" begin
 
@@ -48,8 +49,7 @@ using ClimaTimeSteppers, DiffEqBase, LinearAlgebra, Test
             (du, u, p, t, α = true, β = false) -> (du .= α .* p .* u .+ β .* du),
         )
         prob = ODEProblem(f!, [1.0], (0.0, 1.0), -1.0)
-        hide = (; kwargshandle = DiffEqBase.KeywordArgSilent)
-        sol = solve(prob, LSRKEulerMethod(); dt = 0.001, save_everystep = false, hide...)
+        sol = solve(prob, LSRKEulerMethod(); dt = 0.001, save_everystep = false)
         @test sol.u[end][1] ≈ exp(-1.0) atol = 0.01
     end
 end

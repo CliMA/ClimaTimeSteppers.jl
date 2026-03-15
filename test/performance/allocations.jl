@@ -5,9 +5,10 @@ These tests catch allocation regressions. Explicit methods should be
 allocation-free. Implicit methods may allocate small amounts for the
 linear solver, so we use upper bounds based on current behavior.
 =#
-using ClimaTimeSteppers, DiffEqBase, LinearAlgebra, Test
+using ClimaTimeSteppers, LinearAlgebra, Test
 using ClimaComms
 import ClimaTimeSteppers as CTS
+import ClimaTimeSteppers: ODEProblem, ODEFunction, IncrementingODEFunction, SplitODEProblem
 
 @static isdefined(ClimaComms, :device_type) && ClimaComms.@import_required_backends
 const device = ClimaComms.device()
@@ -29,7 +30,7 @@ function make_split_prob_for_alloc_test(::Type{FT}) where {FT}
     ODEProblem(
         ClimaODEFunction(;
             T_exp! = (du, u, p, t) -> (du .= FT(0.1) .* u),
-            T_imp! = DiffEqBase.ODEFunction(
+            T_imp! = ODEFunction(
                 (du, u, p, t) -> (du .= FT(-0.5) .* u);
                 jac_prototype = lu(zeros(FT, n, n), check = false),
                 Wfact = (W, u, p, dtγ, t) -> begin
@@ -86,20 +87,18 @@ end
 Warm up with one step, then measure allocations on second step.
 """
 function test_step_allocations(alg, prob, dt)
-    hide_warning = (; kwargshandle = DiffEqBase.KeywordArgSilent)
     extra_kwargs = alg isa Multirate ? (; fast_dt = dt / 10) : (;)
-    integrator = DiffEqBase.init(
+    integrator = CTS.init(
         deepcopy(prob),
         alg;
         dt,
         save_everystep = false,
         extra_kwargs...,
-        hide_warning...,
     )
     # Warmup step
-    DiffEqBase.step!(integrator)
+    CTS.step!(integrator)
     # Measure allocations on second step
-    allocs = @allocated DiffEqBase.step!(integrator)
+    allocs = @allocated CTS.step!(integrator)
     return allocs
 end
 

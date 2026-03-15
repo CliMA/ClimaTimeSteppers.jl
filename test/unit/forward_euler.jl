@@ -1,7 +1,7 @@
 #=
 Tests for ForwardEulerODEFunction.
 =#
-using ClimaTimeSteppers, DiffEqBase, Test
+using ClimaTimeSteppers, Test
 
 @testset "ForwardEulerODEFunction" begin
     @testset "Basic forward Euler update" begin
@@ -19,10 +19,9 @@ using ClimaTimeSteppers, DiffEqBase, Test
         @test un ≈ [1.9, 3.8]
     end
 
-    @testset "ODEFunction wrapping is identity" begin
+    @testset "Type is distinct from ODEFunction" begin
         fe_func = ForwardEulerODEFunction((un, u, p, t, dt) -> nothing)
-        @test DiffEqBase.ODEFunction(fe_func) === fe_func
-        @test DiffEqBase.ODEFunction{true}(fe_func) === fe_func
+        @test !(fe_func isa ClimaTimeSteppers.ODEFunction)
     end
 
     @testset "Optional fields default to nothing" begin

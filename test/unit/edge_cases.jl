@@ -1,12 +1,13 @@
 #=
 Edge case and error handling tests.
 =#
-using ClimaTimeSteppers, DiffEqBase, LinearAlgebra, Test
+using ClimaTimeSteppers, LinearAlgebra, Test
 import ClimaTimeSteppers as CTS
+import ClimaTimeSteppers: ODEProblem, ODEFunction, solve
 
 @testset "Edge cases" begin
 
-    hide_warning = (; kwargshandle = DiffEqBase.KeywordArgSilent)
+
 
     @testset "NaN initial conditions propagate" begin
         prob = ODEProblem(
@@ -16,7 +17,7 @@ import ClimaTimeSteppers as CTS
             nothing,
         )
         alg = ExplicitAlgorithm(SSP33ShuOsher())
-        sol = solve(prob, alg; dt = 0.01, save_everystep = false, hide_warning...)
+        sol = solve(prob, alg; dt = 0.01, save_everystep = false)
         @test all(isnan, sol.u[end])
     end
 
@@ -28,7 +29,7 @@ import ClimaTimeSteppers as CTS
             nothing,
         )
         alg = ExplicitAlgorithm(SSP33ShuOsher())
-        sol = solve(prob, alg; dt = 0.01, save_everystep = false, hide_warning...)
+        sol = solve(prob, alg; dt = 0.01, save_everystep = false)
         @test all(isnan, sol.u[end]) || all(isinf, sol.u[end])
     end
 
@@ -40,7 +41,7 @@ import ClimaTimeSteppers as CTS
             nothing,
         )
         alg = ExplicitAlgorithm(RK4())
-        sol = solve(prob, alg; dt = 0.01, save_everystep = false, hide_warning...)
+        sol = solve(prob, alg; dt = 0.01, save_everystep = false)
         @test sol.u[end] == [0.0, 0.0]
     end
 
@@ -52,7 +53,7 @@ import ClimaTimeSteppers as CTS
             nothing,
         )
         alg = ExplicitAlgorithm(SSP22Heuns())
-        sol = solve(prob, alg; dt = 1e-6, save_everystep = false, hide_warning...)
+        sol = solve(prob, alg; dt = 1e-6, save_everystep = false)
         @test sol.u[end][1] ≈ exp(-0.01) rtol = 1e-8
     end
 
@@ -64,7 +65,7 @@ import ClimaTimeSteppers as CTS
             nothing,
         )
         alg = ExplicitAlgorithm(SSP33ShuOsher())
-        sol = solve(prob, alg; dt = 0.01, save_everystep = false, hide_warning...)
+        sol = solve(prob, alg; dt = 0.01, save_everystep = false)
         @test length(sol.u) == 2  # initial + final
         @test sol.u[end][1] < 1.0  # decaying
     end
@@ -77,7 +78,7 @@ import ClimaTimeSteppers as CTS
         prob = ODEProblem(
             ClimaODEFunction(;
                 T_exp! = (du, u, p, t) -> (du .= -u),
-                T_imp! = DiffEqBase.ODEFunction(
+                T_imp! = ODEFunction(
                     (du, u, p, t) -> (du .= 0);
                     jac_prototype = zeros(n, n),
                     Wfact = (W, u, p, γ, t) -> (W .= -Id),
@@ -88,7 +89,7 @@ import ClimaTimeSteppers as CTS
             nothing,
         )
         alg = CTS.IMEXAlgorithm(ARS232(), NewtonsMethod(; max_iters = 2))
-        sol = solve(prob, alg; dt = 0.01, save_everystep = false, hide_warning...)
+        sol = solve(prob, alg; dt = 0.01, save_everystep = false)
         @test sol.u[end][1] ≈ exp(-0.5) atol = 0.01
         @test sol.u[end][2] ≈ 2 * exp(-0.5) atol = 0.02
     end

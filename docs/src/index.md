@@ -5,9 +5,9 @@ time-stepping methods in a partial differential equation (PDE) solver, such as
 [ClimateMachine.jl](https://github.com/CliMA/ClimateMachine.jl). They are specifically
 written to support distributed and GPU computation, while minimising the memory footprint.
 
-ClimaTimeSteppers.jl is built on top of
-[DiffEqBase.jl](https://github.com/SciML/DiffEqBase.jl/), and aims to be compatible with
-the [DifferentialEquations.jl ecosystem](https://diffeq.sciml.ai/latest/).
+ClimaTimeSteppers.jl provides self-contained ODE problem types, solvers, and a callback
+system, with optional backward compatibility with the
+[DifferentialEquations.jl ecosystem](https://diffeq.sciml.ai/latest/) via a package extension.
 
 ```@docs
 ClimaTimeSteppers

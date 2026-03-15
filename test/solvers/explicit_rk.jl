@@ -2,7 +2,7 @@
 julia --project=test
 using Revise; include("test/solvers/explicit_rk.jl")
 =#
-using ClimaTimeSteppers, LinearAlgebra, Test, DiffEqBase
+using ClimaTimeSteppers, LinearAlgebra, Test
 
 if !@isdefined(IntegratorTestCase)
     include(joinpath(@__DIR__, "..", "utils", "convergence_utils.jl"))

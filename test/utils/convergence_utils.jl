@@ -2,9 +2,8 @@
 Shared infrastructure for solver convergence tests using rigorous
 statistical confidence intervals. Inherited from docs/src/dev/compute_convergence.jl
 =#
-using DiffEqBase, ClimaTimeSteppers, LinearAlgebra, Test
+using ClimaTimeSteppers, LinearAlgebra, Test
 import ClimaTimeSteppers as CTS
-import SciMLBase
 using Distributions: quantile, TDist
 
 include(joinpath(@__DIR__, "..", "problems.jl"))
@@ -135,17 +134,15 @@ Compute the errors of `method` on `prob` by comparing to `sol`
 on the set of `dt` values in `dts`.
 """
 function convergence_errors(prob, sol, method, dts; kwargs...)
-    hide_warning = (; kwargshandle = DiffEqBase.KeywordArgSilent)
     errs = map(dts) do dt
         prob_copy = deepcopy(prob)
-        u = solve(
+        u = CTS.solve(
             prob_copy,
             method;
             dt = dt,
             save_everystep = false,
             saveat = (prob.tspan[2],),
             kwargs...,
-            hide_warning...,
         )
         if applicable(sol, prob.u0, prob.p, prob.tspan[end])
             expected = sol(prob.u0, prob.p, prob.tspan[end])
@@ -194,7 +191,7 @@ function test_convergence!(
     else
         ref_alg = algorithm(numerical_reference_algorithm_name, linear_implicit)
         ref_dt = t_end / numerical_reference_num_steps
-        solve(deepcopy(prob), ref_alg; dt = ref_dt, save_everystep = true)
+        CTS.solve(deepcopy(prob), ref_alg; dt = ref_dt, save_everystep = true)
     end
 
     alg_str = string(nameof(typeof(algorithm_name)))
@@ -207,7 +204,7 @@ function test_convergence!(
     sampled_num_steps = default_num_steps .* num_steps_scaling_factor .^ num_steps_powers
     sampled_dts = t_end ./ round.(Int, sampled_num_steps)
     average_rms_errors = map(sampled_dts) do dt
-        sol = solve(deepcopy(prob), alg; dt = dt, save_everystep = true)
+        sol = CTS.solve(deepcopy(prob), alg; dt = dt, save_everystep = true)
         rms(rms_error.(sol.u, sol.t, (ref_sol,)))
     end
 
@@ -234,8 +231,8 @@ function test_unconstrained_vs_ssp_without_limiters(algorithm_name, test_case, n
     newtons_method = NewtonsMethod(; max_iters = test_case.linear_implicit ? 1 : 2)
     algorithm = CTS.IMEXAlgorithm(algorithm_name, newtons_method)
     reference_algorithm = CTS.IMEXAlgorithm(algorithm_name, newtons_method, Unconstrained())
-    solution = solve(deepcopy(prob), algorithm; dt).u[end]
-    reference_solution = solve(deepcopy(prob), reference_algorithm; dt).u[end]
+    solution = CTS.solve(deepcopy(prob), algorithm; dt).u[end]
+    reference_solution = CTS.solve(deepcopy(prob), reference_algorithm; dt).u[end]
     relative_error = norm(solution .- reference_solution) / norm(reference_solution)
     @test relative_error ≤ 100 * eps(Float64)
 end

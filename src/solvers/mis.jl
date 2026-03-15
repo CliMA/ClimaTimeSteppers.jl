@@ -14,7 +14,7 @@ The available implementations are:
  - [`TVDMISA`](@ref)
  - [`TVDMISB`](@ref)
 """
-abstract type MultirateInfinitesimalStep <: DistributedODEAlgorithm end
+abstract type MultirateInfinitesimalStep <: TimeSteppingAlgorithm end
 
 const T1Type = SArray{NTuple{1, Nstages}, RT, 1, Nstages} where {Nstages, RT}
 const T2Type = SArray{NTuple{2, Nstages}, RT, 2, Nstages²} where {Nstages, RT, Nstages²}

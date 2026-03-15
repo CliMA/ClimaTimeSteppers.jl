@@ -1,5 +1,6 @@
 export Multirate
 
+
 """
     Multirate(fast, slow)
 
@@ -13,7 +14,7 @@ Algorithms which currently support this are:
  - [`MultirateInfinitesimalStep`](@ref)
  - [`WickerSkamarockRungeKutta`](@ref)
 """
-struct Multirate{F, S} <: DistributedODEAlgorithm
+struct Multirate{F, S} <: TimeSteppingAlgorithm
     fast::F
     slow::S
 end
@@ -25,30 +26,23 @@ struct MultirateCache{OC, II}
 end
 
 """
-    cts_remake(prob::DiffEqBase.AbstractODEProblem; f::DiffEqBase.AbstractODEFunction)
+    cts_remake(prob::ODEProblem; f)
 
 Remake an ODE problem with a new function `f`.
 """
-function cts_remake(prob::DiffEqBase.AbstractODEProblem; f::DiffEqBase.AbstractODEFunction)
-    return DiffEqBase.ODEProblem{DiffEqBase.isinplace(prob)}(
-        f,
-        prob.u0,
-        prob.tspan,
-        prob.p,
-        prob.problem_type;
-        prob.kwargs...,
-    )
+function cts_remake(prob::ODEProblem; f)
+    return ODEProblem(f, prob.u0, prob.tspan, prob.p)
 end
 
 function init_cache(
-    prob::DiffEqBase.AbstractODEProblem,
+    prob::ODEProblem,
     alg::Multirate;
     dt,
     fast_dt,
     kwargs...,
 )
 
-    @assert prob.f isa DiffEqBase.SplitFunction
+    @assert prob.f isa SplitFunction
 
     # subproblems
     outerprob = cts_remake(prob; f = prob.f.f1)
@@ -56,7 +50,7 @@ function init_cache(
 
     innerfun = init_inner(prob, outercache, dt)
     innerprob = cts_remake(prob; f = innerfun)
-    innerinteg = DiffEqBase.init(innerprob, alg.fast; dt = fast_dt, kwargs...)
+    innerinteg = init(innerprob, alg.fast; dt = fast_dt, kwargs...)
     return MultirateCache(outercache, innerinteg)
 end
 
@@ -87,7 +81,7 @@ function step_u!(int, cache::MultirateCache)
         #     - problems for ARK (e.g. requires expensive LU factorization)
         #  b. use different fast_dt, cache expensive ops
 
-        DiffEqBase.solve!(innerinteg)
+        solve!(innerinteg)
         innerinteg.dt = fast_dt # reset
     end
 end

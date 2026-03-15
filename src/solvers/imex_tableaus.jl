@@ -62,7 +62,7 @@ struct IMEXAlgorithm{
     T <: IMEXTableau,
     NMS <: Union{Nothing, NewtonsMethod},
     NM <: Union{Nothing, NewtonsMethod},
-} <: DistributedODEAlgorithm
+} <: TimeSteppingAlgorithm
     constraint::C
     name::N
     tableau::T

@@ -1,5 +1,6 @@
-using DiffEqBase, ClimaTimeSteppers, LinearAlgebra, StaticArrays, Test
+using ClimaTimeSteppers, LinearAlgebra, StaticArrays, Test
 import ClimaTimeSteppers as CTS
+import ClimaTimeSteppers: ODEProblem, ODEFunction, solve
 # Unit test for ARS schemes on the single column hydrostatic problem
 # Here we run 1 time step and 1 Newton iteration to compare the result
 mutable struct Single_Stack

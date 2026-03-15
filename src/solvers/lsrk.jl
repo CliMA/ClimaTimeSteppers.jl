@@ -1,7 +1,7 @@
 export LSRK54CarpenterKennedy, LSRK144NiegemannDiehlBusch, LSRKEulerMethod
 
 """
-    LowStorageRungeKutta2N <: DistributedODEAlgorithm
+    LowStorageRungeKutta2N <: TimeSteppingAlgorithm
 
 A class of low-storage Runge-Kutta algorithms, which use only one additional
 copy of the state vector ``u`` (often referred to as ``2N`` schemes).
@@ -11,7 +11,7 @@ The available implementations are:
  - [`LSRK54CarpenterKennedy`](@ref)
  - [`LSRK144NiegemannDiehlBusch`](@ref)
 """
-abstract type LowStorageRungeKutta2N <: DistributedODEAlgorithm end
+abstract type LowStorageRungeKutta2N <: TimeSteppingAlgorithm end
 
 
 """
@@ -35,8 +35,6 @@ struct LowStorageRungeKutta2NIncCache{T <: LowStorageRungeKutta2NTableau, A}
 end
 
 function init_cache(prob, alg::LowStorageRungeKutta2N; kwargs...)
-    # @assert prob.problem_type isa DiffEqBase.IncrementingODEProblem ||
-    #     prob.f isa DiffEqBase.IncrementingODEFunction
     du = zero(prob.u0)
     return LowStorageRungeKutta2NIncCache(tableau(alg, eltype(du)), du)
 end

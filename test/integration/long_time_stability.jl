@@ -2,12 +2,13 @@
 Long-time stability tests: verify methods remain stable and accurate
 over many (10⁴+) timesteps.
 =#
-using ClimaTimeSteppers, DiffEqBase, LinearAlgebra, Test
+using ClimaTimeSteppers, LinearAlgebra, Test
 import ClimaTimeSteppers as CTS
+import ClimaTimeSteppers: ODEProblem, ODEFunction, solve
 
 @testset "Long-time stability" begin
 
-    hide_warning = (; kwargshandle = DiffEqBase.KeywordArgSilent)
+
 
     @testset "Explicit decay over 10⁴ steps" begin
         # du/dt = -u, u(0) = 1 ⟹ u(t) = exp(-t)
@@ -21,7 +22,7 @@ import ClimaTimeSteppers as CTS
             nothing,
         )
         alg = ExplicitAlgorithm(RK4())
-        sol = solve(prob, alg; dt, save_everystep = false, hide_warning...)
+        sol = solve(prob, alg; dt, save_everystep = false)
 
         u_exact = exp(-t_end)
         @test sol.u[end][1] ≈ u_exact rtol = 1e-6
@@ -42,7 +43,7 @@ import ClimaTimeSteppers as CTS
             nothing,
         )
         alg = ExplicitAlgorithm(RK4())
-        sol = solve(prob, alg; dt, save_everystep = false, hide_warning...)
+        sol = solve(prob, alg; dt, save_everystep = false)
 
         initial_norm = norm([1.0, 0.0])
         final_norm = norm(sol.u[end])
@@ -59,7 +60,7 @@ import ClimaTimeSteppers as CTS
         dt = 0.001
         prob = ODEProblem(
             ClimaODEFunction(;
-                T_imp! = DiffEqBase.ODEFunction(
+                T_imp! = ODEFunction(
                     (du, u, p, t) -> (du .= -u);
                     jac_prototype = zeros(n, n),
                     Wfact = (W, u, p, dtγ, t) -> (W[1, 1] = -dtγ - 1),
@@ -70,7 +71,7 @@ import ClimaTimeSteppers as CTS
             nothing,
         )
         alg = CTS.IMEXAlgorithm(ARS232(), NewtonsMethod(; max_iters = 2))
-        sol = solve(prob, alg; dt, save_everystep = false, hide_warning...)
+        sol = solve(prob, alg; dt, save_everystep = false)
 
         u_exact = exp(-t_end)
         # Global error of 2nd-order method: O(t_end * dt²) = O(10 * dt²)
@@ -85,7 +86,7 @@ import ClimaTimeSteppers as CTS
         Id = Matrix{Float64}(I, n, n)
         prob = ODEProblem(
             ClimaODEFunction(;
-                T_imp! = DiffEqBase.ODEFunction(
+                T_imp! = ODEFunction(
                     (du, u, p, t) -> (du .= -u);
                     jac_prototype = zeros(n, n),
                     Wfact = (W, u, p, dtγ, t) -> (W[1, 1] = -dtγ - 1),
@@ -97,7 +98,7 @@ import ClimaTimeSteppers as CTS
             nothing,
         )
         alg = CTS.RosenbrockAlgorithm(CTS.tableau(CTS.SSPKnoth()))
-        sol = solve(prob, alg; dt, save_everystep = false, hide_warning...)
+        sol = solve(prob, alg; dt, save_everystep = false)
 
         u_exact = exp(-t_end)
         @test abs(sol.u[end][1] - u_exact) < 10 * dt^2

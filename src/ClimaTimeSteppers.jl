@@ -19,18 +19,18 @@ JuliaDiffEq terminology:
   SplitODEProlem(fL, fR)
 
 
-  * `ODEProblem` from SciMLBase.jl
+  * `ODEProblem` for defining problems
     - use `jac` option to `ODEFunction` for linear + full IMEX (https://docs.sciml.ai/latest/features/performance_overloads/#ode_explicit_jac-1)
   * `SplitODEProblem` for linear + remainder IMEX
   * `MultirateODEProblem` for true multirate
 
 * _Algorithm_: small objects (often singleton) which indicate what algorithm + options (e.g. linear solver type)
-  * define new abstract `DistributedODEAlgorithm`, algorithms in this pacakge will be subtypes of this
+  * define new abstract `TimeSteppingAlgorithm`, algorithms in this package will be subtypes of this
   * define new `Multirate` for multirate solvers
 
 * _Integrator_: contains everything necessary to solve. Used as:
 
-  * define new `DistributedODEIntegrator` for solvers in this package
+  * define new `TimeStepperIntegrator` for solvers in this package
 
       init(prob, alg, options...) => integrator
       step!(int) => runs single step
@@ -52,15 +52,22 @@ using NVTX
 
 export AbstractAlgorithmName, AbstractAlgorithmConstraint, Unconstrained, SSP
 
+# Note: init, solve, solve!, step!, add_tstop!, reinit!, get_dt, set_dt!,
+# u_modified!, ODEProblem, ODEFunction, SplitODEProblem, IncrementingODEFunction
+# are intentionally NOT exported yet to avoid conflicts with SciMLBase.
+# Access them qualified, e.g.: CTS.init, CTS.ODEProblem, CTS.solve!, etc.
 
-import DiffEqBase, SciMLBase, LinearAlgebra, Krylov
+import LinearAlgebra, Krylov
 
 include(joinpath("utilities", "sparse_coeffs.jl"))
 include(joinpath("utilities", "fused_increment.jl"))
 include("sparse_containers.jl")
+include("problems.jl")
 include("functions.jl")
 
-abstract type DistributedODEAlgorithm <: DiffEqBase.AbstractODEAlgorithm end
+abstract type TimeSteppingAlgorithm end
+"""Backward-compatible alias for `TimeSteppingAlgorithm`."""
+const DistributedODEAlgorithm = TimeSteppingAlgorithm
 
 abstract type AbstractAlgorithmName end
 
@@ -154,6 +161,8 @@ function finalize_callbacks!(cbset::CallbackSet, u, t, integrator)
 end
 
 include("integrators.jl")
+"""Backward-compatible alias for `TimeStepperIntegrator`."""
+const DistributedODEIntegrator = TimeStepperIntegrator
 
 include("utilities/update_signal_handler.jl")
 include("utilities/convergence_condition.jl")
@@ -180,7 +189,6 @@ include("solvers/rosenbrock.jl")
 
 include("Callbacks.jl")
 
-include("arbitrary_number_types.jl")
 
 benchmark_step(integrator, device) =
     @warn "Must load CUDA, BenchmarkTools, OrderedCollections, StatsBase, PrettyTables to trigger the ClimaTimeSteppersBenchmarkToolsExt extension"

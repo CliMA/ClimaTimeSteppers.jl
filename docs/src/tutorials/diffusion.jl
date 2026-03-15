@@ -15,7 +15,7 @@
 # vertical one implicitly.
 #
 # Let us start by importing the required pieces
-import SciMLBase
+
 import LinearAlgebra
 import ClimaTimeSteppers
 import ClimaCore
@@ -167,9 +167,9 @@ function Wfact(W, Y, p, dtγ, t)
 end
 
 # With all of this, we are ready to define the implicit tendency. Implicit
-# tendencies are `SciMLBase.ODEFunction`s and take in the actual tendency
+# tendencies are `ClimaTimeSteppers.ODEFunction`s and take in the actual tendency
 # (similar to `T_exp!`), the Jacobian and `Wfact`:
-T_imp_wrapper! = SciMLBase.ODEFunction(
+T_imp_wrapper! = ClimaTimeSteppers.ODEFunction(
     T_imp!;
     jac_prototype = FieldMatrixWithSolver(jacobian_matrix, Y₀),
     Wfact = Wfact,
@@ -185,7 +185,7 @@ t0 = 0seconds
 t_end = 500seconds
 dt = 5seconds
 
-prob = SciMLBase.ODEProblem(
+prob = ClimaTimeSteppers.ODEProblem(
     ClimaTimeSteppers.ClimaODEFunction(; T_imp! = T_imp_wrapper!, T_exp!, dss!),
     Y₀,
     (t0, t_end),
@@ -199,7 +199,7 @@ algo = ClimaTimeSteppers.RosenbrockAlgorithm(
 
 # And here is the integrator, where we set `saveat = t0:dt:t_end` to save a snapshot of
 # the solution at every timestep.
-integrator = SciMLBase.init(prob, algo; dt, saveat = t0:dt:t_end);
+integrator = ClimaTimeSteppers.init(prob, algo; dt, saveat = t0:dt:t_end);
 
 ## Solution and visualization
 #
@@ -240,7 +240,7 @@ extrema(ClimaCore.Fields.level(integrator.u.my_var, ClimaCore.Utilities.PlusHalf
 extrema(ClimaCore.Fields.level(integrator.u.my_var, ClimaCore.Utilities.PlusHalf(1)))
 
 # Let us solve the equation
-SciMLBase.solve!(integrator);
+ClimaTimeSteppers.solve!(integrator);
 
 # Now, the extreme for `my_var` will have decreased, due to diffusion
 extrema(integrator.u)

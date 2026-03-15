@@ -1,12 +1,11 @@
 import DataStructures
 
 """
-    DistributedODEIntegrator <: AbstractODEIntegrator
+    TimeStepperIntegrator
 
-A simplified variant of [`ODEIntegrator`](https://github.com/SciML/OrdinaryDiffEq.jl/blob/6ec5a55bda26efae596bf99bea1a1d729636f412/src/integrators/type.jl#L77-L123).
-
+The main integrator type for ClimaTimeSteppers.
 """
-mutable struct DistributedODEIntegrator{
+mutable struct TimeStepperIntegrator{
     algType,
     uType,
     tType,
@@ -17,36 +16,33 @@ mutable struct DistributedODEIntegrator{
     callbackType,
     cacheType,
     solType,
-} <: DiffEqBase.AbstractODEIntegrator{algType, true, uType, tType}
+}
     alg::algType
     u::uType
     p::pType
     t::tType
     dt::tType
-    _dt::tType # argument to __init used to set dt in step!
+    _dt::tType # argument to init used to set dt in step!
     dtchangeable::Bool
     tstops::heapType
-    _tstops::tstopsType # argument to __init used as default argument to reinit!
+    _tstops::tstopsType # argument to init used as default argument to reinit!
     saveat::heapType
-    _saveat::saveatType # argument to __init used as default argument to reinit!
+    _saveat::saveatType # argument to init used as default argument to reinit!
     step::Int
     stepstop::Int
     callback::callbackType
     advance_to_tstop::Bool
-    u_modified::Bool # not used; field is required for compatibility with
-    # DiffEqBase.initialize! and DiffEqBase.finalize!
+    u_modified::Bool
     cache::cacheType
     sol::solType
-    tdir::tType # see https://docs.sciml.ai/DiffEqCallbacks/stable/output_saving/#DiffEqCallbacks.SavingCallback
+    tdir::tType
 end
 
 """
-    SavedValues{tType<:Real, savevalType}
+    SavedValues{tType, savevalType}
 
 A struct used to save values of the time in `t::Vector{tType}` and
 additional values in `saveval::Vector{savevalType}`.
-
-From DiffEqCallbacks.
 """
 struct SavedValues{tType, savevalType}
     t::Vector{tType}
@@ -57,8 +53,6 @@ end
     SavedValues(tType::DataType, savevalType::DataType)
 
 Return `SavedValues{tType, savevalType}` with empty storage vectors.
-
-From DiffEqCallbacks.
 """
 function SavedValues(::Type{tType}, ::Type{savevalType}) where {tType, savevalType}
     SavedValues{tType, savevalType}(Vector{tType}(), Vector{savevalType}())
@@ -84,10 +78,14 @@ end
 
 compute_tdir(ts) = ts[1] > ts[end] ? sign(ts[end] - ts[1]) : oneunit(ts[1])
 
-# called by DiffEqBase.init and DiffEqBase.solve
-function DiffEqBase.__init(
-    prob::DiffEqBase.AbstractODEProblem,
-    alg::DistributedODEAlgorithm,
+"""
+    init(prob, alg; dt, kwargs...)
+
+Initialize an integrator for the given problem and algorithm.
+"""
+function init(
+    prob::ODEProblem,
+    alg::TimeSteppingAlgorithm,
     args...;
     dt,
     tstops = (),
@@ -95,10 +93,10 @@ function DiffEqBase.__init(
     save_everystep = false,
     callback = nothing,
     advance_to_tstop = false,
-    save_func = (u, t) -> copy(u),   # custom kwarg
-    dtchangeable = true,             # custom kwarg
-    stepstop = -1,                   # custom kwarg
-    tdir = compute_tdir(prob.tspan), #
+    save_func = (u, t) -> copy(u),
+    dtchangeable = true,
+    stepstop = -1,
+    tdir = compute_tdir(prob.tspan),
     kwargs...,
 )
     (; u0, p) = prob
@@ -114,12 +112,12 @@ function DiffEqBase.__init(
     _saveat = saveat
     tstops, saveat = tstops_and_saveat_heaps(t0, tf, tstops, saveat)
 
-    sol = DiffEqBase.build_solution(prob, alg, typeof(t0)[], typeof(save_func(u0, t0))[])
+    sol = ODESolution(prob, alg, typeof(t0)[], typeof(save_func(u0, t0))[])
     saving_callback =
         NonInterpolatingSavingCallback(save_func, SavedValues(sol.t, sol.u), save_everystep)
     callback = CallbackSet(callback, saving_callback)
 
-    integrator = DistributedODEIntegrator(
+    integrator = TimeStepperIntegrator(
         alg,
         u0,
         p,
@@ -148,9 +146,8 @@ function DiffEqBase.__init(
     return integrator
 end
 
-DiffEqBase.has_reinit(integrator::DistributedODEIntegrator) = true
-function DiffEqBase.reinit!(
-    integrator::DistributedODEIntegrator,
+function reinit!(
+    integrator::TimeStepperIntegrator,
     u0 = integrator.sol.prob.u0;
     t0 = integrator.sol.prob.tspan[1],
     tf = integrator.sol.prob.tspan[2],
@@ -175,19 +172,27 @@ function DiffEqBase.reinit!(
     end
 end
 
-# called by DiffEqBase.solve
-function DiffEqBase.__solve(
-    prob::DiffEqBase.AbstractODEProblem,
-    alg::DistributedODEAlgorithm,
+"""
+    solve(prob, alg; kwargs...)
+
+Convenience function: `init` + `solve!`.
+"""
+function solve(
+    prob::ODEProblem,
+    alg::TimeSteppingAlgorithm,
     args...;
     kwargs...,
 )
-    integrator = DiffEqBase.__init(prob, alg, args...; kwargs...)
-    DiffEqBase.solve!(integrator)
+    integrator = init(prob, alg, args...; kwargs...)
+    solve!(integrator)
 end
 
-# either called directly (after init), or by DiffEqBase.solve (via __solve)
-NVTX.@annotate function DiffEqBase.solve!(integrator::DistributedODEIntegrator)
+"""
+    solve!(integrator)
+
+Run the integrator to completion, returning the solution.
+"""
+NVTX.@annotate function solve!(integrator::TimeStepperIntegrator)
     while !isempty(integrator.tstops) && integrator.step != integrator.stepstop
         __step!(integrator)
     end
@@ -195,7 +200,12 @@ NVTX.@annotate function DiffEqBase.solve!(integrator::DistributedODEIntegrator)
     return integrator.sol
 end
 
-function DiffEqBase.step!(integrator::DistributedODEIntegrator)
+"""
+    step!(integrator)
+
+Advance the integrator by one step.
+"""
+function step!(integrator::TimeStepperIntegrator)
     if integrator.advance_to_tstop
         tstop = first(integrator.tstops)
         while !reached_tstop(integrator, tstop)
@@ -206,21 +216,19 @@ function DiffEqBase.step!(integrator::DistributedODEIntegrator)
     end
 end
 
-function DiffEqBase.step!(integrator::DistributedODEIntegrator, dt, stop_at_tdt = false)
-    # OridinaryDiffEq lets dt be negative if tdir is -1, but that's inconsistent
+function step!(integrator::TimeStepperIntegrator, dt, stop_at_tdt = false)
     dt <= zero(dt) && error("dt must be positive")
     stop_at_tdt &&
         !integrator.dtchangeable &&
         error("Cannot stop at t + dt if dtchangeable is false")
     t_plus_dt = integrator.t + tdir(integrator) * dt
-    stop_at_tdt && DiffEqBase.add_tstop!(integrator, t_plus_dt)
+    stop_at_tdt && add_tstop!(integrator, t_plus_dt)
     while !reached_tstop(integrator, t_plus_dt, stop_at_tdt)
         __step!(integrator)
     end
 end
 
-# helper functions for dealing with time-reversed integrators in the same way
-# that OrdinaryDiffEq.jl does
+# helper functions for dealing with time-reversed integrators
 tdir(integrator) = integrator.tstops.ordering isa DataStructures.FasterForward ? 1 : -1
 is_past_t(integrator, t) = tdir(integrator) * (t - integrator.t) < zero(integrator.t)
 reached_tstop(integrator, tstop, stop_at_tstop = integrator.dtchangeable) =
@@ -275,34 +283,29 @@ NVTX.@annotate function step_u!(integrator)
     step_u!(integrator, integrator.cache)
 end
 
-DiffEqBase.get_dt(integrator::DistributedODEIntegrator) = integrator._dt
-function set_dt!(integrator::DistributedODEIntegrator, dt)
-    # TODO: figure out interface for recomputing other objects (linear operators, etc)
+get_dt(integrator::TimeStepperIntegrator) = integrator._dt
+function set_dt!(integrator::TimeStepperIntegrator, dt)
     dt <= zero(dt) && error("dt must be positive")
     integrator._dt = dt
 end
 
-function DiffEqBase.add_tstop!(integrator::DistributedODEIntegrator, t)
+function add_tstop!(integrator::TimeStepperIntegrator, t)
     is_past_t(integrator, t) &&
         error("Cannot add a tstop at $t because that is behind the current \
                integrator time $(integrator.t)")
     push!(integrator.tstops, t)
 end
 
-function DiffEqBase.add_saveat!(integrator::DistributedODEIntegrator, t)
+function add_saveat!(integrator::TimeStepperIntegrator, t)
     is_past_t(integrator, t) &&
         error("Cannot add a saveat point at $t because that is behind the \
                current integrator time $(integrator.t)")
     push!(integrator.saveat, t)
 end
 
-# not sure what this should do?
-# defined as default initialize: https://github.com/SciML/DiffEqBase.jl/blob/master/src/callbacks.jl#L3
-# u_modified! is a no-op; retained for DiffEqBase compatibility
-u_modified!(i::DistributedODEIntegrator, bool) = nothing
+u_modified!(i::TimeStepperIntegrator, bool) = nothing
 
-# this is roughly based on SavingCallback from DiffEqCallbacks, except that it
-# doesn't interpolate; instead it will save the first step after
+# Saving callback: based on SavingCallback from DiffEqCallbacks
 function NonInterpolatingSavingCallback(save_func, saved_values, save_everystep)
     if save_everystep
         condition = (u, t, integrator) -> true

@@ -1,4 +1,5 @@
 using Documenter, DocumenterCitations
+using InteractiveUtils: subtypes
 using ClimaTimeSteppers
 using Literate
 
@@ -16,11 +17,49 @@ for filename in jl_files_in_basedir
         execute = true,
         flavor = Literate.CommonMarkFlavor(),
     )
-    push!(generated_tutorials, joinpath(tutorial_basedir, replace(filename, ".jl" => ".md")))
+    push!(
+        generated_tutorials,
+        joinpath(tutorial_basedir, replace(filename, ".jl" => ".md")),
+    )
 end
 
 # https://github.com/jheinen/GR.jl/issues/278#issuecomment-587090846
 ENV["GKSwstype"] = "nul"
+
+# ── Generate convergence report plots ──────────────────────────────────────────
+# Run the convergence report generator for every algorithm, then summarize the
+# results into PNG plots placed in docs/src/assets/.
+println("Generating convergence report plots...")
+let report_dir = joinpath(@__DIR__, "src", "dev")
+    include(joinpath(report_dir, "compute_convergence.jl"))
+    include(joinpath(pkgdir(ClimaTimeSteppers), "test", "problems.jl"))
+    # Collect all concrete algorithm names
+    function all_subtypes(T)
+        result = Type[]
+        for s in subtypes(T)
+            isabstracttype(s) ? append!(result, all_subtypes(s)) : push!(result, s)
+        end
+        result
+    end
+    for alg_type in all_subtypes(ClimaTimeSteppers.AbstractAlgorithmName)
+        alg_str = string(nameof(alg_type))
+        @info "Testing convergence of $alg_str"
+        empty!(ARGS)
+        push!(ARGS, "--alg", alg_str)
+        try
+            include(joinpath(report_dir, "report_gen_alg.jl"))
+        catch e
+            @warn "Convergence test failed for $alg_str, skipping" exception = e
+        end
+    end
+    include(joinpath(report_dir, "summarize_convergence.jl"))
+    # Copy generated PNGs into docs/src/assets/
+    assets_dir = joinpath(@__DIR__, "src", "assets")
+    mkpath(assets_dir)
+    for f in filter(endswith(".png"), readdir("output"))
+        cp(joinpath("output", f), joinpath(assets_dir, f); force = true)
+    end
+end
 
 bib = CitationBibliography(joinpath(@__DIR__, "refs.bib"))
 
@@ -34,8 +73,9 @@ pages = [
         "Old LSRK Formulations" => "algorithm_formulations/lsrk.md",
         "Old MRRK Formulations" => "algorithm_formulations/mrrk.md",
     ],
-    "Test problems" => [
-        "test_problems/index.md",
+    "Algorithm Properties" => [
+        "Stability" => "algorithm_properties/stability.md",
+        "Convergence" => "algorithm_properties/convergence.md",
     ],
     "Tutorials" => generated_tutorials,
     "API docs" => [
@@ -46,15 +86,21 @@ pages = [
     # "Algorithm comparisons" => "algo_comparisons.md", # TODO: fill out
     "Developer docs" => [
         "Types" => "dev/types.md",
-        "Report generator" => "dev/report_gen.md",
+        "Developer Guide" => "dev/report_gen.md",
     ],
     "references.md",
 ]
 #! format: on
 
-mathengine = MathJax(Dict(:TeX => Dict(:equationNumbers => Dict(:autoNumber => "AMS"), :Macros => Dict())))
+mathengine = MathJax(
+    Dict(:TeX => Dict(:equationNumbers => Dict(:autoNumber => "AMS"), :Macros => Dict())),
+)
 
-format = Documenter.HTML(prettyurls = get(ENV, "CI", nothing) == "true", mathengine = mathengine, collapselevel = 1)
+format = Documenter.HTML(
+    prettyurls = get(ENV, "CI", nothing) == "true",
+    mathengine = mathengine,
+    collapselevel = 1,
+)
 
 makedocs(;
     plugins = [bib],

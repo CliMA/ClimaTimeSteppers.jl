@@ -59,7 +59,17 @@ function maybe_push!(trials₀, name, f!, args, kwargs, only)
     end
 end
 
-const allowed_names = ["Wfact", "ldiv!", "T_imp!", "T_exp_T_lim!", "lim!", "dss!", "cache!", "cache_imp!", "step!"]
+const allowed_names = [
+    "Wfact",
+    "ldiv!",
+    "T_imp!",
+    "T_exp_T_lim!",
+    "lim!",
+    "dss!",
+    "cache!",
+    "cache_imp!",
+    "step!",
+]
 
 """
     benchmark_step(

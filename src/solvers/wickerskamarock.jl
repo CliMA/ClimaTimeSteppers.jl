@@ -37,7 +37,16 @@ n_stages(cache::WickerSkamarockRungeKuttaCache) = n_stages(cache.tableau)
 function init_inner(prob, outercache::WickerSkamarockRungeKuttaCache, dt)
     OffsetODEFunction(prob.f.f1, zero(dt), one(dt), one(dt), outercache.F)
 end
-function update_inner!(innerinteg, outercache::WickerSkamarockRungeKuttaCache, f_slow, u, p, t, dt, i)
+function update_inner!(
+    innerinteg,
+    outercache::WickerSkamarockRungeKuttaCache,
+    f_slow,
+    u,
+    p,
+    t,
+    dt,
+    i,
+)
 
     f_offset = innerinteg.sol.prob.f
     (; c) = outercache.tableau

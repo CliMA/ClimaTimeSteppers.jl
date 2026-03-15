@@ -73,7 +73,16 @@ function init_inner(prob, outercache::MultirateInfinitesimalStepCache, dt)
     OffsetODEFunction(prob.f.f1, zero(dt), one(dt), one(dt), outercache.ΔU[end])
 end
 
-function update_inner!(innerinteg, outercache::MultirateInfinitesimalStepCache, f_slow, u, p, t, dt, i)
+function update_inner!(
+    innerinteg,
+    outercache::MultirateInfinitesimalStepCache,
+    f_slow,
+    u,
+    p,
+    t,
+    dt,
+    i,
+)
 
     f_offset = innerinteg.sol.prob.f
     N = n_stages(outercache)

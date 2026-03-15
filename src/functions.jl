@@ -77,7 +77,8 @@ struct ClimaODEFunction{TEL, TL, TE, TIS, TI, L, D, IS, C, CI} <: AbstractClimaO
 end
 
 has_T_exp(f::ClimaODEFunction) = !isnothing(f.T_exp!) || !isnothing(f.T_exp_T_lim!)
-has_T_lim(f::ClimaODEFunction) = !isnothing(f.lim!) && (!isnothing(f.T_lim!) || !isnothing(f.T_exp_T_lim!))
+has_T_lim(f::ClimaODEFunction) =
+    !isnothing(f.lim!) && (!isnothing(f.T_lim!) || !isnothing(f.T_exp_T_lim!))
 
 # Don't wrap a AbstractClimaODEFunction in an ODEFunction (makes ODEProblem work).
 DiffEqBase.ODEFunction{iip}(f::AbstractClimaODEFunction) where {iip} = f

@@ -47,7 +47,8 @@ end
 
 Constructs a Rosenbrock algorithm for solving ODEs.
 """
-struct RosenbrockAlgorithm{T <: RosenbrockTableau} <: ClimaTimeSteppers.DistributedODEAlgorithm
+struct RosenbrockAlgorithm{T <: RosenbrockTableau} <:
+       ClimaTimeSteppers.DistributedODEAlgorithm
     tableau::T
 end
 
@@ -100,7 +101,16 @@ function init_cache(prob, alg::RosenbrockAlgorithm; kwargs...)
     else
         W = nothing
     end
-    return RosenbrockCache{Nstages, typeof(U), typeof(W)}(U, fU, fU_imp, fU_exp, fU_lim, k, W, ∂Y∂t)
+    return RosenbrockCache{Nstages, typeof(U), typeof(W)}(
+        U,
+        fU,
+        fU_imp,
+        fU_exp,
+        fU_lim,
+        k,
+        W,
+        ∂Y∂t,
+    )
 end
 
 """

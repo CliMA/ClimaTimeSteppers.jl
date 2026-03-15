@@ -269,26 +269,3 @@ and where
 \tilde{U}_i = \begin{cases} u_0 & i = 1 \\ \begin{aligned} & (1 - \beta_{i - 1}) u_0 +{} \\ & \quad\beta_{i - 1} \left(\textrm{lim}_{\tilde{U}_{i - 1}}\left(\tilde{U}_{i - 1} + \Delta t T_{\text{lim}}(U_{i - 1}, t_0 + \Delta t \tilde{c}_{i - 1})\right) + \Delta t T_{\text{exp}}(U_{i - 1}, t_0 + \Delta t \tilde{c}_{i - 1})\right) \end{aligned} & i > 1 \end{cases}.
 ```
 
-## Running Newton's Method
-
-Every implicit equation for ``U_i`` has the form ``f_i(U_i) = 0``, where
-
-```math
-f_i(x) = R_i + \Delta t a_{i,i} T_{\text{imp}}(x, t_0 + \Delta t c_i) - x.
-```
-
-In this function, ``R_i``, ``\Delta t a_{i,i}``, and ``t_0 + \Delta t c_i`` are all quantities that do not depend on ``x``. The Jacobian of this function is
-
-```math
-W_i(x) = \frac{d}{dx}f_i(x) = \Delta t a_{i,i} J_{\text{imp}}(x, t_0 + \Delta t c_i) - 1,
-```
-
-where ``J_{\text{imp}}`` is the Jacobian of the implicit tendency,
-
-```math
-J_{\text{imp}}(x, t) = \frac{\partial}{\partial x}T_{\text{imp}}(x, t).
-```
-
-The value of ``U_i`` can be computed by running Newton's method with ``f = f_i`` and ``j = W_i``.
-
-Note that "``W``" is used to denote the same quantity in [OrdinaryDiffEq.jl](https://github.com/SciML/OrdinaryDiffEq.jl/blob/v6.0.0/src/derivative_utils.jl).

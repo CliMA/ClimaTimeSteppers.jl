@@ -44,7 +44,12 @@ An [ClimaComms context](https://clima.github.io/ClimaComms.jl/) must be provided
 If `atinit=true`, then `f!(integrator)` will additionally be triggered at initialization,
 otherwise the first trigger will be after `Δwt` seconds.
 """
-function EveryXWallTimeSeconds(f!, Δwt, comm_ctx::ClimaComms.AbstractCommsContext; atinit = false)
+function EveryXWallTimeSeconds(
+    f!,
+    Δwt,
+    comm_ctx::ClimaComms.AbstractCommsContext;
+    atinit = false,
+)
     wt_next = 0.0
 
     function _initialize(c, u, t, integrator)
@@ -73,7 +78,12 @@ function EveryXWallTimeSeconds(f!, Δwt, comm_ctx::ClimaComms.AbstractCommsConte
     end
 
     if isdefined(DiffEqBase, :finalize!)
-        SciMLBase.DiscreteCallback(condition, f!; initialize = _initialize, finalize = _finalize)
+        SciMLBase.DiscreteCallback(
+            condition,
+            f!;
+            initialize = _initialize,
+            finalize = _finalize,
+        )
     else
         SciMLBase.DiscreteCallback(condition, f!; initialize = _initialize)
     end
@@ -116,7 +126,12 @@ function EveryXSimulationTime(f!, Δt; atinit = false)
         end
     end
     if isdefined(DiffEqBase, :finalize!)
-        SciMLBase.DiscreteCallback(condition, f!; initialize = _initialize, finalize = _finalize)
+        SciMLBase.DiscreteCallback(
+            condition,
+            f!;
+            initialize = _initialize,
+            finalize = _finalize,
+        )
     else
         SciMLBase.DiscreteCallback(condition, f!; initialize = _initialize)
     end
@@ -160,7 +175,12 @@ function EveryXSimulationSteps(f!, Δsteps; atinit = false)
     end
 
     if isdefined(DiffEqBase, :finalize!)
-        SciMLBase.DiscreteCallback(condition, f!; initialize = _initialize, finalize = _finalize)
+        SciMLBase.DiscreteCallback(
+            condition,
+            f!;
+            initialize = _initialize,
+            finalize = _finalize,
+        )
     else
         SciMLBase.DiscreteCallback(condition, f!; initialize = _initialize)
     end

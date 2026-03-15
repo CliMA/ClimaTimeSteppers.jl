@@ -37,10 +37,11 @@ function step_u!(integrator, cache::IMEXARKCache, ::ARS343)
     let i = i
         t_imp = t + dt * c_imp[i]
         cache_imp!(U, p, t_imp)
-        implicit_equation_residual! = (residual, U′) -> begin
-            T_imp!(residual, U′, p, t_imp)
-            @. residual = temp + dtγ * residual - U′
-        end
+        implicit_equation_residual! =
+            (residual, U′) -> begin
+                T_imp!(residual, U′, p, t_imp)
+                @. residual = temp + dtγ * residual - U′
+            end
         solve_newton!(
             newtons_method,
             newtons_method_cache,
@@ -60,16 +61,20 @@ function step_u!(integrator, cache::IMEXARKCache, ::ARS343)
     t_exp = t + dt * c_exp[i]
     @. U = u + dt * a_exp[i, 1] * T_lim[1] + dt * a_exp[i, 2] * T_lim[2]
     lim!(U, p, t_exp, u)
-    @. U += dt * a_exp[i, 1] * T_exp[1] + dt * a_exp[i, 2] * T_exp[2] + dt * a_imp[i, 2] * T_imp[2]
+    @. U +=
+        dt * a_exp[i, 1] * T_exp[1] +
+        dt * a_exp[i, 2] * T_exp[2] +
+        dt * a_imp[i, 2] * T_imp[2]
     dss!(U, p, t_exp)
     @. temp = U # used in closures
     let i = i
         t_imp = t + dt * c_imp[i]
         cache_imp!(U, p, t_imp)
-        implicit_equation_residual! = (residual, U′) -> begin
-            T_imp!(residual, U′, p, t_imp)
-            @. residual = temp + dtγ * residual - U′
-        end
+        implicit_equation_residual! =
+            (residual, U′) -> begin
+                T_imp!(residual, U′, p, t_imp)
+                @. residual = temp + dtγ * residual - U′
+            end
         solve_newton!(
             newtons_method,
             newtons_method_cache,
@@ -87,7 +92,11 @@ function step_u!(integrator, cache::IMEXARKCache, ::ARS343)
 
     i = 4
     t_exp = t + dt
-    @. U = u + dt * a_exp[i, 1] * T_lim[1] + dt * a_exp[i, 2] * T_lim[2] + dt * a_exp[i, 3] * T_lim[3]
+    @. U =
+        u +
+        dt * a_exp[i, 1] * T_lim[1] +
+        dt * a_exp[i, 2] * T_lim[2] +
+        dt * a_exp[i, 3] * T_lim[3]
     lim!(U, p, t_exp, u)
     @. U +=
         dt * a_exp[i, 1] * T_exp[1] +
@@ -100,10 +109,11 @@ function step_u!(integrator, cache::IMEXARKCache, ::ARS343)
     let i = i
         t_imp = t + dt * c_imp[i]
         cache_imp!(U, p, t_imp)
-        implicit_equation_residual! = (residual, U′) -> begin
-            T_imp!(residual, U′, p, t_imp)
-            @. residual = temp + dtγ * residual - U′
-        end
+        implicit_equation_residual! =
+            (residual, U′) -> begin
+                T_imp!(residual, U′, p, t_imp)
+                @. residual = temp + dtγ * residual - U′
+            end
         solve_newton!(
             newtons_method,
             newtons_method_cache,
@@ -120,7 +130,8 @@ function step_u!(integrator, cache::IMEXARKCache, ::ARS343)
     @. T_imp[i] = (U - temp) / dtγ
 
     t_final = t + dt
-    @. temp = u + dt * b_exp[2] * T_lim[2] + dt * b_exp[3] * T_lim[3] + dt * b_exp[4] * T_lim[4]
+    @. temp =
+        u + dt * b_exp[2] * T_lim[2] + dt * b_exp[3] * T_lim[3] + dt * b_exp[4] * T_lim[4]
     lim!(temp, p, t_final, u)
     @. u =
         temp +

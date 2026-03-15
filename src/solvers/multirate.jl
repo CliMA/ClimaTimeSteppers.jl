@@ -40,7 +40,13 @@ function cts_remake(prob::DiffEqBase.AbstractODEProblem; f::DiffEqBase.AbstractO
     )
 end
 
-function init_cache(prob::DiffEqBase.AbstractODEProblem, alg::Multirate; dt, fast_dt, kwargs...)
+function init_cache(
+    prob::DiffEqBase.AbstractODEProblem,
+    alg::Multirate;
+    dt,
+    fast_dt,
+    kwargs...,
+)
 
     @assert prob.f isa DiffEqBase.SplitFunction
 

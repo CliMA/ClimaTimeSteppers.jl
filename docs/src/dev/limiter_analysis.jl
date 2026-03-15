@@ -37,8 +37,8 @@ test_case = horizontal_deformational_flow_test(Float64; use_limiter, use_hyperdi
 prob = test_case.split_prob
 dt = test_case.t_end / num_steps
 algorithm =
-    alg_name isa ClimaTimeSteppers.IMEXARKAlgorithmName ? IMEXAlgorithm(alg_name, NewtonsMethod()) :
-    ExplicitAlgorithm(alg_name)
+    alg_name isa ClimaTimeSteppers.IMEXARKAlgorithmName ?
+    IMEXAlgorithm(alg_name, NewtonsMethod()) : ExplicitAlgorithm(alg_name)
 solution = solve(deepcopy(prob), algorithm; dt).u
 
 limiter_results = Dict()

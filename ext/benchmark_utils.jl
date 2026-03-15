@@ -13,7 +13,8 @@ get_summary(trial, trial_step = nothing) = (;
     t_mean_val = StatsBase.mean(trial.times),
     t_med = BenchmarkTools.prettytime(StatsBase.median(trial.times)),
     n_samples = length(trial),
-    percentage = isnothing(trial_step) ? -1 : minimum(trial.times) / minimum(trial_step.times) * 100,
+    percentage = isnothing(trial_step) ? -1 :
+                 minimum(trial.times) / minimum(trial_step.times) * 100,
 )
 
 function tabulate_summary(summary; n_calls_per_step)
@@ -33,10 +34,21 @@ function tabulate_summary(summary; n_calls_per_step)
         @info "(#)x entries have been multiplied by corresponding factors in order to compute percentages"
         map(k -> string(k, " ($(n_calls_per_step[k])x)"), collect(keys(summary)))
     end
-    table_data = hcat(func_names, mem, nalloc, t_min, t_max, t_mean, t_med, n_samples, percentage)
+    table_data =
+        hcat(func_names, mem, nalloc, t_min, t_max, t_mean, t_med, n_samples, percentage)
 
     column_labels = [
-        ["Function", "Memory", "allocs", "Time", "Time", "Time", "Time", "N-samples", "step! percentage"],
+        [
+            "Function",
+            "Memory",
+            "allocs",
+            "Time",
+            "Time",
+            "Time",
+            "Time",
+            "N-samples",
+            "step! percentage",
+        ],
         [" ", "estimate", "estimate", "min", "max", "mean", "median", "", ""],
     ]
 
@@ -49,9 +61,26 @@ function tabulate_summary(summary; n_calls_per_step)
     )
 end
 
-get_trial(f::Nothing, args, name; device, with_cu_prof = :bprofile, trace = false, crop = false, hcrop = nothing) =
-    nothing
-function get_trial(f, args, name; device, with_cu_prof = :bprofile, trace = false, crop = false, hcrop = nothing)
+get_trial(
+    f::Nothing,
+    args,
+    name;
+    device,
+    with_cu_prof = :bprofile,
+    trace = false,
+    crop = false,
+    hcrop = nothing,
+) = nothing
+function get_trial(
+    f,
+    args,
+    name;
+    device,
+    with_cu_prof = :bprofile,
+    trace = false,
+    crop = false,
+    hcrop = nothing,
+)
     f(args...) # compile first
     b = if device isa ClimaComms.CUDADevice
         BenchmarkTools.@benchmarkable CUDA.@sync $f($(args)...)
@@ -74,7 +103,12 @@ function get_trial(f, args, name; device, with_cu_prof = :bprofile, trace = fals
             # See https://github.com/ronisbr/PrettyTables.jl/issues/11#issuecomment-2145550354
             envs = isnothing(hcrop) ? () : ("COLUMNS" => hcrop,)
             withenv(envs...) do
-                io = IOContext(stdout, :crop => :horizontal, :limit => true, :displaysize => displaysize())
+                io = IOContext(
+                    stdout,
+                    :crop => :horizontal,
+                    :limit => true,
+                    :displaysize => displaysize(),
+                )
                 show(io, p)
             end
             println()
@@ -84,7 +118,8 @@ function get_trial(f, args, name; device, with_cu_prof = :bprofile, trace = fals
     return trial
 end
 
-get_W(i::CTS.DistributedODEIntegrator) = hasproperty(i.cache, :W) ? i.cache.W : i.cache.newtons_method_cache.j
+get_W(i::CTS.DistributedODEIntegrator) =
+    hasproperty(i.cache, :W) ? i.cache.W : i.cache.newtons_method_cache.j
 get_W(i) = i.cache.W
 f_args(i, f::CTS.ForwardEulerODEFunction) = (copy(i.u), i.u, i.p, i.t, i.dt)
 f_args(i, f) = (similar(i.u), i.u, i.p, i.t)

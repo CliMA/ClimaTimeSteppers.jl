@@ -47,6 +47,10 @@ end
     include("unit/jacobian_accuracy.jl")
 end
 
+@safetestset "ForwardDiff compatibility" begin
+    include("unit/forward_diff.jl")
+end
+
 # ============================================================================ #
 # Solver correctness tests (Newton's method)
 # ============================================================================ #

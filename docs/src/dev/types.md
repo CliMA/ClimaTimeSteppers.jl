@@ -39,3 +39,17 @@ AT.print_tree(CTS.AbstractAlgorithmConstraint)
 ```@example types
 AT.print_tree(CTS.AbstractClimaODEFunction)
 ```
+
+## Internal Types
+
+### `OffsetODEFunction`
+
+Multirate algorithms (MIS, Wicker-Skamarock) solve an "inner ODE" representing the fast tendency ``f_F`` during each outer stage. The inner problem runs over a substep interval ``\tau \in [\tau_{i-1}, \tau_i]`` with the slow tendency ``f_S`` held fixed as a constant forcing term.
+
+To reuse standard timesteppers for the inner problem without allocating new functions, `ClimaTimeSteppers.jl` uses `OffsetODEFunction`. This wrapper dynamically offsets the inner integration time and adds the constant slow forcing:
+
+```math
+f_{\text{offset}}(u, p, \tau) = f_F(u, p, \alpha + \beta \tau) + \gamma \cdot x
+```
+
+The parameters ``\alpha, \beta, \gamma, x`` are mutated in-place by the outer multirate solver at the start of each stage. This design achieves zero-allocation multirate stepping.

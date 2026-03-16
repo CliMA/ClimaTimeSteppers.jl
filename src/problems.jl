@@ -23,6 +23,16 @@ struct ODEProblem{F, U, T, P}
     p::P
 end
 
+Base.summary(io::IO, prob::ODEProblem) =
+    print(io, "ODEProblem with uType $(typeof(prob.u0)) and tType $(typeof(prob.tspan[1]))")
+function Base.show(io::IO, mime::MIME"text/plain", prob::ODEProblem)
+    summary(io, prob)
+    println(io)
+    println(io, "timespan: ", prob.tspan)
+    println(io, "u0: ", summary(prob.u0))
+    print(io, "p: ", summary(prob.p))
+end
+
 """
     SplitFunction(f1, f2)
 

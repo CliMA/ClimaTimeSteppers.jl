@@ -11,6 +11,17 @@ import DiffEqBase
 import SciMLBase
 import ClimaTimeSteppers as CTS
 
+# Re-export DiffEqBase through CTS for downstream access (e.g., CTS.DiffEqBase.KeywordArgSilent)
+if !isdefined(CTS, :DiffEqBase)
+    @eval CTS const DiffEqBase = $DiffEqBase
+end
+
+
+# NOTE: SciMLBase.ODEProblem(f::CTS.ClimaODEFunction, ...) is defined in
+# ClimaTimeSteppersSciMLExt (which is always loaded when this extension loads,
+# since DiffEqBase depends on SciMLBase). Do NOT duplicate it here.
+
+
 # Convert DiffEqBase function types to CTS equivalents
 convert_f(f) = f
 convert_f(f::SciMLBase.SplitFunction) = CTS.SplitFunction(f.f1, f.f2)
@@ -57,32 +68,9 @@ function DiffEqBase.__solve(
     CTS.solve(prob, alg, args...; kwargs...)
 end
 
-# Forward DiffEqBase.solve! → CTS.solve!
-DiffEqBase.solve!(integrator::CTS.DistributedODEIntegrator) = CTS.solve!(integrator)
-
-# Forward DiffEqBase.step! → CTS.step!
-DiffEqBase.step!(integrator::CTS.DistributedODEIntegrator) = CTS.step!(integrator)
-DiffEqBase.step!(integrator::CTS.DistributedODEIntegrator, dt, stop_at_tdt = false) =
-    CTS.step!(integrator, dt, stop_at_tdt)
-
-# Forward DiffEqBase.add_tstop! → CTS.add_tstop!
-DiffEqBase.add_tstop!(integrator::CTS.DistributedODEIntegrator, t) =
-    CTS.add_tstop!(integrator, t)
-
-# Forward DiffEqBase.get_dt
-DiffEqBase.get_dt(integrator::CTS.DistributedODEIntegrator) = CTS.get_dt(integrator)
-
-# Forward DiffEqBase.reinit!
-DiffEqBase.has_reinit(::CTS.DistributedODEIntegrator) = true
-function DiffEqBase.reinit!(integrator::CTS.DistributedODEIntegrator, args...; kwargs...)
-    CTS.reinit!(integrator, args...; kwargs...)
-end
-
-# u_modified! is a DiffEqBase-only concept (no-op here)
-DiffEqBase.u_modified!(::CTS.DistributedODEIntegrator, ::Bool) = nothing
-
-# SciMLBase: allows_arbitrary_number_types
-SciMLBase.allows_arbitrary_number_types(::CTS.DistributedODEAlgorithm) = true
-SciMLBase.allowscomplex(::CTS.DistributedODEAlgorithm) = true
+# NOTE: solve!, step!, add_tstop!, get_dt, has_reinit, reinit!, u_modified!,
+# allows_arbitrary_number_types, and allowscomplex are all defined in
+# ClimaTimeSteppersSciMLExt. DiffEqBase re-exports these from SciMLBase,
+# so defining them here would overwrite the SciMLExt methods.
 
 end # module

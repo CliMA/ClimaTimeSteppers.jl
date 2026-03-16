@@ -73,7 +73,7 @@ pages = [
         "Types" => "dev/types.md",
         "Developer Guide" => "dev/report_gen.md",
     ],
-    "contributing.md",
+    "Contributing" => "contributing.md",
     "references.md",
 ]
 #! format: on
@@ -86,7 +86,6 @@ format = Documenter.HTML(
     prettyurls = get(ENV, "CI", nothing) == "true",
     mathengine = mathengine,
     collapselevel = 1,
-    logo = "assets/logo.svg",
 )
 
 makedocs(;

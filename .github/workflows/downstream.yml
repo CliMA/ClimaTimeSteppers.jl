@@ -1,0 +1,101 @@
+name: Downstream
+on:
+  push:
+    branches:
+      - main
+    tags: '*'
+  pull_request:
+
+# Needed to allow julia-actions/cache to delete old caches that it has created
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  climaatmos:
+    name: ClimaAtmos.jl
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        version:
+          - '1.11'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: ${{ matrix.version }}
+      - uses: julia-actions/cache@v2
+      - uses: julia-actions/julia-buildpkg@v1
+      - uses: actions/checkout@v4
+        with:
+          repository: 'CliMA/ClimaAtmos.jl'
+          path: climaatmos
+      - run: |
+          julia --color=yes --project=climaatmos/.buildkite -e 'using Pkg; Pkg.instantiate()'
+          julia --color=yes --project=climaatmos/.buildkite -e 'using Pkg; Pkg.develop(path=".")'
+          julia --color=yes --project=climaatmos/.buildkite -e 'using Pkg; Pkg.precompile()'
+          julia --color=yes --project=climaatmos/.buildkite .buildkite/downstream/climaatmos.jl
+
+  climaland:
+    name: ClimaLand.jl
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        version:
+          - '1.11'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: ${{ matrix.version }}
+      - uses: julia-actions/cache@v2
+      - uses: julia-actions/julia-buildpkg@v1
+      - uses: actions/checkout@v4
+        with:
+          repository: 'CliMA/ClimaLand.jl'
+          path: climaland
+      - run: |
+          julia --color=yes --project=climaland/.buildkite -e 'using Pkg; Pkg.instantiate()'
+          julia --color=yes --project=climaland/.buildkite -e 'using Pkg; Pkg.develop(path=".")'
+          julia --color=yes --project=climaland/.buildkite -e 'using Pkg; Pkg.precompile()'
+          julia --color=yes --project=climaland/.buildkite .buildkite/downstream/climaland.jl
+
+  # Disabled until ClimaCoupler updates compat bounds for ClimaLand ≥ 1.6.3
+  # climacoupler:
+  #   name: ClimaCoupler.jl
+  #   runs-on: ubuntu-latest
+  #   continue-on-error: true
+  #   timeout-minutes: 60
+  #   strategy:
+  #     fail-fast: false
+  #     matrix:
+  #       version:
+  #         - '1.11'
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: julia-actions/setup-julia@v2
+  #       with:
+  #         version: ${{ matrix.version }}
+  #     - uses: julia-actions/cache@v2
+  #     - uses: julia-actions/julia-buildpkg@v1
+  #     - uses: actions/checkout@v4
+  #       with:
+  #         repository: 'CliMA/ClimaCoupler.jl'
+  #         path: climacoupler
+  #     - env:
+  #         CLIMACOUPLER_DIR: climacoupler
+  #       run: |
+  #         julia --color=yes --project=climacoupler/experiments/ClimaEarth -e 'using Pkg; Pkg.instantiate()'
+  #         julia --color=yes --project=climacoupler/experiments/ClimaEarth -e 'using Pkg; Pkg.develop(path=".")'
+  #         julia --color=yes --project=climacoupler/experiments/ClimaEarth -e 'using Pkg; Pkg.precompile()'
+  #         julia --color=yes --project=climacoupler/experiments/ClimaEarth .buildkite/downstream/climacoupler.jl

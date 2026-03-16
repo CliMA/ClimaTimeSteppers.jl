@@ -133,6 +133,13 @@ function DiscreteCallback(
     DiscreteCallback(condition, affect!, initialize, finalize)
 end
 
+# COMPAT: once ClimaTimeSteppersSciMLExt and SciMLBase backward compatibility are
+# removed, simplify this struct by dropping the `continuous_callbacks` field and
+# the `CallbackSet(cbs::Tuple)` constructor:
+#   struct CallbackSet{DC <: Tuple}
+#       discrete_callbacks::DC
+#   end
+#   CallbackSet(cbs::DiscreteCallback...) = CallbackSet(cbs)
 """
     CallbackSet(callbacks...)
 
@@ -140,16 +147,18 @@ A collection of [`DiscreteCallback`](@ref)s applied after each step.
 Accepts `nothing`, individual `DiscreteCallback`s, or nested `CallbackSet`s.
 """
 struct CallbackSet{DC <: Tuple}
+    continuous_callbacks::Tuple{}  # always empty; included for SciMLBase duck-typing compat
     discrete_callbacks::DC
 end
-CallbackSet(cbs::DiscreteCallback...) = CallbackSet(cbs)
+CallbackSet(cbs::Tuple) = CallbackSet((), cbs)
+CallbackSet(cbs::DiscreteCallback...) = CallbackSet((), cbs)
 function CallbackSet(cb_or_nothing, cbs::DiscreteCallback...)
     if isnothing(cb_or_nothing)
-        CallbackSet(cbs)
+        CallbackSet((), cbs)
     elseif cb_or_nothing isa DiscreteCallback
-        CallbackSet((cb_or_nothing, cbs...))
+        CallbackSet((), (cb_or_nothing, cbs...))
     elseif cb_or_nothing isa CallbackSet
-        CallbackSet((cb_or_nothing.discrete_callbacks..., cbs...))
+        CallbackSet((), (cb_or_nothing.discrete_callbacks..., cbs...))
     else
         error("Unsupported callback type: $(typeof(cb_or_nothing))")
     end
@@ -195,6 +204,17 @@ include("solvers/rosenbrock.jl")
 
 include("Callbacks.jl")
 
+# COMPAT: remove this entire module once ClimaTimeSteppersSciMLExt and
+# ClimaTimeSteppersDiffEqExt are removed.
+# Backward-compatibility stub: provides CTS.DiffEqBase.KeywordArgSilent
+# so downstream code using `kwargshandle = CTS.DiffEqBase.KeywordArgSilent`
+# continues to work without the real DiffEqBase loaded.
+# When the ClimaTimeSteppersDiffEqExt extension loads, it replaces this
+# with the real DiffEqBase module.
+module DiffEqBase
+struct KeywordArgSilentType end
+const KeywordArgSilent = KeywordArgSilentType()
+end
 
 benchmark_step(integrator, device) =
     @warn "Must load CUDA, BenchmarkTools, OrderedCollections, StatsBase, PrettyTables to trigger the ClimaTimeSteppersBenchmarkToolsExt extension"

@@ -7,7 +7,7 @@ CurrentModule = ClimaTimeSteppers
 This page documents all problem types, ODE function containers, integrator
 functions, and time-stepping algorithms provided by ClimaTimeSteppers.jl.
 
-For the mathematical derivations behind these algorithms, see the
+For the mathematical formulation of these algorithms, see the
 [Algorithm Formulations](../algorithm_formulations/ode_solvers.md) section.
 
 ## Problem Types

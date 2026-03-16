@@ -240,7 +240,8 @@ tracker = EveryXSimulationTime(0.1) do integrator
     push!(peak_temps, maximum(integrator.u))
 end
 
-sol2 = CTS.solve(deepcopy(prob), alg; dt = 0.02, callback = tracker)
+prob2 = CTS.ODEProblem(ode_function, zeros(N), tspan, p)
+sol2 = CTS.solve(prob2, alg; dt = 0.02, callback = tracker)
 
 plt3 = plot(peak_times, peak_temps;
     xlabel = "t", ylabel = "max(T)",
@@ -260,12 +261,13 @@ running at four timestep sizes and measuring the error against a
 fine-resolution reference:
 
 ```@example imex
-ref_sol = CTS.solve(deepcopy(prob), alg; dt = 0.0005, saveat = (tspan[2],))
+ref_prob = CTS.ODEProblem(ode_function, zeros(N), tspan, p)
+ref_sol = CTS.solve(ref_prob, alg; dt = 0.0005, saveat = (tspan[2],))
 u_ref = ref_sol.u[end]
 
 dts = [0.08, 0.04, 0.02, 0.01]
 errs = map(dts) do dt
-    s = CTS.solve(deepcopy(prob), alg; dt = dt, saveat = (tspan[2],))
+    s = CTS.solve(CTS.ODEProblem(ode_function, zeros(N), tspan, p), alg; dt = dt, saveat = (tspan[2],))
     norm(s.u[end] .- u_ref)
 end
 
@@ -293,7 +295,8 @@ For adaptive workflows (e.g., ClimaCoupler advancing component models),
 you can create an integrator and step manually:
 
 ```@example imex
-integrator = CTS.init(deepcopy(prob), alg; dt = 0.5, advance_to_tstop = true)
+step_prob = CTS.ODEProblem(ode_function, zeros(N), tspan, p)
+integrator = CTS.init(step_prob, alg; dt = 0.5, advance_to_tstop = true)
 
 CTS.add_tstop!(integrator, 1.0)
 CTS.step!(integrator)                   # advances to t = 1.0

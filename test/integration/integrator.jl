@@ -40,42 +40,40 @@ include(joinpath(@__DIR__, "..", "problems.jl"))
         fixed_dt_times = [exact_dt_times..., exact_dt_times[end] + tdir * dt]
 
         for (compare_to_ode, kwargs, times) in (
-            # testing default saving behavior (OrdinaryDiffEq saves every step by default)
+            # testing default saving behavior
             (false, (;), [t0, tf]),
             # testing save_everystep
             (true, (; save_everystep = false), [t0, tf]),
             (true, (; save_everystep = true), [exact_dt_times..., tf]),
             (true, (; save_everystep = true, saveat = [t0]), [exact_dt_times..., tf]),
-            # testing simple saveat (OrdinaryDiffEq saves at [t0, tf] when saveat is empty)
+            # testing simple saveat
             (false, (; saveat = []), []),
             (true, (; saveat = [t0]), [t0]),
             (true, (; saveat = [tf]), [tf]),
-            # testing non-interpolated saving (OrdinaryDiffEq interpolates when saving)
+            # testing non-interpolated saving
             (false, (; saveat = save_dt_times), misaligned_saving_times),
             # testing tstops (tstops remove the need for interpolation when saving)
             (true, (; saveat = save_dt_times, tstops = save_dt_times), save_dt_times),
             # testing add_tstops! and add_saveat!
             (true, (; saveat = [tf], callback = adding_callback), [save_dt_times..., tf]),
-            # testing set_dt! (OrdinaryDiffEq does not support this function)
+            # testing set_dt!
             (false, (; save_everystep = true, callback = setting_callback), setting_times),
-            # testing dtchangeable (OrdinaryDiffEq does not support this kwarg)
+            # testing dtchangeable
             (false, (; save_everystep = true, dtchangeable = false), fixed_dt_times),
             (
                 false,
                 (; save_everystep = true, dtchangeable = false, tstops = save_dt_times),
                 fixed_dt_times,
             ),
-            # testing stepstop (OrdinaryDiffEq does not support this kwarg)
+            # testing stepstop
             (false, (; save_everystep = true, stepstop = 0), exact_dt_times[1:1]),
             (false, (; save_everystep = true, stepstop = 4), exact_dt_times[1:5]),
         )
             is_ode = !(alg isa ClimaTimeSteppers.DistributedODEAlgorithm)
             is_ode && !compare_to_ode && continue
 
-            # hide the warning about unrecognized kwargs from OrdinaryDiffEq
             sol = solve(deepcopy(prob), alg; dt, kwargs...)
 
-            # remove the duplicate entries put in sol by OrdinaryDiffEq
             sol_times = is_ode ? unique(sol.t) : sol.t
             @test sol_times == times
 
@@ -88,8 +86,6 @@ include(joinpath(@__DIR__, "..", "problems.jl"))
 end
 
 @testset "integrator save times with reinit!" begin
-    # OrdinaryDiffEq does not save at t0′ after reinit! unless erase_sol is
-    # true, so this test does not include a comparison with OrdinaryDiffEq.
     alg = ExplicitAlgorithm(SSP33ShuOsher())
     test_case = clima_constant_tendency_test(Float64)
     (; prob, analytic_sol) = test_case

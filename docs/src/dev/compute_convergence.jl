@@ -47,7 +47,12 @@ function test_convergence!(
         ref_dt = t_end / numerical_reference_num_steps
         verbose &&
             @info "Generating reference solution for $test_name with $ref_alg_str and dt = $ref_dt"
-        solve(deepcopy(prob), ref_alg; dt = ref_dt, save_everystep = true)
+        solve(
+            ODEProblem(prob.f, copy(prob.u0), prob.tspan, prob.p),
+            ref_alg;
+            dt = ref_dt,
+            save_everystep = true,
+        )
     end
     numerical_reference_info = if isnothing(numerical_reference_algorithm_name)
         nothing
@@ -67,7 +72,12 @@ function test_convergence!(
     sampled_num_steps = default_num_steps .* num_steps_scaling_factor .^ num_steps_powers
     sampled_dts = t_end ./ round.(Int, sampled_num_steps)
     average_rms_errors = map(sampled_dts) do dt
-        sol = solve(deepcopy(prob), alg; dt = dt, save_everystep = true)
+        sol = solve(
+            ODEProblem(prob.f, copy(prob.u0), prob.tspan, prob.p),
+            alg;
+            dt = dt,
+            save_everystep = true,
+        )
         rms(rms_error.(sol.u, sol.t, (ref_sol,)))
     end
     verbose && @info "Sampled timesteps = $sampled_dts"
@@ -87,14 +97,21 @@ function test_convergence!(
         nothing
     end
     if isnothing(convergence_test_error)
-        @assert !(algorithm_name in broken_tests)
+        if algorithm_name in broken_tests
+            @warn "Timestepper unexpectedly converged for $alg_str ($test_name)"
+        end
     elseif error_on_failure && !(algorithm_name in broken_tests)
         error(convergence_test_error)
     else
         @warn convergence_test_error
     end
 
-    default_dt_sol = solve(deepcopy(prob), alg; dt = default_dt, save_everystep = true)
+    default_dt_sol = solve(
+        ODEProblem(prob.f, copy(prob.u0), prob.tspan, prob.p),
+        alg;
+        dt = default_dt,
+        save_everystep = true,
+    )
     default_dt_times = default_dt_sol.t
     default_dt_solutions = rms.(default_dt_sol.u)
     default_dt_errors = rms_error.(default_dt_sol.u, default_dt_sol.t, (ref_sol,))

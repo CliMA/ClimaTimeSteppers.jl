@@ -27,10 +27,7 @@ minimizing the memory footprint.
 - **Flexible Newton solver**: Configurable Jacobian update strategies,
   Krylov methods (GMRES), Jacobian-free Newton-Krylov (JFNK), and
   adaptive forcing terms.
-- **Self-contained**: All problem types, solvers, and callbacks are defined
-  locally, with no mandatory dependency on DiffEqBase or SciMLBase. An
-  optional package extension provides backward compatibility with the
-  DifferentialEquations.jl ecosystem.
+- **Automatic differentiation**: Fully compatible with automatic differentiation (e.g., [ForwardDiff.jl](https://github.com/JuliaDiff/ForwardDiff.jl)). Dual numbers propagate through all solver families, enabling gradient-based calibration and sensitivity analysis. See the [AD tutorial](tutorials/automatic_differentiation.md).
 
 ## Installation
 
@@ -54,8 +51,7 @@ import ClimaTimeSteppers as CTS
 # ── 1. Define the problem ────────────────────────────────────────────────────
 #   du/dt = -u,  u(0) = 1,  t ∈ [0, 5]
 T_exp!(du, u, p, t) = (du .= -u)
-f    = ClimaODEFunction(; T_exp! = T_exp!)
-prob = CTS.ODEProblem(f, [1.0], (0.0, 5.0), nothing)
+f = ClimaODEFunction(; T_exp! = T_exp!)
 
 # ── 2. Solve with two explicit algorithms ─────────────────────────────────────
 algorithms = [
@@ -65,7 +61,9 @@ algorithms = [
 
 solutions = Dict{String, Any}()
 for (name, alg) in algorithms
-    sol = CTS.solve(deepcopy(prob), alg; dt = 0.5, save_everystep = true)
+    # Fresh problem each iteration (solve! mutates u0 in place)
+    prob = CTS.ODEProblem(f, [1.0], (0.0, 5.0), nothing)
+    sol = CTS.solve(prob, alg; dt = 0.5, save_everystep = true)
     solutions[name] = sol
 end
 
@@ -93,9 +91,9 @@ savefig(plt, "quickstart_decay.png")
 nothing # hide
 ```
 
-![Exponential decay solved with three CTS algorithms](quickstart_decay.png)
+![Exponential decay solved with two CTS algorithms](quickstart_decay.png)
 
-All three methods track the exact solution closely at this timestep.
+Both methods track the exact solution closely at this timestep.
 
 ### Convergence
 
@@ -137,7 +135,8 @@ The error decreases as ``\Delta t^4``, confirming 4th-order convergence.
 For finer control, create an integrator and advance it manually:
 
 ```@example quickstart
-integrator = CTS.init(deepcopy(prob), ExplicitAlgorithm(SSP33ShuOsher()); dt = 1.0)
+prob = CTS.ODEProblem(f, [1.0], (0.0, 5.0), nothing)  # fresh problem
+integrator = CTS.init(prob, ExplicitAlgorithm(SSP33ShuOsher()); dt = 1.0)
 
 CTS.step!(integrator)                    # advance one step
 println("After 1 step:  t = ", integrator.t, ",  u = ", integrator.u)
@@ -153,11 +152,12 @@ println("Final:         t = ", sol.t[end], ",  u = ", sol.u[end])
 
 | Section | Description |
 |---------|-------------|
-| [**Algorithm Formulations**](algorithm_formulations/ode_solvers.md) | Mathematical derivations of IMEX ARK, SSPRK, Rosenbrock, LSRK, and multirate methods |
+| [**Algorithm Formulations**](algorithm_formulations/ode_solvers.md) | Mathematical properties of IMEX ARK, SSPRK, Rosenbrock, LSRK, and multirate methods |
 | [**Algorithm Properties**](algorithm_properties/stability.md) | Stability regions and convergence plots for all implemented schemes |
-| [**Tutorials**](tutorials/imex_diffusion.md) | Worked examples: [IMEX diffusion](tutorials/imex_diffusion.md) (pure arrays) and [spherical diffusion](tutorials/diffusion.md) (with ClimaCore) |
+| [**Tutorials**](tutorials/imex_diffusion.md) | [IMEX diffusion](tutorials/imex_diffusion.md), [automatic differentiation](tutorials/automatic_differentiation.md), and [spherical diffusion](tutorials/diffusion.md) (ClimaCore) |
 | [**API Reference**](api/ode_solvers.md) | Complete docstrings for all types and functions |
 | [**Developer Docs**](dev/types.md) | Type hierarchies and convergence report generation |
+| [**Contributing**](contributing.md) | How to contribute, code guidelines, and CI checks |
 | [**References**](references.md) | Bibliography of cited papers |
 
 ## Related Packages

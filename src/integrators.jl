@@ -77,7 +77,7 @@ function tstops_and_saveat_heaps(t0, tf, tstops, saveat = [])
     tstops = [filter(t -> t0 < t < tf || tf < t < t0, tstops)..., tf]
     tstops = DataStructures.BinaryHeap{FT, ordering}(tstops)
 
-    isnothing(saveat) && (saveat = [t0, tf])
+    isnothing(saveat) && (saveat = (t0, tf))
 
     saveat = DataStructures.BinaryHeap{FT, ordering}(collect(saveat))
 
@@ -312,8 +312,7 @@ function __step!(integrator)
     step_u!(integrator)
 
     # increment t by dt, rounding to the first tstop if that is roughly
-    # equivalent up to machine precision; the specific bound of 100 * eps...
-    # is taken from OrdinaryDiffEq.jl
+    # equivalent up to machine precision
     t_plus_dt = integrator.t + integrator.dt
     t_unit = oneunit(integrator.t)
     max_t_error = 100 * eps(float(integrator.t / t_unit)) * float(t_unit)

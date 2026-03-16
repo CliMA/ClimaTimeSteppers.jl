@@ -3,14 +3,11 @@ export JacobianFreeJVP, ForwardDiffJVP, ForwardDiffStepSize
 export ForwardDiffStepSize1, ForwardDiffStepSize2, ForwardDiffStepSize3
 export ForcingTerm, ConstantForcing, EisenstatWalkerForcing
 
-# TODO: Implement AutoDiffJVP after ClimaAtmos's cache is moved from f! to x (so
-#       that we only need to define Dual.(x), and not also make_dual(f!)).
 # TODO: Define ktypeof(::FieldVector) so that it returns CuVector for a
-#       FieldVector that contains CuArrays.
-# TODO: Consider implementing line search backtracking to adjust Δx in
-#       NewtonsMethod (scale Δx[n] by some λ[n] that reduces ‖f(x[n + 1])‖).
-# TODO: Consider implementing BroydensMethod, BadBroydensMethod, and other
-#       automatic Jacobian approximations.
+#       FieldVector backed by CuArrays. Without this, Krylov.jl allocates
+#       CPU vectors for its workspace, breaking GPU execution of KrylovMethod.
+#       Only matters if KrylovMethod is used on GPU (ClimaAtmos currently uses
+#       direct ldiv! with max_iters = 1, so this has not been a blocker).
 
 abstract type AbstractVerbosity end
 struct Verbose <: AbstractVerbosity end
@@ -27,84 +24,85 @@ const GmresWorkspace =
 """
     ForwardDiffStepSize
 
-Computes a default step size for the forward difference approximation of the
-Jacobian-vector product. This is done by calling `default_step(Δx, x)`, where
-`default_step` is a `ForwardDiffStepSize`.
+Abstract type for step-size strategies used by [`ForwardDiffJVP`](@ref).
+Subtypes are callable: `ε = step_size(Δx, x)` returns the base step `ε`
+before any `step_adjustment` scaling.
+
+See [`ForwardDiffStepSize1`](@ref), [`ForwardDiffStepSize2`](@ref),
+[`ForwardDiffStepSize3`](@ref).
 """
 abstract type ForwardDiffStepSize end
 
 """
     ForwardDiffStepSize1()
 
-A `ForwardDiffStepSize` that is derived based on the notes here:
-https://web.engr.oregonstate.edu/~webbky/MAE4020_5020_files/Section%204%20Roundoff%20and%20Truncation%20Error.pdf. Although it is not often
-used with Newton-Krylov methods in practice, it can provide some intuition for
-for how to set the value of `step_adjustment` in a `ForwardDiffJVP`.
+A [`ForwardDiffStepSize`](@ref) derived from a truncation-vs-roundoff error
+analysis of the forward difference approximation
+`j(x) * Δx ≈ (f(x + ε Δx) - f(x)) / ε`. Not commonly used with Newton-Krylov
+methods in practice, but provides intuition for setting `step_adjustment` in a
+[`ForwardDiffJVP`](@ref).
 
-The first-order Taylor series expansion of `f(x + ε * Δx)` around `x` is
-    `f(x + ε * Δx) = f(x) + j(x) * (ε * Δx) + e_trunc(x, ε * Δx)`,
-where `j(x) = f'(x)` and `e_trunc` is the expansion's truncation error.
-Due to roundoff error, we are unable to directly compute the value of `f(x)`;
-instead, we can only determine `f̂(x)`, where
-    `f(x) = f̂(x) + e_round(x)`.
-Substituting this into the expansion tells us that
-    `f̂(x + ε * Δx) + e_round(x + ε * Δx) =
-        f̂(x) + e_round(x) + j(x) * (ε * Δx) + e_trunc(x, ε * Δx)`.
-Rearranging this gives us the Jacobian-vector product
-    `j(x) * Δx = (f̂(x + ε * Δx) - f̂(x)) / ε - e_trunc(x, ε * Δx) / ε +
-                 (e_round(x + ε * Δx) - e_round(x)) / ε`.
-So, the normed error of the forward difference approximation of this product is
-    `‖error‖ = ‖(f̂(x + ε * Δx) - f̂(x)) / ε - j(x) * Δx‖ =
-             = ‖e_trunc(x, ε * Δx) - e_round(x + ε * Δx) + e_round(x)‖ / ε`.
-We can use the triangle inequality to get the upper bound
-    `‖error‖ ≤
-        (‖e_trunc(x, ε * Δx)‖ + ‖e_round(x + ε * Δx)‖ + ‖e_round(x)‖) / ε`.
-If `ε` is sufficiently small, we can approximate
-    `‖e_round(x + ε * Δx)‖ ≈ ‖e_round(x)‖`.
-This simplifies the upper bound to
-    `‖error‖ ≤ (‖e_trunc(x, ε * Δx)‖ + 2 * ‖e_round(x)‖) / ε`.
+Reference: [Oregon State roundoff/truncation notes](https://web.engr.oregonstate.edu/~webbky/MAE4020_5020_files/Section%204%20Roundoff%20and%20Truncation%20Error.pdf).
 
-From Taylor's theorem (for multivariate vector-valued functions), the truncation
-error of the first-order expansion is bounded by
-    `‖e_trunc(x, ε * Δx)‖ ≤ (sup_{x̂ ∈ X} ‖f''(x̂)‖) / 2 * ‖ε * Δx‖^2`,
-where `X` is a closed ball around `x` that contains `x + ε * Δx` (see
-https://math.stackexchange.com/questions/3478229 for a proof of this).
-Let us define the value
-    `S = ‖f(x)‖ / sup_{x̂ ∈ X} ‖f''(x̂)‖`.
-By default, we will assume that `S ≈ 1`, but we will let users pass other values
-to indicate the "smoothness" of `f(x)` (a large value of `S` should indicate
-that the Hessian tensor of `f(x)` has a small norm compared to `f(x)` itself).
-We then have that
-    `‖e_trunc(x, ε * Δx)‖| ≤ ε^2 / (2 * S) * ‖Δx‖^2 * ‖f(x)‖`.
+# Result
 
-If only the last bit in each component of `f(x)` can be altered by roundoff
-error, then the `i`-th component of `e_round(x)` is bounded by
-    `|e_round(x)[i]| ≤ eps(f(x)[i])`.
-More generally, we can assume that there is some constant `R` (by default, we
-will assume that `R ≈ 1`) such that
-    `|e_round(x)[i]| ≤ R * eps(f(x)[i])`.
-We can also make the approximation (which is accurate to within `eps(FT)`)
-    `eps(f(x)[i]) ≈ eps(FT) * |f(x)[i]|`.
-This implies that
-    `|e_round(x)[i]| ≤ R * eps(FT) * |f(x)[i]|`.
-Since this is true for every component of `e_round(x)` and `f(x)`, we find that
-    `‖e_round(x)‖ ≤ R * eps(FT) * ‖f(x)‖`.
+The optimal step size that minimizes the error upper bound is
 
-Substituting the bounds on the truncation and roundoff errors into the bound on
-the overall error gives us
-    `‖error‖ ≤ ε / (2 * S) * ‖Δx‖^2 * ‖f(x)‖ + 2 / ε * R * eps(FT) * ‖f(x)‖`.
-Differentiating the right-hand side with respect to `ε` and setting the result
-equal to 0 (and noting that the second derivative is always positive) tells us
-that this upper bound is minimized when
     `ε = step_adjustment * sqrt(eps(FT)) / ‖Δx‖`,
-where `step_adjustment = 2 * sqrt(S * R)`.
-By default, we will assume that `step_adjustment = 1`, but it should be made
-larger when `f` is very smooth or has a large roundoff error.
 
-Note that, if we were to replace the forward difference approximation in the
-derivation above with a central difference approximation, the square root would
-end up being replaced with a cube root (or, more generally, with an `n`-th root
-for a finite difference approximation of order `n - 1`).
+where `step_adjustment = 2 * sqrt(S * R)` (default 1). Increase
+`step_adjustment` when `f` is very smooth (`S ≫ 1`) or has large roundoff
+(`R ≫ 1`). For a central difference approximation, the `sqrt` becomes a cube
+root (generally, an `n`-th root for order `n - 1`).
+
+# Derivation
+
+## Forward difference error decomposition
+
+The first-order Taylor expansion of `f(x + ε Δx)` around `x` is
+
+    `f(x + ε Δx) = f(x) + j(x)(ε Δx) + e_trunc(x, ε Δx)`,
+
+where `j(x) = f'(x)`. In floating point we can only evaluate `f̂(x)`, with
+
+    `f(x) = f̂(x) + e_round(x)`.
+
+Substituting and rearranging gives the approximation error
+
+    `‖error‖ = ‖e_trunc(x, ε Δx) - e_round(x + ε Δx) + e_round(x)‖ / ε`.
+
+Applying the triangle inequality and approximating
+`‖e_round(x + ε Δx)‖ ≈ ‖e_round(x)‖` for small `ε`:
+
+    `‖error‖ ≤ (‖e_trunc(x, ε Δx)‖ + 2 ‖e_round(x)‖) / ε`.
+
+## Bounding truncation error
+
+From Taylor's theorem for multivariate vector-valued functions
+([proof](https://math.stackexchange.com/questions/3478229)):
+
+    `‖e_trunc(x, ε Δx)‖ ≤ sup_{x̂ ∈ X} ‖f''(x̂)‖ / 2 · ‖ε Δx‖²`.
+
+Defining the smoothness parameter `S = ‖f(x)‖ / sup ‖f''(x̂)‖` (default `S ≈ 1`;
+larger values indicate a small Hessian relative to `f`):
+
+    `‖e_trunc(x, ε Δx)‖ ≤ ε² / (2S) · ‖Δx‖² · ‖f(x)‖`.
+
+## Bounding roundoff error
+
+Assuming componentwise roundoff `|e_round(x)[i]| ≤ R · eps(FT) · |f(x)[i]|`
+(default `R ≈ 1`):
+
+    `‖e_round(x)‖ ≤ R · eps(FT) · ‖f(x)‖`.
+
+## Optimal step size
+
+Substituting both bounds into the error bound:
+
+    `‖error‖ ≤ ε/(2S) · ‖Δx‖² · ‖f(x)‖ + 2R · eps(FT) · ‖f(x)‖ / ε`.
+
+Minimizing over `ε` (set derivative to zero) gives
+`ε = 2√(SR) · √eps(FT) / ‖Δx‖`, i.e., `step_adjustment = 2√(SR)`.
 """
 struct ForwardDiffStepSize1 <: ForwardDiffStepSize end
 (::ForwardDiffStepSize1)(Δx, x) = sqrt(eps(eltype(Δx))) / norm(Δx)
@@ -112,10 +110,11 @@ struct ForwardDiffStepSize1 <: ForwardDiffStepSize end
 """
     ForwardDiffStepSize2()
 
-A `ForwardDiffStepSize` that is described in the paper "Jacobian-free
-Newton–Krylov methods: a survey of approaches and applications" by D.A. Knoll
-and D.E. Keyes. According to the paper, this is the step size used by the
-Fortran package NITSOL.
+A [`ForwardDiffStepSize`](@ref) from Knoll & Keyes, "Jacobian-free
+Newton–Krylov methods: a survey of approaches and applications".
+This is the step size used by the Fortran package NITSOL:
+
+    `ε = √(eps(FT) * (1 + ‖x‖)) / ‖Δx‖`.
 """
 struct ForwardDiffStepSize2 <: ForwardDiffStepSize end
 (::ForwardDiffStepSize2)(Δx, x) = sqrt(eps(eltype(Δx)) * (1 + norm(x))) / norm(Δx)
@@ -123,10 +122,13 @@ struct ForwardDiffStepSize2 <: ForwardDiffStepSize end
 """
     ForwardDiffStepSize3()
 
-A `ForwardDiffStepSize` that is described in the paper "Jacobian-free
-Newton–Krylov methods: a survey of approaches and applications" by D.A. Knoll
-and D.E. Keyes. According to the paper, this is the average step size one gets
-when using a certain forward difference approximation for each Jacobian element.
+A [`ForwardDiffStepSize`](@ref) from Knoll & Keyes, "Jacobian-free
+Newton–Krylov methods: a survey of approaches and applications".
+This is the average step size obtained from element-wise forward differences:
+
+    `ε = √eps(FT) · Σᵢ(1 + |xᵢ|) / (length(x) · ‖Δx‖)`.
+
+This is the default step size used by [`ForwardDiffJVP`](@ref).
 """
 struct ForwardDiffStepSize3 <: ForwardDiffStepSize end
 (::ForwardDiffStepSize3)(Δx, x) =
@@ -135,22 +137,30 @@ struct ForwardDiffStepSize3 <: ForwardDiffStepSize end
 """
     JacobianFreeJVP
 
-Computes the Jacobian-vector product `j(x[n]) * Δx[n]` for a Newton-Krylov
-method without directly using the Jacobian `j(x[n])`, and instead only using
-`x[n]`, `f(x[n])`, and other function evaluations `f(x′)`. This is done by
-calling `jvp!(::JacobianFreeJVP, cache, jΔx, Δx, x, f!, f, prepare_for_f!)`.
-The `jΔx` passed to a Jacobian-free JVP is modified in-place. The `cache` can
-be obtained with `allocate_cache(::JacobianFreeJVP, x_prototype)`, where
-`x_prototype` is `similar` to `x` (and also to `Δx` and `f`).
+Abstract type for matrix-free Jacobian-vector product strategies.
+Subtypes compute `j(x) * Δx` without forming `j` explicitly, using only
+function evaluations of `f`. Called via
+`jvp!(method, cache, jΔx, Δx, x, f!, f, prepare_for_f!)`;
+`jΔx` is modified in-place. Allocate `cache` with
+`allocate_cache(method, x_prototype)`.
+
+See [`ForwardDiffJVP`](@ref).
 """
 abstract type JacobianFreeJVP end
 
 """
     ForwardDiffJVP(; default_step = ForwardDiffStepSize3(), step_adjustment = 1)
 
-Computes the Jacobian-vector product using the forward difference approximation
-`j(x) * Δx = (f(x + ε * Δx) - f(x)) / ε`, where
-`ε = step_adjustment * default_step(Δx, x)`.
+A [`JacobianFreeJVP`](@ref) that approximates the Jacobian-vector product via
+first-order forward differences:
+
+    `j(x) * Δx ≈ (f(x + ε Δx) - f(x)) / ε`,
+
+where `ε = step_adjustment * default_step(Δx, x)`.
+
+# Keyword Arguments
+- `default_step`: a [`ForwardDiffStepSize`](@ref) (default [`ForwardDiffStepSize3`](@ref))
+- `step_adjustment`: multiplicative scaling factor for `ε` (default `1`)
 """
 Base.@kwdef struct ForwardDiffJVP{S <: ForwardDiffStepSize, T} <: JacobianFreeJVP
     default_step::S = ForwardDiffStepSize3()
@@ -174,28 +184,29 @@ end
 """
     ForcingTerm
 
-Computes the value of `rtol[n]` for a Newton-Krylov method. This is done by
-calling `get_rtol!(::ForcingTerm, cache, f, n)`, which returns `rtol[n]`. The `cache`
-can be obtained with `allocate_cache(::ForcingTerm, x_prototype)`, where
-`x_prototype` is `similar` to `f`.
+Abstract type for the relative tolerance schedule `rtol[n]` used by
+[`KrylovMethod`](@ref) inside Newton-Krylov iterations. Called via
+`get_rtol!(method, cache, f, n)`, which returns `rtol[n]`. Allocate
+`cache` with `allocate_cache(method, x_prototype)`.
 
-For a detailed discussion of forcing terms and their convergence guarantees, see
-"Choosing the Forcing Terms in an Inexact Newton Method" by S.C. Eisenstat and
-H.F. Walker (http://softlib.rice.edu/pub/CRPC-TRs/reports/CRPC-TR94463.pdf).
+See [`ConstantForcing`](@ref), [`EisenstatWalkerForcing`](@ref), and
+[Eisenstat & Walker (1996)](http://softlib.rice.edu/pub/CRPC-TRs/reports/CRPC-TR94463.pdf)
+for convergence guarantees.
 """
 abstract type ForcingTerm end
 
 """
     ConstantForcing(rtol)
 
-A `ForcingTerm` that always returns the value `rtol`, which must be in the
-interval `[0, 1)`. If `x` and `f!` satisfy certain assumptions, this forcing
-term guarantees that the Newton-Krylov method will converge linearly with an
-asymptotic rate of at most `rtol`. If `rtol` is 0 (or `eps(FT)`), this forces
-the approximation of `Δx[n]` to be exact (or exact to within machine precision)
-and guarantees that the Newton-Krylov method will converge quadratically. Note
-that, although a smaller value of `rtol` guarantees faster asymptotic
-convergence, it also leads to a higher probability of oversolving.
+A [`ForcingTerm`](@ref) that returns the fixed value `rtol ∈ [0, 1)` on every
+Newton iteration.
+
+# Convergence properties
+- `rtol > 0`: linear convergence with asymptotic rate ≤ `rtol`
+- `rtol = 0`: exact Krylov solve → quadratic Newton convergence
+
+Smaller `rtol` gives faster asymptotic convergence but increases the risk of
+*oversolving* (spending Krylov iterations on accuracy that Newton discards).
 """
 struct ConstantForcing{T} <: ForcingTerm
     rtol::T
@@ -217,20 +228,22 @@ end
         max_rtol = 0.9,
     )
 
-The `ForcingTerm` called "Choice 2" in the paper "Choosing the Forcing Terms in
-an Inexact Newton Method" by S.C. Eisenstat and H.F. Walker. The values of
-`initial_rtol`, `min_rtol_threshold`, and `max_rtol` must be in the interval
-`[0, 1)`, the value of `γ` must be in the interval `[0, 1]`, and the value of
-`α` must be in the interval `(1, 2]`. These values can all be tuned to prevent
-the Newton-Krylov method from oversolving. If `x` and `f!` satisfy certain
-assumptions, this forcing term guarantees that the Newton-Krylov method will
-converge with order `α`. Note that, although a larger value of `α` guarantees a
-higher convergence order, it also leads to a higher probability of oversolving.
+Adaptive [`ForcingTerm`](@ref) ("Choice 2" from Eisenstat & Walker, 1996) that
+automatically tightens `rtol[n]` as `‖f(x[n])‖` decreases, balancing convergence
+speed against oversolving risk.
 
-This forcing term was implemented instead of the one called "Choice 1" because
-it has a significantly simpler implementation---it only requires the value of
-`‖f(x[n])‖` to compute `rtol[n]`, whereas "Choice 1" also requires the norm of
-the final residual from the Krylov solver.
+# Keyword Arguments
+- `initial_rtol ∈ [0, 1)`: tolerance for the first Newton iteration
+- `γ ∈ [0, 1]`: scaling factor for the tolerance update
+- `α ∈ (1, 2]`: convergence-order exponent — larger means faster
+  convergence but higher oversolving risk
+- `min_rtol_threshold ∈ [0, 1)`: safeguard against tolerance decreasing too
+  quickly
+- `max_rtol ∈ [0, 1)`: upper bound on `rtol[n]`
+
+# Notes
+This is "Choice 2" (not "Choice 1") because it only requires `‖f(x[n])‖`
+to compute `rtol[n]`, whereas "Choice 1" also needs the final Krylov residual.
 """
 Base.@kwdef struct EisenstatWalkerForcing{T1, T2, T3, T4, T5} <: ForcingTerm
     initial_rtol::T1 = 0.5
@@ -269,22 +282,24 @@ end
 """
     KrylovMethodDebugger
 
-Prints information about the Jacobian matrix `j` and the preconditioner `M` (if
-it is available) that are passed to a Krylov method. This is done by calling
-`print_debug!(::KrylovMethodDebugger, cache, j, M)`. The `cache` can be obtained with
-`allocate_cache(::KrylovMethodDebugger, x_prototype)`, where `x_prototype` is
-`similar` to `x`.
+Abstract type for diagnostic hooks run before each Krylov solve. Called via
+`print_debug!(method, cache, j, M)`. Allocate `cache` with
+`allocate_cache(method, x_prototype)`.
+
+See [`PrintConditionNumber`](@ref).
 """
 abstract type KrylovMethodDebugger end
 
 """
     PrintConditionNumber()
 
-Prints the condition number of the Jacobian matrix `j`, and, if a preconditioner
-`M` is available, also prints the condition number of `inv(M) * j` (i.e., the
-matrix that actually gets "inverted" by the Krylov method). This requires
-computing dense representations of `j` and `inv(M) * j`, which is likely to be
-significantly slower than the Krylov method itself.
+A [`KrylovMethodDebugger`](@ref) that prints `cond(j)` and, when a
+preconditioner `M` is available, `cond(M⁻¹ j)` (the effective condition number
+seen by the Krylov solver).
+
+!!! warning
+    This computes dense representations of `j` and `M⁻¹ j`, which is
+    much slower than the Krylov solve itself. Use only for debugging.
 """
 struct PrintConditionNumber <: KrylovMethodDebugger end
 
@@ -349,57 +364,56 @@ end
         debugger = nothing,
     )
 
-Finds an approximation `Δx[n] ≈ j(x[n]) \\ f(x[n])` for Newton's method such
-that `‖f(x[n]) - j(x[n]) * Δx[n]‖ ≤ rtol[n] * ‖f(x[n])‖`, where `rtol[n]` is the
-value of the forcing term on iteration `n`. This is done by calling
-`solve_krylov!(::KrylovMethod, cache, Δx, x, f!, f, n, prepare_for_f!, j = nothing)`,
-where `f` is `f(x[n])` and, if it is specified, `j` is either `j(x[n])` or an
-approximation of `j(x[n])`. The `Δx` passed to a Krylov method is modified in-place.
-The `cache` can be obtained with `allocate_cache(::KrylovMethod, x_prototype)`,
-where `x_prototype` is `similar` to `x` (and also to `Δx` and `f`).
+Iterative linear solver for Newton's method: finds `Δx[n]` such that
+`‖f(x[n]) - j(x[n]) * Δx[n]‖ ≤ rtol[n] * ‖f(x[n])‖`, where `rtol[n]` is
+controlled by the [`ForcingTerm`](@ref). Called via
+`solve_krylov!(method, cache, Δx, x, f!, f, n, prepare_for_f!, j = nothing)`;
+`Δx` is modified in-place. Allocate `cache` with
+`allocate_cache(method, x_prototype)`.
 
-This is primarily a wrapper for a `Krylov.KrylovSolver` from `Krylov.jl`. In
-`allocate_cache`, the solver is constructed with
-`solver = type(l, l, args..., Krylov.ktypeof(x_prototype); kwargs...)`, where
-`l = length(x_prototype)` and `Krylov.ktypeof(x_prototype)` is a subtype of
-`DenseVector` that can be used to store `x_prototype`. By default, the solver
-is a `Krylov.GmresSolver` with a Krylov subspace size of 20 (the default Krylov
-subspace size for this solver in `Krylov.jl`). In `solve_krylov!`, the solver is run with
-`Krylov.solve!(solver, opj, f; M, ldiv, atol, rtol, verbose, solve_kwargs...)`.
-The solver's type can be changed by specifying a different value for `type`,
-though this value has to be wrapped in a `Val` to avoid runtime compilation.
+This is a wrapper around `Krylov.jl` solvers. By default, GMRES is used with a
+Krylov subspace of size 20.
 
-In the call to `Krylov.solve!`, `opj` is a `LinearOperator` that represents
-`j(x[n])`, which the solver uses by evaluating `mul!(jΔx, opj, Δx)`. If a
-Jacobian-free JVP (Jacobian-vector product) is specified, it gets used to
-construct `opj` and to evaluate the calls to `mul!`; otherwise, `j` itself gets
-used to construct `opj`, and the calls to `mul!` simplify to `mul!(jΔx, j, Δx)`.
+# Keyword Arguments
+- `type`: Krylov solver type, wrapped in `Val` (default `Val(Krylov.GmresSolver)`)
+- `jacobian_free_jvp`: a [`JacobianFreeJVP`](@ref) for matrix-free operation
+  (default `nothing` → uses `j` directly)
+- `forcing_term`: a [`ForcingTerm`](@ref) setting `rtol[n]`
+  (default `ConstantForcing(0)` → exact solve)
+- `args`, `kwargs`: forwarded to the `Krylov.KrylovSolver` constructor
+- `solve_kwargs`: forwarded to `Krylov.solve!`
+- `disable_preconditioner`: if `true`, skip preconditioning even when `j` is
+  available (default `false`)
+- `verbose`: `Verbose()` to print the Krylov residual each iteration
+- `debugger`: a [`KrylovMethodDebugger`](@ref) run before each Krylov solve
 
-If a Jacobian-free JVP and `j` are both specified, and if
-`disable_preconditioner` is set to `false`, `j` is treated as an approximation
-of `j(x[n])` and is used as the (left) preconditioner `M` in order to speed up
-the solver; otherwise, the preconditioner is simply set to the identity matrix
-`I`. The keyword argument `ldiv` is set to `true` so that the solver calls
-`ldiv!(Δx′, M, f′)` instead of `mul!(Δx′, M, f′)`, where `Δx′` and `f′` denote
-internal variables of the solver that roughly correspond to `Δx` and `f`. In
-other words, setting `ldiv` to `true` makes the solver treat `M` as an
-approximation of `j` instead of as the inverse of an approximation of `j`.
+# Operator construction
 
-The keyword argument `atol` is set to 0 because, if it is set to some other
-value, the inequality `‖f(x[n]) - j(x[n]) * Δx[n]‖ ≤ rtol[n] * ‖f(x[n])‖`
-changes to `‖f(x[n]) - j(x[n]) * Δx[n]‖ ≤ rtol[n] * ‖f(x[n])‖ + atol`, which
-eliminates any convergence guarantees provided by the forcing term (in order for
-the Newton-Krylov method to converge, the right-hand side of this inequality
-must approach 0 as `n` increases, which cannot happen if `atol` is not 0).
+The solver operates on a `LinearOperator` `opj` representing `j(x[n])`:
+- **With `jacobian_free_jvp`**: `opj` evaluates `mul!(jΔx, opj, Δx)` via the
+  JVP (e.g., finite-difference or AD), so no explicit Jacobian is needed.
+- **Without**: `opj` wraps `j` directly, so `mul!` reduces to `mul!(jΔx, j, Δx)`.
 
-All of the arguments and keyword arguments used to construct and run the solver
-can be modified using `args`, `kwargs`, and `solve_kwargs`. So, the default
-behavior of this wrapper can be easily overwritten, and any features of
-`Krylov.jl` that are not explicitly covered by this wrapper can still be used.
+# Preconditioning
 
-If `verbose` is `true`, the residual `‖f(x[n]) - j(x[n]) * Δx[n]‖` is printed on
-each iteration of the Krylov method. If a debugger is specified, it is run
-before the call to `Kyrlov.solve!`.
+When *both* a `jacobian_free_jvp` and an explicit `j` are provided (and
+`disable_preconditioner` is `false`), `j` is used as a left preconditioner `M`.
+The solver calls `ldiv!(Δx′, M, f′)` (not `mul!`), so `M` is treated as an
+approximation of `j` rather than as its inverse. If either `j` or the JVP is
+missing, or preconditioning is disabled, `M = I`.
+
+# Tolerances
+
+`atol` is fixed to 0 so the convergence criterion remains purely relative:
+`‖r‖ ≤ rtol * ‖f‖`. A nonzero `atol` would add a constant floor that prevents
+the forcing term from driving the residual to zero, breaking the convergence
+guarantees of the Newton-Krylov method.
+
+# Extensibility
+
+All constructor and solver arguments can be overridden via `args`, `kwargs`, and
+`solve_kwargs`, so any `Krylov.jl` feature not explicitly covered by this
+wrapper remains accessible.
 """
 Base.@kwdef struct KrylovMethod{
     T <: Val{<:KrylovWorkspace},

@@ -112,7 +112,7 @@ It is often necessary to filter the state so that it satisfies some particular c
 Applying DSS to each stage ``U_i`` is a bit trickier. Ideally, we would use the equation
 
 ```math
-\textrm{DSS}\left(\begin{aligned} & u_0 + \Delta t \sum_{j = 1}^{i - 1} \left(\widetilde{a}_{i,j} T_{\text{exp}}(U_j, t_0 + \Delta t \widetilde{c}_j) + a_{i,j} T_{\text{imp}}(U_j, t_0 + \Delta t c_j)\right) + \\ & \Delta t a_{i,i} T_{\text{imp}}(U_i, t_0 + \Delta t c_i) \end{aligned}\right) - U_i = 0,
+\textrm{DSS}\left(\begin{aligned} & u_0 + \Delta t \sum_{j = 1}^{i - 1} \left(\widetilde{a}_{i,j} T_{\text{exp}}(U_j, t_0 + \Delta t \widetilde{c}_j) + a_{i,j} T_{\text{imp}}(U_j, t_0 + \Delta t c_j)\right) \\ & \qquad {} + \Delta t a_{i,i} T_{\text{imp}}(U_i, t_0 + \Delta t c_i) \end{aligned}\right) - U_i = 0,
 ```
 
 since this would ensure that the implicit tendency ``T_{\text{imp}}`` gets evaluated at a continuous stage ``U_i``. However, this equation is more challenging to solve than the original one, since it involves applying DSS, which is usually a function that involves more communication across element boundaries (and, hence, MPI ranks) than ``T_{\text{imp}}``, to an unknown quantity. So, we instead use the equation
@@ -214,7 +214,7 @@ Since ``\widetilde{U}_1 = u_0``, constraining the IMEX ARK method to an IMEX SSP
 To incorporate the use of a limiter into the IMEX SSPRK method, we split ``T_{\text{exp}}`` into ``T_{\text{exp}}`` and ``T_{\text{lim}}``, and we modify the equation for ``\widetilde{U}_i`` to
 
 ```math
-\widetilde{U}_i = \begin{cases} u_0 & i = 1 \\ \begin{aligned} & (1 - \beta_{i - 1}) u_0 +{} \\ & \quad\beta_{i - 1} \left(\textrm{lim}_{\widetilde{U}_{i - 1}}\left(\widetilde{U}_{i - 1} + \Delta t T_{\text{lim}}(U_{i - 1}, t_0 + \Delta t \widetilde{c}_{i - 1})\right) + \Delta t T_{\text{exp}}(U_{i - 1}, t_0 + \Delta t \widetilde{c}_{i - 1})\right) \end{aligned} & i > 1 \end{cases}.
+\widetilde{U}_i = \begin{cases} u_0 & i = 1 \\ \begin{aligned} & (1 - \beta_{i - 1}) u_0  \\ & \qquad {}+ \beta_{i - 1} \left(\textrm{lim}_{\widetilde{U}_{i - 1}}\left(\widetilde{U}_{i - 1} + \Delta t T_{\text{lim}}(U_{i - 1}, t_0 + \Delta t \widetilde{c}_{i - 1})\right) + \Delta t T_{\text{exp}}(U_{i - 1}, t_0 + \Delta t \widetilde{c}_{i - 1})\right) \end{aligned} & i > 1 \end{cases}.
 ```
 
 In this equation, the limiter is being applied to a limited tendency evaluated at ``U_{i - 1}``, but with ``\widetilde{U}_{i - 1}`` as the unincremented state. If there is no implicit tendency, so that ``T_{\text{imp}}`` is always 0, then ``U_{i - 1} = \widetilde{U}_{i - 1}``, and the limiter is able to properly preserve monotonicity. On the other hand, if there is an implicit tendency, then the limiter will not necessarily preserve monotonicity. That is, the limiter is guaranteed to function properly when the limited tendency is used in a sequence of Euler steps.
@@ -234,13 +234,13 @@ Our general IMEX ARK method is defined by two Butcher tableaus:
 Given ``u_0 = u(t_0)``, it approximates the value of ``u(t_0 + \Delta t)`` as
 
 ```math
-\widehat{u} = \textrm{DSS}\left(\begin{aligned} & \textrm{lim}_{u_0}\left(u_0 + \Delta t \sum_{i = 1}^s \widetilde{b}_i T_{\text{lim}}(U_i, t_0 + \Delta t \widetilde{c}_i)\right) + \\ & \Delta t \sum_{i = 1}^s \left(\widetilde{b}_i T_{\text{exp}}(U_i, t_0 + \Delta t \widetilde{c}_i) + b_i T_{\text{imp}}(U_i, t_0 + \Delta t c_i)\right) \end{aligned}\right),
+\widehat{u} = \textrm{DSS}\left(\begin{aligned} & \textrm{lim}_{u_0}\left(u_0 + \Delta t \sum_{i = 1}^s \widetilde{b}_i T_{\text{lim}}(U_i, t_0 + \Delta t \widetilde{c}_i)\right) \\ & \qquad {} + \Delta t \sum_{i = 1}^s \left(\widetilde{b}_i T_{\text{exp}}(U_i, t_0 + \Delta t \widetilde{c}_i) + b_i T_{\text{imp}}(U_i, t_0 + \Delta t c_i)\right) \end{aligned}\right),
 ```
 
 where ``U_i`` is the solution to the equation
 
 ```math
-\textrm{DSS}\left(\begin{aligned} & \textrm{lim}_{u_0}\left(u_0 + \Delta t \sum_{j = 1}^{i - 1} \widetilde{a}_{i,j} T_{\text{lim}}(U_j, t_0 + \Delta t \widetilde{c}_j)\right) + \\ & \Delta t \sum_{j = 1}^{i - 1} \left(\widetilde{a}_{i,j} T_{\text{exp}}(U_j, t_0 + \Delta t \widetilde{c}_j) + a_{i,j} T_{\text{imp}}(U_j, t_0 + \Delta t c_j)\right) \end{aligned}\right) + \Delta t a_{i,i} T_{\text{imp}}(U_i, t_0 + \Delta t c_i) - U_i = 0.
+\textrm{DSS}\left(\begin{aligned} & \textrm{lim}_{u_0}\left(u_0 + \Delta t \sum_{j = 1}^{i - 1} \widetilde{a}_{i,j} T_{\text{lim}}(U_j, t_0 + \Delta t \widetilde{c}_j)\right) \\ & \qquad {} + \Delta t \sum_{j = 1}^{i - 1} \left(\widetilde{a}_{i,j} T_{\text{exp}}(U_j, t_0 + \Delta t \widetilde{c}_j) + a_{i,j} T_{\text{imp}}(U_j, t_0 + \Delta t c_j)\right) \end{aligned}\right) + \Delta t a_{i,i} T_{\text{imp}}(U_i, t_0 + \Delta t c_i) - U_i = 0.
 ```
 
 #### IMEX SSPRK
@@ -266,7 +266,7 @@ where ``U_i`` is the solution to the equation
 and where
 
 ```math
-\widetilde{U}_i = \begin{cases} u_0 & i = 1 \\ \begin{aligned} & (1 - \beta_{i - 1}) u_0 +{} \\ & \quad\beta_{i - 1} \left(\textrm{lim}_{\widetilde{U}_{i - 1}}\left(\widetilde{U}_{i - 1} + \Delta t T_{\text{lim}}(U_{i - 1}, t_0 + \Delta t \widetilde{c}_{i - 1})\right) + \Delta t T_{\text{exp}}(U_{i - 1}, t_0 + \Delta t \widetilde{c}_{i - 1})\right) \end{aligned} & i > 1 \end{cases}.
+\widetilde{U}_i = \begin{cases} u_0 & i = 1 \\ \begin{aligned} & (1 - \beta_{i - 1}) u_0  \\ & \qquad {} + \beta_{i - 1} \left(\textrm{lim}_{\widetilde{U}_{i - 1}}\left(\widetilde{U}_{i - 1} + \Delta t T_{\text{lim}}(U_{i - 1}, t_0 + \Delta t \widetilde{c}_{i - 1})\right) + \Delta t T_{\text{exp}}(U_{i - 1}, t_0 + \Delta t \widetilde{c}_{i - 1})\right) \end{aligned} & i > 1 \end{cases}.
 ```
 
 ## Implemented Schemes

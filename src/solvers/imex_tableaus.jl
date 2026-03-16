@@ -120,7 +120,7 @@ IMEXAlgorithm(
 
 An IMEX ARK algorithm from [ARS1997](@cite), section 2, with 1 implicit stage,
 1 explicit stage and 1st order accuracy. Also called *IMEX Euler* or
-*forward-backward Euler*; equivalent to `OrdinaryDiffEq.IMEXEuler`.
+*forward-backward Euler*.
 """
 struct ARS111 <: IMEXARKAlgorithmName end
 function IMEXTableau(::ARS111)
@@ -132,7 +132,7 @@ end
 
 An IMEX ARK algorithm from [ARS1997](@cite), section 2, with 1 implicit stage, 2
 explicit stages, and 1st order accuracy. Also called *IMEX Euler* or
-*forward-backward Euler*; equivalent to `OrdinaryDiffEq.IMEXEulerARK`.
+*forward-backward Euler*.
 """
 struct ARS121 <: IMEXARKAlgorithmName end
 function IMEXTableau(::ARS121)

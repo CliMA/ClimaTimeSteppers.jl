@@ -60,9 +60,9 @@ Also called Heun's method ([Heun1900](@cite)).
 struct SSP22Heuns <: SSPRKAlgorithmName end
 function ExplicitTableau(::SSP22Heuns)
     return ExplicitTableau(; a = @SArray([
-        0 0
-        1 0
-    ]), b = @SArray([1 / 2, 1 / 2]))
+            0 0
+            1 0
+        ]), b = @SArray([1 / 2, 1 / 2]))
 end
 
 """
@@ -72,11 +72,14 @@ An SSPRK algorithm from [SO1988](@cite), with 3 stages and 3rd order accuracy.
 """
 struct SSP33ShuOsher <: SSPRKAlgorithmName end
 function ExplicitTableau(::SSP33ShuOsher)
-    return ExplicitTableau(; a = @SArray([
-        0 0 0
-        1 0 0
-        1/4 1/4 0
-    ]), b = @SArray([1 / 6, 1 / 6, 2 / 3]))
+    return ExplicitTableau(;
+        a = @SArray([
+            0 0 0
+            1 0 0
+            1/4 1/4 0
+        ]),
+        b = @SArray([1 / 6, 1 / 6, 2 / 3])
+    )
 end
 
 """
@@ -87,10 +90,13 @@ The RK4 algorithm from [SM2003](@cite), a Runge-Kutta method with
 """
 struct RK4 <: ERKAlgorithmName end
 function ExplicitTableau(::RK4)
-    return ExplicitTableau(; a = @SArray([
-        0 0 0 0
-        1/2 0 0 0
-        0 1/2 0 0
-        0 0 1 0
-    ]), b = @SArray([1 / 6, 1 / 3, 1 / 3, 1 / 6]))
+    return ExplicitTableau(;
+        a = @SArray([
+            0 0 0 0
+            1/2 0 0 0
+            0 1/2 0 0
+            0 0 1 0
+        ]),
+        b = @SArray([1 / 6, 1 / 3, 1 / 3, 1 / 6])
+    )
 end

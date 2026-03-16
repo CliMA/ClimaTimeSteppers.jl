@@ -39,8 +39,14 @@ function fused_increment end
 # recursion: _rfused_increment_j always returns a Tuple
 @inline _rfused_increment_ij(js::Tuple{}, i, u, dt, sc::SparseCoeffs, tend) = ()
 
-@inline _rfused_increment_ij(js::Tuple{Int}, i, u, dt, sc::T, tend) where {T <: SparseCoeffs} =
-    _rfused_increment_ij(js[1], i, u, dt, sc, tend)
+@inline _rfused_increment_ij(
+    js::Tuple{Int},
+    i,
+    u,
+    dt,
+    sc::T,
+    tend,
+) where {T <: SparseCoeffs} = _rfused_increment_ij(js[1], i, u, dt, sc, tend)
 
 @inline _rfused_increment_ij(j::Int, i, u, dt, sc::T, tend) where {T <: SparseCoeffs} =
     if zero_coeff(T, i, j)
@@ -49,11 +55,20 @@ function fused_increment end
         (Base.Broadcast.broadcasted(*, dt * sc[i, j], tend[j]),)
     end
 
-@inline _rfused_increment_ij(js::Tuple, i, u, dt, sc::T, tend) where {T <: SparseCoeffs} =
-    (_rfused_increment_ij(first(js), i, u, dt, sc, tend)..., _rfused_increment_ij(Base.tail(js), i, u, dt, sc, tend)...)
+@inline _rfused_increment_ij(js::Tuple, i, u, dt, sc::T, tend) where {T <: SparseCoeffs} = (
+    _rfused_increment_ij(first(js), i, u, dt, sc, tend)...,
+    _rfused_increment_ij(Base.tail(js), i, u, dt, sc, tend)...,
+)
 
 # top-level function
-@inline function _fused_increment_ij(js::Tuple, i, u, dt, sc::T, tend) where {T <: SparseCoeffs}
+@inline function _fused_increment_ij(
+    js::Tuple,
+    i,
+    u,
+    dt,
+    sc::T,
+    tend,
+) where {T <: SparseCoeffs}
     return if all(j -> zero_coeff(T, i, j), js)
         u
     else
@@ -86,8 +101,10 @@ end
         (Base.Broadcast.broadcasted(*, dt * sc[j], tend[j]),)
     end
 
-@inline _rfused_increment_j(js::Tuple, u, dt, sc::T, tend) where {T <: SparseCoeffs} =
-    (_rfused_increment_j(first(js), u, dt, sc, tend)..., _rfused_increment_j(Base.tail(js), u, dt, sc, tend)...)
+@inline _rfused_increment_j(js::Tuple, u, dt, sc::T, tend) where {T <: SparseCoeffs} = (
+    _rfused_increment_j(first(js), u, dt, sc, tend)...,
+    _rfused_increment_j(Base.tail(js), u, dt, sc, tend)...,
+)
 
 # top-level function
 @inline function _fused_increment_j(js::Tuple, u, dt, sc::T, tend) where {T <: SparseCoeffs}

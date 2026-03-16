@@ -18,14 +18,20 @@ function si_str(x)
     return "$(float_str(mantissa)) \\times 10^{$exponent}"
 end
 
-function summarize_convergence(test_name, test_results, default_dt, numerical_reference_info)
+function summarize_convergence(
+    test_name,
+    test_results,
+    default_dt,
+    numerical_reference_info,
+)
     rms_solution_str = "\\textrm{rms}\\_\\textrm{solution}"
     rms_error_str = "\\textrm{rms}\\_\\textrm{error}"
     average_rms_solution_str = "\\textrm{average}\\_$rms_solution_str"
     average_rms_error_str = "\\textrm{average}\\_$rms_error_str"
     default_dt_str = "\$dt = $(pow_str(default_dt))\$"
     reference_str =
-        isnothing(numerical_reference_info) ? "Y_{analytic}(t)[\\textrm{index}]" : "Y_{ref}(t)[\\textrm{index}]"
+        isnothing(numerical_reference_info) ? "Y_{analytic}(t)[\\textrm{index}]" :
+        "Y_{ref}(t)[\\textrm{index}]"
     rms_solution_def_str = "\\textrm{RMS}_{\\textrm{index}}\\{Y(t)[\\textrm{index}]\\}"
     rms_error_def_str = "\\textrm{RMS}_{\\textrm{index}}\\{Y(t)[\\textrm{index}] - $reference_str\\}"
     average_rms_solution_def_str = "\\textrm{RMS}_t\\{$rms_solution_str(t)\\}"
@@ -120,7 +126,8 @@ function summarize_convergence(test_name, test_results, default_dt, numerical_re
         plot1_min = min(plot1_min, minimum(filter(!isnan, average_rms_errors); init = Inf))
         ignore_max || (plot1_max = max(plot1_max, maximum(average_rms_errors)))
         plot1_label =
-            predicted_super_convergence ? "$alg_str: \$$order_str\\ \\ \\ \\textbf{\\textit{SC}}\$" :
+            predicted_super_convergence ?
+            "$alg_str: \$$order_str\\ \\ \\ \\textbf{\\textit{SC}}\$" :
             "$alg_str: \$$order_str\$"
         Plots.plot!(
             plot1,
@@ -143,7 +150,8 @@ function summarize_convergence(test_name, test_results, default_dt, numerical_re
 
         # Remove all 0s from default_dt_errors because they cannot be plotted on
         # a logarithmic scale.
-        plot2b_min = min(plot2b_min, minimum(filter(!iszero, filter(!isnan, default_dt_errors))))
+        plot2b_min =
+            min(plot2b_min, minimum(filter(!iszero, filter(!isnan, default_dt_errors))))
         ignore_max || (plot2b_max = max(plot2b_max, maximum(default_dt_errors)))
         default_dt_errors .= max.(default_dt_errors, eps(0.0))
         Plots.plot!(
@@ -199,13 +207,15 @@ representative_test_data = merge(all_convergence_results...)
 test_names = collect(keys(representative_test_data))
 for test_name in test_names, convergence_results in all_convergence_results
     test_name in keys(convergence_results) || continue
-    @assert convergence_results[test_name]["default_dt"] == representative_test_data[test_name]["default_dt"]
+    @assert convergence_results[test_name]["default_dt"] ==
+            representative_test_data[test_name]["default_dt"]
     @assert convergence_results[test_name]["numerical_reference_info"] ==
             representative_test_data[test_name]["numerical_reference_info"]
 end # Check that each test has a consistent default dt and reference solution
 for test_name in test_names
     all_alg_results = map(all_convergence_results) do convergence_results
-        test_name in keys(convergence_results) ? convergence_results[test_name]["all_alg_results"] : Dict()
+        test_name in keys(convergence_results) ?
+        convergence_results[test_name]["all_alg_results"] : Dict()
     end
     summarize_convergence(
         test_name,

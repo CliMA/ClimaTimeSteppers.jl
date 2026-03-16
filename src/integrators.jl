@@ -115,9 +115,11 @@ function DiffEqBase.__init(
     tstops, saveat = tstops_and_saveat_heaps(t0, tf, tstops, saveat)
 
     sol = DiffEqBase.build_solution(prob, alg, typeof(t0)[], typeof(save_func(u0, t0))[])
-    saving_callback = NonInterpolatingSavingCallback(save_func, SavedValues(sol.t, sol.u), save_everystep)
+    saving_callback =
+        NonInterpolatingSavingCallback(save_func, SavedValues(sol.t, sol.u), save_everystep)
     callback = DiffEqBase.CallbackSet(callback, saving_callback)
-    isempty(callback.continuous_callbacks) || error("Continuous callbacks are not supported")
+    isempty(callback.continuous_callbacks) ||
+        error("Continuous callbacks are not supported")
 
     integrator = DistributedODEIntegrator(
         alg,
@@ -176,7 +178,12 @@ function DiffEqBase.reinit!(
 end
 
 # called by DiffEqBase.solve
-function DiffEqBase.__solve(prob::DiffEqBase.AbstractODEProblem, alg::DistributedODEAlgorithm, args...; kwargs...)
+function DiffEqBase.__solve(
+    prob::DiffEqBase.AbstractODEProblem,
+    alg::DistributedODEAlgorithm,
+    args...;
+    kwargs...,
+)
     integrator = DiffEqBase.__init(prob, alg, args...; kwargs...)
     DiffEqBase.solve!(integrator)
 end
@@ -204,7 +211,9 @@ end
 function DiffEqBase.step!(integrator::DistributedODEIntegrator, dt, stop_at_tdt = false)
     # OridinaryDiffEq lets dt be negative if tdir is -1, but that's inconsistent
     dt <= zero(dt) && error("dt must be positive")
-    stop_at_tdt && !integrator.dtchangeable && error("Cannot stop at t + dt if dtchangeable is false")
+    stop_at_tdt &&
+        !integrator.dtchangeable &&
+        error("Cannot stop at t + dt if dtchangeable is false")
     t_plus_dt = integrator.t + tdir(integrator) * dt
     stop_at_tdt && DiffEqBase.add_tstop!(integrator, t_plus_dt)
     while !reached_tstop(integrator, t_plus_dt, stop_at_tdt)
@@ -222,7 +231,8 @@ reached_tstop(integrator, tstop, stop_at_tstop = integrator.dtchangeable) =
 
 @inline unrolled_foreach(::Tuple{}, integrator) = nothing
 @inline unrolled_foreach(callback, integrator) =
-    callback.condition(integrator.u, integrator.t, integrator) ? callback.affect!(integrator) : nothing
+    callback.condition(integrator.u, integrator.t, integrator) ?
+    callback.affect!(integrator) : nothing
 @inline unrolled_foreach(discrete_callbacks::Tuple{Any}, integrator) =
     unrolled_foreach(first(discrete_callbacks), integrator)
 @inline function unrolled_foreach(discrete_callbacks::Tuple, integrator)
@@ -237,7 +247,8 @@ function __step!(integrator)
     # a tstop within dt, reduce dt to tstop - t
     integrator.step += 1
     integrator.dt =
-        !isempty(tstops) && dtchangeable ? tdir(integrator) * min(_dt, abs(first(tstops) - integrator.t)) :
+        !isempty(tstops) && dtchangeable ?
+        tdir(integrator) * min(_dt, abs(first(tstops) - integrator.t)) :
         tdir(integrator) * _dt
     step_u!(integrator)
 
@@ -248,7 +259,8 @@ function __step!(integrator)
     t_unit = oneunit(integrator.t)
     max_t_error = 100 * eps(float(integrator.t / t_unit)) * float(t_unit)
     integrator.t =
-        !isempty(tstops) && abs(float(first(tstops)) - float(t_plus_dt)) < max_t_error ? first(tstops) : t_plus_dt
+        !isempty(tstops) && abs(float(first(tstops)) - float(t_plus_dt)) < max_t_error ?
+        first(tstops) : t_plus_dt
 
     # apply callbacks
     discrete_callbacks = integrator.callback.discrete_callbacks
@@ -273,14 +285,16 @@ function set_dt!(integrator::DistributedODEIntegrator, dt)
 end
 
 function DiffEqBase.add_tstop!(integrator::DistributedODEIntegrator, t)
-    is_past_t(integrator, t) && error("Cannot add a tstop at $t because that is behind the current \
-                                       integrator time $(integrator.t)")
+    is_past_t(integrator, t) &&
+        error("Cannot add a tstop at $t because that is behind the current \
+               integrator time $(integrator.t)")
     push!(integrator.tstops, t)
 end
 
 function DiffEqBase.add_saveat!(integrator::DistributedODEIntegrator, t)
-    is_past_t(integrator, t) && error("Cannot add a saveat point at $t because that is behind the \
-                                       current integrator time $(integrator.t)")
+    is_past_t(integrator, t) &&
+        error("Cannot add a saveat point at $t because that is behind the \
+               current integrator time $(integrator.t)")
     push!(integrator.saveat, t)
 end
 
@@ -297,8 +311,10 @@ function NonInterpolatingSavingCallback(save_func, saved_values, save_everystep)
         condition =
             (u, t, integrator) -> begin
                 cond = false
-                while !isempty(integrator.saveat) &&
-                    (first(integrator.saveat) == integrator.t || is_past_t(integrator, first(integrator.saveat)))
+                while !isempty(integrator.saveat) && (
+                    first(integrator.saveat) == integrator.t ||
+                    is_past_t(integrator, first(integrator.saveat))
+                )
                     cond = true
                     pop!(integrator.saveat)
                 end
@@ -310,6 +326,7 @@ function NonInterpolatingSavingCallback(save_func, saved_values, save_everystep)
         push!(saved_values.saveval, save_func(integrator.u, integrator.t))
     end
     initialize(cb, u, t, integrator) = condition(u, t, integrator) && affect!(integrator)
-    finalize(cb, u, t, integrator) = !save_everystep && !isempty(integrator.saveat) && affect!(integrator)
+    finalize(cb, u, t, integrator) =
+        !save_everystep && !isempty(integrator.saveat) && affect!(integrator)
     SciMLBase.DiscreteCallback(condition, affect!; initialize, finalize)
 end

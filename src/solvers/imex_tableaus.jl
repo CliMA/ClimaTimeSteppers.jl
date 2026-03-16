@@ -69,8 +69,11 @@ struct IMEXAlgorithm{
     newtons_method_subproblem::NMS
     newtons_method::NM
 end
-IMEXAlgorithm(tableau::IMEXTableau, newtons_method::Union{Nothing, NewtonsMethod}, constraint = Unconstrained()) =
-    IMEXAlgorithm(constraint, nothing, tableau, nothing, newtons_method)
+IMEXAlgorithm(
+    tableau::IMEXTableau,
+    newtons_method::Union{Nothing, NewtonsMethod},
+    constraint = Unconstrained(),
+) = IMEXAlgorithm(constraint, nothing, tableau, nothing, newtons_method)
 IMEXAlgorithm(
     name::IMEXARKAlgorithmName,
     newtons_method::Union{Nothing, NewtonsMethod},
@@ -81,7 +84,13 @@ IMEXAlgorithm(
     newtons_method_subproblem::Union{Nothing, NewtonsMethod},
     newtons_method::Union{Nothing, NewtonsMethod},
     constraint = default_constraint(name),
-) = IMEXAlgorithm(constraint, name, IMEXTableau(name), newtons_method_subproblem, newtons_method)
+) = IMEXAlgorithm(
+    constraint,
+    name,
+    IMEXTableau(name),
+    newtons_method_subproblem,
+    newtons_method,
+)
 
 ################################################################################
 
@@ -111,7 +120,11 @@ explicit stages, and 1st order accuracy. Also called *IMEX Euler* or
 """
 struct ARS121 <: IMEXARKAlgorithmName end
 function IMEXTableau(::ARS121)
-    IMEXTableau(; a_exp = @SArray([0 0; 1 0]), b_exp = @SArray([0, 1]), a_imp = @SArray([0 0; 0 1]))
+    IMEXTableau(;
+        a_exp = @SArray([0 0; 1 0]),
+        b_exp = @SArray([0, 1]),
+        a_imp = @SArray([0 0; 0 1])
+    )
 end
 
 """
@@ -190,15 +203,18 @@ struct ARS222 <: IMEXARKAlgorithmName end
 function IMEXTableau(::ARS222)
     γ = 1 - √2 / 2
     δ = 1 - 1 / 2γ
-    IMEXTableau(; a_exp = @SArray([
-        0 0 0
-        γ 0 0
-        δ (1-δ) 0
-    ]), a_imp = @SArray([
-        0 0 0
-        0 γ 0
-        0 (1-γ) γ
-    ]))
+    IMEXTableau(;
+        a_exp = @SArray([
+            0 0 0
+            γ 0 0
+            δ (1-δ) 0
+        ]),
+        a_imp = @SArray([
+            0 0 0
+            0 γ 0
+            0 (1-γ) γ
+        ])
+    )
 end
 
 """
@@ -215,10 +231,12 @@ function IMEXTableau(::ARS343)
     b1 = -3 / 2 * γ^2 + 4 * γ - 1 / 4
     b2 = 3 / 2 * γ^2 - 5 * γ + 5 / 4
     a31 =
-        (1 - 9 / 2 * γ + 3 / 2 * γ^2) * a42 + (11 / 4 - 21 / 2 * γ + 15 / 4 * γ^2) * a43 - 7 / 2 + 13 * γ - 9 / 2 * γ^2
+        (1 - 9 / 2 * γ + 3 / 2 * γ^2) * a42 + (11 / 4 - 21 / 2 * γ + 15 / 4 * γ^2) * a43 -
+        7 / 2 + 13 * γ - 9 / 2 * γ^2
     a32 =
-        (-1 + 9 / 2 * γ - 3 / 2 * γ^2) * a42 + (-11 / 4 + 21 / 2 * γ - 15 / 4 * γ^2) * a43 + 4 - 25 / 2 * γ +
-        9 / 2 * γ^2
+        (-1 + 9 / 2 * γ - 3 / 2 * γ^2) * a42 +
+        (-11 / 4 + 21 / 2 * γ - 15 / 4 * γ^2) * a43 +
+        4 - 25 / 2 * γ + 9 / 2 * γ^2
     a41 = 1 - a42 - a43
     IMEXTableau(;
         a_exp = @SArray([
@@ -246,20 +264,24 @@ An IMEX ARK algorithm from [ARS1997](@cite), section 2, with 4 implicit stages,
 struct ARS443 <: IMEXARKAlgorithmName end
 function IMEXTableau(::ARS443)
     IMEXTableau(;
-        a_exp = @SArray([
-            0 0 0 0 0
-            1/2 0 0 0 0
-            11/18 1/18 0 0 0
-            5/6 -5/6 1/2 0 0
-            1/4 7/4 3/4 -7/4 0
-        ]),
-        a_imp = @SArray([
-            0 0 0 0 0
-            0 1/2 0 0 0
-            0 1/6 1/2 0 0
-            0 -1/2 1/2 1/2 0
-            0 3/2 -3/2 1/2 1/2
-        ])
+        a_exp = @SArray(
+            [
+                0 0 0 0 0
+                1/2 0 0 0 0
+                11/18 1/18 0 0 0
+                5/6 -5/6 1/2 0 0
+                1/4 7/4 3/4 -7/4 0
+            ]
+        ),
+        a_imp = @SArray(
+            [
+                0 0 0 0 0
+                0 1/2 0 0 0
+                0 1/6 1/2 0 0
+                0 -1/2 1/2 1/2 0
+                0 3/2 -3/2 1/2 1/2
+            ]
+        )
     )
 end
 
@@ -287,13 +309,17 @@ end
 # β[s-2] 0      ⋯      0      α[s-1] 0     β[s-2] 0      ⋯       0      α̂[s-1] 0
 imkg_exp(i, j, α, β) = i == j + 1 ? α[j] : (i > 2 && j == 1 ? β[i - 2] : 0)
 imkg_imp(i, j, α̂, β, δ̂) =
-    i == j + 1 ? α̂[j] : (i > 2 && j == 1 ? β[i - 2] : (1 < i <= length(α̂) && i == j ? δ̂[i - 1] : 0))
+    i == j + 1 ? α̂[j] :
+    (i > 2 && j == 1 ? β[i - 2] : (1 < i <= length(α̂) && i == j ? δ̂[i - 1] : 0))
 function IMKGTableau(α, α̂, δ̂, β = ntuple(_ -> 0, length(δ̂)))
     s = length(α̂) + 1
     type = SMatrix{s, s}
     return IMEXTableau(;
         a_exp = StaticArrays.sacollect(type, imkg_exp(i, j, α, β) for i in 1:s, j in 1:s),
-        a_imp = StaticArrays.sacollect(type, imkg_imp(i, j, α̂, β, δ̂) for i in 1:s, j in 1:s),
+        a_imp = StaticArrays.sacollect(
+            type,
+            imkg_imp(i, j, α̂, β, δ̂) for i in 1:s, j in 1:s
+        ),
     )
 end
 
@@ -327,7 +353,11 @@ An IMEX ARK algorithm from [SVTG2019](@cite), Table 3, with 2 implicit stages,
 """
 struct IMKG242a <: IMEXARKAlgorithmName end
 function IMEXTableau(::IMKG242a)
-    IMKGTableau((1 / 4, 1 / 3, 1 / 2, 1), (0, 0, -1 / 2 + √2 / 2, 1), (0, 1 - √2 / 2, 1 - √2 / 2))
+    IMKGTableau(
+        (1 / 4, 1 / 3, 1 / 2, 1),
+        (0, 0, -1 / 2 + √2 / 2, 1),
+        (0, 1 - √2 / 2, 1 - √2 / 2),
+    )
 end
 
 """
@@ -338,7 +368,11 @@ An IMEX ARK algorithm from [SVTG2019](@cite), Table 3, with 2 implicit stages,
 """
 struct IMKG242b <: IMEXARKAlgorithmName end
 function IMEXTableau(::IMKG242b)
-    IMKGTableau((1 / 4, 1 / 3, 1 / 2, 1), (0, 0, -1 / 2 - √2 / 2, 1), (0, 1 + √2 / 2, 1 + √2 / 2))
+    IMKGTableau(
+        (1 / 4, 1 / 3, 1 / 2, 1),
+        (0, 0, -1 / 2 - √2 / 2, 1),
+        (0, 1 + √2 / 2, 1 + √2 / 2),
+    )
 end
 
 """
@@ -349,7 +383,11 @@ An IMEX ARK algorithm from [SVTG2019](@cite), Table 3, with 3 implicit stages,
 """
 struct IMKG243a <: IMEXARKAlgorithmName end
 function IMEXTableau(::IMKG243a)
-    IMKGTableau((1 / 4, 1 / 3, 1 / 2, 1), (0, 1 / 6, -√3 / 6, 1), (1 / 2 + √3 / 6, 1 / 2 + √3 / 6, 1 / 2 + √3 / 6))
+    IMKGTableau(
+        (1 / 4, 1 / 3, 1 / 2, 1),
+        (0, 1 / 6, -√3 / 6, 1),
+        (1 / 2 + √3 / 6, 1 / 2 + √3 / 6, 1 / 2 + √3 / 6),
+    )
 end
 # The paper uses √3/6 for α̂[3], which also seems to work.
 
@@ -361,7 +399,11 @@ An IMEX ARK algorithm from [SVTG2019](@cite), Table 3, with 2 implicit stages,
 """
 struct IMKG252a <: IMEXARKAlgorithmName end
 function IMEXTableau(::IMKG252a)
-    IMKGTableau((1 / 4, 1 / 6, 3 / 8, 1 / 2, 1), (0, 0, 0, -1 / 2 + √2 / 2, 1), (0, 0, 1 - √2 / 2, 1 - √2 / 2))
+    IMKGTableau(
+        (1 / 4, 1 / 6, 3 / 8, 1 / 2, 1),
+        (0, 0, 0, -1 / 2 + √2 / 2, 1),
+        (0, 0, 1 - √2 / 2, 1 - √2 / 2),
+    )
 end
 
 """
@@ -372,7 +414,11 @@ An IMEX ARK algorithm from [SVTG2019](@cite), Table 3, with 2 implicit stages,
 """
 struct IMKG252b <: IMEXARKAlgorithmName end
 function IMEXTableau(::IMKG252b)
-    IMKGTableau((1 / 4, 1 / 6, 3 / 8, 1 / 2, 1), (0, 0, 0, -1 / 2 - √2 / 2, 1), (0, 0, 1 + √2 / 2, 1 + √2 / 2))
+    IMKGTableau(
+        (1 / 4, 1 / 6, 3 / 8, 1 / 2, 1),
+        (0, 0, 0, -1 / 2 - √2 / 2, 1),
+        (0, 0, 1 + √2 / 2, 1 + √2 / 2),
+    )
 end
 
 """
@@ -415,7 +461,11 @@ An IMEX ARK algorithm from [SVTG2019](@cite), Table 3, with 4 implicit stages,
 """
 struct IMKG254a <: IMEXARKAlgorithmName end
 function IMEXTableau(::IMKG254a)
-    IMKGTableau((1 / 4, 1 / 6, 3 / 8, 1 / 2, 1), (0, -3 / 10, 5 / 6, -3 / 2, 1), (-1 / 2, 1, 1, 2))
+    IMKGTableau(
+        (1 / 4, 1 / 6, 3 / 8, 1 / 2, 1),
+        (0, -3 / 10, 5 / 6, -3 / 2, 1),
+        (-1 / 2, 1, 1, 2),
+    )
 end
 
 """
@@ -426,7 +476,11 @@ An IMEX ARK algorithm from [SVTG2019](@cite), Table 3, with 4 implicit stages,
 """
 struct IMKG254b <: IMEXARKAlgorithmName end
 function IMEXTableau(::IMKG254b)
-    IMKGTableau((1 / 4, 1 / 6, 3 / 8, 1 / 2, 1), (0, -1 / 20, 5 / 4, -1 / 2, 1), (-1 / 2, 1, 1, 1))
+    IMKGTableau(
+        (1 / 4, 1 / 6, 3 / 8, 1 / 2, 1),
+        (0, -1 / 20, 5 / 4, -1 / 2, 1),
+        (-1 / 2, 1, 1, 1),
+    )
 end
 
 """
@@ -437,7 +491,11 @@ An IMEX ARK algorithm from [SVTG2019](@cite), Table 3, with 4 implicit stages,
 """
 struct IMKG254c <: IMEXARKAlgorithmName end
 function IMEXTableau(::IMKG254c)
-    IMKGTableau((1 / 4, 1 / 6, 3 / 8, 1 / 2, 1), (0, 1 / 20, 5 / 36, 1 / 3, 1), (1 / 6, 1 / 6, 1 / 6, 1 / 6))
+    IMKGTableau(
+        (1 / 4, 1 / 6, 3 / 8, 1 / 2, 1),
+        (0, 1 / 20, 5 / 36, 1 / 3, 1),
+        (1 / 6, 1 / 6, 1 / 6, 1 / 6),
+    )
 end
 
 """
@@ -473,7 +531,12 @@ An IMEX ARK algorithm from [SVTG2019](@cite), Table 4, with 3 implicit stages,
 """
 struct IMKG343a <: IMEXARKAlgorithmName end
 function IMEXTableau(::IMKG343a)
-    IMKGTableau((1 / 4, 2 / 3, 1 / 3, 3 / 4), (0, -1 / 3, -2 / 3, 3 / 4), (-1 / 3, 1, 1), (0, 1 / 3, 1 / 4))
+    IMKGTableau(
+        (1 / 4, 2 / 3, 1 / 3, 3 / 4),
+        (0, -1 / 3, -2 / 3, 3 / 4),
+        (-1 / 3, 1, 1),
+        (0, 1 / 3, 1 / 4),
+    )
 end
 
 # The paper and HOMME completely disagree on IMKG353a, but neither version
@@ -669,7 +732,13 @@ function IMEXTableau(::DBM453)
                 -0.81287582068772448 0.81223739060505738 0.90644429603699305 0.094194134045674111 0
             ]
         ),
-        b_exp = @SArray([0.87795339639076675, -0.72692641526151547, 0.7520413715737272, -0.22898029400415088, γ]),
+        b_exp = @SArray([
+            0.87795339639076675,
+            -0.72692641526151547,
+            0.7520413715737272,
+            -0.22898029400415088,
+            γ,
+        ]),
         a_imp = @SArray(
             [
                 0 0 0 0 0
@@ -691,22 +760,26 @@ stages, 6 explicit stages, and 2nd order accuracy.
 struct HOMMEM1 <: IMEXARKAlgorithmName end
 function IMEXTableau(::HOMMEM1)
     IMEXTableau(;
-        a_exp = @SArray([
-            0 0 0 0 0 0
-            1/5 0 0 0 0 0
-            0 1/5 0 0 0 0
-            0 0 1/3 0 0 0
-            0 0 0 1/2 0 0
-            0 0 0 0 1 0
-        ]),
-        a_imp = @SArray([
-            0 0 0 0 0 0
-            0 1/5 0 0 0 0
-            0 0 1/5 0 0 0
-            0 0 0 1/3 0 0
-            0 0 0 0 1/2 0
-            5/18 5/18 0 0 0 8/18
-        ])
+        a_exp = @SArray(
+            [
+                0 0 0 0 0 0
+                1/5 0 0 0 0 0
+                0 1/5 0 0 0 0
+                0 0 1/3 0 0 0
+                0 0 0 1/2 0 0
+                0 0 0 0 1 0
+            ]
+        ),
+        a_imp = @SArray(
+            [
+                0 0 0 0 0 0
+                0 1/5 0 0 0 0
+                0 0 1/5 0 0 0
+                0 0 0 1/3 0 0
+                0 0 0 0 1/2 0
+                5/18 5/18 0 0 0 8/18
+            ]
+        )
     )
 end
 

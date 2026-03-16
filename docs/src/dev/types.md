@@ -9,7 +9,7 @@ import AbstractTrees as AT
 import InteractiveUtils as IU
 import ClimaTimeSteppers as CTS
 AT.children(x::Type) = IU.subtypes(x)
-AT.print_tree(CTS.DistributedODEAlgorithm)
+AT.print_tree(CTS.TimeSteppingAlgorithm)
 ```
 
 ## Tableaus
@@ -20,4 +20,14 @@ import InteractiveUtils as IU
 import ClimaTimeSteppers as CTS
 AT.children(x::Type) = IU.subtypes(x)
 AT.print_tree(CTS.AbstractAlgorithmName)
+```
+
+## ODE Function Types
+
+```@example
+import AbstractTrees as AT
+import InteractiveUtils as IU
+import ClimaTimeSteppers as CTS
+AT.children(x::Type) = IU.subtypes(x)
+AT.print_tree(CTS.AbstractClimaODEFunction)
 ```

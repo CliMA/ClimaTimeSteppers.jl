@@ -3,13 +3,14 @@ export LSRK54CarpenterKennedy, LSRK144NiegemannDiehlBusch, LSRKEulerMethod
 """
     LowStorageRungeKutta2N <: TimeSteppingAlgorithm
 
-A class of low-storage Runge-Kutta algorithms, which use only one additional
-copy of the state vector ``u`` (often referred to as ``2N`` schemes).
+Low-storage Runge-Kutta methods that need only **two** state-sized arrays
+(the ``2N`` family). The ODE function must support the incrementing call form
+`f(du, u, p, t, α, β)` (see [`IncrementingODEFunction`](@ref)).
 
-The available implementations are:
- - [`LSRKEulerMethod`](@ref)
- - [`LSRK54CarpenterKennedy`](@ref)
- - [`LSRK144NiegemannDiehlBusch`](@ref)
+# Implementations
+- [`LSRKEulerMethod`](@ref) — forward Euler (1 stage, order 1; for debugging)
+- [`LSRK54CarpenterKennedy`](@ref) — 5 stages, order 4
+- [`LSRK144NiegemannDiehlBusch`](@ref) — 14 stages, order 4 (wide stability region)
 """
 abstract type LowStorageRungeKutta2N <: TimeSteppingAlgorithm end
 

@@ -8,13 +8,13 @@ Local problem and function types.
 """
     ODEProblem(f, u0, tspan, p)
 
-An ordinary differential equation problem.
+An ordinary differential equation problem ``du/dt = f(u, p, t)``.
 
 # Arguments
-- `f`: the ODE function (ClimaODEFunction, IncrementingODEFunction, SplitFunction, etc.)
+- `f`: the ODE function (`ClimaODEFunction`, `IncrementingODEFunction`, `SplitFunction`, etc.)
 - `u0`: initial state
-- `tspan`: time span as a tuple `(t_start, t_end)`
-- `p`: parameters
+- `tspan`: time span `(t_start, t_end)`
+- `p`: parameters passed to `f`
 """
 struct ODEProblem{F, U, T, P}
     f::F
@@ -26,7 +26,14 @@ end
 """
     SplitFunction(f1, f2)
 
-A split ODE function with fast and slow components: `du/dt = f1(u,p,t) + f2(u,p,t)`.
+A split ODE function representing ``du/dt = f_1(u,p,t) + f_2(u,p,t)``.
+
+Used with [`Multirate`](@ref) algorithms where `f1` is the fast component
+and `f2` is the slow component.
+
+# Arguments
+- `f1`: fast component (typically an `IncrementingODEFunction`)
+- `f2`: slow component
 """
 struct SplitFunction{F1, F2}
     f1::F1
@@ -36,17 +43,25 @@ end
 """
     SplitODEProblem(f1, f2, u0, tspan, p)
 
-Convenience constructor for an ODEProblem with a SplitFunction.
+Convenience constructor: creates an `ODEProblem(SplitFunction(f1, f2), u0, tspan, p)`.
+
+See [`SplitFunction`](@ref) and [`ODEProblem`](@ref).
 """
 SplitODEProblem(f1, f2, u0, tspan, p) = ODEProblem(SplitFunction(f1, f2), u0, tspan, p)
 
 """
-    IncrementingODEFunction{iip}(f)
+    IncrementingODEFunction{true}(f)
 
-An ODE function that supports the incrementing form
-`f(du, u, p, t, α=true, β=false)` which computes `du .= α .* f(u,p,t) .+ β .* du`.
+An ODE function that supports the incrementing call form
+`f(du, u, p, t, α=true, β=false)`, which computes `du .= α .* f(u,p,t) .+ β .* du`.
 
-The `iip` parameter indicates whether the function is in-place (true) or not.
+Required by [`LowStorageRungeKutta2N`](@ref) methods.
+
+# Arguments
+- `f`: callable with signature `f(du, u, p, t, α, β)`
+
+The type parameter `iip` (`true` for in-place, `false` for out-of-place) is
+specified as a curly-brace parameter: `IncrementingODEFunction{true}(f)`.
 """
 struct IncrementingODEFunction{iip, F}
     f::F
@@ -54,22 +69,23 @@ end
 function IncrementingODEFunction{iip}(f::F) where {iip, F}
     IncrementingODEFunction{iip, F}(f)
 end
-# Call with 4 args: f(du, u, p, t) — uses default α=true, β=false
 (o::IncrementingODEFunction)(du, u, p, t) = o.f(du, u, p, t)
-# Call with 5 args: f(du, u, p, t, α)
 (o::IncrementingODEFunction)(du, u, p, t, α) = o.f(du, u, p, t, α)
-# Call with 6 args: f(du, u, p, t, α, β)
 (o::IncrementingODEFunction)(du, u, p, t, α, β) = o.f(du, u, p, t, α, β)
 
 """
     ODEFunction(f; jac_prototype, Wfact, tgrad)
 
-An ODE function wrapper, optionally carrying Jacobian information.
+An ODE function wrapper that optionally carries Jacobian information for
+implicit solvers. Used as the `T_imp!` field of [`ClimaODEFunction`](@ref).
+
+# Arguments
+- `f`: callable with standard ODE signature `f(du, u, p, t)`
 
 # Keyword Arguments
-- `jac_prototype`: a prototype matrix for the Jacobian (e.g., for preallocating)
-- `Wfact`: a function `Wfact(W, u, p, dtγ, t)` that computes `W = I - dtγ * J`
-- `tgrad`: a function `tgrad(∂f∂t, u, p, t)`
+- `jac_prototype`: prototype matrix for the Jacobian (determines sparsity/structure)
+- `Wfact`: function `Wfact(W, u, p, dtγ, t)` that computes ``W = J \\Delta t \\gamma - I``
+- `tgrad`: function `tgrad(∂f∂t, u, p, t)` for the explicit time derivative
 """
 struct ODEFunction{F, JP, WF, TG}
     f::F
@@ -85,7 +101,16 @@ end
 """
     ODESolution{T, U, P, A}
 
-A minimal ODE solution type containing saved time points and state values.
+Solution object returned by [`solve`](@ref) and [`solve!`](@ref).
+
+# Fields
+- `t::Vector{T}`: saved time points
+- `u::Vector{U}`: saved state values (one per time point)
+- `prob`: the original [`ODEProblem`](@ref)
+- `alg`: the algorithm used
+
+Calling `sol(t)` returns the saved state nearest to time `t`
+(**not** an interpolation — nearest-neighbor lookup only).
 """
 struct ODESolution{T, U, P, A}
     t::Vector{T}
@@ -95,6 +120,7 @@ struct ODESolution{T, U, P, A}
 end
 ODESolution(prob, alg, t::Vector{T}, u::Vector{U}) where {T, U} =
     ODESolution{T, U, typeof(prob), typeof(alg)}(t, u, prob, alg)
+
 
 """
     sol(t)

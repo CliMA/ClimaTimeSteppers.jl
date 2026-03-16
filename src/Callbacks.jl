@@ -1,7 +1,8 @@
 """
     ClimaTimeSteppers.Callbacks
 
-A suite of callback functions to be used with the ClimaTimeSteppers.jl ODE solvers.
+Pre-built [`DiscreteCallback`](@ref) constructors for common triggering
+patterns: wall-clock time, simulation time, and step count.
 """
 module Callbacks
 
@@ -9,18 +10,18 @@ import ClimaComms
 import ..DiscreteCallback
 
 """
-    ClimaTimeSteppers.Callbacks.initialize!(f!::F, integrator)
+    Callbacks.initialize!(f!, integrator)
 
-Initialize a callback event for callbacks of type `F`. By default this does nothing, but
-can be extended for new callback events.
+Called when the integrator starts. Extend this for your callback type `f!`
+to perform setup (e.g. open files, record initial state). Default: no-op.
 """
 function initialize!(f!, integrator) end
 
 """
-    ClimaTimeSteppers.Callbacks.finalize!(f!::F, integrator)
+    Callbacks.finalize!(f!, integrator)
 
-Finalize a callback event for callbacks of type `F`. By default this does nothing, but
-can be extended for new callback events.
+Called when [`solve!`](@ref) completes. Extend this for your callback type `f!`
+to perform teardown (e.g. close files, flush buffers). Default: no-op.
 """
 function finalize!(f!, integrator) end
 
@@ -28,21 +29,23 @@ function finalize!(f!, integrator) end
 export EveryXWallTimeSeconds, EveryXSimulationTime, EveryXSimulationSteps
 
 """
-    EveryXWallTimeSeconds(
-        f!,
-        Δwt,
-        comm_ctx::ClimaComms.AbstractCommsContext;
-        atinit=false
-    )
+    EveryXWallTimeSeconds(f!, Δwt, comm_ctx; atinit=false)
 
-Trigger `f!(integrator)` every `Δwt` wallclock seconds.
+Trigger `f!(integrator)` every `Δwt` wall-clock seconds.
 
-An [ClimaComms context](https://clima.github.io/ClimaComms.jl/) must be provided to synchronize timing across all ranks.
+Timing is synchronized across all MPI ranks via `comm_ctx`
+([ClimaComms context](https://clima.github.io/ClimaComms.jl/)).
 
-[`Callbacks.initialize!`](@ref) and [`Callbacks.finalize!`](@ref) can be defined for `f!`.
+# Arguments
+- `f!`: callable `f!(integrator)` to execute
+- `Δwt`: wall-clock interval in seconds
+- `comm_ctx`: a `ClimaComms.AbstractCommsContext`
 
-If `atinit=true`, then `f!(integrator)` will additionally be triggered at initialization,
-otherwise the first trigger will be after `Δwt` seconds.
+# Keyword Arguments
+- `atinit`: if `true`, also trigger at initialization (default `false`)
+
+[`Callbacks.initialize!`](@ref) and [`Callbacks.finalize!`](@ref) can be
+extended for `typeof(f!)` to add setup/teardown behavior.
 """
 function EveryXWallTimeSeconds(
     f!,
@@ -83,12 +86,17 @@ end
 """
     EveryXSimulationTime(f!, Δt; atinit=false)
 
-Trigger `f!(integrator)` every `Δt` simulation time.
+Trigger `f!(integrator)` every `Δt` simulation time units.
 
-[`Callbacks.initialize!`](@ref) and [`Callbacks.finalize!`](@ref) can be defined for `f!`.
+# Arguments
+- `f!`: callable `f!(integrator)` to execute
+- `Δt`: simulation time interval
 
-If `atinit=true`, then `f!` will additionally be triggered at initialization. Otherwise
-the first trigger will be after `Δt` simulation time.
+# Keyword Arguments
+- `atinit`: if `true`, also trigger at initialization (default `false`)
+
+[`Callbacks.initialize!`](@ref) and [`Callbacks.finalize!`](@ref) can be
+extended for `typeof(f!)` to add setup/teardown behavior.
 """
 function EveryXSimulationTime(f!, Δt; atinit = false)
     t_next = zero(Δt)
@@ -104,7 +112,6 @@ function EveryXSimulationTime(f!, Δt; atinit = false)
     function _finalize(c, u, t, integrator)
         finalize!(c.affect!, integrator)
     end
-
 
     function condition(u, t, integrator)
         if t >= t_next
@@ -124,10 +131,15 @@ end
 
 Trigger `f!(integrator)` every `Δsteps` simulation steps.
 
-[`Callbacks.initialize!`](@ref) and [`Callbacks.finalize!`](@ref) can be defined for `f!`.
+# Arguments
+- `f!`: callable `f!(integrator)` to execute
+- `Δsteps`: number of steps between triggers
 
-If `atinit==true`, then `f!` will additionally be triggered at initialization. Otherwise
-the first trigger will be after `Δsteps`.
+# Keyword Arguments
+- `atinit`: if `true`, also trigger at initialization (default `false`)
+
+[`Callbacks.initialize!`](@ref) and [`Callbacks.finalize!`](@ref) can be
+extended for `typeof(f!)` to add setup/teardown behavior.
 """
 function EveryXSimulationSteps(f!, Δsteps; atinit = false)
     steps = 0

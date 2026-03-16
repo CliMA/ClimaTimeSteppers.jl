@@ -3,7 +3,15 @@ import DataStructures
 """
     TimeStepperIntegrator
 
-The main integrator type for ClimaTimeSteppers.
+The main integrator type for ClimaTimeSteppers. Created by [`init`](@ref),
+advanced by [`step!`](@ref), and run to completion by [`solve!`](@ref).
+
+# Key fields (user-facing)
+- `u`: current state vector (mutated in place)
+- `p`: parameters
+- `t`: current time
+- `dt`: current timestep (may differ from `_dt` near tstops)
+- `sol`: the [`ODESolution`](@ref) being built
 """
 mutable struct TimeStepperIntegrator{
     algType,
@@ -40,8 +48,9 @@ end
 """
     SavedValues{tType, savevalType}
 
-A struct used to save values of the time in `t::Vector{tType}` and
-additional values in `saveval::Vector{savevalType}`.
+Internal container holding saved time points and corresponding values.
+Used by the saving callback to accumulate solution data into
+[`ODESolution`](@ref).
 """
 struct SavedValues{tType, savevalType}
     t::Vector{tType}
@@ -49,9 +58,9 @@ struct SavedValues{tType, savevalType}
 end
 
 """
-    SavedValues(tType::DataType, savevalType::DataType)
+    SavedValues(tType, savevalType)
 
-Return `SavedValues{tType, savevalType}` with empty storage vectors.
+Construct empty `SavedValues` for the given element types.
 """
 function SavedValues(::Type{tType}, ::Type{savevalType}) where {tType, savevalType}
     SavedValues{tType, savevalType}(Vector{tType}(), Vector{savevalType}())
@@ -80,7 +89,25 @@ compute_tdir(ts) = ts[1] > ts[end] ? sign(ts[end] - ts[1]) : oneunit(ts[1])
 """
     init(prob, alg; dt, kwargs...)
 
-Initialize an integrator for the given problem and algorithm.
+Create a [`TimeStepperIntegrator`](@ref) for the given problem and algorithm.
+
+# Arguments
+- `prob`: an [`ODEProblem`](@ref)
+- `alg`: a [`TimeSteppingAlgorithm`](@ref)
+
+# Keyword Arguments
+- `dt`: timestep size (required; must be positive)
+- `tstops`: additional times at which the integrator must stop
+- `saveat`: times at which to save the solution (default: only endpoints)
+- `save_everystep`: save after every step (default: `false`)
+- `callback`: a [`DiscreteCallback`](@ref) or [`CallbackSet`](@ref)
+- `advance_to_tstop`: if `true`, [`step!`](@ref) advances to the next tstop
+- `save_func`: function `(u, t) -> value` applied before saving (default: `copy`)
+- `dtchangeable`: allow dt reduction near tstops (default: `true`)
+- `stepstop`: stop after this many steps (`-1` = unlimited)
+
+# Returns
+- a [`TimeStepperIntegrator`](@ref)
 """
 function init(
     prob::ODEProblem,
@@ -111,7 +138,7 @@ function init(
     _saveat = saveat
     tstops, saveat = tstops_and_saveat_heaps(t0, tf, tstops, saveat)
 
-    sol = ODESolution(prob, alg, typeof(t0)[], typeof(save_func(u0, t0))[])
+    sol = ODESolution(typeof(t0)[], typeof(save_func(u0, t0))[], prob, alg)
     # SavedValues shares sol.t and sol.u vectors: the callback's push!
     # directly populates the solution. Do not replace these vectors.
     saving_callback =
@@ -143,6 +170,20 @@ function init(
     return integrator
 end
 
+"""
+    reinit!(integrator, [u0]; t0, tf, erase_sol, tstops, saveat, reinit_callbacks)
+
+Reset the integrator to a new initial condition without reallocating caches.
+
+# Arguments
+- `u0`: new initial state (default: original `prob.u0`)
+
+# Keyword Arguments
+- `t0`, `tf`: new time span endpoints (default: original `prob.tspan`)
+- `erase_sol`: clear saved solution data (default `true`)
+- `tstops`, `saveat`: new stop/save schedules (default: reuse originals)
+- `reinit_callbacks`: re-run callback initialization (default `true`)
+"""
 function reinit!(
     integrator::TimeStepperIntegrator,
     u0 = integrator.sol.prob.u0;
@@ -172,7 +213,12 @@ end
 """
     solve(prob, alg; kwargs...)
 
-Convenience function: `init` + `solve!`.
+Solve the ODE problem. Equivalent to `init(prob, alg; kwargs...) |> solve!`.
+
+Accepts the same keyword arguments as [`init`](@ref).
+
+# Returns
+- an [`ODESolution`](@ref)
 """
 function solve(
     prob::ODEProblem,
@@ -187,7 +233,10 @@ end
 """
     solve!(integrator)
 
-Run the integrator to completion, returning the solution.
+Run the integrator to completion (until `tstops` is empty or `stepstop` is reached).
+
+# Returns
+- the [`ODESolution`](@ref) stored in `integrator.sol`
 """
 NVTX.@annotate function solve!(integrator::TimeStepperIntegrator)
     while !isempty(integrator.tstops) && integrator.step != integrator.stepstop
@@ -199,8 +248,15 @@ end
 
 """
     step!(integrator)
+    step!(integrator, dt, stop_at_tdt=false)
 
-Advance the integrator by one step.
+Advance the integrator. The single-argument form takes one internal step
+(or advances to the next tstop if `advance_to_tstop` was set).
+The two-argument form advances by exactly `dt` time units.
+
+# Arguments
+- `dt`: time interval to advance (must be positive)
+- `stop_at_tdt`: if `true`, add `t + dt` as a tstop to guarantee exact stopping
 """
 function step!(integrator::TimeStepperIntegrator)
     if integrator.advance_to_tstop
@@ -280,12 +336,29 @@ NVTX.@annotate function step_u!(integrator)
     step_u!(integrator, integrator.cache)
 end
 
+"""
+    get_dt(integrator)
+
+Return the base timestep `dt` (the value passed to [`init`](@ref)).
+"""
 get_dt(integrator::TimeStepperIntegrator) = integrator._dt
+
+"""
+    set_dt!(integrator, dt)
+
+Set the base timestep. `dt` must be positive.
+"""
 function set_dt!(integrator::TimeStepperIntegrator, dt)
     dt <= zero(dt) && error("dt must be positive")
     integrator._dt = dt
 end
 
+"""
+    add_tstop!(integrator, t)
+
+Schedule a mandatory stop at time `t`. The integrator will reduce its
+timestep if necessary to land exactly on `t`.
+"""
 function add_tstop!(integrator::TimeStepperIntegrator, t)
     is_past_t(integrator, t) &&
         error("Cannot add a tstop at $t because that is behind the current \
@@ -293,6 +366,12 @@ function add_tstop!(integrator::TimeStepperIntegrator, t)
     push!(integrator.tstops, t)
 end
 
+"""
+    add_saveat!(integrator, t)
+
+Schedule a save point at time `t`. The solution will be recorded at
+the first step on or after `t`.
+"""
 function add_saveat!(integrator::TimeStepperIntegrator, t)
     is_past_t(integrator, t) &&
         error("Cannot add a saveat point at $t because that is behind the \
@@ -300,7 +379,8 @@ function add_saveat!(integrator::TimeStepperIntegrator, t)
     push!(integrator.saveat, t)
 end
 
-u_modified!(i::TimeStepperIntegrator, bool) = nothing
+
+
 
 # ============================================================================ #
 # Saving callback

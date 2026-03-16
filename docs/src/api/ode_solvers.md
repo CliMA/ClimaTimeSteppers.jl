@@ -4,22 +4,50 @@
 CurrentModule = ClimaTimeSteppers
 ```
 
-## Interface
+## Problem Types
+
+```@docs
+ODEProblem
+SplitFunction
+SplitODEProblem
+IncrementingODEFunction
+ODEFunction
+ODESolution
+```
+
+## ODE Function Types
 
 ```@docs
 ClimaODEFunction
+ForwardEulerODEFunction
+```
+
+## Integrator
+
+```@docs
+init
+solve
+solve!
+step!
+reinit!
+add_tstop!
+get_dt
+set_dt!
+```
+
+## Algorithm Constraints
+
+```@docs
 AbstractAlgorithmConstraint
 Unconstrained
 SSP
-IMEXTableau
-IMEXAlgorithm
-ExplicitTableau
-ExplicitAlgorithm
 ```
 
-## IMEX Algorithm Names
+## IMEX Algorithms
 
 ```@docs
+IMEXTableau
+IMEXAlgorithm
 ARS111
 ARS121
 ARS122
@@ -55,15 +83,17 @@ ARK548L2SA2
 SSPKnoth
 ```
 
-## Explicit Algorithm Names
+## Explicit Algorithms
 
 ```@docs
+ExplicitTableau
+ExplicitAlgorithm
 SSP22Heuns
 SSP33ShuOsher
 RK4
 ```
 
-## Old LSRK Interface
+## Low-Storage Runge-Kutta
 
 ```@docs
 ForwardEulerODEFunction
@@ -73,7 +103,7 @@ LSRK144NiegemannDiehlBusch
 LSRKEulerMethod
 ```
 
-## Old Multirate Interface
+## Multirate
 
 ```@docs
 Multirate
@@ -87,4 +117,11 @@ TVDMISB
 WickerSkamarockRungeKutta
 WSRK2
 WSRK3
+```
+
+## Rosenbrock
+
+```@docs
+RosenbrockAlgorithm
+SSPKnoth
 ```

@@ -6,13 +6,14 @@ import LinearAlgebra
 abstract type RosenbrockAlgorithmName <: AbstractAlgorithmName end
 
 """
-    RosenbrockTableau{N, RT, N²}
+    RosenbrockTableau{N}
 
-Contains everything that defines a Rosenbrock-type method.
+Tableau for an `N`-stage Rosenbrock method. Stores the transformed coefficients
+``A = α Γ^{-1}``, ``C = \\mathrm{diag}(Γ^{-1}) - Γ^{-1}``, and
+``m = b Γ^{-1}`` used in the actual computation, along with the original
+``α`` and ``Γ``.
 
-- N: number of stages.
-
-Refer to the documentation for the precise meaning of the symbols below.
+See the [Rosenbrock algorithm formulation](@ref rosenbrock-methods) for details.
 """
 struct RosenbrockTableau{N, SM <: SMatrix{N, N}, SM1 <: SMatrix{N, 1}}
     """A = α Γ⁻¹"""
@@ -44,7 +45,19 @@ end
 """
     RosenbrockAlgorithm(tableau)
 
-Constructs a Rosenbrock algorithm for solving ODEs.
+A Rosenbrock-type ODE algorithm. The implicit system at each stage is a single
+linear solve (no Newton iteration), making Rosenbrock methods cheaper per step
+than fully implicit IMEX methods when the Jacobian is inexpensive.
+
+# Arguments
+- `tableau`: a [`RosenbrockTableau`](@ref) (e.g. `tableau(SSPKnoth())`)
+
+# Example
+```julia
+import ClimaTimeSteppers as CTS
+
+alg = CTS.RosenbrockAlgorithm(CTS.tableau(SSPKnoth()))
+```
 """
 struct RosenbrockAlgorithm{T <: RosenbrockTableau} <:
        ClimaTimeSteppers.TimeSteppingAlgorithm
@@ -211,12 +224,13 @@ end
 """
     SSPKnoth
 
-`SSPKnoth` is a second-order Rosenbrock method developed by Oswald Knoth.
+A 3-stage, 2nd-order Rosenbrock method developed by Oswald Knoth.
 
-The coefficients are the same as in `CGDycore.jl`, except that for C we add the
-diagonal elements too. Note, however, that the elements on the diagonal of C do
-not really matter because C is only used in its lower triangular part. We add them
-mostly to match literature on the subject
+Use with [`RosenbrockAlgorithm`](@ref):
+```julia
+import ClimaTimeSteppers as CTS
+alg = CTS.RosenbrockAlgorithm(CTS.tableau(SSPKnoth()))
+```
 """
 struct SSPKnoth <: RosenbrockAlgorithmName end
 

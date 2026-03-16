@@ -5,33 +5,31 @@ abstract type AbstractClimaODEFunction end
 
 """
     ClimaODEFunction(; T_imp!, [dss!], [cache!], [cache_imp!])
-    ClimaODEFunction(; T_exp!, T_lim!, [T_imp!], [lim!], [dss!], [cache!], [cache_imp!])
+    ClimaODEFunction(; T_exp!, [T_lim!], [T_imp!], [lim!], [dss!], [cache!], [cache_imp!])
     ClimaODEFunction(; T_exp_T_lim!, [T_imp!], [lim!], [dss!], [cache!], [cache_imp!])
 
-Container for all functions used to advance through a timestep:
-    - `T_imp!(T_imp, u, p, t)`: sets the implicit tendency
-    - `T_exp!(T_exp, u, p, t)`: sets the component of the explicit tendency that
-      is not passed through the limiter
-    - `T_lim!(T_lim, u, p, t)`: sets the component of the explicit tendency that
-      is passed through the limiter
-    - `T_exp_T_lim!(T_exp, T_lim, u, p, t)`: fused alternative to the separate
-      functions `T_exp!` and `T_lim!`
-    - `lim!(u, p, t, u_ref)`: applies the limiter to every state `u` that has
-      been incremented from `u_ref` by the explicit tendency component `T_lim!`
-    - `dss!(u, p, t)`: applies direct stiffness summation to every state `u`,
-      except for intermediate states generated within the implicit solver
-    - `cache!(u, p, t)`: updates the cache `p` to reflect the state `u` before
-      the first timestep and on every subsequent timestepping stage
-    - `cache_imp!(u, p, t)`: updates the components of the cache `p` that are
-      required to evaluate `T_imp!` and its Jacobian within the implicit solver
+Container for all tendency and auxiliary functions used by IMEX and Rosenbrock
+time-stepping algorithms. Tendencies set to `nothing` are skipped, avoiding
+unnecessary allocations.
 
-By default, `lim!`, `dss!`, and `cache!` all do nothing, and `cache_imp!` is
-identical to `cache!`. Any of the tendency functions can be set to `nothing` in
-order to avoid corresponding allocations in the integrator.
+# Keyword Arguments
 
-Internally, `T_exp!` and `T_lim!` are merged into `T_exp_T_lim!` at
-construction time. These keyword arguments are still accepted for backward
-compatibility.
+**Tendency functions** (at least one must be provided):
+- `T_exp!(du, u, p, t)`: explicit tendency (not limited)
+- `T_lim!(du, u, p, t)`: explicit tendency passed through the limiter
+- `T_exp_T_lim!(du_exp, du_lim, u, p, t)`: fused alternative to separate `T_exp!`/`T_lim!`
+- `T_imp!`: implicit tendency — typically an [`ODEFunction`](@ref) carrying Jacobian info
+- `T_imp_subproblem!`: optional second implicit tendency for the subproblem Newton solve
+
+**Auxiliary functions** (default to no-ops):
+- `lim!(u, p, t, u_ref)`: limiter applied after incrementing `u` from `u_ref` by `T_lim!`
+- `dss!(u, p, t)`: direct stiffness summation (spectral element continuity)
+- `cache!(u, p, t)`: update the parameter cache `p` to reflect state `u`
+- `cache_imp!(u, p, t)`: update cache components needed by `T_imp!` (defaults to `cache!`)
+- `initialize_subproblem!(u, p, γdt)`: set up the subproblem before the Newton solve
+
+Internally, `T_exp!` and `T_lim!` are merged into a single `T_exp_T_lim!`
+at construction time.
 """
 struct ClimaODEFunction{TEL, TIS, TI, L, D, IS, C, CI} <: AbstractClimaODEFunction
     T_exp_T_lim!::TEL
@@ -103,11 +101,16 @@ initialize_function!(f::ClimaODEFunction, u0, p, t0) =
 """
     ForwardEulerODEFunction(f; jac_prototype, Wfact, tgrad)
 
-An ODE function wrapper where `f(un, u, p, t, dt)` provides a forward Euler update
-```
-un .= u .+ dt * f(u, p, t)
-```
+An ODE function whose call signature is `f(un, u, p, t, dt)`, computing a
+forward-Euler-style update `un .= u .+ dt * tendency(u, p, t)`.
 
+# Arguments
+- `f`: callable with signature `f(un, u, p, t, dt)`
+
+# Keyword Arguments
+- `jac_prototype`: prototype matrix for the Jacobian
+- `Wfact`: function `Wfact(W, u, p, dtγ, t)` computing ``W = J \\Delta t \\gamma - I``
+- `tgrad`: function `tgrad(∂f∂t, u, p, t)` for the explicit time derivative
 """
 struct ForwardEulerODEFunction{F, J, W, T}
     f::F
@@ -120,16 +123,18 @@ ForwardEulerODEFunction(f; jac_prototype = nothing, Wfact = nothing, tgrad = not
 (f::ForwardEulerODEFunction{F})(un, u, p, t, dt) where {F} = f.f(un, u, p, t, dt)
 
 """
-    OffsetODEFunction(f,α,β,γ,x)
+    OffsetODEFunction(f, α, β, γ, x)
 
-An ODE function wrapper which evaluates `f` with an offset.
+Internal wrapper used by multirate methods. Evaluates `f` with a time offset
+and adds a constant forcing term:
 
-Evaluates as
 ```math
-f(u,p,α+β*t) .+ γ .* x
+f(u, p, \\alpha + \\beta t) + \\gamma \\cdot x
 ```
 
-It supports the 3, 4, 5, and 6 argument forms.
+Supports 3-arg (out-of-place), 4-arg, 5-arg (`α`), and 6-arg (`α, β`)
+in-place call forms. The fields `α`, `β`, `γ`, and `x` are mutable so that
+multirate outer solvers can update them between stages.
 """
 mutable struct OffsetODEFunction{F, S, A}
     f::F

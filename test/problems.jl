@@ -2,7 +2,7 @@ using ClimaTimeSteppers
 import ClimaTimeSteppers:
     ODEProblem, SplitODEProblem, IncrementingODEFunction, ODEFunction,
     SplitFunction, solve, init, solve!, step!, add_tstop!, reinit!,
-    get_dt, set_dt!, u_modified!
+    get_dt, set_dt!
 import LinearAlgebra
 import LinearAlgebra: norm, Diagonal, mul!, Tridiagonal, I
 

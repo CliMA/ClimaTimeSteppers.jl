@@ -4,15 +4,29 @@ export Multirate
 """
     Multirate(fast, slow)
 
-A multirate Runge--Kutta scheme, combining `fast` and `slow` algorithms
+A multirate Runge-Kutta scheme that pairs a slow (outer) algorithm with a
+fast (inner) algorithm. The problem must be a [`SplitODEProblem`](@ref) where
+`f1` is the fast tendency and `f2` is the slow tendency.
 
-`slow` can be any algorithm providing methods for the following functions
-  - `init_inner(prob, outercache, dt)`
-  - `update_inner!(innerinteg, outercache, f_slow, u, p, t, dt, stage)`
-Algorithms which currently support this are:
- - [`LowStorageRungeKutta2N`](@ref)
- - [`MultirateInfinitesimalStep`](@ref)
- - [`WickerSkamarockRungeKutta`](@ref)
+# Arguments
+- `fast`: inner algorithm (e.g. `LSRK54CarpenterKennedy()`)
+- `slow`: outer algorithm — must be one of:
+  - [`LowStorageRungeKutta2N`](@ref)
+  - [`MultirateInfinitesimalStep`](@ref)
+  - [`WickerSkamarockRungeKutta`](@ref)
+
+Pass `fast_dt` as a keyword argument to [`init`](@ref) or [`solve`](@ref)
+to set the inner timestep.
+
+# Example
+```julia
+using ClimaTimeSteppers
+import ClimaTimeSteppers as CTS
+
+prob = CTS.SplitODEProblem(f_fast, f_slow, u0, tspan, p)
+alg  = Multirate(LSRK54CarpenterKennedy(), MIS3C())
+sol  = CTS.solve(prob, alg; dt = 0.1, fast_dt = 0.01)
+```
 """
 struct Multirate{F, S} <: TimeSteppingAlgorithm
     fast::F

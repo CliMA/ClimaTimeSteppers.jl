@@ -8,16 +8,21 @@ export DBM453, HOMMEM1, ARK2GKC, ARK437L2SA1, ARK548L2SA2
 abstract type IMEXARKAlgorithmName <: AbstractAlgorithmName end
 
 """
-    IMEXTableau(; a_exp, b_exp, c_exp, a_imp, b_imp, c_imp)
+    IMEXTableau(; a_exp, a_imp, [b_exp], [b_imp], [c_exp], [c_imp])
 
-A wrapper for an IMEX Butcher tableau (or, more accurately, a pair of Butcher
-tableaus, one for explicit tendencies and the other for implicit tendencies).
-Only `a_exp` and `a_imp` are required arguments; the default values for `b_exp`
-and `b_imp` assume that the algorithm is FSAL (first same as last), and the
-default values for `c_exp` and `c_imp` assume that it is internally consistent.
+A pair of Butcher tableaux for IMEX (implicit-explicit) Runge-Kutta methods.
 
-The explicit tableau must be strictly lower triangular, and the implicit tableau
-must be lower triangular (only DIRK algorithms are currently supported).
+The explicit tableau must be strictly lower triangular and the implicit tableau
+lower triangular (DIRK). Usually constructed indirectly via an algorithm name
+such as [`ARS343`](@ref).
+
+# Keyword Arguments
+- `a_exp`: explicit Butcher matrix (strictly lower triangular, required)
+- `a_imp`: implicit Butcher matrix (lower triangular / DIRK, required)
+- `b_exp`: explicit weights (default: last row of `a_exp`, i.e. FSAL)
+- `b_imp`: implicit weights (default: last row of `a_imp`)
+- `c_exp`: explicit abscissae (default: row sums of `a_exp`)
+- `c_imp`: implicit abscissae (default: row sums of `a_imp`)
 """
 struct IMEXTableau{AE <: SPCO, BE <: SPCO, CE <: SPCO, AI <: SPCO, BI <: SPCO, CI <: SPCO}
     a_exp::AE # matrix of size s×s
@@ -47,14 +52,25 @@ function IMEXTableau(;
 end
 
 """
-    IMEXAlgorithm(tableau, newtons_method, [constraint])
     IMEXAlgorithm(name, newtons_method, [constraint])
+    IMEXAlgorithm(tableau, newtons_method, [constraint])
 
-Constructs an IMEX algorithm for solving ODEs, with an optional name and
-constraint. The first constructor accepts any `IMEXTableau` and an optional
-constraint, leaving the algorithm unnamed. The second constructor automatically
-determines the tableau and the default constraint from the algorithm name,
-which must be an `IMEXARKAlgorithmName`.
+An implicit-explicit Runge-Kutta algorithm.
+
+The preferred constructor takes an algorithm name (e.g. [`ARS343`](@ref)) which
+determines the tableau and default constraint automatically. A raw
+[`IMEXTableau`](@ref) can also be passed directly.
+
+# Arguments
+- `name`: an algorithm name such as `ARS343()`, `SSP333()`, etc.
+- `newtons_method`: a [`NewtonsMethod`](@ref) for the implicit stages
+  (`nothing` if the algorithm is purely explicit)
+- `constraint`: [`Unconstrained`](@ref) (default) or [`SSP`](@ref)
+
+# Example
+```julia
+alg = IMEXAlgorithm(ARS343(), NewtonsMethod(; max_iters = 2))
+```
 """
 struct IMEXAlgorithm{
     C <: AbstractAlgorithmConstraint,

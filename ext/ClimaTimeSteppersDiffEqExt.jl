@@ -78,9 +78,8 @@ function DiffEqBase.reinit!(integrator::CTS.DistributedODEIntegrator, args...; k
     CTS.reinit!(integrator, args...; kwargs...)
 end
 
-# Forward DiffEqBase.u_modified!
-DiffEqBase.u_modified!(integrator::CTS.DistributedODEIntegrator, bool) =
-    CTS.u_modified!(integrator, bool)
+# u_modified! is a DiffEqBase-only concept (no-op here)
+DiffEqBase.u_modified!(::CTS.DistributedODEIntegrator, ::Bool) = nothing
 
 # SciMLBase: allows_arbitrary_number_types
 SciMLBase.allows_arbitrary_number_types(::CTS.DistributedODEAlgorithm) = true

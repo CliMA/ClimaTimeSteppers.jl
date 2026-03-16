@@ -10,10 +10,10 @@ The slow component can be stepped with a large $\Delta t$, while the fast compon
 
 ## Multirate (Outer + Inner) Framework
 
-`ClimaTimeSteppers.jl` provides a `Multirate(slow_alg, fast_alg)` wrapper that pairs any outer (slow) algorithm with any inner (fast) algorithm:
+`ClimaTimeSteppers.jl` provides a `Multirate(fast, slow)` wrapper that pairs any inner (fast) algorithm with any outer (slow) algorithm:
 
 ```julia
-alg = Multirate(WSRK3(), LSRK54CarpenterKennedy())
+alg = Multirate(LSRK54CarpenterKennedy(), WSRK3())
 ```
 
 At each outer stage, the slow tendency $f_S$ is evaluated and held fixed; the inner solver then integrates $f_F$ over the substep interval $[\tau_{i-1}, \tau_i]$ using however many fast steps are needed to resolve it.

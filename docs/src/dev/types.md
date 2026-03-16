@@ -1,33 +1,41 @@
-# Types
+# Type Hierarchies
 
-In this section, we print out the type hierarchies of some classes via code snippets.
+The type trees below are generated from the loaded package and reflect the
+current state of the code. They are useful for understanding how algorithms,
+tableau names, constraints, and ODE function types relate to each other.
+
+```@example types
+import AbstractTrees as AT
+import InteractiveUtils as IU
+import ClimaTimeSteppers as CTS
+AT.children(x::Type) = IU.subtypes(x)
+nothing # hide
+```
 
 ## Algorithms
 
-```@example
-import AbstractTrees as AT
-import InteractiveUtils as IU
-import ClimaTimeSteppers as CTS
-AT.children(x::Type) = IU.subtypes(x)
+All concrete solvers are subtypes of [`ClimaTimeSteppers.TimeSteppingAlgorithm`](@ref):
+
+```@example types
 AT.print_tree(CTS.TimeSteppingAlgorithm)
 ```
 
-## Tableaus
+## Algorithm Names (Tableaux)
 
-```@example
-import AbstractTrees as AT
-import InteractiveUtils as IU
-import ClimaTimeSteppers as CTS
-AT.children(x::Type) = IU.subtypes(x)
+Each named tableau is a subtype of `AbstractAlgorithmName`:
+
+```@example types
 AT.print_tree(CTS.AbstractAlgorithmName)
+```
+
+## Algorithm Constraints
+
+```@example types
+AT.print_tree(CTS.AbstractAlgorithmConstraint)
 ```
 
 ## ODE Function Types
 
-```@example
-import AbstractTrees as AT
-import InteractiveUtils as IU
-import ClimaTimeSteppers as CTS
-AT.children(x::Type) = IU.subtypes(x)
+```@example types
 AT.print_tree(CTS.AbstractClimaODEFunction)
 ```

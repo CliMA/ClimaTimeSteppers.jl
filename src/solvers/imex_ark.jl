@@ -19,7 +19,17 @@ sdirk_error(name) = error("$(isnothing(name) ? "The given IMEXTableau" : name) \
 Update the Jacobian at the start of a timestep if the update signal fires.
 Shared by IMEX ARK and IMEX SSPRK solvers.
 """
-function maybe_update_jacobian!(T_imp!, newtons_method, newtons_method_cache, u, p, t, dt, γ, alg)
+function maybe_update_jacobian!(
+    T_imp!,
+    newtons_method,
+    newtons_method_cache,
+    u,
+    p,
+    t,
+    dt,
+    γ,
+    alg,
+)
     isnothing(T_imp!) && return
     isnothing(newtons_method) && return
     (; update_j) = newtons_method
@@ -96,7 +106,17 @@ function step_u!(integrator, cache::IMEXARKCache)
     (; U, T_lim, T_exp, T_imp, temp, γ, newtons_method_cache) = cache
     s = length(b_exp)
 
-    maybe_update_jacobian!(T_imp!, newtons_method, newtons_method_cache, u, p, t, dt, γ, alg)
+    maybe_update_jacobian!(
+        T_imp!,
+        newtons_method,
+        newtons_method_cache,
+        u,
+        p,
+        t,
+        dt,
+        γ,
+        alg,
+    )
 
     update_stage!(integrator, cache, ntuple(i -> i, Val(s)))
 
@@ -158,7 +178,20 @@ end
 Compute the stage value `U` by accumulating the Butcher linear combination
 from previous explicit (limited + unlimited) and implicit tendencies.
 """
-@inline function compute_stage_value!(U, u, dt, a_exp, a_imp, T_lim, T_exp, T_imp, f, p, t_exp, i)
+@inline function compute_stage_value!(
+    U,
+    u,
+    dt,
+    a_exp,
+    a_imp,
+    T_lim,
+    T_exp,
+    T_imp,
+    f,
+    p,
+    t_exp,
+    i,
+)
     if has_T_lim(f)
         assign_fused_increment!(U, u, dt, a_exp, T_lim, Val(i))
         i ≠ 1 && f.lim!(U, p, t_exp, u)
@@ -176,7 +209,19 @@ Apply DSS to the stage value and run the implicit solver (subproblem + main).
 Skips DSS on stage 1 (already applied at end of previous timestep).
 Skips implicit solve when γ == 0.
 """
-@inline function solve_stage_implicit!(U, temp, temp_sub, p, t_exp, t_imp, dtγ, i, f, alg, cache)
+@inline function solve_stage_implicit!(
+    U,
+    temp,
+    temp_sub,
+    p,
+    t_exp,
+    t_imp,
+    dtγ,
+    i,
+    f,
+    alg,
+    cache,
+)
     (; T_imp!, T_imp_subproblem!, dss!, cache!, cache_imp!, initialize_subproblem!) = f
     (; newtons_method_subproblem_cache, newtons_method_cache) = cache
     (; newtons_method_subproblem, newtons_method) = alg
@@ -191,7 +236,13 @@ Skips implicit solve when γ == 0.
     @assert !isnothing(newtons_method)
     @. temp = U
 
-    # Subproblem solve (if present)
+    # ── Two-phase implicit solve ──────────────────────────────────────────────
+    # If T_imp_subproblem! is provided, a separate Newton solve is run
+    # first.  This solve mutates U in place, and its result becomes the starting
+    # point (U₀) for the main T_imp! Newton solve — it does NOT define an
+    # additive tendency.  Setting T_imp_subproblem! = T_imp! therefore applies
+    # the implicit equation twice (compounding), which is intentional for the
+    # ClimaAtmos EDMF use case but differs from the standard single-solve path.
     if !isnothing(T_imp_subproblem!)
         initialize_subproblem!(U, p, dtγ)
         dss!(U, p, t_exp)

@@ -1,12 +1,17 @@
 # Developer Guide
 
-This section describes tools available in `docs/src/dev/` for generating convergence reports and testing algorithm correctness beyond the standard CI suite.
+This page documents developer tools for generating convergence reports and
+testing algorithm correctness beyond the standard CI test suite.
 
-## Running Convergence Reports
+## Convergence Report Scripts
 
-The scripts in `docs/src/dev/` allow you to generate detailed, per-algorithm convergence analyses locally. These complement the [Algorithm Convergence Order](../algorithm_properties/convergence.md) page, which describes the test suite and shows the summary plot generated during the CI documentation build.
+The scripts in `docs/src/dev/` generate detailed, per-algorithm convergence
+analyses. During the documentation build, these run automatically and produce
+the summary plots shown on the
+[Convergence](../algorithm_properties/convergence.md) page. You can also
+run them locally for debugging or development.
 
-To run convergence analysis for a specific algorithm:
+### Single algorithm
 
 ```bash
 julia --project=docs -e '
@@ -15,34 +20,71 @@ julia --project=docs -e '
 ' -- --alg ARS343
 ```
 
-This produces a `.jld2` file in `output/` containing errors at each tested timestep. To generate summary plots for all previously computed algorithms:
+This produces a `.jld2` file in `output/` containing errors at each tested
+timestep for every test case (analytic nonlinear, analytic system, 1D/2D heat,
+stiff linear, etc.).
+
+### All algorithms
+
+```bash
+julia --project=docs -e '
+    using ClimaTimeSteppers
+    include("docs/src/dev/compute_convergence.jl")
+    include(joinpath(pkgdir(ClimaTimeSteppers), "test", "problems.jl"))
+    using InteractiveUtils: subtypes
+    function all_subtypes(T)
+        result = Type[]
+        for s in subtypes(T)
+            isabstracttype(s) ? append!(result, all_subtypes(s)) : push!(result, s)
+        end
+        result
+    end
+    for alg_type in all_subtypes(AbstractAlgorithmName)
+        empty!(ARGS)
+        push!(ARGS, "--alg", string(nameof(alg_type)))
+        include("docs/src/dev/report_gen_alg.jl")
+    end
+    include("docs/src/dev/summarize_convergence.jl")
+'
+```
+
+### Summary plots
+
+After running one or more algorithms, generate the combined plots:
 
 ```bash
 julia --project=docs -e 'include("docs/src/dev/summarize_convergence.jl")'
 ```
 
-To run all algorithms in sequence:
+The resulting PNGs in `output/` contain multi-panel convergence analyses: error
+vs. ``\Delta t`` (log-log), RMS solution norm, and RMS error over time, with
+all algorithms overlaid.
 
-```julia
-include("docs/src/dev/compute_convergence.jl")
-for alg_name in all_subtypes(AbstractAlgorithmName)
-    empty!(ARGS)
-    push!(ARGS, "--alg", string(alg_name))
-    include("docs/src/dev/report_gen_alg.jl")
-end
-include("docs/src/dev/summarize_convergence.jl")
-```
+### Script overview
 
-The resulting PNG files in `output/` contain multi-panel convergence analyses (one per test case). These plots include all algorithms overlaid and show error vs. $\Delta t$ (log-log), RMS solution norm, and RMS error over time.
+| Script | Purpose |
+|--------|---------|
+| `compute_convergence.jl` | Shared infrastructure: imports test problems, defines the doc-specific `test_convergence!` wrapper |
+| `report_gen_alg.jl` | Runs convergence tests for a single algorithm (specified via `--alg` CLI flag) and saves results to JLD2 |
+| `summarize_convergence.jl` | Reads all JLD2 files in `output/` and generates combined PNG plots |
 
 ## Limiter Analysis
 
-`docs/src/dev/limiter_analysis.jl` provides an in-depth analysis of the `T_lim!`/`lim!` code path. It recreates Table 1 from [GTS2014](@cite) by running the `horizontal_deformational_flow` test case from [LNSR2012](@cite) with and without a limiter, and also with and without hyperdiffusion. This test case uses a limited tendency `T_lim!` (consisting of advection and, optionally, hyperdiffusion), along with `dss!` and `lim!`. The spatial discretization is implemented using `ClimaCore`.
+`limiter_analysis.jl` provides an in-depth analysis of the `T_lim!`/`lim!`
+code path by recreating Table 1 from [GTS2014](@cite). It runs the
+`horizontal_deformational_flow` test case from [LNSR2012](@cite) with and
+without a limiter and with and without hyperdiffusion, using `ClimaCore` for
+the spatial discretization.
 
-Since this analysis is relatively expensive to run and depends on `ClimaCore`, it is **not** part of the standard CI build. Only `SSP333` and `ARS343` are tested. A key result is that it is possible to limit undershoots and overshoots to zero (up to floating-point roundoff) when using the SSP method `SSP333`, but not when using the unconstrained method `ARS343` — consistent with the theoretical discussion in the [limiter section](../algorithm_formulations/ode_solvers.md#Adding-a-Limiter) of the ODE Solvers page.
+Key result: the SSP method `SSP333` limits undershoots and overshoots to
+zero (up to floating-point roundoff), while the unconstrained method `ARS343`
+cannot — consistent with the
+[theoretical analysis](../algorithm_formulations/ode_solvers.md#Adding-a-Limiter).
 
-See `docs/src/dev/limiter_summary.jl` for the plot generation script.
+This analysis is **not** part of CI (it depends on `ClimaCore` and is
+relatively expensive). Run it manually:
 
-## Algorithm Type Hierarchy
-
-The algorithm and tableau type trees are listed in the [Types](types.md) page.
+```bash
+julia --project=docs -e 'include("docs/src/dev/limiter_analysis.jl")'
+julia --project=docs -e 'include("docs/src/dev/limiter_summary.jl")'
+```

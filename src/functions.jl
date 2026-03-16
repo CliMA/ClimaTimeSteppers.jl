@@ -18,8 +18,13 @@ unnecessary allocations.
 - `T_exp!(du, u, p, t)`: explicit tendency (not limited)
 - `T_lim!(du, u, p, t)`: explicit tendency passed through the limiter
 - `T_exp_T_lim!(du_exp, du_lim, u, p, t)`: fused alternative to separate `T_exp!`/`T_lim!`
-- `T_imp!`: implicit tendency — typically an [`ODEFunction`](@ref) carrying Jacobian info
-- `T_imp_subproblem!`: optional second implicit tendency for the subproblem Newton solve
+- `T_imp!`: implicit tendency — typically an [`ClimaTimeSteppers.ODEFunction`](@ref) carrying Jacobian info
+- `T_imp_subproblem!`: optional implicit tendency for a **preconditioning** Newton
+   solve executed before the main `T_imp!` solve.  The subproblem mutates `u` in
+   place, and its result becomes the initial guess for the main solve — it does
+   **not** define an additive tendency.  Setting `T_imp_subproblem! = T_imp!`
+   applies the implicit equation twice (compounding), giving different results
+   from the standard single-solve path.
 
 **Auxiliary functions** (default to no-ops):
 - `lim!(u, p, t, u_ref)`: limiter applied after incrementing `u` from `u_ref` by `T_lim!`

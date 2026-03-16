@@ -118,8 +118,6 @@ struct ODESolution{T, U, P, A}
     prob::P
     alg::A
 end
-ODESolution(prob, alg, t::Vector{T}, u::Vector{U}) where {T, U} =
-    ODESolution{T, U, typeof(prob), typeof(alg)}(t, u, prob, alg)
 
 
 """

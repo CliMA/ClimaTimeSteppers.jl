@@ -20,7 +20,7 @@ function initialize!(f!, integrator) end
 """
     Callbacks.finalize!(f!, integrator)
 
-Called when [`solve!`](@ref) completes. Extend this for your callback type `f!`
+Called when [`ClimaTimeSteppers.solve!`](@ref) completes. Extend this for your callback type `f!`
 to perform teardown (e.g. close files, flush buffers). Default: no-op.
 """
 function finalize!(f!, integrator) end

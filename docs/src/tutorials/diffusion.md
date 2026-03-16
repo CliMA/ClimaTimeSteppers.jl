@@ -1,428 +1,245 @@
-# A full example on how to use ClimaTimesteppers with ClimaCore
+# Spherical Diffusion with ClimaCore
 
-In this tutorial, we will solve a diffusion equation on a sphere using
-ClimaCore, and a mixed implicit-explicit solver in ClimaTimesteppers.
+This tutorial solves 3D diffusion on a spherical shell using
+[ClimaCore.jl](https://github.com/CliMA/ClimaCore.jl) for the spatial
+discretization and ClimaTimeSteppers for the time integration. It
+demonstrates the same IMEX pattern used in ClimaAtmos.jl, but applied to
+a spectral-element mesh instead of simple arrays.
 
-First, we will set up the ClimaCore Spaces. We will define the implicit and
-explicit tendencies and Jacobian. Next, we will set up the ODE problem and
-solve it.
+- **Horizontal diffusion** is treated **explicitly** (spectral element operators)
+- **Vertical diffusion** is treated **implicitly** (finite differences with a tridiagonal Jacobian)
+- **DSS** ensures continuity across spectral element boundaries
 
-## The setup
+A Gaussian perturbation is placed on the lowest vertical face and diffuses
+both horizontally and vertically over 500 seconds.
 
-In this example, we consider a 3D spherical shell. We set initial data up on
-the lower face of this shell, and we will see it diffuse horizontally and
-vertically. We will treat the horizontal diffusion explicitly and the
-vertical one implicitly.
+!!! note
+    This tutorial requires ClimaCore.jl and is more expensive to build
+    than the [IMEX tutorial](imex_diffusion.md). Read that one first for
+    the core ClimaTimeSteppers API.
 
-Let us start by importing the required pieces
+## Spatial setup
 
-````julia
-
+```@example climacore
 import LinearAlgebra
 import ClimaTimeSteppers
 import ClimaCore
 import Plots
 import ClimaCore.MatrixFields: @name, ⋅, FieldMatrixWithSolver
-````
 
-We also define some units, mostly to make the code more explicit
-
-````julia
 const meters = meter = 1.0
 const kilometers = kilometer = 1000meters
 const seconds = second = 1.0
-````
+nothing # hide
+```
 
-````
-1.0
-````
+We build a 3D spherical shell grid by extruding a horizontal spectral
+element mesh with a vertical finite difference mesh:
 
-Now, we will set up the ClimaCore Spaces. There is some boilerplate involved.
-
-Radius and height of the spherical shell:
-
-````julia
+```@example climacore
 radius = 6000kilometers
 height = 1kilometers
-````
 
-````
-1000.0
-````
-
-Details of the computational grid:
-
-````julia
 number_horizontal_elements = 10
 horizontal_polynomial_order = 3
 number_vertical_elements = 10
-````
 
-````
-10
-````
-
-We prepare a face-centered vertical grid by first creating the Domain, then
-the Mesh, and finally the Space
-
-````julia
+# Vertical grid (face-centered finite differences)
 vertdomain = ClimaCore.Domains.IntervalDomain(
     ClimaCore.Geometry.ZPoint(0kilometers),
     ClimaCore.Geometry.ZPoint(height);
     boundary_names = (:bottom, :top),
-);
-vertmesh = ClimaCore.Meshes.IntervalMesh(vertdomain; nelems = number_vertical_elements);
-vertspace = ClimaCore.Spaces.FaceFiniteDifferenceSpace(vertmesh);
-````
+)
+vertmesh = ClimaCore.Meshes.IntervalMesh(vertdomain; nelems = number_vertical_elements)
+vertspace = ClimaCore.Spaces.FaceFiniteDifferenceSpace(vertmesh)
 
-For the horizontal grid, we create a 2D spectral element grid on a
-EquiangularCubedSphere mesh with Gauss-Lagrange-Lobatto quadrature points
+# Horizontal grid (cubed-sphere spectral elements with GLL quadrature)
+horzdomain = ClimaCore.Domains.SphereDomain(radius)
+horzmesh = ClimaCore.Meshes.EquiangularCubedSphere(horzdomain, number_horizontal_elements)
+horztopology = ClimaCore.Topologies.Topology2D(ClimaCore.ClimaComms.context(), horzmesh)
+horzquad = ClimaCore.Spaces.Quadratures.GLL{horizontal_polynomial_order + 1}()
+horzspace = ClimaCore.Spaces.SpectralElementSpace2D(horztopology, horzquad)
 
-````julia
-horzdomain = ClimaCore.Domains.SphereDomain(radius);
-horzmesh = ClimaCore.Meshes.EquiangularCubedSphere(horzdomain, number_horizontal_elements);
-horztopology = ClimaCore.Topologies.Topology2D(ClimaCore.ClimaComms.context(), horzmesh);
-horzquad = ClimaCore.Spaces.Quadratures.GLL{horizontal_polynomial_order + 1}();
-horzspace = ClimaCore.Spaces.SpectralElementSpace2D(horztopology, horzquad);
-````
+# 3D extruded space
+space = ClimaCore.Spaces.ExtrudedFiniteDifferenceSpace(horzspace, vertspace)
+nothing # hide
+```
 
-ClimaComms.context() specify where the simulation should be run (ie, on CPU/GPU).
+### Initial condition
 
-Finally, we can combine `vertspace` and `horzspace` by extruding them (ie,
-taking their "Cartesian product")
+A Gaussian perturbation placed only on the lowest vertical face:
 
-````julia
-space = ClimaCore.Spaces.ExtrudedFiniteDifferenceSpace(horzspace, vertspace);
-````
-
-Now, we define the initial data. As initial data, we prepare Gaussian
-perturbation defined only on the lower vertical face. This Gaussian
-perturbation will diffuse horizontally and vertically
-
-````julia
+```@example climacore
 σ = 15.0
+(; lat, long, z) = ClimaCore.Fields.coordinate_field(space)
+φ_gauss = @. exp(-(lat^2 + long^2) / σ^2) * (z < 0.005)
 
-(; lat, long, z) = ClimaCore.Fields.coordinate_field(space);
-φ_gauss = @. exp(-(lat^2 + long^2) / σ^2) * (z < 0.005);
-````
+# Pack into a FieldVector (ClimaCore's state container)
+Y₀ = ClimaCore.Fields.FieldVector(; my_var = copy(φ_gauss))
+nothing # hide
+```
 
-Note how we multiplied by `(z < 0.005)` to ensure that the Gaussian
-perturbation is only on the lowest face.
+## Tendency functions
 
-When working with `ClimaCore`, `ClimaTimesteppers` requires all the evolved
-variables to be packed in `ClimaCore.FieldVector`s. In this case, we only
-have one variable, which we will call `my_var`
+The diffusion equation ``\partial_t u = K \nabla^2 u`` is split into
+horizontal (explicit) and vertical (implicit) parts.
 
-Let us pack this into a a `FieldVector`
+### Explicit tendency (horizontal diffusion)
 
-````julia
-Y₀ = ClimaCore.Fields.FieldVector(; my_var = copy(φ_gauss));
-````
+We use the *weak* divergence for the spectral element discretization — the
+output of a derivative operator is not continuously differentiable, so the
+weak form is needed for even-order derivatives:
 
-We copy `φ_gauss` because it it will be modified by the integrator.
-
-## The equations and the integrator
-
-The diffusion equation for $u$ is $\partial_t u = K \nabla^2 u$, with $K$
-diffusivity. To solve this equation with `ClimaTimesteppers`, we have to
-provide the tendencies (ie, the right-hand-sides). We want to solve the
-diffusion equation horizontally and vertically. Horizontally, we will treat
-the evolution explicitly (currently, there is no other option for our spectral
-elements). On the other hand, we will solve the vertical diffusion implicitly.
-So, this problem has two tendencies, the explicit and the implicit ones.
-
-So, let us start by defining the explicit tendency.
-
-A tendency for `ClimaTimesteppers.jl` is a function that generally takes four
-arguments `(∂ₜY, Y, p, t)`. `∂ₜY` is the right-hand side, which has to be
-modified by the function, `Y` is the current state, `p` is the cache (an
-optional collection of auxiliary variables) and `t` the time. Tendencies in
-`ClimaTimesteppers.jl` are in-place. In our case, we want the divergence of
-the gradient (the Laplacian) of `my_var`.
-
-````julia
-diverg = ClimaCore.Operators.WeakDivergence();
-grad = ClimaCore.Operators.Gradient();
-
+```@example climacore
+diverg = ClimaCore.Operators.WeakDivergence()
+grad   = ClimaCore.Operators.Gradient()
 K = 3.0
-````
 
-````
-3.0
-````
-
-Notice how we picked `WeakDivergence` instead of normal divergence. We use the
-weak formulation of even derivatives (second-order, fourth-order, etc.) with
-the spectral element discretization because the outputs of derivative
-operators are not continuously differentiable. We also apply DSS to the
-outputs of weak derivatives before using them to compute higher-order odd
-derivatives.
-
-````julia
 function T_exp!(∂ₜY, Y, _, _)
     ∂ₜY.my_var .= K .* diverg.(grad.(Y.my_var))
     return nothing
 end
-````
+nothing # hide
+```
 
-````
-T_exp! (generic function with 1 method)
-````
+### Implicit tendency (vertical diffusion)
 
-We do not specify boundary conditions here because we are on a sphere, where
-the only meaningful boundary conditions are periodic.
+Vertical operators use face-to-center (`F2C`) and center-to-face (`C2F`)
+staggering. Boundary conditions (zero divergence at top and bottom) are
+set on the `C2F` operator:
 
-Next, we move to the implicit tendency. This is much more involved to set up.
-First, we need again divergence and gradient. However, this time we want them
-for the vertical direction
-
-````julia
+```@example climacore
 diverg_vert = ClimaCore.Operators.DivergenceC2F(;
     bottom = ClimaCore.Operators.SetDivergence(0.0),
     top = ClimaCore.Operators.SetDivergence(0.0),
-);
-grad_vert = ClimaCore.Operators.GradientF2C();
-````
+)
+grad_vert = ClimaCore.Operators.GradientF2C()
 
-We choose `DivergenceC2F` and `GradientF2C` to implement the Laplacian. `F2C`
-and `C2F` stand for `face-to-center` and `center-to-face`. The choice is
-motivated so that we have a chain of operations that brings us back to faces.
-We are working with faces so that we can cleanly impose boundary conditions.
-The boundary condition we are setting here is null divergence at the top and
-bottom of the domain.
-
-````julia
 function T_imp!(∂ₜY, Y, _, _)
     ∂ₜY.my_var .= K .* diverg_vert.(grad_vert.(Y.my_var))
     return nothing
 end
-````
+nothing # hide
+```
 
-````
-T_imp! (generic function with 1 method)
-````
+### Jacobian (Wfact)
 
-For an implicit solver, we also need to provide the Jacobian of the implicit
-tendency, or precisely, the `Wfact`. `Wfact` is `dt*γ*J - 1`, where `J` is the
-Jacobian, `dt` the timestep, and γ a factor that enter the specific solver. In
-some places, you might find `Wfact_t`, meaning, Wfact` transformed. The
-relationship between `Wfact` and `Wfact_t` is `Wfact = - dt*γ Wfact_t`.
+The Jacobian prototype is a `FieldMatrix` — ClimaCore's sparse matrix type
+that stores per-column tridiagonal blocks. `Wfact` computes
+``W = \Delta t\, \gamma\, J - I``:
 
-The Jacobian matrix has to be specified as a
-`ClimaCore.MatrixFields.FieldMatrix`. This matrix takes pairs of variable
-names `name1` and `name2` and returns the type for `∂name1\∂name2`. Given that
-we are working with gradient/divergence operations, our operations are
-tridiagonal, so have that
-
-````julia
+```@example climacore
 jacobian_matrix = ClimaCore.MatrixFields.FieldMatrix(
     (@name(my_var), @name(my_var)) =>
         similar(φ_gauss, ClimaCore.MatrixFields.TridiagonalMatrixRow{Float64}),
-);
-````
+)
 
-Similarly, we define `Wfact`, as `dtγ J - I`.
-
-````julia
-div_matrix = ClimaCore.MatrixFields.operator_matrix(diverg_vert)
+div_matrix  = ClimaCore.MatrixFields.operator_matrix(diverg_vert)
 grad_matrix = ClimaCore.MatrixFields.operator_matrix(grad_vert)
+
 function Wfact(W, Y, p, dtγ, t)
     @. W.matrix[@name(my_var), @name(my_var)] =
         dtγ * div_matrix() ⋅ grad_matrix() - (LinearAlgebra.I,)
     return nothing
 end
-````
 
-````
-Wfact (generic function with 1 method)
-````
-
-With all of this, we are ready to define the implicit tendency. Implicit
-tendencies are `ClimaTimeSteppers.ODEFunction`s and take in the actual tendency
-(similar to `T_exp!`), the Jacobian and `Wfact`:
-
-````julia
-T_imp_wrapper! = ClimaTimeSteppers.ODEFunction(
+T_imp_wrapped = ClimaTimeSteppers.ODEFunction(
     T_imp!;
     jac_prototype = FieldMatrixWithSolver(jacobian_matrix, Y₀),
     Wfact = Wfact,
-);
-````
+)
+nothing # hide
+```
 
-On this type of spaces, we need to apply DSS to ensure continuity
+### DSS (direct stiffness summation)
 
-````julia
+On spectral element meshes, DSS enforces continuity across element
+boundaries. In ClimaAtmos this is done inside the `dss!` callback:
+
+```@example climacore
 function dss!(state, p, t)
     ClimaCore.Spaces.weighted_dss!(state.my_var)
 end
-````
+nothing # hide
+```
 
-````
-dss! (generic function with 1 method)
-````
+## Building and solving the problem
 
-Now, we have all the pieces to set up the integrator
-
-````julia
-t0 = 0seconds
+```@example climacore
+t0    = 0seconds
 t_end = 500seconds
-dt = 5seconds
+dt    = 5seconds
 
 prob = ClimaTimeSteppers.ODEProblem(
-    ClimaTimeSteppers.ClimaODEFunction(; T_imp! = T_imp_wrapper!, T_exp!, dss!),
+    ClimaTimeSteppers.ClimaODEFunction(; T_imp! = T_imp_wrapped, T_exp!, dss!),
     Y₀,
     (t0, t_end),
     nothing,
-);
-````
+)
 
-We use SSPKnoth for this example
-
-````julia
 algo = ClimaTimeSteppers.RosenbrockAlgorithm(
     ClimaTimeSteppers.tableau(ClimaTimeSteppers.SSPKnoth()),
-);
-````
+)
 
-And here is the integrator, where we set `saveat = t0:dt:t_end` to save a snapshot of
-the solution at every timestep.
+integrator = ClimaTimeSteppers.init(prob, algo; dt, saveat = t0:dt:t_end)
+nothing # hide
+```
 
-````julia
-integrator = ClimaTimeSteppers.init(prob, algo; dt, saveat = t0:dt:t_end);
+## Visualization
 
-# Solution and visualization
-````
+We remap ClimaCore fields onto a regular lat-lon grid for plotting:
 
-To visualize the solution, we use `ClimaCore.Remapper` and Plots
-
-Let us a prepare a convenience function that remaps a ClimaCore.Fields onto a
-2D Cartesian grid at a target z.
-
-````julia
+```@example climacore
 function remap(; target_z = 0.0, integrator = integrator)
     longpts = range(-180.0, 180.0, 180)
-    latpts = range(-90.0, 90.0, 90)
-    hcoords =
-        [ClimaCore.Geometry.LatLongPoint(lat, long) for long in longpts, lat in latpts]
+    latpts  = range(-90.0, 90.0, 90)
+    hcoords = [ClimaCore.Geometry.LatLongPoint(lat, long) for long in longpts, lat in latpts]
     zcoords = [ClimaCore.Geometry.ZPoint(target_z)]
-    field = integrator.u.my_var
-    space = axes(field)
-    remapper = ClimaCore.Remapping.Remapper(space, hcoords, zcoords)
+    field   = integrator.u.my_var
+    remapper = ClimaCore.Remapping.Remapper(axes(field), hcoords, zcoords)
     return ClimaCore.Remapping.interpolate(remapper, field)[:, :, begin]
 end
-````
+nothing # hide
+```
 
-````
-remap (generic function with 1 method)
-````
+### Initial state at the surface (z = 0)
 
-First, let us have a look at the surface, where we have the initial Gaussian
-perturbation
+```@example climacore
+Plots.heatmap(remap(); title = "Initial condition (z = 0)")
+Plots.savefig("diff_initial_surface.png")
+nothing # hide
+```
 
-````julia
-Plots.heatmap(remap());
-Plots.savefig("diff-hm1.png")
-````
+![Initial surface](diff_initial_surface.png)
 
-````
-"/Users/tapio/Desktop/Code/ClimaTimeSteppers.jl/docs/src/tutorials/diff-hm1.png"
-````
+### Initial state at z = 100 m (should be empty)
 
-![](diff-hm1.png)
+```@example climacore
+Plots.heatmap(remap(; target_z = 0.1kilometers); title = "Initial condition (z = 100 m)")
+Plots.savefig("diff_initial_100m.png")
+nothing # hide
+```
 
-Now, let us double check that it is empty at higher elevation
+![Initial 100m](diff_initial_100m.png)
 
-````julia
-Plots.heatmap(remap(; target_z = 0.1kilometers));
-Plots.savefig("diff-hm2.png")
-````
+### Solve and inspect the final state
 
-````
-"/Users/tapio/Desktop/Code/ClimaTimeSteppers.jl/docs/src/tutorials/diff-hm2.png"
-````
+```@example climacore
+ClimaTimeSteppers.solve!(integrator)
 
-![](diff-hm2.png)
+println("Initial extrema: ", extrema(Y₀))
+println("Final extrema:   ", extrema(integrator.u))
+```
 
-The extrema for `my_var` at the beginning of the simulation are
+After 500 seconds of diffusion, the peak value has decreased and the
+perturbation has spread both horizontally and vertically:
 
-````julia
-extrema(integrator.u)
-````
+```@example climacore
+Plots.heatmap(remap(; target_z = 0.1kilometers); title = "Final state (z = 100 m)")
+Plots.savefig("diff_final_100m.png")
+nothing # hide
+```
 
-````
-(0.0, 1.0)
-````
+![Final 100m](diff_final_100m.png)
 
-Let us focus on the surface level
-
-````julia
-extrema(ClimaCore.Fields.level(integrator.u.my_var, ClimaCore.Utilities.PlusHalf(0)))
-````
-
-````
-(4.766380244828023e-78, 1.0)
-````
-
-And the first level
-
-````julia
-extrema(ClimaCore.Fields.level(integrator.u.my_var, ClimaCore.Utilities.PlusHalf(1)))
-````
-
-````
-(0.0, 0.0)
-````
-
-Let us solve the equation
-
-````julia
-ClimaTimeSteppers.solve!(integrator);
-````
-
-Now, the extreme for `my_var` will have decreased, due to diffusion
-
-````julia
-extrema(integrator.u)
-````
-
-````
-(-6.7618769531562785e-25, 0.999999997550737)
-````
-
-Let us focus on the surface level
-
-````julia
-extrema(ClimaCore.Fields.level(integrator.u.my_var, ClimaCore.Utilities.PlusHalf(0)))
-````
-
-````
-(-6.7618769531562785e-25, 0.999999997550737)
-````
-
-And the first level
-
-````julia
-extrema(ClimaCore.Fields.level(integrator.u.my_var, ClimaCore.Utilities.PlusHalf(1)))
-````
-
-````
-(-8.793224768217326e-26, 0.1300418758764668)
-````
-
-And we will see some development on the layers that did not have data before
-
-````julia
-Plots.heatmap(remap(; target_z = 0.1kilometers))
-Plots.savefig("diff-hm3.png")
-````
-
-````
-"/Users/tapio/Desktop/Code/ClimaTimeSteppers.jl/docs/src/tutorials/diff-hm3.png"
-````
-
-![](diff-hm3.png)
-
----
-
-*This page was generated using [Literate.jl](https://github.com/fredrikekre/Literate.jl).*
-
+The layer at z = 100 m, which started empty, now shows the diffused signal.

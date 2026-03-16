@@ -1,4 +1,4 @@
-# Rosenbrock methods
+# [Rosenbrock methods](@id rosenbrock-methods)
 
 In this page, we introduce Rosenbrock-type methods to solve ordinary
 differential equations. In doing so, we roughly follow Chapter IV.7 of "Solving
@@ -136,7 +136,7 @@ and
 \gamma _{i} = \sum_{j=1}^{i}\gamma_{ij}.
 ```
 
-**Sign convention.** The system solved at each stage uses the prefactor $(J \Delta t \gamma_{ii} - I)$. The function that computes this matrix is called `Wfact` and is stored in the [`ODEFunction`](@ref) wrapper.
+**Sign convention.** The system solved at each stage uses the prefactor $(J \Delta t \gamma_{ii} - I)$. The function that computes this matrix is called `Wfact` and is stored in the [`ClimaTimeSteppers.ODEFunction`](@ref) wrapper.
 
 ## Implementation
 

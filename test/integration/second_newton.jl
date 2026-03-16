@@ -56,9 +56,7 @@ import ClimaTimeSteppers: ODEProblem, ODEFunction, solve
                 deepcopy(prob_sub),
                 alg_sub;
                 dt = 0.01,
-                save_everystep = false,
-
-            )
+                save_everystep = false)
 
         prob_std =
             ODEProblem(ClimaODEFunction(; T_imp!), copy([1.0, 1.0]), (0.0, 1.0), nothing)
@@ -68,9 +66,7 @@ import ClimaTimeSteppers: ODEProblem, ODEFunction, solve
                 deepcopy(prob_std),
                 alg_std;
                 dt = 0.01,
-                save_everystep = false,
-
-            )
+                save_everystep = false)
 
         @test sol_sub.u[end] == sol_std.u[end]
     end

@@ -74,7 +74,17 @@ function step_u!(integrator, cache::IMEXSSPRKCache)
     (; U, U_lim, U_exp, T_lim, T_exp, T_imp, temp, β, γ, newtons_method_cache) = cache
     s = length(b_imp)
 
-    maybe_update_jacobian!(T_imp!, newtons_method, newtons_method_cache, u, p, t, dt, γ, alg)
+    maybe_update_jacobian!(
+        T_imp!,
+        newtons_method,
+        newtons_method_cache,
+        u,
+        p,
+        t,
+        dt,
+        γ,
+        alg,
+    )
 
     @. U = u
 

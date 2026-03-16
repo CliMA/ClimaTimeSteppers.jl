@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <defs>
+    <!-- Left-pointing arrowhead for implicit arc midpoint -->
+    <marker id="arrow-implicit" markerWidth="10" markerHeight="7.5" refX="10" refY="3.75"
+            orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0,0 L10,3.75 L0,7.5 Z" fill="#9558B2"/>
+    </marker>
+    <marker id="arrow-explicit" markerWidth="10" markerHeight="7.5" refX="10" refY="3.75"
+            orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0,0 L10,3.75 L0,7.5 Z" fill="#CB3C33"/>
+    </marker>
+    <marker id="arrow-axis" markerWidth="9" markerHeight="7" refX="0" refY="3.5"
+            orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0,0 L9,3.5 L0,7 Z" fill="#005691"/>
+    </marker>
+    <marker id="arrow-rk1" markerWidth="4" markerHeight="3" refX="4" refY="1.5"
+            orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L4,1.5 L0,3 Z" fill="#4063D8"/>
+    </marker>
+    <marker id="arrow-rk2" markerWidth="4" markerHeight="3" refX="4" refY="1.5"
+            orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L4,1.5 L0,3 Z" fill="#389826"/>
+    </marker>
+    <marker id="arrow-rk3" markerWidth="4" markerHeight="3" refX="4" refY="1.5"
+            orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L4,1.5 L0,3 Z" fill="#CB3C33"/>
+    </marker>
+  </defs>
+
+  <!-- Time axis -->
+  <line x1="18" y1="105" x2="178" y2="105"
+        stroke="#005691" stroke-width="2" marker-end="url(#arrow-axis)"/>
+
+  <!-- Tick at t -->
+  <line x1="35" y1="99" x2="35" y2="111" stroke="#005691" stroke-width="2"/>
+  <text x="35" y="127" text-anchor="middle"
+        font-family="sans-serif" font-size="14" font-weight="bold" fill="#333">t</text>
+
+  <!-- Tick at t+Δt -->
+  <line x1="155" y1="99" x2="155" y2="111" stroke="#005691" stroke-width="2"/>
+  <text x="155" y="127" text-anchor="middle"
+        font-family="sans-serif" font-size="13" font-weight="bold" fill="#333">t+Δt</text>
+
+  <!-- Explicit arc (above axis, t → t+Δt) -->
+  <path d="M 35,105 A 62,72 0 0,1 155,105"
+        stroke="#CB3C33" stroke-width="2.5" fill="none"/>
+  <!-- Arrowhead at the arc apex (~95,51) where tangent is horizontal-right -->
+  <line x1="101" y1="51" x2="102" y2="51"
+        stroke-opacity="0" stroke-width="2.5"
+        marker-end="url(#arrow-explicit)"/>
+
+  <!-- RK sub-stage arcs (on the axis, arcing upward) -->
+  <path d="M 35,105 A 22,30 0 0,1 75,105"
+        stroke="#4063D8" stroke-width="1.5" fill="none"
+        marker-end="url(#arrow-rk1)"/>
+  <path d="M 75,105 A 22,30 0 0,1 115,105"
+        stroke="#389826" stroke-width="1.5" fill="none"
+        marker-end="url(#arrow-rk2)"/>
+  <path d="M 115,105 A 22,30 0 0,1 155,105"
+        stroke="#CB3C33" stroke-width="1.5" fill="none"
+        marker-end="url(#arrow-rk3)"/>
+
+  <!-- Implicit arc (below axis, dashed purple) -->
+  <!-- Single path avoids split-ellipse sizing mismatch; endpoints -->
+  <!-- trimmed to θ≈±0.4 so the arc clears the text labels.       -->
+  <path d="M 152,133 A 62,72 0 0,1 38,133"
+        stroke="#9558B2" stroke-width="2.5" fill="none"
+        stroke-dasharray="7,4"/>
+  <!-- Arrowhead at the arc midpoint (95,177) where tangent is horizontal-left -->
+  <line x1="91" y1="177" x2="90" y2="177"
+        stroke-opacity="0" stroke-width="2.5"
+        marker-end="url(#arrow-implicit)"/>
+</svg>

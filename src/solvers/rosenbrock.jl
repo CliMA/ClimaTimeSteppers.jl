@@ -127,12 +127,12 @@ function step_u!(int, cache::RosenbrockCache{Nstages}) where {Nstages}
     (; m, Γ, A, α, C) = int.alg.tableau
     (; u, p, t, dt) = int
     (; W, U, fU, fU_imp, fU_exp, fU_lim, k, ∂Y∂t) = cache
-    T_imp! = int.sol.prob.f.T_imp!
-    T_exp! = int.sol.prob.f.T_exp!
-    T_exp_lim! = int.sol.prob.f.T_exp_T_lim!
+    f = int.sol.prob.f
+    T_imp! = f.T_imp!
+    T_exp_T_lim! = f.T_exp_T_lim!
     tgrad! = isnothing(T_imp!) ? nothing : T_imp!.tgrad
 
-    (; cache!, dss!) = int.sol.prob.f
+    (; cache!, dss!) = f
 
     # TODO: This is only valid when Γ[i, i] is constant, otherwise we have to
     # move this in the for loop
@@ -172,15 +172,10 @@ function step_u!(int, cache::RosenbrockCache{Nstages}) where {Nstages}
             fU .+= fU_imp
         end
 
-        if !isnothing(T_exp!)
-            T_exp!(fU_exp, U, p, t + αi * dt)
+        if !isnothing(T_exp_T_lim!)
+            T_exp_T_lim!(fU_exp, fU_lim, U, p, t + αi * dt)
             fU .+= fU_exp
-        end
-
-        if !isnothing(T_exp_lim!)
-            T_exp_lim!(fU_exp, fU_lim, U, p, t + αi * dt)
-            fU .+= fU_exp
-            fU .+= fU_lim
+            has_T_lim(f) && (fU .+= fU_lim)
         end
 
         if !isnothing(tgrad!)

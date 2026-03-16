@@ -32,7 +32,6 @@ mutable struct TimeStepperIntegrator{
     stepstop::Int
     callback::callbackType
     advance_to_tstop::Bool
-    u_modified::Bool
     cache::cacheType
     sol::solType
     tdir::tType
@@ -113,6 +112,8 @@ function init(
     tstops, saveat = tstops_and_saveat_heaps(t0, tf, tstops, saveat)
 
     sol = ODESolution(prob, alg, typeof(t0)[], typeof(save_func(u0, t0))[])
+    # SavedValues shares sol.t and sol.u vectors: the callback's push!
+    # directly populates the solution. Do not replace these vectors.
     saving_callback =
         NonInterpolatingSavingCallback(save_func, SavedValues(sol.t, sol.u), save_everystep)
     callback = CallbackSet(callback, saving_callback)
@@ -133,15 +134,11 @@ function init(
         stepstop,
         callback,
         advance_to_tstop,
-        false,
         init_cache(prob, alg; dt, kwargs...),
         sol,
         tdir,
     )
-    if prob.f isa ClimaODEFunction
-        (; cache!) = prob.f
-        isnothing(cache!) || cache!(u0, p, t0)
-    end
+    initialize_function!(prob.f, u0, p, t0)
     initialize_callbacks!(callback, u0, t0, integrator)
     return integrator
 end
@@ -305,7 +302,9 @@ end
 
 u_modified!(i::TimeStepperIntegrator, bool) = nothing
 
-# Saving callback: based on SavingCallback from DiffEqCallbacks
+# ============================================================================ #
+# Saving callback
+# ============================================================================ #
 function NonInterpolatingSavingCallback(save_func, saved_values, save_everystep)
     if save_everystep
         condition = (u, t, integrator) -> true

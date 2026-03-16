@@ -83,24 +83,18 @@ end
 (o::ODEFunction)(args...) = o.f(args...)
 
 """
-    ODESolution{T, N, U}
+    ODESolution{T, U, P, A}
 
 A minimal ODE solution type containing saved time points and state values.
 """
-struct ODESolution{T, N, U, P, A, S, I}
+struct ODESolution{T, U, P, A}
     t::Vector{T}
     u::Vector{U}
     prob::P
     alg::A
-    interp::S
-    retcode::I
 end
-function ODESolution(prob, alg, t::Vector{T}, u::Vector{U}) where {T, U}
-    N = U <: AbstractVector ? 2 : 1
-    ODESolution{T, N, U, typeof(prob), typeof(alg), Nothing, Nothing}(
-        t, u, prob, alg, nothing, nothing,
-    )
-end
+ODESolution(prob, alg, t::Vector{T}, u::Vector{U}) where {T, U} =
+    ODESolution{T, U, typeof(prob), typeof(alg)}(t, u, prob, alg)
 
 """
     sol(t)

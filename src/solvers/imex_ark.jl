@@ -13,6 +13,27 @@ sdirk_error(name) = error("$(isnothing(name) ? "The given IMEXTableau" : name) \
                            stage. Do not update on the NewTimeStep signal when \
                            using $(isnothing(name) ? "this tableau" : name).")
 
+"""
+    maybe_update_jacobian!(T_imp!, newtons_method, cache, u, p, t, dt, γ, alg)
+
+Update the Jacobian at the start of a timestep if the update signal fires.
+Shared by IMEX ARK and IMEX SSPRK solvers.
+"""
+function maybe_update_jacobian!(T_imp!, newtons_method, newtons_method_cache, u, p, t, dt, γ, alg)
+    isnothing(T_imp!) && return
+    isnothing(newtons_method) && return
+    (; update_j) = newtons_method
+    jacobian = newtons_method_cache.j
+    isnothing(jacobian) && return
+    if needs_update!(update_j, NewTimeStep(t))
+        if γ isa Nothing
+            sdirk_error(alg.name)
+        else
+            T_imp!.Wfact(jacobian, u, p, dt * γ, t)
+        end
+    end
+end
+
 struct IMEXARKCache{SCU, SCE, SCI, TS, T, Γ, NMSC, NMC}
     U::SCU     # sparse container of length s
     T_lim::SCE # sparse container of length s
@@ -69,23 +90,13 @@ function step_u!(integrator, cache::IMEXARKCache)
     (; u, p, t, dt, alg) = integrator
     (; f) = integrator.sol.prob
     (; cache!, cache_imp!) = f
-    (; T_lim!, T_exp!, T_imp!, lim!, dss!) = f
+    (; T_exp_T_lim!, T_imp!, lim!, dss!) = f
     (; tableau, newtons_method) = alg
     (; a_exp, b_exp, a_imp, b_imp, c_exp, c_imp) = tableau
     (; U, T_lim, T_exp, T_imp, temp, γ, newtons_method_cache) = cache
     s = length(b_exp)
 
-    if !isnothing(T_imp!) && !isnothing(newtons_method)
-        (; update_j) = newtons_method
-        jacobian = newtons_method_cache.j
-        if (!isnothing(jacobian)) && needs_update!(update_j, NewTimeStep(t))
-            if γ isa Nothing
-                sdirk_error(name)
-            else
-                T_imp!.Wfact(jacobian, u, p, dt * γ, t)
-            end
-        end
-    end
+    maybe_update_jacobian!(T_imp!, newtons_method, newtons_method_cache, u, p, t, dt, γ, alg)
 
     update_stage!(integrator, cache, ntuple(i -> i, Val(s)))
 
@@ -118,112 +129,120 @@ end
 @inline function update_stage!(integrator, cache::IMEXARKCache, i::Int)
     (; u, p, t, dt, alg) = integrator
     (; f) = integrator.sol.prob
-    (; cache!, cache_imp!) = f
-    (;
-        T_exp_T_lim!,
-        T_lim!,
-        T_exp!,
-        T_imp_subproblem!,
-        T_imp!,
-        lim!,
-        dss!,
-        initialize_subproblem!,
-    ) = f
-    (; tableau, newtons_method_subproblem, newtons_method) = alg
+    (; tableau) = alg
     (; a_exp, b_exp, a_imp, b_imp, c_exp, c_imp) = tableau
-    (;
-        U,
-        T_lim,
-        T_exp,
-        T_imp,
-        temp_subproblem,
-        temp,
-        newtons_method_subproblem_cache,
-        newtons_method_cache,
-    ) = cache
-    s = length(b_exp)
+    (; U, T_lim, T_exp, T_imp, temp, temp_subproblem) = cache
 
     t_exp = t + dt * c_exp[i]
     t_imp = t + dt * c_imp[i]
     dtγ = float(dt) * a_imp[i, i]
 
-    if has_T_lim(f) # Update based on limited tendencies from previous stages
+    # 1. Compute stage value from previous tendencies
+    compute_stage_value!(U, u, dt, a_exp, a_imp, T_lim, T_exp, T_imp, f, p, t_exp, i)
+
+    # 2. Apply DSS (skip stage 1) + implicit solve
+    solve_stage_implicit!(U, temp, temp_subproblem, p, t_exp, t_imp, dtγ, i, f, alg, cache)
+
+    # 3. Evaluate tendencies for later stages and final update
+    evaluate_stage_tendencies!(
+        T_exp, T_lim, T_imp, U, temp, temp_subproblem,
+        p, t_exp, t_imp, dtγ, i, f, a_exp, b_exp, a_imp, b_imp,
+    )
+
+    return nothing
+end
+
+"""
+    compute_stage_value!(U, u, dt, a_exp, a_imp, T_lim, T_exp, T_imp, f, p, t_exp, i)
+
+Compute the stage value `U` by accumulating the Butcher linear combination
+from previous explicit (limited + unlimited) and implicit tendencies.
+"""
+@inline function compute_stage_value!(U, u, dt, a_exp, a_imp, T_lim, T_exp, T_imp, f, p, t_exp, i)
+    if has_T_lim(f)
         assign_fused_increment!(U, u, dt, a_exp, T_lim, Val(i))
-        i ≠ 1 && lim!(U, p, t_exp, u)
+        i ≠ 1 && f.lim!(U, p, t_exp, u)
     else
         @. U = u
     end
-
-    # Update based on tendencies from previous stages
     has_T_exp(f) && fused_increment!(U, dt, a_exp, T_exp, Val(i))
-    isnothing(T_imp!) || fused_increment!(U, dt, a_imp, T_imp, Val(i))
+    isnothing(f.T_imp!) || fused_increment!(U, dt, a_imp, T_imp, Val(i))
+end
 
-    # Run the implicit solver, apply DSS, and update the cache. When γ == 0,
-    # the implicit solver does not need to be run. On stage i == 1, we do not
-    # need to apply DSS and update the cache because we did that at the end of
-    # the previous timestep.
+"""
+    solve_stage_implicit!(U, temp, temp_sub, p, t_exp, t_imp, dtγ, i, f, alg, cache)
+
+Apply DSS to the stage value and run the implicit solver (subproblem + main).
+Skips DSS on stage 1 (already applied at end of previous timestep).
+Skips implicit solve when γ == 0.
+"""
+@inline function solve_stage_implicit!(U, temp, temp_sub, p, t_exp, t_imp, dtγ, i, f, alg, cache)
+    (; T_imp!, T_imp_subproblem!, dss!, cache!, cache_imp!, initialize_subproblem!) = f
+    (; newtons_method_subproblem_cache, newtons_method_cache) = cache
+    (; newtons_method_subproblem, newtons_method) = alg
+
     i ≠ 1 && dss!(U, p, t_exp)
-    if isnothing(T_imp!) || iszero(a_imp[i, i])
+
+    if isnothing(T_imp!) || iszero(dtγ)
         i ≠ 1 && cache!(U, p, t_exp)
-    else
-        @assert !isnothing(newtons_method)
-        @. temp = U
-        if isnothing(T_imp_subproblem!)
-            i ≠ 1 && cache_imp!(U, p, t_imp)
-        else
-            initialize_subproblem!(U, p, dtγ)
-            dss!(U, p, t_exp)
-            cache_imp!(U, p, t_imp)
-            solve_implicit_equation!(
-                U,
-                temp,
-                p,
-                t_imp,
-                dtγ,
-                T_imp_subproblem!,
-                newtons_method_subproblem,
-                newtons_method_subproblem_cache,
-                cache_imp!,
-                dss!,
-                cache!,
-            )
-        end
-        @. temp_subproblem = U
+        return
+    end
+
+    @assert !isnothing(newtons_method)
+    @. temp = U
+
+    # Subproblem solve (if present)
+    if !isnothing(T_imp_subproblem!)
+        initialize_subproblem!(U, p, dtγ)
+        dss!(U, p, t_exp)
+        cache_imp!(U, p, t_imp)
         solve_implicit_equation!(
-            U,
-            temp_subproblem,
-            p,
-            t_imp,
-            dtγ,
-            T_imp!,
-            newtons_method,
-            newtons_method_cache,
-            cache_imp!,
-            dss!,
-            cache!,
+            U, temp, p, t_imp, dtγ,
+            T_imp_subproblem!, newtons_method_subproblem,
+            newtons_method_subproblem_cache, cache_imp!, dss!, cache!,
         )
+    else
+        i ≠ 1 && cache_imp!(U, p, t_imp)
     end
 
+    # Main implicit solve
+    @. temp_sub = U
+    solve_implicit_equation!(
+        U, temp_sub, p, t_imp, dtγ,
+        T_imp!, newtons_method, newtons_method_cache,
+        cache_imp!, dss!, cache!,
+    )
+end
+
+"""
+    evaluate_stage_tendencies!(T_exp, T_lim, T_imp, U, temp, temp_sub, ...)
+
+Evaluate explicit and implicit tendencies at the current stage value for use
+in later stages and the final update.
+"""
+@inline function evaluate_stage_tendencies!(
+    T_exp, T_lim, T_imp, U, temp, temp_sub,
+    p, t_exp, t_imp, dtγ, i, f, a_exp, b_exp, a_imp, b_imp,
+)
+    # Explicit tendencies (needed for later stages or final update)
     if !all(iszero, a_exp[:, i]) || !iszero(b_exp[i])
-        isnothing(T_exp_T_lim!) || T_exp_T_lim!(T_exp[i], T_lim[i], U, p, t_exp)
-        isnothing(T_lim!) || T_lim!(T_lim[i], U, p, t_exp)
-        isnothing(T_exp!) || T_exp!(T_exp[i], U, p, t_exp)
+        isnothing(f.T_exp_T_lim!) || f.T_exp_T_lim!(T_exp[i], T_lim[i], U, p, t_exp)
     end
+
+    # Implicit tendencies
     if !all(iszero, a_imp[:, i]) || !iszero(b_imp[i])
-        if iszero(a_imp[i, i])
-            # When γ == 0, T_imp[i] is treated explicitly.
-            isnothing(T_imp!) || T_imp!(T_imp[i], U, p, t_imp)
-            isnothing(T_imp_subproblem!) || T_imp_subproblem!(temp_subproblem, U, p, t_imp)
-            isnothing(T_imp_subproblem!) || (@. T_imp[i] += temp_subproblem)
+        if iszero(dtγ)
+            # γ == 0: T_imp is treated explicitly
+            isnothing(f.T_imp!) || f.T_imp!(T_imp[i], U, p, t_imp)
+            if !isnothing(f.T_imp_subproblem!)
+                f.T_imp_subproblem!(temp_sub, U, p, t_imp)
+                @. T_imp[i] += temp_sub
+            end
         else
-            # When γ != 0, T_imp[i] is treated implicitly, so it must satisfy
-            # the implicit equation. To ensure that T_imp[i] only includes the
-            # effect of applying DSS to T_imp!, U and temp must be DSSed.
-            isnothing(T_imp!) || @. T_imp[i] = (U - temp) / dtγ
+            # γ ≠ 0: T_imp satisfies the implicit equation
+            isnothing(f.T_imp!) || @. T_imp[i] = (U - temp) / dtγ
         end
     end
-
-    return nothing
 end
 
 @inline function solve_implicit_equation!(

@@ -428,6 +428,7 @@ function allocate_cache(alg::KrylovMethod, x_prototype)
     (; jacobian_free_jvp, forcing_term, args, kwargs, debugger) = alg
     type = solver_type(alg)
     l = length(x_prototype)
+    T = Krylov.ktypeof(x_prototype)
 
     # Version 0.10 changed how the memory is set
     if pkgversion(Krylov) < v"0.10"
@@ -437,11 +438,21 @@ function allocate_cache(alg::KrylovMethod, x_prototype)
             Base.structdiff(kwargs, NamedTuple{(:memory,)}((kwargs[:memory],))) : kwargs
     end
 
+    # Use prototype-based workspace when T(undef, n) is not supported (e.g. FieldVector).
+    # KrylovConstructor(similar(prototype)) allocates via similar() so Krylov works with
+    # structured vector types on both CPU and GPU.
+    solver = if Base.hasmethod(T, (UndefInitializer, Int))
+        type(l, l, args..., T; kwargs...)
+    else
+        kc = Krylov.KrylovConstructor(similar(x_prototype))
+        type(kc; kwargs...)
+    end
+
     return (;
         jacobian_free_jvp_cache = isnothing(jacobian_free_jvp) ? nothing :
                                   allocate_cache(jacobian_free_jvp, x_prototype),
         forcing_term_cache = allocate_cache(forcing_term, x_prototype),
-        solver = type(l, l, args..., Krylov.ktypeof(x_prototype); kwargs...),
+        solver,
         debugger_cache = isnothing(debugger) ? nothing :
                          allocate_cache(debugger, x_prototype),
     )

@@ -5,31 +5,33 @@ export ClimaODEFunction, ForwardEulerODEFunction
 abstract type AbstractClimaODEFunction <: DiffEqBase.AbstractODEFunction{true} end
 
 """
-    ClimaODEFunction(; T_imp!, [dss!], [cache!], [cache_imp!])
-    ClimaODEFunction(; T_exp!, T_lim!, [T_imp!], [lim!], [dss!], [cache!], [cache_imp!])
-    ClimaODEFunction(; T_exp_lim!, [T_imp!], [lim!], [dss!], [cache!], [cache_imp!])
+    ClimaODEFunction(; T_imp!, [dss!], [constrain_state!], [cache!], [cache_imp!])
+    ClimaODEFunction(; T_exp!, T_lim!, [T_imp!], [lim!], [dss!], [constrain_state!], [cache!], [cache_imp!])
+    ClimaODEFunction(; T_exp_lim!, [T_imp!], [lim!], [dss!], [constrain_state!], [cache!], [cache_imp!])
 
 Container for all functions used to advance through a timestep:
-    - `T_imp!(T_imp, u, p, t)`: sets the implicit tendency
-    - `T_exp!(T_exp, u, p, t)`: sets the component of the explicit tendency that
-      is not passed through the limiter
-    - `T_lim!(T_lim, u, p, t)`: sets the component of the explicit tendency that
-      is passed through the limiter
-    - `T_exp_lim!(T_exp, T_lim, u, p, t)`: fused alternative to the separate
-      functions `T_exp!` and `T_lim!`
-    - `lim!(u, p, t, u_ref)`: applies the limiter to every state `u` that has
-      been incremented from `u_ref` by the explicit tendency component `T_lim!`
-    - `dss!(u, p, t)`: applies direct stiffness summation to every state `u`,
-      except for intermediate states generated within the implicit solver
-    - `cache!(u, p, t)`: updates the cache `p` to reflect the state `u` before
-      the first timestep and on every subsequent timestepping stage
-    - `cache_imp!(u, p, t)`: updates the components of the cache `p` that are
-      required to evaluate `T_imp!` and its Jacobian within the implicit solver
-By default, `lim!`, `dss!`, and `cache!` all do nothing, and `cache_imp!` is
+- `T_imp!(T_imp, u, p, t)`: sets the implicit tendency
+- `T_exp!(T_exp, u, p, t)`: sets the component of the explicit tendency that
+    is not passed through the limiter
+- `T_lim!(T_lim, u, p, t)`: sets the component of the explicit tendency that
+    is passed through the limiter
+- `T_exp_lim!(T_exp, T_lim, u, p, t)`: fused alternative to the separate
+    functions `T_exp!` and `T_lim!`
+- `lim!(u, p, t, u_ref)`: applies the limiter to every state `u` that has
+    been incremented from `u_ref` by the explicit tendency component `T_lim!`
+- `dss!(u, p, t)`: applies direct stiffness summation to every state `u`,
+- `constrain_state!(u, p, t)`: applies a constraint to every state `u`,
+    except for intermediate states generated within the implicit solver
+- `cache!(u, p, t)`: updates the cache `p` to reflect the state `u` before
+    the first timestep and on every subsequent timestepping stage
+- `cache_imp!(u, p, t)`: updates the components of the cache `p` that are
+    required to evaluate `T_imp!` and its Jacobian within the implicit solver
+
+By default, `lim!`, `dss!`, `constrain_state!`, and `cache!` all do nothing, and `cache_imp!` is
 identical to `cache!`. Any of the tendency functions can be set to `nothing` in
 order to avoid corresponding allocations in the integrator.
 """
-struct ClimaODEFunction{TEL, TL, TE, TIS, TI, L, D, IS, C, CI} <: AbstractClimaODEFunction
+struct ClimaODEFunction{TEL, TL, TE, TIS, TI, L, D, CS, IS, C, CI} <: AbstractClimaODEFunction
     T_exp_T_lim!::TEL
     T_lim!::TL
     T_exp!::TE
@@ -37,6 +39,7 @@ struct ClimaODEFunction{TEL, TL, TE, TIS, TI, L, D, IS, C, CI} <: AbstractClimaO
     T_imp!::TI
     lim!::L
     dss!::D
+    constrain_state!::CS
     initialize_subproblem!::IS
     cache!::C
     cache_imp!::CI
@@ -48,21 +51,14 @@ struct ClimaODEFunction{TEL, TL, TE, TIS, TI, L, D, IS, C, CI} <: AbstractClimaO
         T_imp! = nothing,
         lim! = (u, p, t, u_ref) -> nothing,
         dss! = (u, p, t) -> nothing,
+        constrain_state! = (u, p, t) -> nothing,        
         initialize_subproblem! = (u, p, γdt) -> nothing,
         cache! = (u, p, t) -> nothing,
         cache_imp! = cache!,
     )
         args = (
-            T_exp_T_lim!,
-            T_lim!,
-            T_exp!,
-            T_imp_subproblem!,
-            T_imp!,
-            lim!,
-            dss!,
-            initialize_subproblem!,
-            cache!,
-            cache_imp!,
+            T_exp_T_lim!, T_lim!, T_exp!, T_imp_subproblem!, T_imp!, lim!, dss!,
+            constrain_state!, initialize_subproblem!, cache!, cache_imp!,
         )
 
         if !isnothing(T_exp_T_lim!)

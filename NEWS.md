@@ -3,6 +3,8 @@ ClimaTimeSteppers.jl Release Notes
 
 Main
 -------
+- ![][badge-🔥behavioralΔ] Add keyword argument `constrain_state!`, which can be used
+    to apply state constraints. Currently, these are always applied immediately before `dss!`.
 
 v0.8.7
 ------

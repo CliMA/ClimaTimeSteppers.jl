@@ -69,7 +69,7 @@ function step_u!(integrator, cache::IMEXARKCache)
     (; u, p, t, dt, alg) = integrator
     (; f) = integrator.sol.prob
     (; cache!, cache_imp!) = f
-    (; T_lim!, T_exp!, T_imp!, lim!, dss!) = f
+    (; T_lim!, T_exp!, T_imp!, lim!, dss!, constrain_state!) = f
     (; tableau, newtons_method) = alg
     (; a_exp, b_exp, a_imp, b_imp, c_exp, c_imp) = tableau
     (; U, T_lim, T_exp, T_imp, temp, γ, newtons_method_cache) = cache
@@ -101,6 +101,7 @@ function step_u!(integrator, cache::IMEXARKCache)
     has_T_exp(f) && fused_increment!(u, dt, b_exp, T_exp, Val(s))
     isnothing(T_imp!) || fused_increment!(u, dt, b_imp, T_imp, Val(s))
 
+    constrain_state!(u, p, t_final)
     dss!(u, p, t_final)
     cache!(u, p, t_final)
 
@@ -120,14 +121,8 @@ end
     (; f) = integrator.sol.prob
     (; cache!, cache_imp!) = f
     (;
-        T_exp_T_lim!,
-        T_lim!,
-        T_exp!,
-        T_imp_subproblem!,
-        T_imp!,
-        lim!,
-        dss!,
-        initialize_subproblem!,
+        T_exp_T_lim!, T_lim!, T_exp!, T_imp_subproblem!, T_imp!, lim!, dss!,
+        constrain_state!, initialize_subproblem!,
     ) = f
     (; tableau, newtons_method_subproblem, newtons_method) = alg
     (; a_exp, b_exp, a_imp, b_imp, c_exp, c_imp) = tableau
@@ -162,6 +157,7 @@ end
     # the implicit solver does not need to be run. On stage i == 1, we do not
     # need to apply DSS and update the cache because we did that at the end of
     # the previous timestep.
+    i ≠ 1 && constrain_state!(U, p, t_exp)
     i ≠ 1 && dss!(U, p, t_exp)
     if isnothing(T_imp!) || iszero(a_imp[i, i])
         i ≠ 1 && cache!(U, p, t_exp)
@@ -172,6 +168,7 @@ end
             i ≠ 1 && cache_imp!(U, p, t_imp)
         else
             initialize_subproblem!(U, p, dtγ)
+            constrain_state!(U, p, t_exp)
             dss!(U, p, t_exp)
             cache_imp!(U, p, t_imp)
             solve_implicit_equation!(
@@ -185,6 +182,7 @@ end
                 newtons_method_subproblem_cache,
                 cache_imp!,
                 dss!,
+                constrain_state!,
                 cache!,
             )
         end
@@ -200,6 +198,7 @@ end
             newtons_method_cache,
             cache_imp!,
             dss!,
+            constrain_state!,
             cache!,
         )
     end
@@ -237,6 +236,7 @@ end
     newtons_method_cache,
     cache_imp!,
     dss!,
+    constrain_state!,
     cache!,
 )
     implicit_equation_residual! =
@@ -252,6 +252,7 @@ end
         (jacobian, U′) -> T!.Wfact(jacobian, U′, p, dtγ, t_imp),
         U′ -> cache_imp!(U′, p, t_imp),
     )
+    constrain_state!(U, p, t_imp)
     dss!(U, p, t_imp)
     cache!(U, p, t_imp)
     return nothing

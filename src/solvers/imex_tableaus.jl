@@ -3,7 +3,7 @@ export ARS111, ARS121, ARS122, ARS233, ARS232, ARS222, ARS343, ARS443
 export IMKG232a, IMKG232b, IMKG242a, IMKG242b, IMKG243a, IMKG252a, IMKG252b
 export IMKG253a, IMKG253b, IMKG254a, IMKG254b, IMKG254c, IMKG342a, IMKG343a
 export SSP222, SSP322, SSP332, SSP333, SSP433
-export DBM453, HOMMEM1, ARK2GKC, ARK437L2SA1, ARK548L2SA2
+export DBM453, HOMMEM1, ARK2GKC, ARK437L2SA1, ARK548L2SA2, ESDIRK43
 
 abstract type IMEXARKAlgorithmName <: AbstractAlgorithmName end
 
@@ -26,6 +26,67 @@ struct IMEXTableau{AE <: SPCO, BE <: SPCO, CE <: SPCO, AI <: SPCO, BI <: SPCO, C
     a_imp::AI # matrix of size s×s
     b_imp::BI # vector of length s
     c_imp::CI # vector of length s
+end
+
+################################################################################
+# ESDIRK (purely implicit DIRK) algorithms
+################################################################################
+
+"""
+    ESDIRK43
+
+ESDIRK4(3)6L[2]SA method (explicit first stage, L-stable, stiffly accurate,
+embedded 3rd-order method for error estimation).
+
+In this package we expose only the advancing method (4th-order weights).
+"""
+struct ESDIRK43 <: IMEXARKAlgorithmName end
+
+function IMEXTableau(::ESDIRK43)
+    # Coefficients taken from PathSim's `ESDIRK43` implementation, which is
+    # attributed to Carpenter & Kennedy (2019).
+    s = 6
+    # Use Float64 coefficients to avoid Int64 overflow when computing row
+    # sums/c-values from the (very large) fractional coefficients.
+    a_exp = zeros(Float64, s, s) # no explicit contribution
+    a_imp = zeros(Float64, s, s)
+
+    # Diagonal coefficient (constant for stages 2..s)
+    γ = 0.25
+    for i in 2:s
+        a_imp[i, i] = γ
+    end
+
+    # Stage 2
+    a_imp[2, 1] = 0.25
+
+    # Stage 3
+    a21 = -1356991263433 / 26208533697614
+    a_imp[3, 1] = a21
+    a_imp[3, 2] = a21
+
+    # Stage 4
+    a31 = -1778551891173 / 14697912885533
+    a_imp[4, 1] = a31
+    a_imp[4, 2] = a31
+    a_imp[4, 3] = 7325038566068 / 12797657924939
+
+    # Stage 5
+    a41 = -24076725932807 / 39344244018142
+    a_imp[5, 1] = a41
+    a_imp[5, 2] = a41
+    a_imp[5, 3] = 9344023789330 / 6876721947151
+    a_imp[5, 4] = 11302510524611 / 18374767399840
+
+    # Stage 6 (stiffly accurate weights are given by the last row)
+    a51 = 657241292721 / 9909463049845
+    a_imp[6, 1] = a51
+    a_imp[6, 2] = a51
+    a_imp[6, 3] = 1290772910128 / 5804808736437
+    a_imp[6, 4] = 1103522341516 / 2197678446715
+    a_imp[6, 5] = -3 / 28
+
+    return IMEXTableau(; a_exp, a_imp)
 end
 IMEXTableau(args...) = IMEXTableau(map(x -> SparseCoeffs(x), args)...)
 

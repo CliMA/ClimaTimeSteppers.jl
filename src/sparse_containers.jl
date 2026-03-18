@@ -24,7 +24,11 @@ struct SparseContainer{SIM, T}
     data::T
     function SparseContainer(compressed_data::T, sparse_index_map::Tuple) where {T}
         @assert all(map(x -> eltype(compressed_data) .== typeof(x), compressed_data))
-        SIM = zeros(Int, maximum(sparse_index_map))
+        # Allow an empty sparse index map. This is useful for algorithms where
+        # an entire subset of cached quantities is known to be unused (e.g.
+        # a purely implicit DIRK/ESDIRK method encoded with a zero explicit
+        # tableau).
+        SIM = isempty(sparse_index_map) ? Int[] : zeros(Int, maximum(sparse_index_map))
         for i in 1:length(SIM)
             i in sparse_index_map || continue
             SIM[i] = findfirst(k -> k == i, sparse_index_map)

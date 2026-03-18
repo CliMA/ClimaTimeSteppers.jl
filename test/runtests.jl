@@ -114,6 +114,7 @@ end
     include("solvers/lsrk.jl")
     include("solvers/multirate.jl")
     include("solvers/rosenbrock.jl")
+    include("solvers/esdirk.jl")
     include("solvers/imex_ark.jl")
 end
 

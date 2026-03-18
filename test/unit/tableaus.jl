@@ -81,8 +81,13 @@ dense(sc::CTS.SparseCoeffs) = Array(Float64.(sc.coeffs))
                     @test c_imp[i] ≈ sum(a_imp[i, :]) atol = 1e-13
                 end
 
-                # Explicit weights sum to 1
-                @test sum(b_exp) ≈ 1.0 atol = 1e-13
+                # Explicit weights sum to 1 when there is an explicit part.
+                # Some purely implicit DIRK/ESDIRK algorithms are encoded with
+                # an all-zero explicit tableau, in which case the sum condition
+                # is not applicable.
+                if !all(iszero, b_exp)
+                    @test sum(b_exp) ≈ 1.0 atol = 1e-13
+                end
 
                 # Implicit weights sum to 1
                 @test sum(b_imp) ≈ 1.0 atol = 1e-13

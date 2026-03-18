@@ -118,6 +118,13 @@ algorithm(algorithm_name::CTS.SSPKnoth) =
     CTS.RosenbrockAlgorithm(
         CTS.tableau(CTS.SSPKnoth()),
     )
+algorithm(algorithm_name::CTS.DIRKAlgorithmName, linear_implicit) =
+    CTS.DIRKAlgorithm(
+        algorithm_name,
+        CTS.NewtonsMethod(; max_iters = linear_implicit ? 1 : 2),
+    )
+algorithm(algorithm_name::CTS.DIRKAlgorithmName) =
+    algorithm(algorithm_name, false)
 algorithm(algorithm_name::CTS.IMEXARKAlgorithmName, linear_implicit) =
     CTS.IMEXAlgorithm(algorithm_name, NewtonsMethod(; max_iters = linear_implicit ? 1 : 2))
 

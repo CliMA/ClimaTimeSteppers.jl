@@ -116,6 +116,8 @@ n_stages_ntuple(::Type{<:SVector{Nstages}}) where {Nstages} = Nstages
 # Include concrete implementations
 const SPCO = SparseCoeffs
 
+include("solvers/dirk_tableaus.jl")
+include("solvers/dirk.jl")
 include("solvers/imex_tableaus.jl")
 include("solvers/explicit_tableaus.jl")
 include("solvers/imex_ark.jl")

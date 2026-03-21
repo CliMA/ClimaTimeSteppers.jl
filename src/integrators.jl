@@ -12,19 +12,13 @@
 struct SortedQueue{T}
     data::Vector{T}    # sorted in reverse order of consumption
     forward::Bool      # true = forward-in-time (ascending tstops)
-    # Inner constructor — stores data as-is (caller must pre-sort)
-    SortedQueue{T}(data::Vector{T}, forward::Bool) where {T} = new{T}(data, forward)
+    function SortedQueue{T}(vals, forward::Bool) where {T}
+        new{T}(sort!(collect(T, vals); rev = forward), forward)
+    end
 end
 
-function SortedQueue(vals, forward::Bool)
-    sorted = sort(collect(vals); rev = forward)
-    SortedQueue{eltype(sorted)}(sorted, forward)
-end
-
-function SortedQueue{T}(vals, forward::Bool) where {T}
-    sorted = sort!(collect(T, vals); rev = forward)
-    SortedQueue{T}(sorted, forward)
-end
+SortedQueue(vals, forward::Bool) =
+    SortedQueue{eltype(vals)}(vals, forward)
 
 Base.isempty(q::SortedQueue) = isempty(q.data)
 Base.length(q::SortedQueue) = length(q.data)

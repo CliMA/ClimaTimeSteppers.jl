@@ -1,4 +1,53 @@
-import DataStructures
+# SortedQueue: 
+#
+# Stores values in descending order (for forward-in-time integration) so that:
+#   first(q) → smallest value (next tstop)  — O(1) via last(data)
+#   pop!(q)  → remove smallest              — O(1) via pop!(data)
+#   push!(q) → binary-search insert         — O(n), n ≤ 5 typical
+#   empty!(q) — O(1)
+#
+# For reverse-in-time, values are stored in ascending order and the same
+# interface returns the largest (most-negative-time) value first.
+
+struct SortedQueue{T}
+    data::Vector{T}    # sorted in reverse order of consumption
+    forward::Bool      # true = forward-in-time (ascending tstops)
+    # Inner constructor — stores data as-is (caller must pre-sort)
+    SortedQueue{T}(data::Vector{T}, forward::Bool) where {T} = new{T}(data, forward)
+end
+
+function SortedQueue(vals, forward::Bool)
+    sorted = sort(collect(vals); rev = forward)
+    SortedQueue{eltype(sorted)}(sorted, forward)
+end
+
+function SortedQueue{T}(vals, forward::Bool) where {T}
+    sorted = sort!(collect(T, vals); rev = forward)
+    SortedQueue{T}(sorted, forward)
+end
+
+Base.isempty(q::SortedQueue) = isempty(q.data)
+Base.length(q::SortedQueue) = length(q.data)
+Base.first(q::SortedQueue) = q.data[end]
+Base.empty!(q::SortedQueue) = (empty!(q.data); q)
+
+function Base.pop!(q::SortedQueue)
+    pop!(q.data)
+end
+
+function Base.push!(q::SortedQueue, val)
+    # Insert val into the reverse-sorted vector at the correct position
+    data = q.data
+    if q.forward
+        # data is sorted descending; find insertion point for descending order
+        i = searchsortedfirst(data, val; rev = true)
+    else
+        # data is sorted ascending; find insertion point for ascending order
+        i = searchsortedfirst(data, val)
+    end
+    insert!(data, i, val)
+    return q
+end
 
 """
     TimeStepperIntegrator
@@ -67,19 +116,17 @@ function SavedValues(::Type{tType}, ::Type{savevalType}) where {tType, savevalTy
 end
 
 
-# helper function for setting up min/max heaps for tstops and saveat
-function tstops_and_saveat_heaps(t0, tf, tstops, saveat = [])
-    # We promote to a common type to ensure that t0 and tf have the same type
+# helper function for setting up sorted queues for tstops and saveat
+function tstops_and_saveat_queues(t0, tf, tstops, saveat = [])
     FT = typeof(first(promote(t0, tf)))
-    ordering = tf > t0 ? DataStructures.FasterForward : DataStructures.FasterReverse
+    forward = tf > t0
 
     # ensure that tstops includes tf and only has values ahead of t0
-    tstops = [filter(t -> t0 < t < tf || tf < t < t0, tstops)..., tf]
-    tstops = DataStructures.BinaryHeap{FT, ordering}(tstops)
+    tstops = FT[filter(t -> t0 < t < tf || tf < t < t0, tstops)..., tf]
+    tstops = SortedQueue{FT}(tstops, forward)
 
     isnothing(saveat) && (saveat = (t0, tf))
-
-    saveat = DataStructures.BinaryHeap{FT, ordering}(collect(saveat))
+    saveat = SortedQueue{FT}(saveat, forward)
 
     return tstops, saveat
 end
@@ -136,7 +183,7 @@ function init(
 
     _tstops = tstops
     _saveat = saveat
-    tstops, saveat = tstops_and_saveat_heaps(t0, tf, tstops, saveat)
+    tstops, saveat = tstops_and_saveat_queues(t0, tf, tstops, saveat)
 
     sol = ODESolution(typeof(t0)[], typeof(save_func(u0, t0))[], prob, alg)
     # SavedValues shares sol.t and sol.u vectors: the callback's push!
@@ -196,7 +243,7 @@ function reinit!(
 )
     integrator.u .= u0
     integrator.t = t0
-    integrator.tstops, integrator.saveat = tstops_and_saveat_heaps(t0, tf, tstops, saveat)
+    integrator.tstops, integrator.saveat = tstops_and_saveat_queues(t0, tf, tstops, saveat)
     integrator.step = 0
     if erase_sol
         resize!(integrator.sol.t, 0)
@@ -282,7 +329,7 @@ function step!(integrator::TimeStepperIntegrator, dt, stop_at_tdt = false)
 end
 
 # helper functions for dealing with time-reversed integrators
-tdir(integrator) = integrator.tstops.ordering isa DataStructures.FasterForward ? 1 : -1
+tdir(integrator) = integrator.tdir
 is_past_t(integrator, t) = tdir(integrator) * (t - integrator.t) < zero(integrator.t)
 reached_tstop(integrator, tstop, stop_at_tstop = integrator.dtchangeable) =
     integrator.t == tstop || (!stop_at_tstop && is_past_t(integrator, tstop))

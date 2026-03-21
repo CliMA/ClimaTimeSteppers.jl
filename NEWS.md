@@ -4,6 +4,12 @@ ClimaTimeSteppers.jl Release Notes
 Main
 -------
 
+v0.8.9
+------
+- Major refactor of CTS, including removal of SciML and DiffEq dependency (maintained in extension for backward compatibility)
+- Refactor and extension of test suite
+- Correction of bugs in multirate and Krylov solvers
+
 v0.8.7
 ------
 - Added a simple line search algorithm to Newtons method.

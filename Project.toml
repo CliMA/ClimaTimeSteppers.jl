@@ -1,11 +1,10 @@
 name = "ClimaTimeSteppers"
 uuid = "595c0a79-7f3d-439a-bc5a-b232dc3bde79"
 authors = ["Climate Modeling Alliance"]
-version = "0.8.8"
+version = "0.8.9"
 
 [deps]
 ClimaComms = "3a4d1b5c-c61d-41fd-a00a-5873ba7a1b0d"
-DataStructures = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
 Krylov = "ba0b0d4f-ebba-5204-a429-3ac8c609bfb7"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 LinearOperators = "5c8ed15e-5a4c-59e4-a42b-c7e8811fb125"
@@ -30,7 +29,6 @@ ClimaTimeSteppersSciMLExt = "SciMLBase"
 BenchmarkTools = "1"
 CUDA = "3, 4, 5"
 ClimaComms = "0.4, 0.5, 0.6"
-DataStructures = "0.18"
 DiffEqBase = "6"
 Krylov = "0.8, 0.9, 0.10"
 LinearAlgebra = "1"

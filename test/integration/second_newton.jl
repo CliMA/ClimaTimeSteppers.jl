@@ -17,7 +17,7 @@ import ClimaTimeSteppers: ODEProblem, ODEFunction, solve
 
     T_imp! = ODEFunction(
         (du, u, p, t) -> (du[1] = -λ₁ * u[1];
-            du[2] = -λ₂ * u[2] + u[1]);
+        du[2] = -λ₂ * u[2] + u[1]);
         jac_prototype = zeros(n, n),
         Wfact = (W, u, p, dtγ, t) -> begin
             W[1, 1] = -λ₁ * dtγ - 1

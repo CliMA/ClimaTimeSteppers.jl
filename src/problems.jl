@@ -131,7 +131,7 @@ end
 
 
 """
-    sol(t)
+  (sol::ODESolution)(t)
 
 Return the saved state nearest to time `t`. This is **not** an interpolation;
 it returns `sol.u[i]` where `i = argmin(|sol.t .- t|)`. Only use this for

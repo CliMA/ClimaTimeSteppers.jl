@@ -89,9 +89,7 @@ function update_inner!(
     # We must clear old tstops (including the original tspan end) to
     # prevent solve! from running past the intended interval.
     innerinteg.t = zero(τ0)
-    while !isempty(innerinteg.tstops)
-        pop!(innerinteg.tstops)
-    end
+    empty!(innerinteg.tstops)
     push!(innerinteg.tstops, τ1 - τ0)
 end
 

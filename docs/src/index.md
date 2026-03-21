@@ -51,7 +51,7 @@ import ClimaTimeSteppers as CTS
 # ── 1. Define the problem ────────────────────────────────────────────────────
 #   du/dt = -u,  u(0) = 1,  t ∈ [0, 5]
 T_exp!(du, u, p, t) = (du .= -u)
-f = ClimaODEFunction(; T_exp! = T_exp!)
+f = ClimaODEFunction(; T_exp!)
 
 # ── 2. Solve with two explicit algorithms ─────────────────────────────────────
 algorithms = [

@@ -47,7 +47,7 @@ end
 
 A Rosenbrock-type ODE algorithm. The implicit system at each stage is a single
 linear solve (no Newton iteration), making Rosenbrock methods cheaper per step
-than fully implicit IMEX methods when the Jacobian is inexpensive.
+than fully implicit IMEX methods when updating the Jacobian is inexpensive.
 
 # Arguments
 - `tableau`: a [`RosenbrockTableau`](@ref) (e.g. `tableau(SSPKnoth())`)

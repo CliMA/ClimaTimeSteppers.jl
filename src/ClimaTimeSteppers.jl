@@ -127,8 +127,8 @@ struct DiscreteCallback{C, A, I, F}
 end
 function DiscreteCallback(
     condition, affect!;
-    initialize = (cb, u, t, integrator) -> nothing,
-    finalize = (cb, u, t, integrator) -> nothing,
+    initialize = Returns(nothing),
+    finalize = Returns(nothing),
 )
     DiscreteCallback(condition, affect!, initialize, finalize)
 end
@@ -152,17 +152,11 @@ struct CallbackSet{DC <: Tuple}
 end
 CallbackSet(cbs::Tuple) = CallbackSet((), cbs)
 CallbackSet(cbs::DiscreteCallback...) = CallbackSet((), cbs)
-function CallbackSet(cb_or_nothing, cbs::DiscreteCallback...)
-    if isnothing(cb_or_nothing)
-        CallbackSet((), cbs)
-    elseif cb_or_nothing isa DiscreteCallback
-        CallbackSet((), (cb_or_nothing, cbs...))
-    elseif cb_or_nothing isa CallbackSet
-        CallbackSet((), (cb_or_nothing.discrete_callbacks..., cbs...))
-    else
-        error("Unsupported callback type: $(typeof(cb_or_nothing))")
-    end
-end
+CallbackSet(::Nothing, cbs::DiscreteCallback...) = CallbackSet((), cbs)
+CallbackSet(cb::DiscreteCallback, cbs::DiscreteCallback...) =
+    CallbackSet((), (cb, cbs...))
+CallbackSet((; discrete_callbacks)::CallbackSet, cbs::DiscreteCallback...) =
+    CallbackSet((), (discrete_callbacks..., cbs...))
 
 function initialize_callbacks!(cbset::CallbackSet, u, t, integrator)
     for cb in cbset.discrete_callbacks

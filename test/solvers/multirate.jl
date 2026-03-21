@@ -16,7 +16,7 @@ end
         (:imex_nonauto, imex_nonautonomous_prob(Array{Float64}), imex_nonautonomous_sol),
     ]
 
-    passing_algs_orders = [
+    algs_orders = [
         (Multirate(LSRK54CarpenterKennedy(), WSRK2()), 2),
         (Multirate(LSRK54CarpenterKennedy(), WSRK3()), 2),
         (Multirate(LSRK54CarpenterKennedy(), LSRK54CarpenterKennedy()), 4),
@@ -28,7 +28,7 @@ end
         (Multirate(LSRK54CarpenterKennedy(), TVDMISB()), 2),
     ]
     for (name, prob, sol) in names_probs_sols
-        for (alg, expected_order) in passing_algs_orders
+        for (alg, expected_order) in algs_orders
             computed_order = convergence_order(prob, sol, alg, dts; fast_dt = 0.5^12)
             @test abs(computed_order - expected_order) / expected_order < 0.15
         end

@@ -133,10 +133,10 @@ This is the central type that ClimaAtmos constructs:
 
 ```@example imex
 ode_function = ClimaODEFunction(;
-    T_exp!  = T_exp!,
+    T_exp!,
     T_imp!  = T_imp_wrapped,
-    cache!  = cache!,
-    dss!    = dss!,
+    cache!,
+    dss!,
 )
 
 T0    = zeros(N)                  # initial condition: cold column

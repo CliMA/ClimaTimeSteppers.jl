@@ -386,7 +386,7 @@ end
 # ============================================================================ #
 function NonInterpolatingSavingCallback(save_func, saved_values, save_everystep)
     if save_everystep
-        condition = (u, t, integrator) -> true
+        condition = Returns(true)
     else
         condition =
             (u, t, integrator) -> begin

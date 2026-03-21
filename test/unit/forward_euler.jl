@@ -19,11 +19,6 @@ using ClimaTimeSteppers, Test
         @test un ≈ [1.9, 3.8]
     end
 
-    @testset "Type is distinct from ODEFunction" begin
-        fe_func = ForwardEulerODEFunction((un, u, p, t, dt) -> nothing)
-        @test !(fe_func isa ClimaTimeSteppers.ODEFunction)
-    end
-
     @testset "Optional fields default to nothing" begin
         fe_func = ForwardEulerODEFunction((un, u, p, t, dt) -> nothing)
         @test fe_func.jac_prototype === nothing

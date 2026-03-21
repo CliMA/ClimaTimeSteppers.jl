@@ -37,7 +37,7 @@ println("du/dλ    = ", round(gradient;  digits = 6), "   (exact: ", round(-exp(
 The key requirement: when differentiating with respect to a variable, all
 quantities derived from it (`u0`, `tspan`, `dt`, `jac_prototype`) must be
 constructed with matching type (e.g. `one(λ)` instead of `1.0`) so that
-ForwardDiff's dual numbers flow through the solver.
+ForwardDiff's dual numbers are not accidentally clipped by the solver.
 
 ## IMEX methods
 
@@ -114,6 +114,7 @@ println("Rosenbrock du/dλ = ", round(grad_rb;  digits = 6), "   (exact: ", roun
 
 - **Type your allocations**: use `zeros(typeof(λ), n, n)` for `jac_prototype`,
   `[one(λ)]` for `u0`, and `oftype(λ, 0.1)` for `dt`.
+  **Propagate your types**: use `zeros(typeof(λ), n, n)` for `jac_prototype`,
 - **Construct a fresh `ODEProblem` each iteration** if you call `solve` in a
   loop — the integrator mutates `u0` in place.
 - **Rosenbrock methods** work as shown above — the `lu` factorization and

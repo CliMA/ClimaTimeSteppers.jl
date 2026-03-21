@@ -68,8 +68,8 @@ For IMEX problems (e.g., stiff vertical diffusion + explicit horizontal
 advection), provide an implicit tendency with a Jacobian:
 
 ```julia
-T_imp = CTS.ODEFunction(T_imp!; jac_prototype = W, Wfact = Wfact!)
-f = ClimaODEFunction(; T_exp! = T_exp!, T_imp! = T_imp, dss! = dss!)
+T_imp! = CTS.ODEFunction(T_imp!; jac_prototype = W, Wfact = Wfact!)
+f = ClimaODEFunction(; T_exp!, T_imp!, dss!)
 alg = IMEXAlgorithm(ARS343(), NewtonsMethod(; max_iters = 2))
 ```
 

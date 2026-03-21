@@ -42,6 +42,7 @@ function maybe_update_jacobian!(
             T_imp!.Wfact(jacobian, u, p, dt * γ, t)
         end
     end
+    return nothing
 end
 
 struct IMEXARKCache{SCU, SCE, SCI, TS, T, Γ, NMSC, NMC}
@@ -175,8 +176,8 @@ end
 """
     compute_stage_value!(U, u, dt, a_exp, a_imp, T_lim, T_exp, T_imp, f, p, t_exp, i)
 
-Compute the stage value `U` by accumulating the Butcher linear combination
-from previous explicit (limited + unlimited) and implicit tendencies.
+Compute the stage value `U` by accumulating the linear combination dictated by the 
+Butcher tableau from previous explicit (limited + unlimited) and implicit tendencies.
 """
 @inline function compute_stage_value!(
     U,

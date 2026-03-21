@@ -56,11 +56,10 @@ end
 
 # Convert the callback kwarg if present
 function convert_kwargs(kwargs)
-    pairs = Dict{Symbol, Any}(kwargs)
-    if haskey(pairs, :callback)
-        pairs[:callback] = convert_cb(pairs[:callback])
-    end
-    return pairs
+    pairs = NamedTuple(kwargs)
+    return haskey(pairs, :callback) ?
+           Base.setindex(pairs, convert_cb(pairs.callback), :callback) :
+           pairs
 end
 
 # SciMLBase.init → CTS.init

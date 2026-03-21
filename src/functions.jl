@@ -52,10 +52,10 @@ struct ClimaODEFunction{TEL, TIS, TI, L, D, IS, C, CI} <: AbstractClimaODEFuncti
         T_exp! = nothing,
         T_imp_subproblem! = nothing,
         T_imp! = nothing,
-        lim! = (u, p, t, u_ref) -> nothing,
-        dss! = (u, p, t) -> nothing,
-        initialize_subproblem! = (u, p, γdt) -> nothing,
-        cache! = (u, p, t) -> nothing,
+        lim! = Returns(nothing),
+        dss! = Returns(nothing),
+        initialize_subproblem! = Returns(nothing),
+        cache! = Returns(nothing),
         cache_imp! = cache!,
     )
         # Normalize T_exp!/T_lim! into fused T_exp_T_lim!

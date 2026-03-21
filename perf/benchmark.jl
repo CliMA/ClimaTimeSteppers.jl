@@ -8,7 +8,7 @@ Usage:
     julia --project=perf perf/benchmark.jl
     julia --project=perf perf/benchmark.jl --problem ark_sys
 =#
-using ArgParse, DiffEqBase, ClimaTimeSteppers
+using ArgParse, ClimaTimeSteppers
 using ClimaComms
 using CUDA, BenchmarkTools, OrderedCollections, StatsBase, PrettyTables
 import ClimaTimeSteppers as CTS
@@ -35,7 +35,7 @@ include(joinpath(cts_root, "test", "problems.jl"))
 
 function make_integrator(problem)
     algorithm = CTS.IMEXAlgorithm(ARS343(), NewtonsMethod(; max_iters = 2))
-    integrator = DiffEqBase.init(problem, algorithm; dt = 0.01)
+    integrator = CTS.init(problem, algorithm; dt = 0.01)
     integrator.cache = CTS.init_cache(problem, algorithm)
     return integrator
 end

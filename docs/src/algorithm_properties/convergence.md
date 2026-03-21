@@ -43,6 +43,8 @@ When inspecting empirical convergence trends:
 1. **Asymptotic regime:** The initial slope should closely match $O(\Delta t^p)$ for an order-$p$ method.
 2. **Round-off floor:** At very small $\Delta t$, floating-point precision sets a lower bound on achievable accuracy, causing the error curve to plateau.
 3. **Order reduction:** For some methods and splittings, the empirically observed order may be lower than the theoretical order due to order reduction effects in the IMEX coupling (see [Gardner et al. (2018)](@cite GGHRUW2018) for discussion).
+4. **Reference-solution noise:** For the `stiff_linear` test case, the reference solution is computed numerically (using `ARK548L2SA2` at a very small $\Delta t$) rather than analytically. The convergence curves for this case may therefore show small oscillations or a slightly ragged plateau at fine resolution, reflecting the finite accuracy of the reference.
+5. **Error zero-crossings:** The bottom panel may show abrupt dips in the RMS error at isolated times. These occur when the numerical solution momentarily passes through the exact solution (the error crosses zero), causing a sharp transient minimum on the log-scale plot. They are not indicative of any algorithm issue.
 
 ## Generating Convergence Reports
 

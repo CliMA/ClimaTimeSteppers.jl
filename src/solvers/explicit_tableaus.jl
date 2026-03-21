@@ -4,12 +4,15 @@ export SSP22Heuns, SSP33ShuOsher, RK4
 abstract type ERKAlgorithmName <: AbstractAlgorithmName end
 
 """
-    ExplicitTableau(; a, b, c)
+    ExplicitTableau(; a, [b], [c])
 
-A wrapper for an explicit Butcher tableau. Only `a` is a required argument; the
-default value for `b` assumes that the algorithm is FSAL (first same as last),
-and the default value for `c` assumes that it is internally consistent. The
-matrix `a` must be strictly lower triangular.
+An explicit Butcher tableau. Usually constructed indirectly via an algorithm
+name such as [`SSP33ShuOsher`](@ref).
+
+# Keyword Arguments
+- `a`: Butcher matrix (strictly lower triangular, required)
+- `b`: weights (default: last row of `a`, i.e., first same as last, FSAL)
+- `c`: abscissae (default: row sums of `a`)
 """
 struct ExplicitTableau{A <: SPCO, B <: SPCO, C <: SPCO}
     a::A # matrix of size s×s
@@ -24,18 +27,20 @@ function ExplicitTableau(; a, b = a[end, :], c = vec(sum(a; dims = 2)))
 end
 
 """
-    ExplicitAlgorithm(tableau, [constraint])
     ExplicitAlgorithm(name, [constraint])
+    ExplicitAlgorithm(tableau, [constraint])
 
-Constructs an explicit algorithm for solving ODEs, with an optional name and
-constraint. The first constructor accepts any `ExplicitTableau` and an optional
-constraint, leaving the algorithm unnamed. The second constructor automatically
-determines the tableau and the default constraint from the algorithm name,
-which must be an `ERKAlgorithmName`.
+An explicit Runge-Kutta algorithm. Shorthand for an [`IMEXAlgorithm`](@ref)
+with identical explicit/implicit tableaux and no Newton solver.
 
-Note that using an `ExplicitAlgorithm` is merely a shorthand for using an
-`IMEXAlgorithm` with the same tableau for explicit and implicit tendencies (and
-without Newton's method).
+# Arguments
+- `name`: an algorithm name such as `SSP33ShuOsher()` or `RK4()`
+- `constraint`: [`Unconstrained`](@ref) (default) or [`SSP`](@ref)
+
+# Example
+```julia
+alg = ExplicitAlgorithm(SSP33ShuOsher())
+```
 """
 ExplicitAlgorithm(tableau::ExplicitTableau, constraint = Unconstrained()) =
     IMEXAlgorithm(constraint, nothing, IMEXTableau(tableau), nothing, nothing)

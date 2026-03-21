@@ -1,57 +1,66 @@
 # Contributing
 
-Thank you for contributing to `ClimaTimeSteppers`! We encourage Pull Requests (PRs).
-Please do not hesitate to ask questions, or to open issues if something seems amiss
-or you'd like a new feature.
+Thank you for your interest in contributing to ClimaTimeSteppers.jl!
+We welcome pull requests (PRs) of all sizes — from typo fixes to new solver
+families. If something seems amiss or you would like to request a feature,
+please [open an issue](https://github.com/CliMA/ClimaTimeSteppers.jl/issues/new).
 
-## Some useful tips
+## Getting Started
 
-- Start by [forking the repository](https://github.com/CliMA/ClimaTimeSteppers.jl/fork)
-  on GitHub, then clone your fork locally:
-  ```sh
-  git clone https://github.com/YOUR_USERNAME/ClimaTimeSteppers.jl.git
-  cd ClimaTimeSteppers.jl
-  git remote add upstream https://github.com/CliMA/ClimaTimeSteppers.jl.git
-  ```
-- When developing, work on a branch off of the most recent `main`. Fetch the latest
-  changes from upstream first:
-  ```sh
-  git fetch upstream
-  git checkout -b branch_name upstream/main
-  ```
-- Make sure you add tests for your code in `test/`, appropriate documentation in `docs/`,
-  and descriptive inline comments throughout the code.
-  All exported functions and structs must have docstrings.
-- When your PR is ready for review, clean up your commit history by squashing to 1 commit per PR
-  and make sure your code is current with `main` by rebasing against upstream:
-  ```sh
-  git fetch upstream
-  git rebase upstream/main
-  ```
+1. [Fork the repository](https://github.com/CliMA/ClimaTimeSteppers.jl/fork)
+   on GitHub, then clone your fork locally:
 
-## Continuous integration
+   ```sh
+   git clone https://github.com/YOUR_USERNAME/ClimaTimeSteppers.jl.git
+   cd ClimaTimeSteppers.jl
+   git remote add upstream https://github.com/CliMA/ClimaTimeSteppers.jl.git
+   ```
 
-After rebasing your branch, you can ask for review. Fill out the template and
-provide a clear summary of what your PR does. When a PR is created or
-updated, a set of automated tests are run on the PR in our continuous
-integration (CI) system.
+2. Create a feature branch from the latest `main`:
 
-### Formatting check
+   ```sh
+   git fetch upstream
+   git checkout -b my-feature upstream/main
+   ```
 
-The `JuliaFormatter` check verifies that the PR is correctly formatted according to
-the project's style guidelines (defined in `.JuliaFormatter.toml`).
+3. Make your changes. When you are ready for review, rebase against `main`
+   and squash into one commit per PR:
 
-To format your code, first add JuliaFormatter to your base environment (one-time setup):
+   ```sh
+   git fetch upstream
+   git rebase upstream/main
+   ```
+
+## Code Guidelines
+
+- Add tests for new functionality in `test/` and documentation in `docs/`.
+- All exported functions and types must have docstrings.
+- Keep commits focused — one logical change per commit.
+
+## Formatting
+
+CI enforces consistent style via [JuliaFormatter.jl](https://github.com/domluna/JuliaFormatter.jl)
+using the settings in `.JuliaFormatter.toml`. Install the formatter once:
+
 ```sh
 julia -e 'using Pkg; Pkg.add("JuliaFormatter")'
 ```
 
-Then, in a Julia REPL, run:
+Then format the entire repository before committing:
+
 ```julia
 using JuliaFormatter; format(".")
 ```
 
-### Documentation
+## Continuous Integration
 
-The `Documentation` check rebuilds the documentation for the PR and verifies that the
-docs are consistent and generate valid output.
+When a PR is created or updated, the following checks run automatically:
+
+| Check | What it verifies |
+|-------|-----------------|
+| **Unit tests** | All tests in `test/` pass on supported Julia versions |
+| **Formatter** | Code matches the project style (`.JuliaFormatter.toml`) |
+| **Documentation** | Docs build successfully with no errors |
+| **Downstream** | ClimaAtmos, ClimaLand, and ClimaCoupler integration tests (soft-fail) |
+
+If any check fails, click through to the CI log for details.

@@ -1,7 +1,7 @@
 export WSRK2, WSRK3
 
 """
-    WickerSkamarockRungeKutta <: DistributedODEAlgorithm
+    WickerSkamarockRungeKutta <: TimeSteppingAlgorithm
 
 Class of multirate algorithms developed in [WS1998](@cite) and [WS2002](@cite),
 which can be used as slow methods in [`Multirate`](@ref).
@@ -12,7 +12,7 @@ Available implementations are:
 - [`WSRK2`](@ref)
 - [`WSRK3`](@ref)
 """
-abstract type WickerSkamarockRungeKutta <: DistributedODEAlgorithm end
+abstract type WickerSkamarockRungeKutta <: TimeSteppingAlgorithm end
 
 struct WickerSkamarockRungeKuttaTableau{T <: NTuple}
     "Time-scaling coefficients c"
@@ -25,7 +25,7 @@ struct WickerSkamarockRungeKuttaCache{T <: WickerSkamarockRungeKuttaTableau, A}
     U::A
     F::A
 end
-function init_cache(prob::DiffEqBase.ODEProblem, alg::WickerSkamarockRungeKutta; kwargs...)
+function init_cache(prob::ODEProblem, alg::WickerSkamarockRungeKutta; kwargs...)
     U = zero(prob.u0)
     F = zero(prob.u0)
     return WickerSkamarockRungeKuttaCache(tableau(alg, eltype(F)), U, F)
@@ -64,7 +64,7 @@ function update_inner!(
 
     innerinteg.t = t
     t_star = i == N ? t + dt : t + c[i + 1] * dt
-    DiffEqBase.add_tstop!(innerinteg, t_star) # TODO: verify correctness
+    add_tstop!(innerinteg, t_star) # TODO: verify correctness
 end
 
 

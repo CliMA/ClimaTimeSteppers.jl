@@ -3,7 +3,6 @@ using ClimaTimeSteppers
 using Aqua
 
 @testset "Aqua tests (performance)" begin
-    # See: https://github.com/SciML/OrdinaryDiffEq.jl/issues/1750
     # Test that we're not introducing method ambiguities across deps
     ambs = Aqua.detect_ambiguities(ClimaTimeSteppers; recursive = true)
     pkg_match(pkgname, pkdir::Nothing) = false

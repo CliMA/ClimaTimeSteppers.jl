@@ -1,50 +1,40 @@
 """
     ClimaTimeSteppers
 
-Ordinary differential equation solvers
+ODE solvers for climate model time-stepping. Designed for distributed and GPU
+computation with minimal memory footprint.
 
-JuliaDiffEq terminology:
+# Core workflow
 
-* _Function_: the right-hand side function df/dt.
-  * by default, a function gets wrapped in an `ODEFunction`
-  * define new `IncrementingODEFunction` to support incrementing function calls.
+```julia
+import ClimaTimeSteppers as CTS
 
-* _Problem_: Function, initial u, time span, parameters and options
+# Define tendency functions and Jacobian (W = dtγ J - I) for the implicit part
+T_imp = CTS.ODEFunction(T_imp!; jac_prototype = W, Wfact = Wfact!)
+f    = CTS.ClimaODEFunction(; T_exp! = T_exp!, T_imp! = T_imp)
+prob = CTS.ODEProblem(f, u0, tspan, p)
+alg  = IMEXAlgorithm(ARS343(), NewtonsMethod(; max_iters = 2))
+sol  = CTS.solve(prob, alg; dt = 0.01)
+```
 
-  `du/dt = f(u,p,t) = fL(u,p,t)  + fR(u,p,t)`
+Or step-by-step:
 
-  `fR(u,p,t) == f(u.p,t) - fL(u,p,t)`
-  `fL(u,_,_) == A*u for some `A` (matrix free)`
+```julia
+integrator = CTS.init(prob, alg; dt = 0.01)
+CTS.step!(integrator)        # one step
+CTS.solve!(integrator)       # run to completion
+```
 
-  SplitODEProlem(fL, fR)
-
-
-  * `ODEProblem` from SciMLBase.jl
-    - use `jac` option to `ODEFunction` for linear + full IMEX (https://docs.sciml.ai/latest/features/performance_overloads/#ode_explicit_jac-1)
-  * `SplitODEProblem` for linear + remainder IMEX
-  * `MultirateODEProblem` for true multirate
-
-* _Algorithm_: small objects (often singleton) which indicate what algorithm + options (e.g. linear solver type)
-  * define new abstract `DistributedODEAlgorithm`, algorithms in this pacakge will be subtypes of this
-  * define new `Multirate` for multirate solvers
-
-* _Integrator_: contains everything necessary to solve. Used as:
-
-  * define new `DistributedODEIntegrator` for solvers in this package
-
-      init(prob, alg, options...) => integrator
-      step!(int) => runs single step
-      solve!(int) => runs it to end
-      solve(prob, alg, options...) => init + solve!
-
-* _Solution_ (not implemented): contains the "solution" to the ODE.
-
-
+# Key types
+- [`ODEProblem`](@ref): problem definition (function, initial state, time span, parameters)
+- [`ClimaODEFunction`](@ref): tendency container for IMEX / Rosenbrock solvers
+- [`TimeSteppingAlgorithm`](@ref): abstract supertype for all algorithms
+- [`TimeStepperIntegrator`](@ref): mutable integrator state
+- [`ODESolution`](@ref): solution container with saved time points and states
 """
 module ClimaTimeSteppers
 
 
-using KernelAbstractions
 using LinearAlgebra
 using LinearOperators
 using StaticArrays
@@ -53,17 +43,31 @@ using NVTX
 
 export AbstractAlgorithmName, AbstractAlgorithmConstraint, Unconstrained, SSP
 
-array_device(::Union{Array, SArray, MArray}) = CPU()
-array_device(x) = CUDADevice() # assume CUDA
+# Note: init, solve, solve!, step!, add_tstop!, reinit!, get_dt, set_dt!,
+# ODEProblem, ODEFunction, SplitODEProblem, IncrementingODEFunction
+# are intentionally NOT exported yet to avoid conflicts with SciMLBase.
+# Access them qualified, e.g.: CTS.init, CTS.ODEProblem, CTS.solve!, etc.
 
-import DiffEqBase, SciMLBase, LinearAlgebra, Krylov
+import LinearAlgebra, Krylov
 
 include(joinpath("utilities", "sparse_coeffs.jl"))
 include(joinpath("utilities", "fused_increment.jl"))
 include("sparse_containers.jl")
+include("problems.jl")
 include("functions.jl")
 
-abstract type DistributedODEAlgorithm <: DiffEqBase.AbstractODEAlgorithm end
+"""
+    TimeSteppingAlgorithm
+
+Abstract supertype for all ODE algorithms in ClimaTimeSteppers.
+
+Concrete subtypes include [`IMEXAlgorithm`](@ref),
+[`LowStorageRungeKutta2N`](@ref), [`Multirate`](@ref), and
+[`RosenbrockAlgorithm`](@ref).
+"""
+abstract type TimeSteppingAlgorithm end
+"""Backward-compatible alias for [`TimeSteppingAlgorithm`](@ref)."""
+const DistributedODEAlgorithm = TimeSteppingAlgorithm
 
 abstract type AbstractAlgorithmName end
 
@@ -100,8 +104,74 @@ will be able to use limiters in a mathematically consistent way.
 """
 struct SSP <: AbstractAlgorithmConstraint end
 
-SciMLBase.allowscomplex(alg::DistributedODEAlgorithm) = true
+"""
+    DiscreteCallback(condition, affect!; initialize, finalize)
+
+A callback checked after each integrator step.
+
+# Arguments
+- `condition`: function `(u, t, integrator) -> Bool`
+- `affect!`: function `(integrator) -> nothing`, called when `condition` returns `true`
+
+# Keyword Arguments
+- `initialize`: function `(cb, u, t, integrator)` called at integrator startup
+- `finalize`: function `(cb, u, t, integrator)` called when [`solve!`](@ref) finishes
+
+See also [`CallbackSet`](@ref), [`ClimaTimeSteppers.Callbacks`](@ref).
+"""
+struct DiscreteCallback{C, A, I, F}
+    condition::C
+    affect!::A
+    initialize::I
+    finalize::F
+end
+function DiscreteCallback(
+    condition, affect!;
+    initialize = Returns(nothing),
+    finalize = Returns(nothing),
+)
+    DiscreteCallback(condition, affect!, initialize, finalize)
+end
+
+# COMPAT: once ClimaTimeSteppersSciMLExt and SciMLBase backward compatibility are
+# removed, simplify this struct by dropping the `continuous_callbacks` field and
+# the `CallbackSet(cbs::Tuple)` constructor:
+#   struct CallbackSet{DC <: Tuple}
+#       discrete_callbacks::DC
+#   end
+#   CallbackSet(cbs::DiscreteCallback...) = CallbackSet(cbs)
+"""
+    CallbackSet(callbacks...)
+
+A collection of [`DiscreteCallback`](@ref)s applied after each step.
+Accepts `nothing`, individual `DiscreteCallback`s, or nested `CallbackSet`s.
+"""
+struct CallbackSet{DC <: Tuple}
+    continuous_callbacks::Tuple{}  # always empty; included for SciMLBase duck-typing compat
+    discrete_callbacks::DC
+end
+CallbackSet(cbs::Tuple) = CallbackSet((), cbs)
+CallbackSet(cbs::DiscreteCallback...) = CallbackSet((), cbs)
+CallbackSet(::Nothing, cbs::DiscreteCallback...) = CallbackSet((), cbs)
+CallbackSet(cb::DiscreteCallback, cbs::DiscreteCallback...) =
+    CallbackSet((), (cb, cbs...))
+CallbackSet((; discrete_callbacks)::CallbackSet, cbs::DiscreteCallback...) =
+    CallbackSet((), (discrete_callbacks..., cbs...))
+
+function initialize_callbacks!(cbset::CallbackSet, u, t, integrator)
+    for cb in cbset.discrete_callbacks
+        cb.initialize(cb, u, t, integrator)
+    end
+end
+function finalize_callbacks!(cbset::CallbackSet, u, t, integrator)
+    for cb in cbset.discrete_callbacks
+        cb.finalize(cb, u, t, integrator)
+    end
+end
+
 include("integrators.jl")
+"""Backward-compatible alias for `TimeStepperIntegrator`."""
+const DistributedODEIntegrator = TimeStepperIntegrator
 
 include("utilities/update_signal_handler.jl")
 include("utilities/convergence_condition.jl")
@@ -128,7 +198,17 @@ include("solvers/rosenbrock.jl")
 
 include("Callbacks.jl")
 
-include("arbitrary_number_types.jl")
+# COMPAT: remove this entire module once ClimaTimeSteppersSciMLExt and
+# ClimaTimeSteppersDiffEqExt are removed.
+# Backward-compatibility stub: provides CTS.DiffEqBase.KeywordArgSilent
+# so downstream code using `kwargshandle = CTS.DiffEqBase.KeywordArgSilent`
+# continues to work without the real DiffEqBase loaded.
+# When the ClimaTimeSteppersDiffEqExt extension loads, it replaces this
+# with the real DiffEqBase module.
+module DiffEqBase
+struct KeywordArgSilentType end
+const KeywordArgSilent = KeywordArgSilentType()
+end
 
 benchmark_step(integrator, device) =
     @warn "Must load CUDA, BenchmarkTools, OrderedCollections, StatsBase, PrettyTables to trigger the ClimaTimeSteppersBenchmarkToolsExt extension"

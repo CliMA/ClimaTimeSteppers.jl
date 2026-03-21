@@ -1,4 +1,4 @@
-# Rosenbrock methods
+# [Rosenbrock methods](@id rosenbrock-methods)
 
 In this page, we introduce Rosenbrock-type methods to solve ordinary
 differential equations. In doing so, we roughly follow Chapter IV.7 of "Solving
@@ -136,7 +136,7 @@ and
 \gamma _{i} = \sum_{j=1}^{i}\gamma_{ij}.
 ```
 
-**Sign convention.** The system solved at each stage keeps the prefactor $(J \Delta t \gamma_{ii} - I)$ — the matrix known as `Wfact` in `DifferentialEquations.jl`. This sign convention is used throughout `ClimaTimeSteppers.jl` for consistency with that ecosystem.
+**Sign convention.** The system solved at each stage uses the prefactor $(J \Delta t \gamma_{ii} - I)$. The function that computes this matrix is called `Wfact` and is stored in the [`ClimaTimeSteppers.ODEFunction`](@ref) wrapper.
 
 ## Implementation
 
@@ -166,4 +166,8 @@ and
 b = \left(\tfrac{1}{6},\, \tfrac{1}{6},\, \tfrac{2}{3}\right)\,.
 ```
 
-At each stage, the state $g_i$ is computed as a linear combination of the previous stage increments $\widetilde{k}_j$. At stage $i > 1$, DSS and cache updates are applied to $g_i$ before evaluating tendencies, ensuring the state is continuous and consistent with the cache. The first stage is identical to the end of the previous timestep (which was already DSS'd), so DSS is skipped there. After all stages are complete, the final state $u$ is updated as $u \mathrel{+}= \sum_i m_i \widetilde{k}_i$ and DSS is applied once more.
+At each stage, the state $g_i$ is computed as a linear combination of the previous stage increments $\widetilde{k}_j$. At stage $i > 1$, DSS and cache updates are applied to $g_i$ before evaluating tendencies, ensuring the state is continuous and consistent with the cache. The first stage is identical to the end of the previous timestep (which was already DSS'd), so DSS is skipped there.
+
+The tendency is evaluated as the sum of implicit ($T_{\text{imp}}$), explicit ($T_{\text{exp}}$), and limited ($T_{\text{lim}}$) parts — the same splitting used by the IMEX ARK methods. The limited tendency $T_{\text{lim}}$ is included only when a limiter is configured (see [`ClimaODEFunction`](@ref)).
+
+After all stages are complete, the final state $u$ is updated as $u \mathrel{+}= \sum_i m_i \widetilde{k}_i$ and DSS is applied once more.

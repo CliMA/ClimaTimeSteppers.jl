@@ -1,27 +1,12 @@
 using Documenter, DocumenterCitations
 using InteractiveUtils: subtypes
 using ClimaTimeSteppers
-using Literate
 
-tutorial_basedir = "tutorials"
-tutorial_basedir_from_here = joinpath(@__DIR__, "src", tutorial_basedir)
-
-jl_files_in_basedir = filter(endswith(".jl"), readdir(tutorial_basedir_from_here))
-
-println("Building literate tutorials...")
-generated_tutorials = String[]
-for filename in jl_files_in_basedir
-    Literate.markdown(
-        joinpath(tutorial_basedir_from_here, filename),
-        tutorial_basedir_from_here;
-        execute = true,
-        flavor = Literate.CommonMarkFlavor(),
-    )
-    push!(
-        generated_tutorials,
-        joinpath(tutorial_basedir, replace(filename, ".jl" => ".md")),
-    )
-end
+# Tutorials are plain .md files with @example blocks (executed by Documenter)
+tutorial_dir = joinpath(@__DIR__, "src", "tutorials")
+tutorials = [
+    joinpath("tutorials", f) for f in sort(readdir(tutorial_dir)) if endswith(f, ".md")
+]
 
 # https://github.com/jheinen/GR.jl/issues/278#issuecomment-587090846
 ENV["GKSwstype"] = "nul"
@@ -77,7 +62,7 @@ pages = [
         "Stability" => "algorithm_properties/stability.md",
         "Convergence" => "algorithm_properties/convergence.md",
     ],
-    "Tutorials" => generated_tutorials,
+    "Tutorials" => tutorials,
     "API docs" => [
         "ODE Solvers" => "api/ode_solvers.md",
         "Newtons Method" => "api/newtons_method.md",
@@ -88,7 +73,7 @@ pages = [
         "Types" => "dev/types.md",
         "Developer Guide" => "dev/report_gen.md",
     ],
-    "contributing.md",
+    "Contributing" => "contributing.md",
     "references.md",
 ]
 #! format: on

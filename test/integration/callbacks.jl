@@ -1,7 +1,9 @@
 using Test
 using ClimaComms
-using ClimaTimeSteppers, DiffEqBase
-using ClimaTimeSteppers.Callbacks
+using ClimaTimeSteppers
+import ClimaTimeSteppers: ODEProblem, IncrementingODEFunction, solve
+using ClimaTimeSteppers: CallbackSet, Callbacks
+using .Callbacks
 try
     import MPI
 catch
@@ -97,11 +99,8 @@ solve(const_prob_inc, LSRKEulerMethod(), dt = 1 / 32, callback = cbs)
 # exactly the same number of times even if non-root ranks slept for half as long.
 @test cb5.calls >= 2
 
-if isdefined(DiffEqBase, :finalize!)
-
-    @test cb1.finalized
-    @test cb2.finalized
-    @test cb3.finalized
-    @test cb4.finalized
-    @test cb5.finalized
-end
+@test cb1.finalized
+@test cb2.finalized
+@test cb3.finalized
+@test cb4.finalized
+@test cb5.finalized

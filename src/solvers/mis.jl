@@ -14,7 +14,7 @@ The available implementations are:
  - [`TVDMISA`](@ref)
  - [`TVDMISB`](@ref)
 """
-abstract type MultirateInfinitesimalStep <: DistributedODEAlgorithm end
+abstract type MultirateInfinitesimalStep <: TimeSteppingAlgorithm end
 
 const T1Type = SArray{NTuple{1, Nstages}, RT, 1, Nstages} where {Nstages, RT}
 const T2Type = SArray{NTuple{2, Nstages}, RT, 2, Nstages²} where {Nstages, RT, Nstages²}
@@ -99,52 +99,24 @@ function update_inner!(
     # the (i+1)th stage of the paper
     innerinteg.u = i == N ? u : ΔU[i]
 
-    groupsize = 256
-    if isdefined(KernelAbstractions, :Event)
-        event = Event(array_device(u))
-        event = mis_update!(array_device(u), groupsize)(
-            u,
-            ΔU,
-            F,
-            innerinteg.u,
-            f_offset.x,
-            outercache.tableau, # TODO: verify correctness
-            i,
-            N,
-            dt;
-            ndrange = length(u),
-            dependencies = (event,),
-        )
-        wait(array_device(u), event)
-    else
-        mis_update!(array_device(u), groupsize)(
-            u,
-            ΔU,
-            F,
-            innerinteg.u,
-            f_offset.x,
-            outercache.tableau, # TODO: verify correctness
-            i,
-            N,
-            dt;
-            ndrange = length(u),
-        )
-        KernelAbstractions.synchronize(array_device(u))
-    end
+    mis_update!(u, ΔU, F, innerinteg.u, f_offset.x, outercache.tableau, i, N, dt)
 
     # KW2014 (9)
     # evaluate f_fast(z(τ), p, t + c̃[i]*dt + (c[i]-c̃[i])/d[i] * τ)
     f_offset.α = t + c̃[i] * dt
     f_offset.β = (c[i] - c̃[i]) / d[i]
 
+    # Reset the inner integrator to run from τ=0 to τ=d[i]*dt.
+    # We must clear old tstops (including the original tspan end) to
+    # prevent solve! from running past the intended interval.
     innerinteg.t = zero(t)
-    DiffEqBase.add_tstop!(innerinteg, d[i] * dt) # TODO: verify correctness
+    empty!(innerinteg.tstops)
+    push!(innerinteg.tstops, d[i] * dt)
 end
 
-@kernel function mis_update!(u, ΔU, F, innerinteg_u, f_offset_x, tab, i, N, dt)
-    e = @index(Global, Linear)
-    @inbounds begin
-        (; α, β, d, γ) = tab
+function mis_update!(u, ΔU, F, innerinteg_u, f_offset_x, tab, i, N, dt)
+    (; α, β, d, γ) = tab
+    @inbounds for e in eachindex(u)
         if i > 1
             ΔU[i - 1][e] -= u[e]
         end
@@ -158,7 +130,7 @@ end
         end
 
         # KW2014 (1b) / (9)
-        f_offset_x[e] = β[i, i] / d[i] .* F[i][e]
+        f_offset_x[e] = β[i, i] / d[i] * F[i][e]
         for j in 1:(i - 1)
             f_offset_x[e] += (γ[i, j] / (d[i] * dt)) * ΔU[j][e] + β[i, j] / d[i] * F[j][e]
         end

@@ -4,11 +4,12 @@ Tests for the `T_lim!` / `lim!` code path in IMEX solvers.
 Verifies that the generic scalar limiter is applied correctly during explicit 
 and IMEX timestepping by using a simple clipping limiter that mathematically enforces non-negativity.
 =#
-using ClimaTimeSteppers, DiffEqBase, LinearAlgebra, Test
+using ClimaTimeSteppers, LinearAlgebra, Test
 import ClimaTimeSteppers as CTS
+import ClimaTimeSteppers: ODEProblem, ODEFunction, solve
 
 @testset "T_lim! and lim! integration" begin
-    hide_warning = (; kwargshandle = DiffEqBase.KeywordArgSilent)
+
     @testset "Explicit algorithm with limiter" begin
         # Problem: du/dt = -u (decay), split into T_lim (limited) component.
         # The limiter clips values to [0, ∞).
@@ -27,7 +28,7 @@ import ClimaTimeSteppers as CTS
 
         alg = ExplicitAlgorithm(SSP33ShuOsher())
 
-        sol = solve(prob, alg; dt = 0.01, save_everystep = false, hide_warning...)
+        sol = solve(prob, alg; dt = 0.01, save_everystep = false)
         u_final = sol.u[end]
 
         # Should approximate exp(-0.5) * u₀
@@ -54,7 +55,7 @@ import ClimaTimeSteppers as CTS
 
         alg = ExplicitAlgorithm(SSP33ShuOsher())
 
-        sol = solve(prob, alg; dt = 0.1, save_everystep = true, hide_warning...)
+        sol = solve(prob, alg; dt = 0.1, save_everystep = true)
 
         # All saved values should be non-negative due to limiter
         for u in sol.u
@@ -74,7 +75,7 @@ import ClimaTimeSteppers as CTS
                     du_exp .= 0.01 .* u
                     du_lim .= -0.1 .* u
                 end,
-                T_imp! = DiffEqBase.ODEFunction(
+                T_imp! = ODEFunction(
                     (du, u, p, t) -> (du .= 0);
                     jac_prototype = zeros(2, 2),
                     Wfact = (W, u, p, dtγ, t) -> (W .= -Id),
@@ -88,7 +89,7 @@ import ClimaTimeSteppers as CTS
 
         alg = CTS.IMEXAlgorithm(ARS343(), NewtonsMethod(; max_iters = 1))
 
-        sol = solve(prob, alg; dt = 0.05, save_everystep = false, hide_warning...)
+        sol = solve(prob, alg; dt = 0.05, save_everystep = false)
         u_final = sol.u[end]
 
         # Combined rate is -0.09, so solution ≈ exp(-0.09) * u₀

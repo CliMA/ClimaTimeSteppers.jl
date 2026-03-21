@@ -36,7 +36,7 @@ end
 function get_adding_callback(save_dt_times, t0, tf)
     function adding_function!(integrator)
         if integrator.t in save_dt_times
-            DiffEqBase.add_saveat!(integrator, integrator.t)
+            ClimaTimeSteppers.add_saveat!(integrator, integrator.t)
         end
         next_saving_time_index = findfirst(
             saving_time ->
@@ -44,18 +44,17 @@ function get_adding_callback(save_dt_times, t0, tf)
             save_dt_times,
         )
         isnothing(next_saving_time_index) && return
-        DiffEqBase.add_tstop!(integrator, save_dt_times[next_saving_time_index])
+        ClimaTimeSteppers.add_tstop!(integrator, save_dt_times[next_saving_time_index])
     end
-    return SciMLBase.DiscreteCallback(
+    return ClimaTimeSteppers.DiscreteCallback(
         (u, t, integrator) -> true,
         adding_function!;
         initialize = (cb, u, t, integrator) -> adding_function!(integrator),
-        save_positions = (false, false), # stop OrdinaryDiffEq from saving
     )
 end
 
 function get_setting_callback()
     setting_function!(integrator) =
-        ClimaTimeSteppers.set_dt!(integrator, 2 * DiffEqBase.get_dt(integrator))
-    return SciMLBase.DiscreteCallback((u, t, integrator) -> true, setting_function!)
+        ClimaTimeSteppers.set_dt!(integrator, 2 * ClimaTimeSteppers.get_dt(integrator))
+    return ClimaTimeSteppers.DiscreteCallback((u, t, integrator) -> true, setting_function!)
 end

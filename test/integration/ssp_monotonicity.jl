@@ -9,11 +9,12 @@ c is the SSP coefficient.
 We test this by using a problem where forward Euler preserves non-negativity
 for dt ≤ 1/λ, and verify that SSP methods also preserve it.
 =#
-using ClimaTimeSteppers, DiffEqBase, Test
+using ClimaTimeSteppers, Test
+import ClimaTimeSteppers: ODEProblem, solve
 
 @testset "SSP monotonicity" begin
 
-    hide_warning = (; kwargshandle = DiffEqBase.KeywordArgSilent)
+
 
     @testset "Explicit SSP methods preserve non-negativity" begin
         # du/dt = -λ * u, forward Euler: u_{n+1} = (1 - λ*dt) * u_n
@@ -34,7 +35,7 @@ using ClimaTimeSteppers, DiffEqBase, Test
                     (0.0, 10.0),
                     nothing,
                 )
-                sol = solve(prob, alg; dt = dt_safe, save_everystep = true, hide_warning...)
+                sol = solve(prob, alg; dt = dt_safe, save_everystep = true)
                 # All states at all times must be non-negative
                 for u in sol.u
                     @test all(u .>= 0)
@@ -54,7 +55,7 @@ using ClimaTimeSteppers, DiffEqBase, Test
             nothing,
         )
         alg = ExplicitAlgorithm(RK4())
-        sol = solve(prob, alg; dt = 0.5, save_everystep = false, hide_warning...)
+        sol = solve(prob, alg; dt = 0.5, save_everystep = false)
         # With λ*dt = 5, RK4 is outside its stability region.
         # The solution should blow up rather than decay to ~exp(-20) ≈ 2e-9.
         @test abs(sol.u[end][1]) > 1.0
@@ -74,7 +75,7 @@ using ClimaTimeSteppers, DiffEqBase, Test
             nothing,
         )
         alg = ExplicitAlgorithm(SSP33ShuOsher())
-        sol = solve(prob, alg; dt = 0.5, save_everystep = true, hide_warning...)
+        sol = solve(prob, alg; dt = 0.5, save_everystep = true)
         for u in sol.u
             @test all(u .>= 0)
         end

@@ -3,7 +3,6 @@ julia --project=test
 using Revise; include("test/solvers/rosenbrock.jl")
 =#
 using ClimaTimeSteppers, LinearAlgebra, Test
-import SciMLBase
 
 if !@isdefined(IntegratorTestCase)
     include(joinpath(@__DIR__, "..", "utils", "convergence_utils.jl"))

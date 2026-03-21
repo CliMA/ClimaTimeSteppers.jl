@@ -8,7 +8,7 @@ Usage:
     julia --project=perf perf/jet.jl --problem ark_sys
     julia --project=perf perf/jet.jl --problem diffusion2d
 =#
-using ArgParse, JET, Test, BenchmarkTools, SciMLBase, ClimaTimeSteppers
+using ArgParse, JET, Test, BenchmarkTools, ClimaTimeSteppers
 import ClimaTimeSteppers as CTS
 
 # ── Command-line interface ──────────────────────────────────────────────── #
@@ -50,17 +50,16 @@ function discrete_cb(cb!, n)
     else
         (u, t, integrator) -> isnothing(cb!(integrator)) || rand() ≤ 0.5
     end
-    SciMLBase.DiscreteCallback(cond, cb!)
+    CTS.DiscreteCallback(cond, cb!)
 end
 
 function make_integrator(problem)
     algorithm = CTS.IMEXAlgorithm(ARS343(), NewtonsMethod(; max_iters = 2))
-    callbacks = SciMLBase.CallbackSet(
-        (),
-        (discrete_cb(Foo(), 0), discrete_cb(Bar(), 0),
-            discrete_cb(Foo(), 1), discrete_cb(Bar(), 1)),
+    callbacks = CTS.CallbackSet(
+        discrete_cb(Foo(), 0), discrete_cb(Bar(), 0),
+        discrete_cb(Foo(), 1), discrete_cb(Bar(), 1),
     )
-    integrator = SciMLBase.init(problem, algorithm; dt = 0.01, callback = callbacks)
+    integrator = CTS.init(problem, algorithm; dt = 0.01, callback = callbacks)
     integrator.cache = CTS.init_cache(problem, algorithm)
     return integrator
 end

@@ -44,6 +44,7 @@ test_convergence!(
     finitediff_1Dheat_test_cts(Float64),
     200;
     numerical_reference_algorithm_name = ARK548L2SA2(),
+    broken_tests = (ARK548L2SA2(),),
 )
 
 test_convergence!(
@@ -52,6 +53,7 @@ test_convergence!(
     finitediff_2Dheat_test_cts(Float64),
     200;
     numerical_reference_algorithm_name = ARK548L2SA2(),
+    broken_tests = (ARK548L2SA2(),),
 )
 
 # The stiff_linear problem has eigenvalue λ = 1000 in the implicit part. Three

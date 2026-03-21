@@ -1,17 +1,18 @@
 export LSRK54CarpenterKennedy, LSRK144NiegemannDiehlBusch, LSRKEulerMethod
 
 """
-    LowStorageRungeKutta2N <: DistributedODEAlgorithm
+    LowStorageRungeKutta2N <: TimeSteppingAlgorithm
 
-A class of low-storage Runge-Kutta algorithms, which use only one additional
-copy of the state vector ``u`` (often referred to as ``2N`` schemes).
+Low-storage Runge-Kutta methods that need only **two** state-sized arrays
+(the ``2N`` family). The ODE function must support the incrementing call form
+`f(du, u, p, t, α, β)` (see [`IncrementingODEFunction`](@ref)).
 
-The available implementations are:
- - [`LSRKEulerMethod`](@ref)
- - [`LSRK54CarpenterKennedy`](@ref)
- - [`LSRK144NiegemannDiehlBusch`](@ref)
+# Implementations
+- [`LSRKEulerMethod`](@ref) — forward Euler (1 stage, order 1; for debugging)
+- [`LSRK54CarpenterKennedy`](@ref) — 5 stages, order 4
+- [`LSRK144NiegemannDiehlBusch`](@ref) — 14 stages, order 4 (wide stability region)
 """
-abstract type LowStorageRungeKutta2N <: DistributedODEAlgorithm end
+abstract type LowStorageRungeKutta2N <: TimeSteppingAlgorithm end
 
 
 """
@@ -35,8 +36,6 @@ struct LowStorageRungeKutta2NIncCache{T <: LowStorageRungeKutta2NTableau, A}
 end
 
 function init_cache(prob, alg::LowStorageRungeKutta2N; kwargs...)
-    # @assert prob.problem_type isa DiffEqBase.IncrementingODEProblem ||
-    #     prob.f isa DiffEqBase.IncrementingODEFunction
     du = zero(prob.u0)
     return LowStorageRungeKutta2NIncCache(tableau(alg, eltype(du)), du)
 end
@@ -78,8 +77,6 @@ function update_inner!(
     τ0 = t + C[stage] * dt
     τ1 = stage == N ? t + dt : t + C[stage + 1] * dt
     f_offset.α = τ0
-    innerinteg.t = zero(τ0)
-    DiffEqBase.add_tstop!(innerinteg, τ1 - τ0) # TODO: verify correctness
 
     #  du .= f(u, p, t + C[stage]*dt) .+ A[stage] .* du
     f_slow(f_offset.x, u, p, τ0, 1, A[stage])
@@ -87,6 +84,13 @@ function update_inner!(
     C0 = C[stage]
     C1 = stage == N ? one(C[stage]) : C[stage + 1]
     f_offset.γ = B[stage] / (C1 - C0)
+
+    # Reset the inner integrator to run from τ=0 to τ=τ1-τ0.
+    # We must clear old tstops (including the original tspan end) to
+    # prevent solve! from running past the intended interval.
+    innerinteg.t = zero(τ0)
+    empty!(innerinteg.tstops)
+    push!(innerinteg.tstops, τ1 - τ0)
 end
 
 

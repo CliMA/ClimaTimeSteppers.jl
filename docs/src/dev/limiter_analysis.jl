@@ -39,7 +39,7 @@ dt = test_case.t_end / num_steps
 algorithm =
     alg_name isa ClimaTimeSteppers.IMEXARKAlgorithmName ?
     IMEXAlgorithm(alg_name, NewtonsMethod()) : ExplicitAlgorithm(alg_name)
-solution = solve(deepcopy(prob), algorithm; dt).u
+solution = solve(ODEProblem(prob.f, copy(prob.u0), prob.tspan, prob.p), algorithm; dt).u
 
 limiter_results = Dict()
 limiter_results[alg_str, use_hyperdiffusion, use_limiter] = solution

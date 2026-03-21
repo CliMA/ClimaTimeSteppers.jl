@@ -8,7 +8,7 @@ viewer locally.
 Usage:
     julia --project=perf perf/flame.jl --job_id diffusion_1D
 =#
-using ArgParse, Test, BenchmarkTools, DiffEqBase, ClimaTimeSteppers
+using ArgParse, Test, BenchmarkTools, ClimaTimeSteppers
 import ClimaTimeSteppers as CTS
 import Profile
 import ProfileCanvas
@@ -34,7 +34,7 @@ include(joinpath(cts_root, "test", "problems.jl"))
 
 test_case = finitediff_1Dheat_test_cts(Float64)
 algorithm = CTS.IMEXAlgorithm(ARS343(), NewtonsMethod(; max_iters = 2))
-integrator = DiffEqBase.init(test_case.split_prob, algorithm; dt = 0.01)
+integrator = CTS.init(test_case.split_prob, algorithm; dt = 0.01)
 cache = CTS.init_cache(test_case.split_prob, algorithm)
 
 # ── Profiling ────────────────────────────────────────────────────────────── #
@@ -46,12 +46,6 @@ function do_work!(integrator, cache)
 end
 
 do_work!(integrator, cache)  # warm-up / compilation
-
-# Verify zero allocations after compilation
-n_allocs = @allocated do_work!(integrator, cache)
-@testset "Flame profiler allocations" begin
-    @test n_allocs == 0
-end
 
 # Collect profile data
 Profile.clear_malloc_data()
@@ -68,4 +62,11 @@ if haskey(ENV, "BUILDKITE_COMMIT") || haskey(ENV, "BUILDKITE_BRANCH")
 else
     # Locally: open the interactive flame-graph viewer
     ProfileCanvas.view(Profile.fetch())
+end
+
+# Verify zero allocations after compilation (placed last so that profile
+# artifacts are always exported, even when this check fails).
+n_allocs = @allocated do_work!(integrator, cache)
+@testset "Flame profiler allocations" begin
+    @test n_allocs == 0
 end

@@ -1,19 +1,19 @@
 export SSPKnoth
 using StaticArrays
-import DiffEqBase
 import LinearAlgebra: ldiv!, diagm
 import LinearAlgebra
 
 abstract type RosenbrockAlgorithmName <: AbstractAlgorithmName end
 
 """
-    RosenbrockTableau{N, RT, N²}
+    RosenbrockTableau{N}
 
-Contains everything that defines a Rosenbrock-type method.
+Tableau for an `N`-stage Rosenbrock method. Stores the transformed coefficients
+``A = α Γ^{-1}``, ``C = \\mathrm{diag}(Γ^{-1}) - Γ^{-1}``, and
+``m = b Γ^{-1}`` used in the actual computation, along with the original
+``α`` and ``Γ``.
 
-- N: number of stages.
-
-Refer to the documentation for the precise meaning of the symbols below.
+See the [Rosenbrock algorithm formulation](@ref rosenbrock-methods) for details.
 """
 struct RosenbrockTableau{N, SM <: SMatrix{N, N}, SM1 <: SMatrix{N, 1}}
     """A = α Γ⁻¹"""
@@ -45,10 +45,22 @@ end
 """
     RosenbrockAlgorithm(tableau)
 
-Constructs a Rosenbrock algorithm for solving ODEs.
+A Rosenbrock-type ODE algorithm. The implicit system at each stage is a single
+linear solve (no Newton iteration), making Rosenbrock methods cheaper per step
+than fully implicit IMEX methods when updating the Jacobian is inexpensive.
+
+# Arguments
+- `tableau`: a [`RosenbrockTableau`](@ref) (e.g. `tableau(SSPKnoth())`)
+
+# Example
+```julia
+import ClimaTimeSteppers as CTS
+
+alg = CTS.RosenbrockAlgorithm(CTS.tableau(SSPKnoth()))
+```
 """
 struct RosenbrockAlgorithm{T <: RosenbrockTableau} <:
-       ClimaTimeSteppers.DistributedODEAlgorithm
+       ClimaTimeSteppers.TimeSteppingAlgorithm
     tableau::T
 end
 
@@ -128,12 +140,12 @@ function step_u!(int, cache::RosenbrockCache{Nstages}) where {Nstages}
     (; m, Γ, A, α, C) = int.alg.tableau
     (; u, p, t, dt) = int
     (; W, U, fU, fU_imp, fU_exp, fU_lim, k, ∂Y∂t) = cache
-    T_imp! = int.sol.prob.f.T_imp!
-    T_exp! = int.sol.prob.f.T_exp!
-    T_exp_lim! = int.sol.prob.f.T_exp_T_lim!
+    f = int.sol.prob.f
+    T_imp! = f.T_imp!
+    T_exp_T_lim! = f.T_exp_T_lim!
     tgrad! = isnothing(T_imp!) ? nothing : T_imp!.tgrad
 
-    (; cache!, dss!) = int.sol.prob.f
+    (; cache!, dss!) = f
 
     # TODO: This is only valid when Γ[i, i] is constant, otherwise we have to
     # move this in the for loop
@@ -173,15 +185,10 @@ function step_u!(int, cache::RosenbrockCache{Nstages}) where {Nstages}
             fU .+= fU_imp
         end
 
-        if !isnothing(T_exp!)
-            T_exp!(fU_exp, U, p, t + αi * dt)
+        if !isnothing(T_exp_T_lim!)
+            T_exp_T_lim!(fU_exp, fU_lim, U, p, t + αi * dt)
             fU .+= fU_exp
-        end
-
-        if !isnothing(T_exp_lim!)
-            T_exp_lim!(fU_exp, fU_lim, U, p, t + αi * dt)
-            fU .+= fU_exp
-            fU .+= fU_lim
+            has_T_lim(f) && (fU .+= fU_lim)
         end
 
         if !isnothing(tgrad!)
@@ -217,12 +224,13 @@ end
 """
     SSPKnoth
 
-`SSPKnoth` is a second-order Rosenbrock method developed by Oswald Knoth.
+A 3-stage, 2nd-order Rosenbrock method developed by Oswald Knoth.
 
-The coefficients are the same as in `CGDycore.jl`, except that for C we add the
-diagonal elements too. Note, however, that the elements on the diagonal of C do
-not really matter because C is only used in its lower triangular part. We add them
-mostly to match literature on the subject
+Use with [`RosenbrockAlgorithm`](@ref):
+```julia
+import ClimaTimeSteppers as CTS
+alg = CTS.RosenbrockAlgorithm(CTS.tableau(SSPKnoth()))
+```
 """
 struct SSPKnoth <: RosenbrockAlgorithmName end
 

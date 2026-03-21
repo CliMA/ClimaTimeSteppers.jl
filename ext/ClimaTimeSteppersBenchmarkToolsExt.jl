@@ -2,7 +2,7 @@ module ClimaTimeSteppersBenchmarkToolsExt
 
 
 import StatsBase
-import SciMLBase
+
 import PrettyTables
 import OrderedCollections
 import LinearAlgebra as LA
@@ -138,7 +138,7 @@ function CTS.benchmark_step(
         maybe_push!(trials₀, "dss!", f.dss!, (u, p, t), kwargs, only)
         maybe_push!(trials₀, "cache!", f.cache!, (u, p, t), kwargs, only)
         maybe_push!(trials₀, "cache_imp!", f.cache_imp!, (u, p, t), kwargs, only)
-        maybe_push!(trials₀, "step!", SciMLBase.step!, (integrator, ), kwargs, only)
+        maybe_push!(trials₀, "step!", CTS.step!, (integrator, ), kwargs, only)
 #! format: on
 
         trials = OrderedCollections.OrderedDict()

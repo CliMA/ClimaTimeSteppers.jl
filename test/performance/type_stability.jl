@@ -1,8 +1,9 @@
 #=
 Type stability tests: verify key hot-path functions are type-stable.
 =#
-using ClimaTimeSteppers, DiffEqBase, LinearAlgebra, Test
+using ClimaTimeSteppers, LinearAlgebra, Test
 import ClimaTimeSteppers as CTS
+import ClimaTimeSteppers: ODEProblem, ODEFunction, IncrementingODEFunction, SplitODEProblem
 using ClimaTimeSteppers: SparseCoeffs, fused_increment, SparseContainer
 
 @testset "Type stability" begin
@@ -39,7 +40,6 @@ using ClimaTimeSteppers: SparseCoeffs, fused_increment, SparseContainer
     end
 
     @testset "Solver stepping smoke tests" begin
-        hide = (; kwargshandle = DiffEqBase.KeywordArgSilent)
 
         @testset "Explicit RK (SSP33ShuOsher)" begin
             prob = ODEProblem(
@@ -49,10 +49,10 @@ using ClimaTimeSteppers: SparseCoeffs, fused_increment, SparseContainer
                 nothing,
             )
             alg = ExplicitAlgorithm(SSP33ShuOsher())
-            int = DiffEqBase.init(prob, alg; dt = 0.1, save_everystep = false, hide...)
-            DiffEqBase.step!(int)  # warmup
+            int = CTS.init(prob, alg; dt = 0.1, save_everystep = false)
+            CTS.step!(int)  # warmup
             # step_u! dispatches on cache type; verify step! doesn't error on second call
-            DiffEqBase.step!(int)
+            CTS.step!(int)
             @test all(isfinite, int.u)
         end
 
@@ -66,15 +66,14 @@ using ClimaTimeSteppers: SparseCoeffs, fused_increment, SparseContainer
                 (0.0, 1.0),
                 nothing,
             )
-            int = DiffEqBase.init(
+            int = CTS.init(
                 prob,
                 LSRK54CarpenterKennedy();
                 dt = 0.1,
                 save_everystep = false,
-                hide...,
             )
-            DiffEqBase.step!(int)
-            DiffEqBase.step!(int)
+            CTS.step!(int)
+            CTS.step!(int)
             @test all(isfinite, int.u)
         end
 
@@ -84,7 +83,7 @@ using ClimaTimeSteppers: SparseCoeffs, fused_increment, SparseContainer
             prob = ODEProblem(
                 ClimaODEFunction(;
                     T_exp! = (du, u, p, t) -> (du .= 0.1 .* u),
-                    T_imp! = DiffEqBase.ODEFunction(
+                    T_imp! = ODEFunction(
                         (du, u, p, t) -> (du .= -0.5 .* u);
                         jac_prototype = zeros(n, n),
                         Wfact = (W, u, p, dtγ, t) -> (W .= -0.5 * dtγ .* Id .- Id),
@@ -95,15 +94,14 @@ using ClimaTimeSteppers: SparseCoeffs, fused_increment, SparseContainer
                 nothing,
             )
             alg = CTS.IMEXAlgorithm(ARS232(), NewtonsMethod(; max_iters = 2))
-            int = DiffEqBase.init(
+            int = CTS.init(
                 deepcopy(prob),
                 alg;
                 dt = 0.1,
                 save_everystep = false,
-                hide...,
             )
-            DiffEqBase.step!(int)
-            DiffEqBase.step!(int)
+            CTS.step!(int)
+            CTS.step!(int)
             @test all(isfinite, int.u)
         end
 
@@ -113,7 +111,7 @@ using ClimaTimeSteppers: SparseCoeffs, fused_increment, SparseContainer
             prob = ODEProblem(
                 ClimaODEFunction(;
                     T_exp! = (du, u, p, t) -> (du .= 0.1 .* u),
-                    T_imp! = DiffEqBase.ODEFunction(
+                    T_imp! = ODEFunction(
                         (du, u, p, t) -> (du .= -0.5 .* u);
                         jac_prototype = zeros(n, n),
                         Wfact = (W, u, p, dtγ, t) -> (W .= -0.5 * dtγ .* Id .- Id),
@@ -124,15 +122,14 @@ using ClimaTimeSteppers: SparseCoeffs, fused_increment, SparseContainer
                 nothing,
             )
             alg = CTS.RosenbrockAlgorithm(ClimaTimeSteppers.tableau(SSPKnoth()))
-            int = DiffEqBase.init(
+            int = CTS.init(
                 deepcopy(prob),
                 alg;
                 dt = 0.1,
                 save_everystep = false,
-                hide...,
             )
-            DiffEqBase.step!(int)
-            DiffEqBase.step!(int)
+            CTS.step!(int)
+            CTS.step!(int)
             @test all(isfinite, int.u)
         end
 
@@ -151,22 +148,20 @@ using ClimaTimeSteppers: SparseCoeffs, fused_increment, SparseContainer
                 nothing,
             )
             alg = Multirate(LSRK54CarpenterKennedy(), MIS3C())
-            int = DiffEqBase.init(
+            int = CTS.init(
                 deepcopy(prob),
                 alg;
                 dt = 0.1,
                 fast_dt = 0.01,
                 save_everystep = false,
-                hide...,
             )
-            DiffEqBase.step!(int)
-            DiffEqBase.step!(int)
+            CTS.step!(int)
+            CTS.step!(int)
             @test all(isfinite, int.u)
         end
     end
 
     @testset "Float32 stepping smoke tests" begin
-        hide = (; kwargshandle = DiffEqBase.KeywordArgSilent)
 
         @testset "Explicit RK Float32" begin
             prob = ODEProblem(
@@ -176,9 +171,9 @@ using ClimaTimeSteppers: SparseCoeffs, fused_increment, SparseContainer
                 nothing,
             )
             alg = ExplicitAlgorithm(SSP33ShuOsher())
-            int = DiffEqBase.init(prob, alg; dt = 0.1f0, save_everystep = false, hide...)
-            DiffEqBase.step!(int)
-            DiffEqBase.step!(int)
+            int = CTS.init(prob, alg; dt = 0.1f0, save_everystep = false)
+            CTS.step!(int)
+            CTS.step!(int)
             @test eltype(int.u) == Float32
             @test all(isfinite, int.u)
         end
@@ -193,15 +188,14 @@ using ClimaTimeSteppers: SparseCoeffs, fused_increment, SparseContainer
                 (0.0f0, 1.0f0),
                 nothing,
             )
-            int = DiffEqBase.init(
+            int = CTS.init(
                 prob,
                 LSRK54CarpenterKennedy();
                 dt = 0.1f0,
                 save_everystep = false,
-                hide...,
             )
-            DiffEqBase.step!(int)
-            DiffEqBase.step!(int)
+            CTS.step!(int)
+            CTS.step!(int)
             @test eltype(int.u) == Float32
             @test all(isfinite, int.u)
         end
@@ -212,7 +206,7 @@ using ClimaTimeSteppers: SparseCoeffs, fused_increment, SparseContainer
             prob = ODEProblem(
                 ClimaODEFunction(;
                     T_exp! = (du, u, p, t) -> (du .= 0.1f0 .* u),
-                    T_imp! = DiffEqBase.ODEFunction(
+                    T_imp! = ODEFunction(
                         (du, u, p, t) -> (du .= -0.5f0 .* u);
                         jac_prototype = zeros(Float32, n, n),
                         Wfact = (W, u, p, dtγ, t) ->
@@ -224,15 +218,14 @@ using ClimaTimeSteppers: SparseCoeffs, fused_increment, SparseContainer
                 nothing,
             )
             alg = CTS.IMEXAlgorithm(ARS232(), NewtonsMethod(; max_iters = 2))
-            int = DiffEqBase.init(
+            int = CTS.init(
                 deepcopy(prob),
                 alg;
                 dt = 0.1f0,
                 save_everystep = false,
-                hide...,
             )
-            DiffEqBase.step!(int)
-            DiffEqBase.step!(int)
+            CTS.step!(int)
+            CTS.step!(int)
             @test eltype(int.u) == Float32
             @test all(isfinite, int.u)
         end

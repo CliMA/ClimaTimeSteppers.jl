@@ -68,23 +68,23 @@ function step_u!(integrator, cache::IMEXSSPRKCache)
     (; u, p, t, dt, alg) = integrator
     (; f) = integrator.sol.prob
     (; cache!, cache_imp!) = f
-    (; T_exp_T_lim!, T_lim!, T_exp!, T_imp!, lim!, dss!) = f
+    (; T_exp_T_lim!, T_imp!, lim!, dss!) = f
     (; tableau, newtons_method) = alg
     (; a_imp, b_imp, c_exp, c_imp) = tableau
     (; U, U_lim, U_exp, T_lim, T_exp, T_imp, temp, β, γ, newtons_method_cache) = cache
     s = length(b_imp)
 
-    if !isnothing(T_imp!) && !isnothing(newtons_method)
-        (; update_j) = newtons_method
-        jacobian = newtons_method_cache.j
-        if (!isnothing(jacobian)) && needs_update!(update_j, NewTimeStep(t))
-            if γ isa Nothing
-                sdirk_error(name)
-            else
-                T_imp!.Wfact(jacobian, u, p, dt * γ, t)
-            end
-        end
-    end
+    maybe_update_jacobian!(
+        T_imp!,
+        newtons_method,
+        newtons_method_cache,
+        u,
+        p,
+        t,
+        dt,
+        γ,
+        alg,
+    )
 
     @. U = u
 
@@ -126,27 +126,15 @@ function step_u!(integrator, cache::IMEXSSPRKCache)
             @assert !isnothing(newtons_method)
             i ≠ 1 && cache_imp!(U, p, t_imp)
             @. temp = U
-            implicit_equation_residual! =
-                (residual, U′) -> begin
-                    T_imp!(residual, U′, p, t_imp)
-                    @. residual = temp + dtγ * residual - U′
-                end
-            solve_newton!(
-                newtons_method,
-                newtons_method_cache,
-                U,
-                implicit_equation_residual!,
-                (jacobian, U′) -> T_imp!.Wfact(jacobian, U′, p, dtγ, t_imp),
-                U′ -> cache_imp!(U′, p, t_imp),
+            solve_implicit_equation!(
+                U, temp, p, t_imp, dtγ,
+                T_imp!, newtons_method, newtons_method_cache,
+                cache_imp!, dss!, cache!,
             )
-            dss!(U, p, t_imp)
-            cache!(U, p, t_imp)
         end
 
         if !iszero(β[i])
-            isnothing(T_exp_T_lim!) || T_exp_T_lim!(T_lim, T_exp, U, p, t_exp)
-            isnothing(T_lim!) || T_lim!(T_lim, U, p, t_exp)
-            isnothing(T_exp!) || T_exp!(T_exp, U, p, t_exp)
+            isnothing(f.T_exp_T_lim!) || f.T_exp_T_lim!(T_exp, T_lim, U, p, t_exp)
         end
         if !all(iszero, a_imp[:, i]) || !iszero(b_imp[i])
             if iszero(a_imp[i, i])

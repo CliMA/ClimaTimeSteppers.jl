@@ -2,8 +2,9 @@
 Jacobian accuracy tests: verify that user-provided Wfact matches
 a finite-difference approximation of the true Jacobian of T_imp!.
 =#
-using ClimaTimeSteppers, DiffEqBase, LinearAlgebra, Test
+using ClimaTimeSteppers, LinearAlgebra, Test
 import ClimaTimeSteppers as CTS
+import ClimaTimeSteppers: ODEFunction
 
 @testset "Jacobian accuracy" begin
 
@@ -13,7 +14,7 @@ import ClimaTimeSteppers as CTS
         A = [-2.0 0.5 0.0; 0.3 -1.0 0.1; 0.0 0.2 -3.0]
         Id = Matrix{Float64}(I, n, n)
 
-        T_imp! = DiffEqBase.ODEFunction(
+        T_imp! = ODEFunction(
             (du, u, p, t) -> mul!(du, A, u);
             jac_prototype = zeros(n, n),
             Wfact = (W, u, p, dtγ, t) -> (W .= dtγ .* A .- Id),
@@ -49,7 +50,7 @@ import ClimaTimeSteppers as CTS
         n = 2
         Id = Matrix{Float64}(I, n, n)
 
-        T_imp! = DiffEqBase.ODEFunction(
+        T_imp! = ODEFunction(
             (du, u, p, t) -> (du[1] = -u[1]^2; du[2] = -u[1] * u[2]);
             jac_prototype = zeros(n, n),
             Wfact = (W, u, p, dtγ, t) -> begin
@@ -90,7 +91,7 @@ import ClimaTimeSteppers as CTS
         A = [-1.0 0.5; 0.3 -2.0]
         Id = Matrix{Float64}(I, n, n)
 
-        T_imp! = DiffEqBase.ODEFunction(
+        T_imp! = ODEFunction(
             (du, u, p, t) -> mul!(du, A, u);
             jac_prototype = zeros(n, n),
             Wfact = (W, u, p, dtγ, t) -> (W .= dtγ .* (2 .* A) .- Id),  # 2× wrong!

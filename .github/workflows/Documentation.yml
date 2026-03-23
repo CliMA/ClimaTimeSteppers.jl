@@ -11,6 +11,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Needed to push to gh-pages
+permissions:
+  contents: write
+
 jobs:
   docbuild:
     runs-on: ubuntu-latest

@@ -87,19 +87,23 @@ function SciMLBase.solve(
     prob::SciMLBase.AbstractODEProblem,
     alg::CTS.DistributedODEAlgorithm,
     args...;
+    callback = nothing,
     kwargs...,
 )
     local_prob = CTS.ODEProblem(convert_f(prob.f), prob.u0, prob.tspan, prob.p)
-    CTS.solve(local_prob, alg, args...; kwargs...)
+    callback = convert_cb(callback)
+    CTS.solve(local_prob, alg, args...; callback, kwargs...)
 end
 
 function SciMLBase.solve(
     prob::CTS.ODEProblem,
     alg::CTS.DistributedODEAlgorithm,
     args...;
+    callback = nothing,
     kwargs...,
 )
-    CTS.solve(prob, alg, args...; kwargs...)
+    callback = convert_cb(callback)
+    CTS.solve(prob, alg, args...; callback, kwargs...)
 end
 
 # ---------------------------------------------------------------------------

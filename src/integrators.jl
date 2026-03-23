@@ -85,7 +85,7 @@ mutable struct TimeStepperIntegrator{
     advance_to_tstop::Bool
     cache::cacheType
     sol::solType
-    tdir::tType
+    tdir::Int
 end
 
 """
@@ -125,7 +125,7 @@ function tstops_and_saveat_queues(t0, tf, tstops, saveat = [])
     return tstops, saveat
 end
 
-compute_tdir(ts) = ts[1] > ts[end] ? sign(ts[end] - ts[1]) : oneunit(ts[1])
+compute_tdir(ts) = ts[1] > ts[end] ? -1 : 1
 
 """
     init(prob, alg; dt, kwargs...)

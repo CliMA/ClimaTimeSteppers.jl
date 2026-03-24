@@ -27,13 +27,13 @@ jobs:
         version:
           - '1.11'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: julia-actions/setup-julia@v2
         with:
           version: ${{ matrix.version }}
-      - uses: julia-actions/cache@v2
+      - uses: julia-actions/cache@v3
       - uses: julia-actions/julia-buildpkg@v1
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: 'CliMA/ClimaAtmos.jl'
           path: climaatmos
@@ -54,13 +54,13 @@ jobs:
         version:
           - '1.11'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: julia-actions/setup-julia@v2
         with:
           version: ${{ matrix.version }}
-      - uses: julia-actions/cache@v2
+      - uses: julia-actions/cache@v3
       - uses: julia-actions/julia-buildpkg@v1
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: 'CliMA/ClimaLand.jl'
           path: climaland
@@ -82,13 +82,13 @@ jobs:
   #       version:
   #         - '1.11'
   #   steps:
-  #     - uses: actions/checkout@v4
+  #     - uses: actions/checkout@v6
   #     - uses: julia-actions/setup-julia@v2
   #       with:
   #         version: ${{ matrix.version }}
-  #     - uses: julia-actions/cache@v2
+  #     - uses: julia-actions/cache@v3
   #     - uses: julia-actions/julia-buildpkg@v1
-  #     - uses: actions/checkout@v4
+  #     - uses: actions/checkout@v6
   #       with:
   #         repository: 'CliMA/ClimaCoupler.jl'
   #         path: climacoupler

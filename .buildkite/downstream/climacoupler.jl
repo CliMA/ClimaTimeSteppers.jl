@@ -18,5 +18,5 @@ push!(ARGS,
     joinpath(coupler_dir, "config", "ci_configs", "slabplanet_default.yml"),
     "--job_id", "cts_downstream_test",
 )
-include(joinpath(coupler_dir, "experiments", "ClimaEarth", "run_amip.jl"))
+include(joinpath(coupler_dir, "experiments", "AMIP", "run_simulation.jl"))
 @info "ClimaCoupler: completed successfully"

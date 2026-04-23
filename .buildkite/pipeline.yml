@@ -6,9 +6,9 @@ agents:
 env:
   JULIA_LOAD_PATH: "${JULIA_LOAD_PATH}:${BUILDKITE_BUILD_CHECKOUT_PATH}/test"
   OPENBLAS_NUM_THREADS: 1
-  JULIA_NVTX_CALLBACKS: gc
   OMPI_MCA_opal_warn_on_missing_libcuda: 0
   JULIA_MAX_NUM_PRECOMPILE_FILES: 100
+  JULIA_DEPOT_PATH: "${BUILDKITE_BUILD_PATH}/${BUILDKITE_PIPELINE_SLUG}/depot/default"
 
 steps:
   - label: "init cpu env"
@@ -194,4 +194,3 @@ steps:
 
       - label: "Perf: Benchmark"
         command: "julia --project=perf perf/benchmark.jl"
-

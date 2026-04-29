@@ -115,9 +115,6 @@ steps:
       - label: "integration: limiter"
         command: "julia --project=test/ --check-bounds=yes test/integration/limiter.jl"
 
-      - label: "integration: second_newton"
-        command: "julia --project=test/ --check-bounds=yes test/integration/second_newton.jl"
-
       - label: "integration: ssp_monotonicity"
         command: "julia --project=test/ --check-bounds=yes test/integration/ssp_monotonicity.jl"
 

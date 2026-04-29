@@ -45,22 +45,20 @@ function maybe_update_jacobian!(
     return nothing
 end
 
-struct IMEXARKCache{SCU, SCE, SCI, TS, T, Γ, NMSC, NMC}
+struct IMEXARKCache{SCU, SCE, SCI, T, Γ, NMC}
     U::SCU     # sparse container of length s
     T_lim::SCE # sparse container of length s
     T_exp::SCE # sparse container of length s
     T_imp::SCI # sparse container of length s
-    temp_subproblem::TS
     temp::T
     γ::Γ
-    newtons_method_subproblem_cache::NMSC
     newtons_method_cache::NMC
 end
 
 function init_cache(prob, alg::IMEXAlgorithm{Unconstrained}; kwargs...)
     (; u0, f) = prob
-    (; T_imp_subproblem!, T_imp!) = f
-    (; tableau, newtons_method_subproblem, newtons_method) = alg
+    (; T_imp!) = f
+    (; tableau, newtons_method) = alg
     (; a_exp, b_exp, a_imp, b_imp) = tableau
     s = length(b_exp)
     inds = ntuple(i -> i, s)
@@ -70,30 +68,14 @@ function init_cache(prob, alg::IMEXAlgorithm{Unconstrained}; kwargs...)
     T_lim = SparseContainer(map(i -> zero(u0), collect(1:length(inds_T_exp))), inds_T_exp)
     T_exp = SparseContainer(map(i -> zero(u0), collect(1:length(inds_T_exp))), inds_T_exp)
     T_imp = SparseContainer(map(i -> zero(u0), collect(1:length(inds_T_imp))), inds_T_imp)
-    temp_subproblem = zero(u0)
     temp = zero(u0)
     γs = unique(filter(!iszero, diag(a_imp)))
     γ = length(γs) == 1 ? γs[1] : nothing # TODO: This could just be a constant.
-    jac_prototype_subproblem =
-        has_jac(T_imp_subproblem!) ? T_imp_subproblem!.jac_prototype : nothing
-    newtons_method_subproblem_cache =
-        isnothing(T_imp_subproblem!) || isnothing(newtons_method_subproblem) ? nothing :
-        allocate_cache(newtons_method_subproblem, u0, jac_prototype_subproblem)
     jac_prototype = has_jac(T_imp!) ? T_imp!.jac_prototype : nothing
     newtons_method_cache =
         isnothing(T_imp!) || isnothing(newtons_method) ? nothing :
         allocate_cache(newtons_method, u0, jac_prototype)
-    return IMEXARKCache(
-        U,
-        T_lim,
-        T_exp,
-        T_imp,
-        temp_subproblem,
-        temp,
-        γ,
-        newtons_method_subproblem_cache,
-        newtons_method_cache,
-    )
+    return IMEXARKCache(U, T_lim, T_exp, T_imp, temp, γ, newtons_method_cache)
 end
 
 # generic fallback
@@ -152,7 +134,7 @@ end
     (; f) = integrator.sol.prob
     (; tableau) = alg
     (; a_exp, b_exp, a_imp, b_imp, c_exp, c_imp) = tableau
-    (; U, T_lim, T_exp, T_imp, temp, temp_subproblem) = cache
+    (; U, T_lim, T_exp, T_imp, temp) = cache
 
     t_exp = t + dt * c_exp[i]
     t_imp = t + dt * c_imp[i]
@@ -162,11 +144,11 @@ end
     compute_stage_value!(U, u, dt, a_exp, a_imp, T_lim, T_exp, T_imp, f, p, t_exp, i)
 
     # 2. Apply DSS (skip stage 1) + implicit solve
-    solve_stage_implicit!(U, temp, temp_subproblem, p, t_exp, t_imp, dtγ, i, f, alg, cache)
+    solve_stage_implicit!(U, temp, p, t_exp, t_imp, dtγ, i, f, alg, cache)
 
     # 3. Evaluate tendencies for later stages and final update
     evaluate_stage_tendencies!(
-        T_exp, T_lim, T_imp, U, temp, temp_subproblem,
+        T_exp, T_lim, T_imp, U, temp,
         p, t_exp, t_imp, dtγ, i, f, a_exp, b_exp, a_imp, b_imp,
     )
 
@@ -206,14 +188,13 @@ end
 """
     solve_stage_implicit!(U, temp, temp_sub, p, t_exp, t_imp, dtγ, i, f, alg, cache)
 
-Apply DSS to the stage value and run the implicit solver (subproblem + main).
+Apply DSS to the stage value and run the implicit solver.
 Skips DSS on stage 1 (already applied at end of previous timestep).
 Skips implicit solve when γ == 0.
 """
 @inline function solve_stage_implicit!(
     U,
     temp,
-    temp_sub,
     p,
     t_exp,
     t_imp,
@@ -223,9 +204,9 @@ Skips implicit solve when γ == 0.
     alg,
     cache,
 )
-    (; T_imp!, T_imp_subproblem!, dss!, cache!, cache_imp!, initialize_subproblem!) = f
-    (; newtons_method_subproblem_cache, newtons_method_cache) = cache
-    (; newtons_method_subproblem, newtons_method) = alg
+    (; T_imp!, dss!, cache!, cache_imp!, initialize_imp!) = f
+    (; newtons_method_cache) = cache
+    (; newtons_method) = alg
 
     i ≠ 1 && dss!(U, p, t_exp)
 
@@ -237,30 +218,17 @@ Skips implicit solve when γ == 0.
     @assert !isnothing(newtons_method)
     @. temp = U
 
-    # ── Two-phase implicit solve ──────────────────────────────────────────────
-    # If T_imp_subproblem! is provided, a separate Newton solve is run
-    # first.  This solve mutates U in place, and its result becomes the starting
-    # point (U₀) for the main T_imp! Newton solve — it does NOT define an
-    # additive tendency.  Setting T_imp_subproblem! = T_imp! therefore applies
-    # the implicit equation twice (compounding), which is intentional for the
-    # ClimaAtmos EDMF use case but differs from the standard single-solve path.
-    if !isnothing(T_imp_subproblem!)
-        initialize_subproblem!(U, p, dtγ)
+    if !isnothing(initialize_imp!)
+        initialize_imp!(U, p, dtγ)
         dss!(U, p, t_exp)
         cache_imp!(U, p, t_imp)
-        solve_implicit_equation!(
-            U, temp, p, t_imp, dtγ,
-            T_imp_subproblem!, newtons_method_subproblem,
-            newtons_method_subproblem_cache, cache_imp!, dss!, cache!,
-        )
     else
         i ≠ 1 && cache_imp!(U, p, t_imp)
     end
 
     # Main implicit solve
-    @. temp_sub = U
     solve_implicit_equation!(
-        U, temp_sub, p, t_imp, dtγ,
+        U, temp, p, t_imp, dtγ,
         T_imp!, newtons_method, newtons_method_cache,
         cache_imp!, dss!, cache!,
     )
@@ -273,7 +241,7 @@ Evaluate explicit and implicit tendencies at the current stage value for use
 in later stages and the final update.
 """
 @inline function evaluate_stage_tendencies!(
-    T_exp, T_lim, T_imp, U, temp, temp_sub,
+    T_exp, T_lim, T_imp, U, temp,
     p, t_exp, t_imp, dtγ, i, f, a_exp, b_exp, a_imp, b_imp,
 )
     # Explicit tendencies (needed for later stages or final update)
@@ -286,10 +254,6 @@ in later stages and the final update.
         if iszero(dtγ)
             # γ == 0: T_imp is treated explicitly
             isnothing(f.T_imp!) || f.T_imp!(T_imp[i], U, p, t_imp)
-            if !isnothing(f.T_imp_subproblem!)
-                f.T_imp_subproblem!(temp_sub, U, p, t_imp)
-                @. T_imp[i] += temp_sub
-            end
         else
             # γ ≠ 0: T_imp satisfies the implicit equation
             isnothing(f.T_imp!) || @. T_imp[i] = (U - temp) / dtγ

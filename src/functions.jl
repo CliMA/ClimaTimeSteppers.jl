@@ -36,13 +36,12 @@ unnecessary allocations.
 Internally, `T_exp!` and `T_lim!` are merged into a single `T_exp_T_lim!`
 at construction time.
 """
-struct ClimaODEFunction{TEL, TIS, TI, L, D, IS, C, CI} <: AbstractClimaODEFunction
+struct ClimaODEFunction{TEL, TI, L, D, IS, C, CI} <: AbstractClimaODEFunction
     T_exp_T_lim!::TEL
-    T_imp_subproblem!::TIS
     T_imp!::TI
     lim!::L
     dss!::D
-    initialize_subproblem!::IS
+    initialize_imp!::IS
     cache!::C
     cache_imp!::CI
     _has_lim::Bool  # true when the limiter path should be used
@@ -50,11 +49,10 @@ struct ClimaODEFunction{TEL, TIS, TI, L, D, IS, C, CI} <: AbstractClimaODEFuncti
         T_exp_T_lim! = nothing,
         T_lim! = nothing,
         T_exp! = nothing,
-        T_imp_subproblem! = nothing,
         T_imp! = nothing,
         lim! = Returns(nothing),
         dss! = Returns(nothing),
-        initialize_subproblem! = Returns(nothing),
+        initialize_imp! = Returns(nothing),
         cache! = Returns(nothing),
         cache_imp! = cache!,
     )
@@ -83,11 +81,10 @@ struct ClimaODEFunction{TEL, TIS, TI, L, D, IS, C, CI} <: AbstractClimaODEFuncti
         end
         args = (
             T_exp_T_lim!,
-            T_imp_subproblem!,
             T_imp!,
             lim!,
             dss!,
-            initialize_subproblem!,
+            initialize_imp!,
             cache!,
             cache_imp!,
         )

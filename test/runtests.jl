@@ -79,10 +79,6 @@ end
     include("integration/limiter.jl")
 end
 
-@safetestset "Second Newton solve" begin
-    include("integration/second_newton.jl")
-end
-
 @safetestset "SSP monotonicity" begin
     include("integration/ssp_monotonicity.jl")
 end

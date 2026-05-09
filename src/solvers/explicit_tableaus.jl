@@ -43,9 +43,21 @@ alg = ExplicitAlgorithm(SSP33ShuOsher())
 ```
 """
 ExplicitAlgorithm(tableau::ExplicitTableau, constraint = Unconstrained()) =
-    IMEXAlgorithm(constraint, nothing, IMEXTableau(tableau), nothing)
+    IMEXAlgorithm(
+        constraint,
+        nothing,
+        IMEXTableau(tableau),
+        nothing,
+        (; cast_tableau_to_state_eltype = false),
+    )
 ExplicitAlgorithm(name::ERKAlgorithmName, constraint = default_constraint(name)) =
-    IMEXAlgorithm(constraint, name, IMEXTableau(name), nothing)
+    IMEXAlgorithm(
+        constraint,
+        name,
+        IMEXTableau(name),
+        nothing,
+        (; cast_tableau_to_state_eltype = false),
+    )
 
 IMEXTableau(name::ERKAlgorithmName) = IMEXTableau(ExplicitTableau(name))
 IMEXTableau((; a, b, c)::ExplicitTableau) = IMEXTableau(a, b, c, a, b, c)

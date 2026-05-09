@@ -23,6 +23,7 @@ LinearAlgebra.diag(sc::SparseCoeffs, args...) = LinearAlgebra.diag(sc.coeffs, ar
 LinearAlgebra.adjoint(sc::SparseCoeffs) = LinearAlgebra.adjoint(sc.coeffs)
 
 get_S(::SparseCoeffs{S}) where {S} = S
+@inline get_val_S(::SparseCoeffs{S}) where {S} = Val(S[1])
 
 # Special behavior of SparseCoeffs:
 Base.@propagate_inbounds zero_coeff(
@@ -32,5 +33,10 @@ Base.@propagate_inbounds zero_coeff(
 ) where {S, m, C} = @inbounds m[i + S[1] * (j - 1)]
 Base.@propagate_inbounds zero_coeff(::Type{SparseCoeffs{S, m, C}}, j::Int) where {S, m, C} =
     @inbounds m[j]
+
+# Compile-time check for "column `j` of a 2D SparseCoeffs is all zero".
+# Evaluates entirely from type parameters (no runtime work).
+@inline zero_column(::Type{SparseCoeffs{S, m, C}}, ::Val{j}) where {S, m, C, j} =
+    all(ntuple(row -> m[row + S[1] * (j - 1)], Val(S[1])))
 
 Base.convert(::Type{T}, x::SArray) where {T <: SparseCoeffs} = SparseCoeffs(x)

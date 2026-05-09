@@ -23,6 +23,14 @@ such as [`ARS343`](@ref).
 - `b_imp`: implicit weights (default: last row of `a_imp`)
 - `c_exp`: explicit abscissae (default: row sums of `a_exp`)
 - `c_imp`: implicit abscissae (default: row sums of `a_imp`)
+
+# Fields
+- `a_exp`: explicit Butcher matrix ``a^{\\mathrm{exp}}``.
+- `b_exp`: explicit weight vector ``b^{\\mathrm{exp}}``.
+- `c_exp`: explicit abscissa vector ``c^{\\mathrm{exp}}``.
+- `a_imp`: implicit Butcher matrix ``a^{\\mathrm{imp}}``.
+- `b_imp`: implicit weight vector ``b^{\\mathrm{imp}}``.
+- `c_imp`: implicit abscissa vector ``c^{\\mathrm{imp}}``.
 """
 struct IMEXTableau{AE <: SPCO, BE <: SPCO, CE <: SPCO, AI <: SPCO, BI <: SPCO, CI <: SPCO}
     a_exp::AE # matrix of size s×s
@@ -52,8 +60,8 @@ function IMEXTableau(;
 end
 
 """
-    IMEXAlgorithm(name, newtons_method, [constraint])
-    IMEXAlgorithm(tableau, newtons_method, [constraint])
+    IMEXAlgorithm(name, newtons_method, [constraint]; cast_tableau_to_state_eltype)
+    IMEXAlgorithm(tableau, newtons_method, [constraint]; cast_tableau_to_state_eltype)
 
 An implicit-explicit Runge-Kutta algorithm.
 
@@ -67,6 +75,16 @@ determines the tableau and default constraint automatically. A raw
   (`nothing` if the algorithm is purely explicit)
 - `constraint`: [`Unconstrained`](@ref) (default) or [`SSP`](@ref)
 
+# Keyword Arguments
+- `cast_tableau_to_state_eltype::Bool`: when `true`, tableau coefficients are
+  cast to `eltype(u0)` (e.g. truncated to Float32 for a Float32 state). When
+  `false` (the default for named methods), the tableau's original eltype is
+  preserved — typically Float64 for all built-in named methods. Higher-order
+  methods (order ≥ 3) are sensitive to roundoff in the Butcher weights and
+  will show visible drift or order loss if cast to Float32, so leave this as
+  `false` for them. Set to `true` only for low-order methods where Float32
+  coefficients are acceptable.
+
 # Example
 ```julia
 alg = IMEXAlgorithm(ARS343(), NewtonsMethod(; max_iters = 2))
@@ -77,22 +95,50 @@ struct IMEXAlgorithm{
     N <: Union{Nothing, AbstractAlgorithmName},
     T <: IMEXTableau,
     NM <: Union{Nothing, NewtonsMethod},
+    O <: NamedTuple,
 } <: TimeSteppingAlgorithm
     constraint::C
     name::N
     tableau::T
     newtons_method::NM
+    options::O
 end
+
+# Cast tableau coefficients to type `FT`.
+function downcast_tableau(::Type{FT}, tb::IMEXTableau) where {FT}
+    cast(x) = SparseCoeffs(map(FT, x.coeffs))
+    IMEXTableau(
+        cast(tb.a_exp), cast(tb.b_exp), cast(tb.c_exp),
+        cast(tb.a_imp), cast(tb.b_imp), cast(tb.c_imp),
+    )
+end
+requires_fp64_accumulation(::AbstractAlgorithmName) = false
+
 IMEXAlgorithm(
     tableau::IMEXTableau,
     newtons_method::NewtonsMethod,
-    constraint = Unconstrained(),
-) = IMEXAlgorithm(constraint, nothing, tableau, newtons_method)
+    constraint = Unconstrained();
+    cast_tableau_to_state_eltype::Bool = false,
+) = IMEXAlgorithm(
+    constraint, nothing, tableau, newtons_method, (; cast_tableau_to_state_eltype),
+)
+
+# Named methods preserve the tableau's original eltype (Float64 for all built-in
+# named methods). Higher-order tableaux (order ≥ 3) require this for numerical
+# stability; lower-order ones keep it for uniformity but can opt in to casting
+# via `cast_tableau_to_state_eltype = true`.
 IMEXAlgorithm(
     name::IMEXARKAlgorithmName,
     newtons_method::NewtonsMethod,
-    constraint = default_constraint(name),
-) = IMEXAlgorithm(constraint, name, IMEXTableau(name), newtons_method)
+    constraint = default_constraint(name);
+    cast_tableau_to_state_eltype::Bool = false,
+) = IMEXAlgorithm(
+    constraint,
+    name,
+    IMEXTableau(name),
+    newtons_method,
+    (; cast_tableau_to_state_eltype),
+)
 
 ################################################################################
 

@@ -112,6 +112,17 @@ ALGORITHMS = (
                     9000,
                 )
             end
+
+            # Explicit FP32 capability sweep under native downcasting protection!
+            # Shorter step spans protect against physical static noise floor roundoff.
+            if alg in (ARS222, SSP333, ARS121)
+                test_convergence!(
+                    alg_name,
+                    ark_analytic_sys_test_cts(Float32),
+                    20;
+                    high_order_sample_shifts = -1, # Keep dt large for precision preservation
+                )
+            end
         end
     end
 end

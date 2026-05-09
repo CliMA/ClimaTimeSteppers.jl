@@ -69,7 +69,9 @@ function step_u!(integrator, cache::IMEXSSPRKCache)
     (; f) = integrator.sol.prob
     (; cache!, T_imp!, lim!, dss!) = f
     (; tableau, newtons_method) = alg
-    (; a_imp, b_imp) = tableau
+    opt_tb =
+        alg.options.preserve_internal_fp64 ? tableau : downcast_tableau(eltype(u), tableau)
+    (; a_imp, b_imp) = opt_tb
     (; U_lim, U_exp, T_lim, T_exp, T_imp, β, γ, newtons_method_cache) = cache
     # Statically retrieve dimension vector to omit runtime Val type lookup.
     v_s = get_val_S(b_imp)
@@ -149,7 +151,9 @@ end
     (; f) = integrator.sol.prob
     (; cache!, cache_imp!, T_imp!, lim!, dss!) = f
     (; tableau, newtons_method) = alg
-    (; a_imp, b_imp, c_exp, c_imp) = tableau
+    opt_tb =
+        alg.options.preserve_internal_fp64 ? tableau : downcast_tableau(eltype(u), tableau)
+    (; a_imp, b_imp, c_exp, c_imp) = opt_tb
     (; U, U_lim, U_exp, T_lim, T_exp, T_imp, temp, β, newtons_method_cache) = cache
 
     t_exp = t + dt * c_exp[i]

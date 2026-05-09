@@ -85,7 +85,10 @@ function step_u!(integrator, cache::IMEXARKCache)
     (; cache!, cache_imp!) = f
     (; T_exp_T_lim!, T_imp!, lim!, dss!) = f
     (; tableau, newtons_method) = alg
-    (; a_exp, b_exp, a_imp, b_imp, c_exp, c_imp) = tableau
+    # Honor extended floating precision buffers if flagged; else strip constants to exact hardware spec.
+    opt_tb =
+        alg.options.preserve_internal_fp64 ? tableau : downcast_tableau(eltype(u), tableau)
+    (; a_exp, b_exp, a_imp, b_imp, c_exp, c_imp) = opt_tb
     (; U, T_lim, T_exp, T_imp, temp, γ, newtons_method_cache) = cache
     # Acquire the dimension statically to prevent runtime Val dispatch.
     v_s = get_val_S(b_imp)
@@ -165,7 +168,9 @@ end
     (; u, p, t, dt, alg) = integrator
     (; f) = integrator.sol.prob
     (; tableau) = alg
-    (; a_exp, b_exp, a_imp, b_imp, c_exp, c_imp) = tableau
+    opt_tb =
+        alg.options.preserve_internal_fp64 ? tableau : downcast_tableau(eltype(u), tableau)
+    (; a_exp, b_exp, a_imp, b_imp, c_exp, c_imp) = opt_tb
     (; U, T_lim, T_exp, T_imp, temp) = cache
 
     t_exp = t + dt * c_exp[i]

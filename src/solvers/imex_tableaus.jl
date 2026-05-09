@@ -77,22 +77,41 @@ struct IMEXAlgorithm{
     N <: Union{Nothing, AbstractAlgorithmName},
     T <: IMEXTableau,
     NM <: Union{Nothing, NewtonsMethod},
+    O <: NamedTuple,
 } <: TimeSteppingAlgorithm
     constraint::C
     name::N
     tableau::T
     newtons_method::NM
+    options::O
+end
+
+# Casts constants inside static coefficient arrays down to match execution buffer requirements.
+function downcast_tableau(::Type{FT}, tb::IMEXTableau) where {FT}
+    cast(x) = SparseCoeffs(map(FT, x.coeffs))
+    IMEXTableau(
+        cast(tb.a_exp), cast(tb.b_exp), cast(tb.c_exp),
+        cast(tb.a_imp), cast(tb.b_imp), cast(tb.c_imp),
+    )
 end
 IMEXAlgorithm(
     tableau::IMEXTableau,
     newtons_method::NewtonsMethod,
-    constraint = Unconstrained(),
-) = IMEXAlgorithm(constraint, nothing, tableau, newtons_method)
+    constraint = Unconstrained();
+    preserve_internal_fp64::Bool = false,
+) = IMEXAlgorithm(constraint, nothing, tableau, newtons_method, (; preserve_internal_fp64))
 IMEXAlgorithm(
     name::IMEXARKAlgorithmName,
     newtons_method::NewtonsMethod,
-    constraint = default_constraint(name),
-) = IMEXAlgorithm(constraint, name, IMEXTableau(name), newtons_method)
+    constraint = default_constraint(name);
+    preserve_internal_fp64::Bool = false,
+) = IMEXAlgorithm(
+    constraint,
+    name,
+    IMEXTableau(name),
+    newtons_method,
+    (; preserve_internal_fp64),
+)
 
 ################################################################################
 

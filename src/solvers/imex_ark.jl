@@ -182,13 +182,23 @@ Butcher tableau from previous explicit (limited + unlimited) and implicit tenden
     if has_T_lim(f)
         assign_fused_increment!(U, u, dt, a_exp, T_lim, v_i)
         i ≠ 1 && f.lim!(U, p, t_exp, u)
-        # Add remaining increments lazily combined into a single vectorized kernel launch.
-        if inc_exp !== 0 || inc_imp !== 0
+        if inc_exp !== 0 && inc_imp !== 0
             @. U = U + inc_exp + inc_imp
+        elseif inc_exp !== 0
+            @. U = U + inc_exp
+        elseif inc_imp !== 0
+            @. U = U + inc_imp
         end
     else
-        # Full single-kernel stage value initialization: initializes U and sums all increments.
-        @. U = u + inc_exp + inc_imp
+        if inc_exp !== 0 && inc_imp !== 0
+            @. U = u + inc_exp + inc_imp
+        elseif inc_exp !== 0
+            @. U = u + inc_exp
+        elseif inc_imp !== 0
+            @. U = u + inc_imp
+        else
+            @. U = u
+        end
     end
 end
 

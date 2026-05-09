@@ -43,6 +43,10 @@ end
     include("unit/edge_cases.jl")
 end
 
+@safetestset "CUDA Overlapping Streams" begin
+    include("unit/cuda_overlap.jl")
+end
+
 @safetestset "Jacobian accuracy" begin
     include("unit/jacobian_accuracy.jl")
 end

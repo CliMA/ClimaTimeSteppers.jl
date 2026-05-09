@@ -99,8 +99,11 @@ function step_u!(integrator, cache::IMEXSSPRKCache)
         if has_T_exp(f)
             @. U_exp += dt * T_exp
         end
-        # Fused update to u: weights combine weighted history and final implicit elements in a single kernel.
-        @. u = (1 - β[s]) * u + β[s] * U_exp + inc_imp_final
+        if inc_imp_final !== 0
+            @. u = (1 - β[s]) * u + β[s] * U_exp + inc_imp_final
+        else
+            @. u = (1 - β[s]) * u + β[s] * U_exp
+        end
     else
         if inc_imp_final !== 0
             @. u += inc_imp_final

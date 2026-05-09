@@ -69,25 +69,50 @@ function step_u!(integrator, cache::IMEXSSPRKCache)
     (; f) = integrator.sol.prob
     (; cache!, T_imp!, lim!, dss!) = f
     (; tableau, newtons_method) = alg
-    (; b_imp) = tableau
+    (; a_imp, b_imp) = tableau
     (; U_lim, U_exp, T_lim, T_exp, T_imp, β, γ, newtons_method_cache) = cache
     # Statically retrieve dimension vector to omit runtime Val type lookup.
     v_s = get_val_S(b_imp)
 
-    maybe_update_jacobian!(
-        T_imp!,
-        newtons_method,
-        newtons_method_cache,
-        u,
-        p,
-        t,
-        dt,
-        γ,
-        alg,
-    )
+    if iszero(a_imp[1, 1])
+        # Overlap Jacobian update with the non-implicit Stage 1 compute.
+        jac_token = async_update_jacobian!(
+            T_imp!,
+            newtons_method,
+            newtons_method_cache,
+            u,
+            p,
+            t,
+            dt,
+            γ,
+            alg,
+        )
+        # Perform Stage 1 independently
+        update_stage!(integrator, cache, Val(1))
 
-    # Statically expand the stage evaluations at compile-time via tuple dispatch.
-    update_stage!(integrator, cache, ntuple(j -> Val(j), v_s))
+        # GPU-side barrier (if applicable) before initiating implicitly-linked Stage 2
+        sync_jacobian_update!(jac_token)
+
+        # Conclude remaining step iterations statically.
+        # Extract the literal stage count from the type system to generate perfect static ranges.
+        s_val = typeof(v_s).parameters[1]
+        update_stage!(integrator, cache, ntuple(j -> Val(j + 1), Val(s_val - 1)))
+    else
+        # Synchronous fallback for implicit-first stages
+        maybe_update_jacobian!(
+            T_imp!,
+            newtons_method,
+            newtons_method_cache,
+            u,
+            p,
+            t,
+            dt,
+            γ,
+            alg,
+        )
+        # Statically expand the stage evaluations at compile-time via tuple dispatch.
+        update_stage!(integrator, cache, ntuple(j -> Val(j), v_s))
+    end
 
     t_final = t + dt
 

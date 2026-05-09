@@ -90,23 +90,47 @@ function step_u!(integrator, cache::IMEXARKCache)
     # Acquire the dimension statically to prevent runtime Val dispatch.
     v_s = get_val_S(b_imp)
 
-    maybe_update_jacobian!(
-        T_imp!,
-        newtons_method,
-        newtons_method_cache,
-        u,
-        p,
-        t,
-        dt,
-        γ,
-        alg,
-    )
+    if iszero(a_imp[1, 1])
+        # Explicit-first-stage (ESDIRK): Overlap Jacobian build with Stage 1.
+        jac_token = async_update_jacobian!(
+            T_imp!,
+            newtons_method,
+            newtons_method_cache,
+            u,
+            p,
+            t,
+            dt,
+            γ,
+            alg,
+        )
+        # Execute Stage 1 (which has no dependence on the fresh Jacobian)
+        update_stage!(integrator, cache, Val(1))
 
-    update_stage!(integrator, cache, ntuple(j -> Val(j), v_s))
+        # Synchronize: Ensure the new Jacobian is completely assembled before starting Stage 2
+        sync_jacobian_update!(jac_token)
+
+        # Statically iterate through the remaining stages.
+        # Extract the literal integer from Val{Int} to build a precise static range for Stage 2 -> S.
+        s_val = typeof(v_s).parameters[1]
+        update_stage!(integrator, cache, ntuple(j -> Val(j + 1), Val(s_val - 1)))
+    else
+        # Implicit-first-stage: Fallback to strictly sequential execution
+        maybe_update_jacobian!(
+            T_imp!,
+            newtons_method,
+            newtons_method_cache,
+            u,
+            p,
+            t,
+            dt,
+            γ,
+            alg,
+        )
+        update_stage!(integrator, cache, ntuple(j -> Val(j), v_s))
+    end
 
     t_final = t + dt
 
-    v_s = get_val_S(b_imp)
     # Build lazy broadcast objects for linear combinations of tendencies (not materialized yet).
     inc_exp = has_T_exp(f) ? fused_raw_increment(dt, b_exp, T_exp, v_s) : 0
     inc_imp = isnothing(T_imp!) ? 0 : fused_raw_increment(dt, b_imp, T_imp, v_s)

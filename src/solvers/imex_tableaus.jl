@@ -94,6 +94,8 @@ function downcast_tableau(::Type{FT}, tb::IMEXTableau) where {FT}
         cast(tb.a_imp), cast(tb.b_imp), cast(tb.c_imp),
     )
 end
+requires_fp64_accumulation(::AbstractAlgorithmName) = false
+
 IMEXAlgorithm(
     tableau::IMEXTableau,
     newtons_method::NewtonsMethod,
@@ -104,7 +106,7 @@ IMEXAlgorithm(
     name::IMEXARKAlgorithmName,
     newtons_method::NewtonsMethod,
     constraint = default_constraint(name);
-    preserve_internal_fp64::Bool = false,
+    preserve_internal_fp64::Bool = requires_fp64_accumulation(name),
 ) = IMEXAlgorithm(
     constraint,
     name,
@@ -1018,3 +1020,19 @@ function IMEXTableau(::ARK548L2SA2)
         c_imp = SArray{Tuple{8}}(c),
     )
 end
+
+# Algorithms requiring 64-bit intermediate accumulation to avoid precision noise drift
+requires_fp64_accumulation(
+    ::Union{
+        ARS233,
+        ARS343,
+        ARS443,
+        IMKG342a,
+        IMKG343a,
+        DBM453,
+        SSP333,
+        SSP433,
+        ARK437L2SA1,
+        ARK548L2SA2,
+    },
+) = true

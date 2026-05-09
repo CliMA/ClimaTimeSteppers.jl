@@ -1,4 +1,4 @@
-struct IMEXSSPRKCache{U, SCI, B, Γ, NMC}
+struct IMEXSSPRKCache{U, SCI, B, Γ, NMC, TAB}
     U::U
     U_exp::U
     U_lim::U
@@ -9,6 +9,7 @@ struct IMEXSSPRKCache{U, SCI, B, Γ, NMC}
     β::B
     γ::Γ
     newtons_method_cache::NMC
+    tableau::TAB
 end
 
 function init_cache(prob, alg::IMEXAlgorithm{SSP}; kwargs...)
@@ -50,6 +51,11 @@ function init_cache(prob, alg::IMEXAlgorithm{SSP}; kwargs...)
     newtons_method_cache =
         isnothing(T_imp!) || isnothing(newtons_method) ? nothing :
         allocate_cache(newtons_method, u0, jac_prototype)
+
+    # Honor extended floating precision buffers if flagged; else strip constants to exact hardware spec.
+    opt_tb =
+        alg.options.preserve_internal_fp64 ? tableau : downcast_tableau(eltype(u0), tableau)
+
     return IMEXSSPRKCache(
         U,
         U_exp,
@@ -61,6 +67,7 @@ function init_cache(prob, alg::IMEXAlgorithm{SSP}; kwargs...)
         β,
         γ,
         newtons_method_cache,
+        opt_tb,
     )
 end
 
@@ -68,53 +75,13 @@ function step_u!(integrator, cache::IMEXSSPRKCache)
     (; u, p, t, dt, alg) = integrator
     (; f) = integrator.sol.prob
     (; cache!, T_imp!, lim!, dss!) = f
-    (; tableau, newtons_method) = alg
-    opt_tb =
-        alg.options.preserve_internal_fp64 ? tableau : downcast_tableau(eltype(u), tableau)
-    (; a_imp, b_imp) = opt_tb
+    (; newtons_method) = alg
+    (; a_imp, b_imp) = cache.tableau
     (; U_lim, U_exp, T_lim, T_exp, T_imp, β, γ, newtons_method_cache) = cache
     # Statically retrieve dimension vector to omit runtime Val type lookup.
     v_s = get_val_S(b_imp)
 
-    if iszero(a_imp[1, 1])
-        # Overlap Jacobian update with the non-implicit Stage 1 compute.
-        jac_token = async_update_jacobian!(
-            T_imp!,
-            newtons_method,
-            newtons_method_cache,
-            u,
-            p,
-            t,
-            dt,
-            γ,
-            alg,
-        )
-        # Perform Stage 1 independently
-        update_stage!(integrator, cache, Val(1))
-
-        # GPU-side barrier (if applicable) before initiating implicitly-linked Stage 2
-        sync_jacobian_update!(jac_token)
-
-        # Conclude remaining step iterations statically.
-        # Extract the literal stage count from the type system to generate perfect static ranges.
-        s_val = typeof(v_s).parameters[1]
-        update_stage!(integrator, cache, ntuple(j -> Val(j + 1), Val(s_val - 1)))
-    else
-        # Synchronous fallback for implicit-first stages
-        maybe_update_jacobian!(
-            T_imp!,
-            newtons_method,
-            newtons_method_cache,
-            u,
-            p,
-            t,
-            dt,
-            γ,
-            alg,
-        )
-        # Statically expand the stage evaluations at compile-time via tuple dispatch.
-        update_stage!(integrator, cache, ntuple(j -> Val(j), v_s))
-    end
+    overlap_step_dispatch!(integrator, cache, a_imp, v_s)
 
     t_final = t + dt
 
@@ -122,7 +89,7 @@ function step_u!(integrator, cache::IMEXSSPRKCache)
     inc_imp_final = isnothing(T_imp!) ? 0 : fused_raw_increment(dt, b_imp, T_imp, v_s)
 
     # Using static integer tag from Val wrapper.
-    s = typeof(v_s).parameters[1]
+    s = val_to_int(v_s)
     if !iszero(β[s])
         if has_T_lim(f)
             @. U_lim = U_exp + dt * T_lim
@@ -149,11 +116,9 @@ end
 @inline function update_stage!(integrator, cache::IMEXSSPRKCache, v_i::Val{i}) where {i}
     (; u, p, t, dt, alg) = integrator
     (; f) = integrator.sol.prob
+    (; newtons_method) = alg
     (; cache!, cache_imp!, T_imp!, lim!, dss!) = f
-    (; tableau, newtons_method) = alg
-    opt_tb =
-        alg.options.preserve_internal_fp64 ? tableau : downcast_tableau(eltype(u), tableau)
-    (; a_imp, b_imp, c_exp, c_imp) = opt_tb
+    (; a_imp, b_imp, c_exp, c_imp) = cache.tableau
     (; U, U_lim, U_exp, T_lim, T_exp, T_imp, temp, β, newtons_method_cache) = cache
 
     t_exp = t + dt * c_exp[i]
@@ -200,7 +165,11 @@ end
     if !iszero(β[i])
         isnothing(f.T_exp_T_lim!) || f.T_exp_T_lim!(T_exp, T_lim, U, p, t_exp)
     end
-    if !all(iszero, a_imp[:, i]) || !iszero(b_imp[i])
+    has_nonzero_imp = false
+    for row in 1:size(a_imp.coeffs, 1)
+        has_nonzero_imp |= !iszero(a_imp.coeffs[row, i])
+    end
+    if has_nonzero_imp || !iszero(b_imp[i])
         if iszero(a_imp[i, i])
             # When γ == 0, T_imp[i] is treated explicitly.
             isnothing(T_imp!) || T_imp!(T_imp[i], U, p, t_imp)

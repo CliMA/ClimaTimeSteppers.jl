@@ -45,7 +45,7 @@ function maybe_update_jacobian!(
     return nothing
 end
 
-struct IMEXARKCache{SCU, SCE, SCI, T, Γ, NMC}
+struct IMEXARKCache{SCU, SCE, SCI, T, Γ, NMC, TAB}
     U::SCU     # sparse container of length s
     T_lim::SCE # sparse container of length s
     T_exp::SCE # sparse container of length s
@@ -53,6 +53,7 @@ struct IMEXARKCache{SCU, SCE, SCI, T, Γ, NMC}
     temp::T
     γ::Γ
     newtons_method_cache::NMC
+    tableau::TAB
 end
 
 function init_cache(prob, alg::IMEXAlgorithm{Unconstrained}; kwargs...)
@@ -75,7 +76,12 @@ function init_cache(prob, alg::IMEXAlgorithm{Unconstrained}; kwargs...)
     newtons_method_cache =
         isnothing(T_imp!) || isnothing(newtons_method) ? nothing :
         allocate_cache(newtons_method, u0, jac_prototype)
-    return IMEXARKCache(U, T_lim, T_exp, T_imp, temp, γ, newtons_method_cache)
+
+    # Honor extended floating precision buffers if flagged; else strip constants to exact hardware spec.
+    opt_tb =
+        alg.options.preserve_internal_fp64 ? tableau : downcast_tableau(eltype(u0), tableau)
+
+    return IMEXARKCache(U, T_lim, T_exp, T_imp, temp, γ, newtons_method_cache, opt_tb)
 end
 
 # generic fallback
@@ -84,53 +90,13 @@ function step_u!(integrator, cache::IMEXARKCache)
     (; f) = integrator.sol.prob
     (; cache!, cache_imp!) = f
     (; T_exp_T_lim!, T_imp!, lim!, dss!) = f
-    (; tableau, newtons_method) = alg
-    # Honor extended floating precision buffers if flagged; else strip constants to exact hardware spec.
-    opt_tb =
-        alg.options.preserve_internal_fp64 ? tableau : downcast_tableau(eltype(u), tableau)
-    (; a_exp, b_exp, a_imp, b_imp, c_exp, c_imp) = opt_tb
+    (; newtons_method) = alg
+    (; a_exp, b_exp, a_imp, b_imp, c_exp, c_imp) = cache.tableau
     (; U, T_lim, T_exp, T_imp, temp, γ, newtons_method_cache) = cache
     # Acquire the dimension statically to prevent runtime Val dispatch.
     v_s = get_val_S(b_imp)
 
-    if iszero(a_imp[1, 1])
-        # Explicit-first-stage (ESDIRK): Overlap Jacobian build with Stage 1.
-        jac_token = async_update_jacobian!(
-            T_imp!,
-            newtons_method,
-            newtons_method_cache,
-            u,
-            p,
-            t,
-            dt,
-            γ,
-            alg,
-        )
-        # Execute Stage 1 (which has no dependence on the fresh Jacobian)
-        update_stage!(integrator, cache, Val(1))
-
-        # Synchronize: Ensure the new Jacobian is completely assembled before starting Stage 2
-        sync_jacobian_update!(jac_token)
-
-        # Statically iterate through the remaining stages.
-        # Extract the literal integer from Val{Int} to build a precise static range for Stage 2 -> S.
-        s_val = typeof(v_s).parameters[1]
-        update_stage!(integrator, cache, ntuple(j -> Val(j + 1), Val(s_val - 1)))
-    else
-        # Implicit-first-stage: Fallback to strictly sequential execution
-        maybe_update_jacobian!(
-            T_imp!,
-            newtons_method,
-            newtons_method_cache,
-            u,
-            p,
-            t,
-            dt,
-            γ,
-            alg,
-        )
-        update_stage!(integrator, cache, ntuple(j -> Val(j), v_s))
-    end
+    overlap_step_dispatch!(integrator, cache, a_imp, v_s)
 
     t_final = t + dt
 
@@ -167,10 +133,7 @@ end
 @inline function update_stage!(integrator, cache::IMEXARKCache, v_i::Val{i}) where {i}
     (; u, p, t, dt, alg) = integrator
     (; f) = integrator.sol.prob
-    (; tableau) = alg
-    opt_tb =
-        alg.options.preserve_internal_fp64 ? tableau : downcast_tableau(eltype(u), tableau)
-    (; a_exp, b_exp, a_imp, b_imp, c_exp, c_imp) = opt_tb
+    (; a_exp, b_exp, a_imp, b_imp, c_exp, c_imp) = cache.tableau
     (; U, T_lim, T_exp, T_imp, temp) = cache
 
     t_exp = t + dt * c_exp[i]
@@ -288,13 +251,20 @@ in later stages and the final update.
     T_exp, T_lim, T_imp, U, temp,
     p, t_exp, t_imp, dtγ, i, f, a_exp, b_exp, a_imp, b_imp,
 )
-    # Explicit tendencies (needed for later stages or final update)
-    if !all(iszero, a_exp[:, i]) || !iszero(b_exp[i])
+    has_exp_terms = false
+    for row in 1:size(a_exp.coeffs, 1)
+        has_exp_terms |= !iszero(a_exp.coeffs[row, i])
+    end
+    if has_exp_terms || !iszero(b_exp[i])
         isnothing(f.T_exp_T_lim!) || f.T_exp_T_lim!(T_exp[i], T_lim[i], U, p, t_exp)
     end
 
     # Implicit tendencies
-    if !all(iszero, a_imp[:, i]) || !iszero(b_imp[i])
+    has_imp_terms = false
+    for row in 1:size(a_imp.coeffs, 1)
+        has_imp_terms |= !iszero(a_imp.coeffs[row, i])
+    end
+    if has_imp_terms || !iszero(b_imp[i])
         if iszero(dtγ)
             # γ == 0: T_imp is treated explicitly
             isnothing(f.T_imp!) || f.T_imp!(T_imp[i], U, p, t_imp)

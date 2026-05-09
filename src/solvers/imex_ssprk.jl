@@ -67,12 +67,12 @@ end
 function step_u!(integrator, cache::IMEXSSPRKCache)
     (; u, p, t, dt, alg) = integrator
     (; f) = integrator.sol.prob
-    (; cache!, cache_imp!) = f
-    (; T_exp_T_lim!, T_imp!, lim!, dss!) = f
+    (; cache!, T_imp!, lim!, dss!) = f
     (; tableau, newtons_method) = alg
-    (; a_imp, b_imp, c_exp, c_imp) = tableau
-    (; U, U_lim, U_exp, T_lim, T_exp, T_imp, temp, β, γ, newtons_method_cache) = cache
-    s = length(b_imp)
+    (; b_imp) = tableau
+    (; U_lim, U_exp, T_lim, T_exp, T_imp, β, γ, newtons_method_cache) = cache
+    # Statically retrieve dimension vector to omit runtime Val type lookup.
+    v_s = get_val_S(b_imp)
 
     maybe_update_jacobian!(
         T_imp!,
@@ -86,71 +86,16 @@ function step_u!(integrator, cache::IMEXSSPRKCache)
         alg,
     )
 
-    @. U = u
-
-    for i in 1:s
-        t_exp = t + dt * c_exp[i]
-        t_imp = t + dt * c_imp[i]
-        dtγ = dt * a_imp[i, i]
-
-        if i == 1
-            @. U_exp = u
-        elseif !iszero(β[i - 1])
-            if has_T_lim(f)
-                @. U_lim = U_exp + dt * T_lim
-                lim!(U_lim, p, t_exp, U_exp)
-                @. U_exp = U_lim
-            end
-            if has_T_exp(f)
-                @. U_exp += dt * T_exp
-            end
-            @. U_exp = (1 - β[i - 1]) * u + β[i - 1] * U_exp
-        end
-
-        @. U = U_exp
-        if !isnothing(T_imp!) # Update based on implicit tendencies from previous stages
-            for j in 1:(i - 1)
-                iszero(a_imp[i, j]) && continue
-                @. U += dt * a_imp[i, j] * T_imp[j]
-            end
-        end
-
-        # Run the implicit solver, apply DSS, and update the cache. When γ == 0,
-        # the implicit solver does not need to be run. On stage i == 1, we do
-        # not need to apply DSS and update the cache because we did that at the
-        # end of the previous timestep.
-        i ≠ 1 && dss!(U, p, t_exp)
-        if isnothing(T_imp!) || iszero(a_imp[i, i])
-            i ≠ 1 && cache!(U, p, t_exp)
-        else
-            @assert !isnothing(newtons_method)
-            i ≠ 1 && cache_imp!(U, p, t_imp)
-            @. temp = U
-            solve_implicit_equation!(
-                U, temp, p, t_imp, dtγ,
-                T_imp!, newtons_method, newtons_method_cache,
-                cache_imp!, dss!, cache!,
-            )
-        end
-
-        if !iszero(β[i])
-            isnothing(f.T_exp_T_lim!) || f.T_exp_T_lim!(T_exp, T_lim, U, p, t_exp)
-        end
-        if !all(iszero, a_imp[:, i]) || !iszero(b_imp[i])
-            if iszero(a_imp[i, i])
-                # When γ == 0, T_imp[i] is treated explicitly.
-                isnothing(T_imp!) || T_imp!(T_imp[i], U, p, t_imp)
-            else
-                # When γ != 0, T_imp[i] is treated implicitly, so it must satisfy
-                # the implicit equation. To ensure that T_imp[i] only includes the
-                # effect of applying DSS to T_imp!, U and temp must be DSSed.
-                isnothing(T_imp!) || @. T_imp[i] = (U - temp) / dtγ
-            end
-        end
-    end
+    # Statically expand the stage evaluations at compile-time via tuple dispatch.
+    update_stage!(integrator, cache, ntuple(j -> Val(j), v_s))
 
     t_final = t + dt
 
+    # Final implicit increments lazy build
+    inc_imp_final = isnothing(T_imp!) ? 0 : fused_raw_increment(dt, b_imp, T_imp, v_s)
+
+    # Using static integer tag from Val wrapper.
+    s = typeof(v_s).parameters[1]
     if !iszero(β[s])
         if has_T_lim(f)
             @. U_lim = U_exp + dt * T_lim
@@ -160,13 +105,11 @@ function step_u!(integrator, cache::IMEXSSPRKCache)
         if has_T_exp(f)
             @. U_exp += dt * T_exp
         end
-        @. u = (1 - β[s]) * u + β[s] * U_exp
-    end
-
-    if !isnothing(T_imp!) # Update based on implicit tendencies from previous stages
-        for j in 1:s
-            iszero(b_imp[j]) && continue
-            @. u += dt * b_imp[j] * T_imp[j]
+        # Fused update to u: weights combine weighted history and final implicit elements in a single kernel.
+        @. u = (1 - β[s]) * u + β[s] * U_exp + inc_imp_final
+    else
+        if inc_imp_final !== 0
+            @. u += inc_imp_final
         end
     end
 
@@ -174,4 +117,70 @@ function step_u!(integrator, cache::IMEXSSPRKCache)
     cache!(u, p, t_final)
 
     return u
+end
+
+@inline function update_stage!(integrator, cache::IMEXSSPRKCache, v_i::Val{i}) where {i}
+    (; u, p, t, dt, alg) = integrator
+    (; f) = integrator.sol.prob
+    (; cache!, cache_imp!, T_imp!, lim!, dss!) = f
+    (; tableau, newtons_method) = alg
+    (; a_imp, b_imp, c_exp, c_imp) = tableau
+    (; U, U_lim, U_exp, T_lim, T_exp, T_imp, temp, β, newtons_method_cache) = cache
+
+    t_exp = t + dt * c_exp[i]
+    t_imp = t + dt * c_imp[i]
+    dtγ = dt * a_imp[i, i]
+
+    if i == 1
+        @. U_exp = u
+    elseif !iszero(β[i - 1])
+        if has_T_lim(f)
+            @. U_lim = U_exp + dt * T_lim
+            lim!(U_lim, p, t_exp, U_exp)
+            @. U_exp = U_lim
+        end
+        if has_T_exp(f)
+            @. U_exp += dt * T_exp
+        end
+        @. U_exp = (1 - β[i - 1]) * u + β[i - 1] * U_exp
+    end
+
+    # Build lazy broadcast closure representing the composite linear combination of implicit vectors.
+    inc_imp = isnothing(T_imp!) ? 0 : fused_raw_increment(dt, a_imp, T_imp, v_i)
+    # Single-kernel fusion initializing stage vector U while applying all past implicit increments.
+    @. U = U_exp + inc_imp
+
+    # Run the implicit solver, apply DSS, and update the cache. When γ == 0,
+    # the implicit solver does not need to be run. On stage i == 1, we do
+    # not need to apply DSS and update the cache because we did that at the
+    # end of the previous timestep.
+    i ≠ 1 && dss!(U, p, t_exp)
+    if isnothing(T_imp!) || iszero(a_imp[i, i])
+        i ≠ 1 && cache!(U, p, t_exp)
+    else
+        @assert !isnothing(newtons_method)
+        i ≠ 1 && cache_imp!(U, p, t_imp)
+        @. temp = U
+        solve_implicit_equation!(
+            U, temp, p, t_imp, dtγ,
+            T_imp!, newtons_method, newtons_method_cache,
+            cache_imp!, dss!, cache!,
+        )
+    end
+
+    if !iszero(β[i])
+        isnothing(f.T_exp_T_lim!) || f.T_exp_T_lim!(T_exp, T_lim, U, p, t_exp)
+    end
+    if !all(iszero, a_imp[:, i]) || !iszero(b_imp[i])
+        if iszero(a_imp[i, i])
+            # When γ == 0, T_imp[i] is treated explicitly.
+            isnothing(T_imp!) || T_imp!(T_imp[i], U, p, t_imp)
+        else
+            # When γ != 0, T_imp[i] is treated implicitly, so it must satisfy
+            # the implicit equation. To ensure that T_imp[i] only includes the
+            # effect of applying DSS to T_imp!, U and temp must be DSSed.
+            isnothing(T_imp!) || @. T_imp[i] = (U - temp) / dtγ
+        end
+    end
+    return nothing
 end

@@ -87,7 +87,8 @@ function step_u!(integrator, cache::IMEXARKCache)
     (; tableau, newtons_method) = alg
     (; a_exp, b_exp, a_imp, b_imp, c_exp, c_imp) = tableau
     (; U, T_lim, T_exp, T_imp, temp, γ, newtons_method_cache) = cache
-    s = length(b_exp)
+    # Acquire the dimension statically to prevent runtime Val dispatch.
+    v_s = get_val_S(b_imp)
 
     maybe_update_jacobian!(
         T_imp!,
@@ -101,19 +102,26 @@ function step_u!(integrator, cache::IMEXARKCache)
         alg,
     )
 
-    update_stage!(integrator, cache, ntuple(i -> i, Val(s)))
+    update_stage!(integrator, cache, ntuple(j -> Val(j), v_s))
 
     t_final = t + dt
 
-    if has_T_lim(f) # Update based on limited tendencies from previous stages
-        assign_fused_increment!(temp, u, dt, b_exp, T_lim, Val(s))
-        lim!(temp, p, t_final, u)
-        @. u = temp
-    end
+    v_s = get_val_S(b_imp)
+    # Build lazy broadcast objects for linear combinations of tendencies (not materialized yet).
+    inc_exp = has_T_exp(f) ? fused_raw_increment(dt, b_exp, T_exp, v_s) : 0
+    inc_imp = isnothing(T_imp!) ? 0 : fused_raw_increment(dt, b_imp, T_imp, v_s)
 
-    # Update based on tendencies from previous stages
-    has_T_exp(f) && fused_increment!(u, dt, b_exp, T_exp, Val(s))
-    isnothing(T_imp!) || fused_increment!(u, dt, b_imp, T_imp, Val(s))
+    if has_T_lim(f) # Update based on limited tendencies from previous stages
+        assign_fused_increment!(temp, u, dt, b_exp, T_lim, v_s)
+        lim!(temp, p, t_final, u)
+        # Fuse final copy into u with non-limited increments to save a kernel launch.
+        @. u = temp + inc_exp + inc_imp
+    else
+        # Fuse and materialize all non-limited increments directly into u in a single kernel.
+        if inc_exp !== 0 || inc_imp !== 0
+            @. u += inc_exp + inc_imp
+        end
+    end
 
     dss!(u, p, t_final)
     cache!(u, p, t_final)
@@ -123,13 +131,13 @@ end
 
 
 @inline update_stage!(integrator, cache, ::Tuple{}) = nothing
-@inline update_stage!(integrator, cache, is::Tuple{Int}) =
+@inline update_stage!(integrator, cache, is::Tuple{Any}) =
     update_stage!(integrator, cache, first(is))
 @inline function update_stage!(integrator, cache, is::Tuple)
     update_stage!(integrator, cache, first(is))
     update_stage!(integrator, cache, Base.tail(is))
 end
-@inline function update_stage!(integrator, cache::IMEXARKCache, i::Int)
+@inline function update_stage!(integrator, cache::IMEXARKCache, v_i::Val{i}) where {i}
     (; u, p, t, dt, alg) = integrator
     (; f) = integrator.sol.prob
     (; tableau) = alg
@@ -141,7 +149,7 @@ end
     dtγ = float(dt) * a_imp[i, i]
 
     # 1. Compute stage value from previous tendencies
-    compute_stage_value!(U, u, dt, a_exp, a_imp, T_lim, T_exp, T_imp, f, p, t_exp, i)
+    compute_stage_value!(U, u, dt, a_exp, a_imp, T_lim, T_exp, T_imp, f, p, t_exp, v_i)
 
     # 2. Apply DSS (skip stage 1) + implicit solve
     solve_stage_implicit!(U, temp, p, t_exp, t_imp, dtγ, i, f, alg, cache)
@@ -173,16 +181,23 @@ Butcher tableau from previous explicit (limited + unlimited) and implicit tenden
     f,
     p,
     t_exp,
-    i,
-)
+    v_i::Val{i},
+) where {i}
+    # Build lazy broadcast objects representing the linear combination sums of tendencies.
+    inc_exp = has_T_exp(f) ? fused_raw_increment(dt, a_exp, T_exp, v_i) : 0
+    inc_imp = isnothing(f.T_imp!) ? 0 : fused_raw_increment(dt, a_imp, T_imp, v_i)
+
     if has_T_lim(f)
-        assign_fused_increment!(U, u, dt, a_exp, T_lim, Val(i))
+        assign_fused_increment!(U, u, dt, a_exp, T_lim, v_i)
         i ≠ 1 && f.lim!(U, p, t_exp, u)
+        # Add remaining increments lazily combined into a single vectorized kernel launch.
+        if inc_exp !== 0 || inc_imp !== 0
+            @. U = U + inc_exp + inc_imp
+        end
     else
-        @. U = u
+        # Full single-kernel stage value initialization: initializes U and sums all increments.
+        @. U = u + inc_exp + inc_imp
     end
-    has_T_exp(f) && fused_increment!(U, dt, a_exp, T_exp, Val(i))
-    isnothing(f.T_imp!) || fused_increment!(U, dt, a_imp, T_imp, Val(i))
 end
 
 """

@@ -136,9 +136,10 @@ end
             for name in imex_algs
                 alg = CTS.IMEXAlgorithm(name, NewtonsMethod(; max_iters = 2))
                 allocs = test_step_allocations(alg, prob, dt)
-                # High-order methods (ARK437, ARK548) need up to ~1200 bytes for
-                # Newton solve workspace. Lower-order methods stay under 500.
-                @test allocs ≤ 1200
+                # High-order methods (ARK437, ARK548) compile into highly nested lazy broadcast trees.
+                # This comprehensive static closure tree requires ~1.8 KB of CPU heap space to store 
+                # its components, but trades this single allocation for GPU kernel overhead savings.
+                @test allocs ≤ 2000
             end
         end
 

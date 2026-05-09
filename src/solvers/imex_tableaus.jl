@@ -86,7 +86,7 @@ struct IMEXAlgorithm{
     options::O
 end
 
-# Casts constants inside static coefficient arrays down to match execution buffer requirements.
+# Cast tableau coefficients to type `FT`.
 function downcast_tableau(::Type{FT}, tb::IMEXTableau) where {FT}
     cast(x) = SparseCoeffs(map(FT, x.coeffs))
     IMEXTableau(
@@ -1021,7 +1021,7 @@ function IMEXTableau(::ARK548L2SA2)
     )
 end
 
-# Algorithms requiring 64-bit intermediate accumulation to avoid precision noise drift
+# Methods of order ≥ 3 default to FP64 accumulation to avoid roundoff drift.
 requires_fp64_accumulation(
     ::Union{
         ARS233,

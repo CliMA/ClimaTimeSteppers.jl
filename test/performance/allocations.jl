@@ -136,10 +136,9 @@ end
             for name in imex_algs
                 alg = CTS.IMEXAlgorithm(name, NewtonsMethod(; max_iters = 2))
                 allocs = test_step_allocations(alg, prob, dt)
-                # High-order methods (ARK437, ARK548) compile into highly nested lazy broadcast trees.
-                # This comprehensive static closure tree requires ~1.8 KB of CPU heap space to store 
-                # its components, but trades this single allocation for GPU kernel overhead savings.
-                @test allocs ≤ 10000
+                # Highest measured: ARK548L2SA2 ≈ 1760 bytes from the deeper
+                # lazy-broadcast trees built per stage.
+                @test allocs ≤ 2000
             end
         end
 
@@ -149,7 +148,7 @@ end
                 for name in (SSP222(), SSP333())
                     alg = CTS.IMEXAlgorithm(name, NewtonsMethod(; max_iters = 2))
                     allocs = test_step_allocations(alg, prob, dt)
-                    @test allocs ≤ 10000
+                    @test allocs ≤ 500
                 end
             end
 

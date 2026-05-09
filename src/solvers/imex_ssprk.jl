@@ -1,4 +1,4 @@
-struct IMEXSSPRKCache{U, SCI, B, Γ, NMC, TAB}
+struct IMEXSSPRKCache{U, SCI, B, Γ, NMC, JR, TAB}
     U::U
     U_exp::U
     U_lim::U
@@ -9,6 +9,7 @@ struct IMEXSSPRKCache{U, SCI, B, Γ, NMC, TAB}
     β::B
     γ::Γ
     newtons_method_cache::NMC
+    jac_resources::JR
     tableau::TAB
 end
 
@@ -47,12 +48,10 @@ function init_cache(prob, alg::IMEXAlgorithm{SSP}; kwargs...)
     end
     γs = unique(filter(!iszero, diag(a_imp)))
     γ = length(γs) == 1 ? γs[1] : nothing # TODO: This could just be a constant.
-    jac_prototype = has_jac(T_imp!) ? T_imp!.jac_prototype : nothing
-    newtons_method_cache =
-        isnothing(T_imp!) || isnothing(newtons_method) ? nothing :
-        allocate_cache(newtons_method, u0, jac_prototype)
+    newtons_method_cache, jac_res = init_implicit_caches(T_imp!, newtons_method, u0)
 
-    # Honor extended floating precision buffers if flagged; else strip constants to exact hardware spec.
+    # Cast tableau coefficients to `eltype(u0)` unless FP64 accumulation was
+    # requested via `preserve_internal_fp64`.
     opt_tb =
         alg.options.preserve_internal_fp64 ? tableau : downcast_tableau(eltype(u0), tableau)
 
@@ -67,28 +66,25 @@ function init_cache(prob, alg::IMEXAlgorithm{SSP}; kwargs...)
         β,
         γ,
         newtons_method_cache,
+        jac_res,
         opt_tb,
     )
 end
 
 function step_u!(integrator, cache::IMEXSSPRKCache)
-    (; u, p, t, dt, alg) = integrator
+    (; u, p, t, dt) = integrator
     (; f) = integrator.sol.prob
     (; cache!, T_imp!, lim!, dss!) = f
-    (; newtons_method) = alg
     (; a_imp, b_imp) = cache.tableau
-    (; U_lim, U_exp, T_lim, T_exp, T_imp, β, γ, newtons_method_cache) = cache
-    # Statically retrieve dimension vector to omit runtime Val type lookup.
+    (; U_exp, U_lim, T_lim, T_exp, T_imp, β) = cache
     v_s = get_val_S(b_imp)
 
     overlap_step_dispatch!(integrator, cache, a_imp, v_s)
 
     t_final = t + dt
 
-    # Final implicit increments lazy build
     inc_imp_final = isnothing(T_imp!) ? 0 : fused_raw_increment(dt, b_imp, T_imp, v_s)
 
-    # Using static integer tag from Val wrapper.
     s = val_to_int(v_s)
     if !iszero(β[s])
         if has_T_lim(f)
@@ -142,9 +138,7 @@ end
         @. U_exp = (1 - β[i - 1]) * u + β[i - 1] * U_exp
     end
 
-    # Build lazy broadcast closure representing the composite linear combination of implicit vectors.
     inc_imp = isnothing(T_imp!) ? 0 : fused_raw_increment(dt, a_imp, T_imp, v_i)
-    # Single-kernel fusion initializing stage vector U while applying all past implicit increments.
     @. U = U_exp + inc_imp
 
     # Run the implicit solver, apply DSS, and update the cache. When γ == 0,

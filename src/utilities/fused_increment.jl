@@ -148,8 +148,13 @@ Returns `0` when `i ≤ 1` or if the mask is all true (all coefficients are zero
 """
 function fused_raw_increment end
 
+# Cast `dt` to a float at the entry, mirroring the contract of
+# `fused_increment!` / `assign_fused_increment!`. Without this, callers
+# passing a non-float `dt` (e.g. `ClimaUtilities.ITime`) blow up at the
+# eager `dt * sc[i, j]` inside the recursion in `_rfused_increment_*`
+# rather than at materialize time.
 @inline fused_raw_increment(dt, sc::SparseCoeffs{S}, tend, v) where {S} =
-    fused_raw_increment(dt, sc, tend, v, Val(length(S)))
+    fused_raw_increment(float(dt), sc, tend, v, Val(length(S)))
 
 # =================================================== ij case (S::NTuple{2})
 # top-level function

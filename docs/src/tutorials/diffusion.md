@@ -139,7 +139,7 @@ grad_matrix = ClimaCore.MatrixFields.operator_matrix(grad_vert)
 
 function Wfact(W, Y, p, dtγ, t)
     @. W.matrix[@name(my_var), @name(my_var)] =
-        dtγ * div_matrix() ⋅ grad_matrix() - (LinearAlgebra.I,)
+        dtγ * K * div_matrix() ⋅ grad_matrix() - (LinearAlgebra.I,)
     return nothing
 end
 

@@ -1,96 +1,49 @@
-#####
-##### BenchmarkTools's trial utils
-#####
-
-get_summary(trial, trial_step = nothing) = (;
-    # Using some BenchmarkTools internals :/
-    mem = BenchmarkTools.prettymemory(trial.memory),
-    mem_val = trial.memory,
-    nalloc = trial.allocs,
-    t_min = BenchmarkTools.prettytime(minimum(trial.times)),
-    t_max = BenchmarkTools.prettytime(maximum(trial.times)),
-    t_mean = BenchmarkTools.prettytime(StatsBase.mean(trial.times)),
-    t_mean_val = StatsBase.mean(trial.times),
-    t_med = BenchmarkTools.prettytime(StatsBase.median(trial.times)),
-    n_samples = length(trial),
-    percentage = isnothing(trial_step) ? -1 :
-                 minimum(trial.times) / minimum(trial_step.times) * 100,
+get_summary(trial, call_count) = (;
+    allocs = trial.allocs * call_count,
+    memory = trial.memory * call_count,
+    time_min = minimum(trial.times) * call_count,
+    time_max = maximum(trial.times) * call_count,
+    time_median = median(trial.times) * call_count,
 )
 
-function tabulate_summary(summary; n_calls_per_step)
-    summary_keys = collect(keys(summary))
-    mem = map(k -> summary[k].mem, summary_keys)
-    nalloc = map(k -> summary[k].nalloc, summary_keys)
-    t_mean = map(k -> summary[k].t_mean, summary_keys)
-    t_min = map(k -> summary[k].t_min, summary_keys)
-    t_max = map(k -> summary[k].t_max, summary_keys)
-    t_med = map(k -> summary[k].t_med, summary_keys)
-    n_samples = map(k -> summary[k].n_samples, summary_keys)
-    percentage = map(k -> summary[k].percentage, summary_keys)
+rounded_percent(partial, total) = round(partial / total * 100; digits = 2)
 
-    func_names = if isnothing(n_calls_per_step)
-        map(k -> string(k), collect(keys(summary)))
-    else
-        @info "(#)x entries have been multiplied by corresponding factors in order to compute percentages"
-        map(k -> string(k, " ($(n_calls_per_step[k])x)"), collect(keys(summary)))
-    end
-    table_data =
-        hcat(func_names, mem, nalloc, t_min, t_max, t_mean, t_med, n_samples, percentage)
-
-    column_labels = [
-        [
-            "Function",
-            "Memory",
-            "allocs",
-            "Time",
-            "Time",
-            "Time",
-            "Time",
-            "N-samples",
-            "step! percentage",
-        ],
-        [" ", "estimate", "estimate", "min", "max", "mean", "median", "", ""],
-    ]
-
-    PrettyTables.pretty_table(
-        table_data;
-        column_labels,
-        fit_table_in_display_vertically = false,
-        fit_table_in_display_horizontally = false,
-        alignment = vcat(:l, repeat([:r], length(column_labels[1]) - 1)),
+function print_summary_table(summaries, call_counts)
+    names = collect(keys(summaries))
+    step_allocs = summaries["step!"].allocs
+    step_memory = summaries["step!"].memory
+    step_time = summaries["step!"].time_median
+    other_allocs = 2 * step_allocs - sum(name -> summaries[name].allocs, names)
+    other_memory = 2 * step_memory - sum(name -> summaries[name].memory, names)
+    other_time = 2 * step_time - sum(name -> summaries[name].time_median, names)
+    other_memory_str = BenchmarkTools.prettymemory(other_memory)
+    other_time_str = BenchmarkTools.prettytime(other_time)
+    other_percent = rounded_percent(other_time, step_time)
+    table_data = vcat(
+        hcat(
+            names,
+            map(name -> call_counts[name], names),
+            map(name -> summaries[name].allocs, names),
+            map(name -> BenchmarkTools.prettymemory(summaries[name].memory), names),
+            map(name -> BenchmarkTools.prettytime(summaries[name].time_min), names),
+            map(name -> BenchmarkTools.prettytime(summaries[name].time_max), names),
+            map(name -> BenchmarkTools.prettytime(summaries[name].time_median), names),
+            map(name -> rounded_percent(summaries[name].time_median, step_time), names),
+        ),
+        ["other" "--" other_allocs other_memory_str "--" "--" other_time_str other_percent],
     )
+    column_labels = [
+        ["", "Calls", "Memory", "Memory", "Time", "Time", "Time", "Step %"],
+        ["", "per step", "allocs", "total", "min", "max", "median", "median"],
+    ]
+    alignment = vcat(:l, repeat([:r], length(column_labels[1]) - 1))
+    PrettyTables.pretty_table(table_data; column_labels, alignment)
 end
 
-get_trial(
-    f::Nothing,
-    args,
-    name;
-    device,
-    with_cu_prof = :bprofile,
-    trace = false,
-    crop = false,
-    hcrop = nothing,
-) = nothing
-function get_trial(
-    f,
-    args,
-    name;
-    device,
-    with_cu_prof = :bprofile,
-    trace = false,
-    crop = false,
-    hcrop = nothing,
-)
-    f(args...) # compile first
-    b = if device isa ClimaComms.CUDADevice
-        BenchmarkTools.@benchmarkable CUDA.@sync $f($(args)...)
-    else
-        BenchmarkTools.@benchmarkable $f($(args)...)
-    end
-    sample_limit = 10
-    println("--------------- Benchmarking/profiling $name...")
-    trial = BenchmarkTools.run(b, samples = sample_limit)
+get_trial(f, args, name, device, with_cu_prof, trace, crop, hcrop) =
     if device isa ClimaComms.CUDADevice
+        @info "Profiling $name..."
+        println()
         p = if with_cu_prof == :bprofile
             CUDA.@bprofile trace = trace f(args...)
         else
@@ -113,26 +66,7 @@ function get_trial(
             end
             println()
         end
+        BenchmarkTools.run(BenchmarkTools.@benchmarkable CUDA.@sync $f($(args)...))
+    else
+        BenchmarkTools.run(BenchmarkTools.@benchmarkable $f($(args)...))
     end
-    println()
-    return trial
-end
-
-get_W(i::CTS.DistributedODEIntegrator) =
-    hasproperty(i.cache, :W) ? i.cache.W : i.cache.newtons_method_cache.j
-get_W(i) = i.cache.W
-f_args(i, f::CTS.ForwardEulerODEFunction) = (copy(i.u), i.u, i.p, i.t, i.dt)
-f_args(i, f) = (similar(i.u), i.u, i.p, i.t)
-
-r_args(i, f::CTS.ForwardEulerODEFunction) = (copy(i.u), copy(i.u), i.u, i.p, i.t, i.dt)
-r_args(i, f) = (similar(i.u), similar(i.u), i.u, i.p, i.t)
-
-implicit_args(i::CTS.DistributedODEIntegrator) = f_args(i, i.sol.prob.f.T_imp!)
-implicit_args(i) = f_args(i, i.f.f1)
-remaining_args(i::CTS.DistributedODEIntegrator) = r_args(i, i.sol.prob.f.T_exp_T_lim!)
-remaining_args(i) = r_args(i, i.f.f2)
-wfact_fun(i) = implicit_fun(i).Wfact
-implicit_fun(i::CTS.DistributedODEIntegrator) = i.sol.prob.f.T_imp!
-implicit_fun(i) = i.sol.prob.f.f1
-remaining_fun(i::CTS.DistributedODEIntegrator) = i.sol.prob.f.T_exp_T_lim!
-remaining_fun(i) = i.sol.prob.f.f2

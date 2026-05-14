@@ -210,7 +210,7 @@ struct KeywordArgSilentType end
 const KeywordArgSilent = KeywordArgSilentType()
 end
 
-benchmark_step(integrator, device) =
-    @warn "Must load CUDA, BenchmarkTools, OrderedCollections, StatsBase, PrettyTables to trigger the ClimaTimeSteppersBenchmarkToolsExt extension"
+benchmark_step(integrator, device = ClimaComms.device()) =
+    @warn "BenchmarkTools and CUDA must be loaded to call benchmark_step"
 
 end

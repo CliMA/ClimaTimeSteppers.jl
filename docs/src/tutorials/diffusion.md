@@ -243,3 +243,19 @@ nothing # hide
 ![Final 100m](diff_final_100m.png)
 
 The layer at z = 100 m, which started empty, now shows the diffused signal.
+
+## Analyzing Performance
+
+Loading the `BenchmarkTools` and `CUDA` packages allows the performance of a
+single integrator step to be analyzed using the `benchmark_step` function:
+
+```@example climacore
+import BenchmarkTools
+import CUDA
+ClimaTimeSteppers.benchmark_step(integrator)
+```
+
+For this example, the explicit tendency and DSS appear to be the most expensive
+parts of each step, while the implicit solve is relatively fast. The last row of
+the printed table includes all other functions called during a step, such as
+evaluating linear combinations of states and tendencies.

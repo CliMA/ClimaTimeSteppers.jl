@@ -18,10 +18,9 @@ DiffEqBase = "2b5f629d-d688-5b77-993f-72d75c75574e"
 OrderedCollections = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
 PrettyTables = "08abe8d2-0d0c-5749-adfa-8a2ac140af0d"
 SciMLBase = "0bca4576-84f4-4d90-8ffe-ffa030f20462"
-StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 
 [extensions]
-ClimaTimeSteppersBenchmarkToolsExt = ["CUDA", "BenchmarkTools", "OrderedCollections", "StatsBase", "PrettyTables"]
+ClimaTimeSteppersBenchmarkToolsExt = ["BenchmarkTools", "CUDA", "OrderedCollections", "PrettyTables"]
 ClimaTimeSteppersDiffEqExt = ["DiffEqBase", "SciMLBase"]
 ClimaTimeSteppersSciMLExt = "SciMLBase"
 
@@ -38,5 +37,4 @@ OrderedCollections = "1"
 PrettyTables = "3"
 SciMLBase = "1, 2, 3.3"
 StaticArrays = "1"
-StatsBase = "0.33, 0.34"
 julia = "1.9"

@@ -2,7 +2,12 @@ using Test
 import Base.Broadcast: broadcasted, materialize
 using StaticArrays
 using ClimaTimeSteppers:
-    SparseCoeffs, fused_increment, fused_increment!, assign_fused_increment!, zero_coeff
+    SparseCoeffs,
+    fused_increment,
+    fused_increment!,
+    assign_fused_increment!,
+    fused_raw_increment,
+    zero_coeff
 using Random
 
 mat(args...) = materialize(args...)
@@ -170,4 +175,83 @@ end
 
     bc3 = broadcasted(+, u, broadcasted(*, dt * coeffs[3, 1], tend[1]))
     @test fused_increment(u, dt, sc, tend, Val(3)) == bc3
+end
+@testset "raw increment 1D" begin
+    FT = Float64
+    u = FT[1, 2, 3]
+    tend = ntuple(i -> u .* i, 3)
+    coeffs = dummy_coeffs((3,))
+    coeffs .= 0
+    sc = SparseCoeffs(coeffs)
+    dt = 0.5
+    @test fused_raw_increment(dt, sc, tend, Val(1)) === 0
+
+    coeffs .= 1
+    coeffs[2] = 0
+    sc = SparseCoeffs(coeffs)
+    bc = broadcasted(*, dt * coeffs[1], tend[1])
+    @test fused_raw_increment(dt, sc, tend, Val(2)) == bc
+
+    coeffs .= 1
+    sc = SparseCoeffs(coeffs)
+    bc2 = broadcasted(+,
+        broadcasted(*, dt * coeffs[1], tend[1]),
+        broadcasted(*, dt * coeffs[2], tend[2]),
+    )
+    @test fused_raw_increment(dt, sc, tend, Val(2)) == bc2
+end
+
+@testset "raw increment 2D" begin
+    FT = Float64
+    u = FT[1, 2, 3]
+    tend = ntuple(i -> u .* i, 3)
+    coeffs = dummy_coeffs((3, 3))
+    coeffs .= 0
+    sc = SparseCoeffs(coeffs)
+    dt = 0.5
+    @test fused_raw_increment(dt, sc, tend, Val(1)) === 0
+
+    coeffs .= 1
+    coeffs[3, 2] = 0
+    sc = SparseCoeffs(coeffs)
+    bc = broadcasted(*, dt * coeffs[3, 1], tend[1])
+    @test fused_raw_increment(dt, sc, tend, Val(3)) == bc
+
+    coeffs .= 1
+    sc = SparseCoeffs(coeffs)
+    bc2 = broadcasted(+,
+        broadcasted(*, dt * coeffs[3, 1], tend[1]),
+        broadcasted(*, dt * coeffs[3, 2], tend[2]),
+    )
+    @test fused_raw_increment(dt, sc, tend, Val(3)) == bc2
+end
+
+# Regression: the kernel-fusion branch added `fused_raw_increment` without the
+# `float(dt)` cast that `fused_increment!`/`assign_fused_increment!` apply.
+# This broke ClimaCoupler downstream tests that pass `ClimaUtilities.ITime`
+# as `dt`, since `ITime * Float` errors on purpose.
+@testset "fused_raw_increment casts dt to float" begin
+    struct ITimeMock
+        t::Float64
+    end
+    Base.float(x::ITimeMock) = x.t
+    Base.:*(::ITimeMock, ::Real) =
+        error("ITimeMock * Real not allowed; cast first")
+    Base.:*(::Real, ::ITimeMock) =
+        error("Real * ITimeMock not allowed; cast first")
+
+    FT = Float64
+    tend = ntuple(i -> FT[1, 2, 3] .* i, 3)
+    coeffs = ones(FT, 3, 3)
+    sc = SparseCoeffs(coeffs)
+    dt = ITimeMock(0.5)
+
+    # Should not throw: float(dt) is applied at the entry point.
+    bc1 = fused_raw_increment(dt, sc, tend, Val(2))
+    @test mat(bc1) ≈ @. 0.5 * coeffs[2, 1] * tend[1]
+
+    # 1D path
+    sc1 = SparseCoeffs(ones(FT, 3))
+    bc2 = fused_raw_increment(dt, sc1, tend, Val(2))
+    @test mat(bc2) ≈ @. 0.5 * 1 * tend[1] + 0.5 * 1 * tend[2]
 end

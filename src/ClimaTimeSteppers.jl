@@ -52,6 +52,7 @@ import LinearAlgebra, Krylov
 
 include(joinpath("utilities", "sparse_coeffs.jl"))
 include(joinpath("utilities", "fused_increment.jl"))
+include(joinpath("utilities", "async_utils.jl"))
 include("sparse_containers.jl")
 include("problems.jl")
 include("functions.jl")

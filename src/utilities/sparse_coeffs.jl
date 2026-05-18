@@ -23,6 +23,7 @@ LinearAlgebra.diag(sc::SparseCoeffs, args...) = LinearAlgebra.diag(sc.coeffs, ar
 LinearAlgebra.adjoint(sc::SparseCoeffs) = LinearAlgebra.adjoint(sc.coeffs)
 
 get_S(::SparseCoeffs{S}) where {S} = S
+@inline get_val_S(::SparseCoeffs{S}) where {S} = Val(S[1])
 
 # Special behavior of SparseCoeffs:
 Base.@propagate_inbounds zero_coeff(

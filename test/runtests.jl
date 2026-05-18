@@ -1,8 +1,5 @@
 using SafeTestsets
 
-if "CuArray" in ARGS
-    import CUDA
-end
 # ============================================================================ #
 # Unit tests (fast, no convergence studies)
 # ============================================================================ #
@@ -41,6 +38,10 @@ end
 
 @safetestset "Edge cases" begin
     include("unit/edge_cases.jl")
+end
+
+@safetestset "Jacobian update" begin
+    include("unit/jacobian_update.jl")
 end
 
 @safetestset "Jacobian accuracy" begin

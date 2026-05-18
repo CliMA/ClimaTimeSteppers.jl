@@ -77,22 +77,43 @@ struct IMEXAlgorithm{
     N <: Union{Nothing, AbstractAlgorithmName},
     T <: IMEXTableau,
     NM <: Union{Nothing, NewtonsMethod},
+    O <: NamedTuple,
 } <: TimeSteppingAlgorithm
     constraint::C
     name::N
     tableau::T
     newtons_method::NM
+    options::O
 end
+
+# Cast tableau coefficients to type `FT`.
+function downcast_tableau(::Type{FT}, tb::IMEXTableau) where {FT}
+    cast(x) = SparseCoeffs(map(FT, x.coeffs))
+    IMEXTableau(
+        cast(tb.a_exp), cast(tb.b_exp), cast(tb.c_exp),
+        cast(tb.a_imp), cast(tb.b_imp), cast(tb.c_imp),
+    )
+end
+requires_fp64_accumulation(::AbstractAlgorithmName) = false
+
 IMEXAlgorithm(
     tableau::IMEXTableau,
     newtons_method::NewtonsMethod,
-    constraint = Unconstrained(),
-) = IMEXAlgorithm(constraint, nothing, tableau, newtons_method)
+    constraint = Unconstrained();
+    preserve_internal_fp64::Bool = false,
+) = IMEXAlgorithm(constraint, nothing, tableau, newtons_method, (; preserve_internal_fp64))
 IMEXAlgorithm(
     name::IMEXARKAlgorithmName,
     newtons_method::NewtonsMethod,
-    constraint = default_constraint(name),
-) = IMEXAlgorithm(constraint, name, IMEXTableau(name), newtons_method)
+    constraint = default_constraint(name);
+    preserve_internal_fp64::Bool = requires_fp64_accumulation(name),
+) = IMEXAlgorithm(
+    constraint,
+    name,
+    IMEXTableau(name),
+    newtons_method,
+    (; preserve_internal_fp64),
+)
 
 ################################################################################
 
@@ -999,3 +1020,19 @@ function IMEXTableau(::ARK548L2SA2)
         c_imp = SArray{Tuple{8}}(c),
     )
 end
+
+# Methods of order ≥ 3 default to FP64 accumulation to avoid roundoff drift.
+requires_fp64_accumulation(
+    ::Union{
+        ARS233,
+        ARS343,
+        ARS443,
+        IMKG342a,
+        IMKG343a,
+        DBM453,
+        SSP333,
+        SSP433,
+        ARK437L2SA1,
+        ARK548L2SA2,
+    },
+) = true

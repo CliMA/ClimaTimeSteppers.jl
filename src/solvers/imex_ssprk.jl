@@ -1,4 +1,4 @@
-struct IMEXSSPRKCache{U, SCI, B, Γ, NMC, JR, TAB}
+struct IMEXSSPRKCache{U, SCI, B, Γ, NMC, TAB}
     U::U
     U_exp::U
     U_lim::U
@@ -9,7 +9,6 @@ struct IMEXSSPRKCache{U, SCI, B, Γ, NMC, JR, TAB}
     β::B
     γ::Γ
     newtons_method_cache::NMC
-    jac_resources::JR
     tableau::TAB
 end
 
@@ -48,7 +47,10 @@ function init_cache(prob, alg::IMEXAlgorithm{SSP}; kwargs...)
     end
     γs = unique(filter(!iszero, diag(a_imp)))
     γ = length(γs) == 1 ? γs[1] : nothing # TODO: This could just be a constant.
-    newtons_method_cache, jac_res = init_implicit_caches(T_imp!, newtons_method, u0)
+    jac_prototype = has_jac(T_imp!) ? T_imp!.jac_prototype : nothing
+    newtons_method_cache =
+        isnothing(T_imp!) || isnothing(newtons_method) ? nothing :
+        allocate_cache(newtons_method, u0, jac_prototype)
 
     # Cast tableau coefficients to `eltype(u0)` unless FP64 accumulation was
     # requested via `preserve_internal_fp64`.
@@ -66,7 +68,6 @@ function init_cache(prob, alg::IMEXAlgorithm{SSP}; kwargs...)
         β,
         γ,
         newtons_method_cache,
-        jac_res,
         opt_tb,
     )
 end
@@ -79,7 +80,7 @@ function step_u!(integrator, cache::IMEXSSPRKCache)
     (; U_exp, U_lim, T_lim, T_exp, T_imp, β) = cache
     v_s = get_val_S(b_imp)
 
-    overlap_step_dispatch!(integrator, cache, a_imp, v_s)
+    step_stages!(integrator, cache, a_imp, v_s)
 
     t_final = t + dt
 

@@ -6,25 +6,7 @@ has_jac(T_imp!) =
     !isnothing(T_imp!.Wfact) &&
     !isnothing(T_imp!.jac_prototype)
 
-"""
-    init_implicit_caches(T_imp!, newtons_method, u0)
-
-Allocate the Newton's-method workspace and Jacobian-overlap resources for an
-IMEX cache. Returns `(nothing, nothing)` when the algorithm has no implicit
-part (`T_imp!` or `newtons_method` is `nothing`); otherwise returns
-`(newtons_method_cache, jac_resources)`. Shared by `IMEXARKCache` and
-`IMEXSSPRKCache` so their guards stay in sync.
-"""
-function init_implicit_caches(T_imp!, newtons_method, u0)
-    if isnothing(T_imp!) || isnothing(newtons_method)
-        return nothing, nothing
-    end
-    jac_prototype = has_jac(T_imp!) ? T_imp!.jac_prototype : nothing
-    nm_cache = allocate_cache(newtons_method, u0, jac_prototype)
-    return nm_cache, init_jac_resources(u0)
-end
-
-struct IMEXARKCache{SCU, SCE, SCI, T, Γ, NMC, JR, TAB}
+struct IMEXARKCache{SCU, SCE, SCI, T, Γ, NMC, TAB}
     U::SCU     # sparse container of length s
     T_lim::SCE # sparse container of length s
     T_exp::SCE # sparse container of length s
@@ -32,7 +14,6 @@ struct IMEXARKCache{SCU, SCE, SCI, T, Γ, NMC, JR, TAB}
     temp::T
     γ::Γ
     newtons_method_cache::NMC
-    jac_resources::JR
     tableau::TAB
 end
 
@@ -52,7 +33,10 @@ function init_cache(prob, alg::IMEXAlgorithm{Unconstrained}; kwargs...)
     temp = zero(u0)
     γs = unique(filter(!iszero, diag(a_imp)))
     γ = length(γs) == 1 ? γs[1] : nothing # TODO: This could just be a constant.
-    newtons_method_cache, jac_res = init_implicit_caches(T_imp!, newtons_method, u0)
+    jac_prototype = has_jac(T_imp!) ? T_imp!.jac_prototype : nothing
+    newtons_method_cache =
+        isnothing(T_imp!) || isnothing(newtons_method) ? nothing :
+        allocate_cache(newtons_method, u0, jac_prototype)
 
     # Cast tableau coefficients to `eltype(u0)` unless FP64 accumulation was
     # requested via `preserve_internal_fp64`.
@@ -60,7 +44,7 @@ function init_cache(prob, alg::IMEXAlgorithm{Unconstrained}; kwargs...)
         alg.options.preserve_internal_fp64 ? tableau : downcast_tableau(eltype(u0), tableau)
 
     return IMEXARKCache(
-        U, T_lim, T_exp, T_imp, temp, γ, newtons_method_cache, jac_res, opt_tb,
+        U, T_lim, T_exp, T_imp, temp, γ, newtons_method_cache, opt_tb,
     )
 end
 
@@ -73,7 +57,7 @@ function step_u!(integrator, cache::IMEXARKCache)
     (; T_lim, T_exp, T_imp, temp) = cache
     v_s = get_val_S(b_imp)
 
-    overlap_step_dispatch!(integrator, cache, a_imp, v_s)
+    step_stages!(integrator, cache, a_imp, v_s)
 
     t_final = t + dt
 

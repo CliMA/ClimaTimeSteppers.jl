@@ -149,6 +149,9 @@ CallbackSet(cb::DiscreteCallback, cbs::DiscreteCallback...) =
     CallbackSet((cb, cbs...))
 CallbackSet((; discrete_callbacks)::CallbackSet, cbs::DiscreteCallback...) =
     CallbackSet((discrete_callbacks..., cbs...))
+# Backward compat: downstream packages may still call CallbackSet((), (cbs...))
+# from the old two-field (continuous_callbacks, discrete_callbacks) layout.
+CallbackSet(::Tuple{}, discrete_cbs::Tuple) = CallbackSet(discrete_cbs)
 
 function initialize_callbacks!(cbset::CallbackSet, u, t, integrator)
     for cb in cbset.discrete_callbacks

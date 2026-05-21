@@ -156,7 +156,9 @@ println("Final:         t = ", sol.t[end], ",  u = ", sol.u[end])
 | [**Algorithm Properties**](algorithm_properties/stability.md) | Stability regions and convergence plots for all implemented schemes |
 | [**Tutorials**](tutorials/imex_diffusion.md) | [IMEX diffusion](tutorials/imex_diffusion.md), [automatic differentiation](tutorials/automatic_differentiation.md), and [spherical diffusion](tutorials/diffusion.md) (ClimaCore) |
 | [**API Reference**](api/ode_solvers.md) | Complete docstrings for all types and functions |
-| [**Developer Docs**](dev/types.md) | Type hierarchies and convergence report generation |
+| [**CTS Internals**](dev/types.md) | Internal type hierarchies and convergence report generation |
+| [**CliMA Developer Guides**](https://github.com/CliMA/DeveloperGuides) | Ecosystem-wide architectural standards, GPU optimization, and coding conventions |
+| [**Agent Guide**](https://github.com/CliMA/ClimaTimeSteppers.jl/blob/main/AGENTS.md) | Workflow boundaries and repo-specific documentation |
 | [**Contributing**](contributing.md) | How to contribute, code guidelines, and CI checks |
 | [**References**](references.md) | Bibliography of cited papers |
 

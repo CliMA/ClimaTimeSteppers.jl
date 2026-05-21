@@ -33,6 +33,7 @@ please [open an issue](https://github.com/CliMA/ClimaTimeSteppers.jl/issues/new)
 
 ## Code Guidelines
 
+- Before making significant changes, please read our [Agent Guide](https://github.com/CliMA/ClimaTimeSteppers.jl/blob/main/AGENTS.md) and [Repo-Specific Guide](https://github.com/CliMA/ClimaTimeSteppers.jl/blob/main/docs/clima_timesteppers_specific.md) for architectural boundaries, code conventions, and testing strategies. The shared CliMA engineering guidelines are vendored at [`docs/dev-guides/`](https://github.com/CliMA/ClimaTimeSteppers.jl/tree/main/docs/dev-guides).
 - Add tests for new functionality in `test/` and documentation in `docs/`.
 - All exported functions and types must have docstrings.
 - Keep commits focused — one logical change per commit.

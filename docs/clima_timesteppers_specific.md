@@ -34,7 +34,7 @@ Mapped to the architectural layers in
 | Solvers | `src/solvers/imex_tableaus.jl` | IMEX ARK tableau definitions (ARS, IMKG, ARK families) |
 | Nonlinear solvers | `src/nl_solvers/newtons_method.jl` | Newton's method with GMRES/JFNK, line search, convergence |
 | Integrator | `src/integrators.jl` | `TimeStepperIntegrator` state, `init`, `step!`, `solve!` dispatch |
-| ODE functions | `src/functions.jl` | `ClimaODEFunction` (T_exp!, T_imp!, dss!, lim!) |
+| ODE functions | `src/functions.jl` | `ClimaODEFunction` (T_exp!, T_lim!, T_imp!, lim!, dss!, cache!) |
 | Problems | `src/problems.jl` | `ODEProblem` definition |
 | Utilities | `src/utilities/fused_increment.jl` | Fused in-place update (`@fused_increment`) |
 | Utilities | `src/utilities/convergence_checker.jl` | Convergence norm tracking |
@@ -59,12 +59,13 @@ Mapped to the architectural layers in
    - `T_imp!` — implicit tendency, typically a `ClimaTimeSteppers.ODEFunction` carrying `Wfact` and `jac_prototype`
    - `lim!(u, p, t, u_ref)` — monotonicity limiter applied after the limited explicit increment
    - `dss!(u, p, t)` — direct stiffness summation for spectral element continuity
+   - `initialize_imp!(u, p, γdt)` — called once per implicit stage to set up the Newton solve
+   - `cache!(u, p, t)` — update the parameter cache `p` to reflect state `u`
 
    Explicit-only, implicit-only, and IMEX problems are all expressed through this single type.
 
 2. **`ODEProblem`** (`src/problems.jl`) — pairs a `ClimaODEFunction` with an
-   initial state, time span, and parameters; mirrors the SciML `ODEProblem`
-   interface.
+   initial state, time span, and parameters.
 
 3. **`IMEXAlgorithm` / `ExplicitAlgorithm`** (`src/solvers/imex_tableaus.jl` and
    `src/solvers/explicit_tableaus.jl`) — top-level algorithm types.

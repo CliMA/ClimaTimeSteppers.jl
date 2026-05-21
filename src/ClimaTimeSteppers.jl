@@ -67,6 +67,8 @@ Concrete subtypes include [`IMEXAlgorithm`](@ref),
 [`RosenbrockAlgorithm`](@ref).
 """
 abstract type TimeSteppingAlgorithm end
+# COMPAT: ClimaAtmos uses DistributedODEAlgorithm in some call sites.
+# Remove once ClimaAtmos is updated to use TimeSteppingAlgorithm.
 """Backward-compatible alias for [`TimeSteppingAlgorithm`](@ref)."""
 const DistributedODEAlgorithm = TimeSteppingAlgorithm
 
@@ -141,6 +143,9 @@ A collection of [`DiscreteCallback`](@ref)s applied after each step.
 Accepts `nothing`, individual `DiscreteCallback`s, or nested `CallbackSet`s.
 """
 struct CallbackSet{DC <: Tuple}
+    # COMPAT: ClimaDiagnostics accesses .continuous_callbacks as a struct field.
+    # This is always empty — CTS only supports discrete callbacks.
+    # Remove once ClimaDiagnostics is updated to stop reading this field.
     continuous_callbacks::Tuple{}
     discrete_callbacks::DC
 end
@@ -163,6 +168,8 @@ function finalize_callbacks!(cbset::CallbackSet, u, t, integrator)
 end
 
 include("integrators.jl")
+# COMPAT: ClimaAtmos/ClimaCoupler use DistributedODEIntegrator in some call sites.
+# Remove once downstream packages are updated to use TimeStepperIntegrator.
 """Backward-compatible alias for `TimeStepperIntegrator`."""
 const DistributedODEIntegrator = TimeStepperIntegrator
 

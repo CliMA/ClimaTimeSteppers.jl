@@ -28,7 +28,8 @@ Mapped to the architectural layers in
 | Solvers | `src/solvers/lsrk.jl` | Low-storage explicit Runge-Kutta (2N storage) |
 | Solvers | `src/solvers/rosenbrock.jl` | Linearly implicit Rosenbrock methods |
 | Solvers | `src/solvers/mis.jl` | Multirate infinitesimal step (MIS) methods |
-| Solvers | `src/solvers/multirate.jl` | Wicker-Skamarock multirate methods |
+| Solvers | `src/solvers/multirate.jl` | Generic `Multirate` wrapper for split-explicit timestepping |
+| Solvers | `src/solvers/wickerskamarock.jl` | Wicker-Skamarock multirate RK methods (`WSRK2`, `WSRK3`) |
 | Solvers | `src/solvers/explicit_tableaus.jl` | Explicit RK tableau definitions |
 | Solvers | `src/solvers/imex_tableaus.jl` | IMEX ARK tableau definitions (ARS, IMKG, ARK families) |
 | Nonlinear solvers | `src/nl_solvers/newtons_method.jl` | Newton's method with GMRES/JFNK, line search, convergence |
@@ -41,6 +42,7 @@ Mapped to the architectural layers in
 | Utilities | `src/utilities/line_search.jl` | Armijo line search |
 | Utilities | `src/utilities/update_signal_handler.jl` | Jacobian update scheduling |
 | Utilities | `src/utilities/async_utils.jl` | Async task helpers |
+| Utilities | `src/utilities/sparse_coeffs.jl` | `SparseCoeffs` — compile-time zero-coefficient masking for tableaux |
 | Utilities | `src/sparse_containers.jl` | `SparseContainer` — sparse coefficient containers for tableau storage |
 | Callbacks | `src/Callbacks.jl` | Callback infrastructure (periodic, at-tstop) |
 | Tests | `test/` | See Test groups below |

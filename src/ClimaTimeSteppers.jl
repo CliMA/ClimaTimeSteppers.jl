@@ -38,6 +38,7 @@ module ClimaTimeSteppers
 using LinearAlgebra
 using LinearOperators
 using StaticArrays
+using NullBroadcasts: NullBroadcasted
 import ClimaComms
 using NVTX
 
@@ -174,6 +175,7 @@ include("integrators.jl")
 const DistributedODEIntegrator = TimeStepperIntegrator
 
 include("utilities/update_signal_handler.jl")
+include(joinpath("utilities", "async_utils.jl"))
 include("utilities/convergence_condition.jl")
 include("utilities/convergence_checker.jl")
 include("utilities/line_search.jl")

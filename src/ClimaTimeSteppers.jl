@@ -46,8 +46,8 @@ export AbstractAlgorithmName, AbstractAlgorithmConstraint, Unconstrained, SSP
 
 # Note: init, solve, solve!, step!, add_tstop!, reinit!, get_dt, set_dt!,
 # ODEProblem, ODEFunction, SplitODEProblem, IncrementingODEFunction
-# are intentionally NOT exported yet to avoid conflicts with SciMLBase.
-# Access them qualified, e.g.: CTS.init, CTS.ODEProblem, CTS.solve!, etc.
+# are intentionally NOT exported — these names are too generic for
+# unqualified use. Access them qualified, e.g.: CTS.init, CTS.ODEProblem.
 
 import LinearAlgebra, Krylov
 
@@ -67,6 +67,8 @@ Concrete subtypes include [`IMEXAlgorithm`](@ref),
 [`RosenbrockAlgorithm`](@ref).
 """
 abstract type TimeSteppingAlgorithm end
+# COMPAT: ClimaAtmos uses DistributedODEAlgorithm in some call sites.
+# Remove once ClimaAtmos is updated to use TimeSteppingAlgorithm.
 """Backward-compatible alias for [`TimeSteppingAlgorithm`](@ref)."""
 const DistributedODEAlgorithm = TimeSteppingAlgorithm
 
@@ -134,13 +136,6 @@ function DiscreteCallback(
     DiscreteCallback(condition, affect!, initialize, finalize)
 end
 
-# COMPAT: once ClimaTimeSteppersSciMLExt and SciMLBase backward compatibility are
-# removed, simplify this struct by dropping the `continuous_callbacks` field and
-# the `CallbackSet(cbs::Tuple)` constructor:
-#   struct CallbackSet{DC <: Tuple}
-#       discrete_callbacks::DC
-#   end
-#   CallbackSet(cbs::DiscreteCallback...) = CallbackSet(cbs)
 """
     CallbackSet(callbacks...)
 
@@ -148,10 +143,12 @@ A collection of [`DiscreteCallback`](@ref)s applied after each step.
 Accepts `nothing`, individual `DiscreteCallback`s, or nested `CallbackSet`s.
 """
 struct CallbackSet{DC <: Tuple}
-    continuous_callbacks::Tuple{}  # always empty; included for SciMLBase duck-typing compat
+    # COMPAT: ClimaDiagnostics accesses .continuous_callbacks as a struct field.
+    # This is always empty — CTS only supports discrete callbacks.
+    # Remove once ClimaDiagnostics is updated to stop reading this field.
+    continuous_callbacks::Tuple{}
     discrete_callbacks::DC
 end
-CallbackSet(cbs::Tuple) = CallbackSet((), cbs)
 CallbackSet(cbs::DiscreteCallback...) = CallbackSet((), cbs)
 CallbackSet(::Nothing, cbs::DiscreteCallback...) = CallbackSet((), cbs)
 CallbackSet(cb::DiscreteCallback, cbs::DiscreteCallback...) =
@@ -171,6 +168,8 @@ function finalize_callbacks!(cbset::CallbackSet, u, t, integrator)
 end
 
 include("integrators.jl")
+# COMPAT: ClimaAtmos/ClimaCoupler use DistributedODEIntegrator in some call sites.
+# Remove once downstream packages are updated to use TimeStepperIntegrator.
 """Backward-compatible alias for `TimeStepperIntegrator`."""
 const DistributedODEIntegrator = TimeStepperIntegrator
 
@@ -199,18 +198,6 @@ include("solvers/wickerskamarock.jl")
 include("solvers/rosenbrock.jl")
 
 include("Callbacks.jl")
-
-# COMPAT: remove this entire module once ClimaTimeSteppersSciMLExt and
-# ClimaTimeSteppersDiffEqExt are removed.
-# Backward-compatibility stub: provides CTS.DiffEqBase.KeywordArgSilent
-# so downstream code using `kwargshandle = CTS.DiffEqBase.KeywordArgSilent`
-# continues to work without the real DiffEqBase loaded.
-# When the ClimaTimeSteppersDiffEqExt extension loads, it replaces this
-# with the real DiffEqBase module.
-module DiffEqBase
-struct KeywordArgSilentType end
-const KeywordArgSilent = KeywordArgSilentType()
-end
 
 benchmark_step(integrator, device = ClimaComms.device()) =
     @warn "BenchmarkTools and CUDA must be loaded to call benchmark_step"

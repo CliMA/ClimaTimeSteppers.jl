@@ -4,9 +4,9 @@ export ClimaODEFunction, ForwardEulerODEFunction
 abstract type AbstractClimaODEFunction end
 
 """
-    ClimaODEFunction(; T_imp!, [dss!], [cache!], [cache_imp!])
-    ClimaODEFunction(; T_exp!, [T_lim!], [T_imp!], [lim!], [dss!], [cache!], [cache_imp!])
-    ClimaODEFunction(; T_exp_T_lim!, [T_imp!], [lim!], [dss!], [cache!], [cache_imp!])
+    ClimaODEFunction(; T_imp!, [dss!], [initialize_imp!], [cache!], [cache_imp!])
+    ClimaODEFunction(; T_exp!, [T_lim!], [T_imp!], [lim!], [dss!], [initialize_imp!], [cache!], [cache_imp!])
+    ClimaODEFunction(; T_exp_T_lim!, [T_imp!], [lim!], [dss!], [initialize_imp!], [cache!], [cache_imp!])
 
 Container for all tendency and auxiliary functions used by IMEX and Rosenbrock
 time-stepping algorithms. Tendencies set to `nothing` are skipped, avoiding

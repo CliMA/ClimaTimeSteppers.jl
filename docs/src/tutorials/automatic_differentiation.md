@@ -114,7 +114,6 @@ println("Rosenbrock du/dλ = ", round(grad_rb;  digits = 6), "   (exact: ", roun
 
 - **Type your allocations**: use `zeros(typeof(λ), n, n)` for `jac_prototype`,
   `[one(λ)]` for `u0`, and `oftype(λ, 0.1)` for `dt`.
-  **Propagate your types**: use `zeros(typeof(λ), n, n)` for `jac_prototype`,
 - **Construct a fresh `ODEProblem` each iteration** if you call `solve` in a
   loop — the integrator mutates `u0` in place.
 - **Rosenbrock methods** work as shown above — the `lu` factorization and

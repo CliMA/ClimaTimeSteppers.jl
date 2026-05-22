@@ -1,8 +1,11 @@
 ClimaTimeSteppers.jl Release Notes
 ========================
 
-Main
+main
 -------
+- ![][badge-💥breaking] Removed `SciMLBase` and `DiffEqBase` backward-compatibility extensions
+  (`ClimaTimeSteppersSciMLExt`, `ClimaTimeSteppersDiffEqExt`) and the `CTS.DiffEqBase` stub module.
+  Use `CTS.init`, `CTS.solve`, `CTS.step!`, etc. directly.
 
 v0.8.9
 ------

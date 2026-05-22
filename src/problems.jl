@@ -3,7 +3,7 @@ Local problem and function types.
 """
 
 # ODEProblem, SplitODEProblem, IncrementingODEFunction, ODEFunction:
-# not exported yet; use qualified (e.g., CTS.ODEProblem) to avoid SciMLBase conflicts.
+# not exported; use qualified access (e.g., CTS.ODEProblem).
 
 """
     ODEProblem(f, u0, tspan, p)

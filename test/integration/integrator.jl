@@ -69,7 +69,7 @@ include(joinpath(@__DIR__, "..", "problems.jl"))
             (false, (; save_everystep = true, stepstop = 0), exact_dt_times[1:1]),
             (false, (; save_everystep = true, stepstop = 4), exact_dt_times[1:5]),
         )
-            is_ode = !(alg isa ClimaTimeSteppers.DistributedODEAlgorithm)
+            is_ode = !(alg isa ClimaTimeSteppers.TimeSteppingAlgorithm)
             is_ode && !compare_to_ode && continue
 
             sol = solve(deepcopy(prob), alg; dt, kwargs...)

@@ -6,6 +6,9 @@ main
 - ![][badge-💥breaking] Removed `SciMLBase` and `DiffEqBase` backward-compatibility extensions
   (`ClimaTimeSteppersSciMLExt`, `ClimaTimeSteppersDiffEqExt`) and the `CTS.DiffEqBase` stub module.
   Use `CTS.init`, `CTS.solve`, `CTS.step!`, etc. directly.
+- ![][badge-💥breaking] Removed backward-compatibility aliases `DistributedODEAlgorithm`
+  (use `TimeSteppingAlgorithm`) and `DistributedODEIntegrator` (use `TimeStepperIntegrator`).
+  Removed the `continuous_callbacks` field from `CallbackSet`; use only `discrete_callbacks`.
 
 v0.8.9
 ------

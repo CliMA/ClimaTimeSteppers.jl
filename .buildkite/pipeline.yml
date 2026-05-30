@@ -12,6 +12,8 @@ env:
 steps:
   - label: "init cpu env"
     key: "init_cpu_env"
+    concurrency: 1
+    concurrency_group: 'depot/climatimesteppers-ci'
     command:
 
       - echo "--- Instantiate test"
@@ -28,6 +30,8 @@ steps:
   - label: "init gpu env"
     key: "init_gpu_env"
     depends_on: "init_cpu_env"
+    concurrency: 1
+    concurrency_group: 'depot/climatimesteppers-ci'
     command:
       - echo "--- Initialize CUDA runtime"
       - "julia --project=test/ -e 'using CUDA; CUDA.precompile_runtime(); CUDA.versioninfo()'"

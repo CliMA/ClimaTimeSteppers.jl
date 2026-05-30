@@ -14,8 +14,9 @@ steps:
   - label: "init cpu env"
     key: "init_cpu_env"
     command:
-
+      - "echo $$JULIA_DEPOT_PATH"
       - echo "--- Instantiate test"
+      - ls -la test/
       - "rm -rf test/Manifest.toml"
       - "julia --project=test/ -e 'using Pkg; Pkg.instantiate(;verbose=true)'"
       - "julia --project=test/ -e 'using Pkg; Pkg.develop(path=\".\"); Pkg.instantiate(;verbose=true); Pkg.precompile(;strict=true)'"
@@ -25,7 +26,11 @@ steps:
 
       - echo "--- Package status"
       - "julia --project=test/ -e 'using Pkg; Pkg.status()'"
-
+    agents:
+      slurm_cpus_per_task: 8
+    env:
+      JULIA_NUM_PRECOMPILE_TASKS: 8
+      JULIA_MAX_NUM_PRECOMPILE_FILES: 50
 
   - label: "init gpu env"
     key: "init_gpu_env"

@@ -4,7 +4,6 @@ agents:
   modules: climacommon/2025_03_18
 
 env:
-  JULIA_LOAD_PATH: "${JULIA_LOAD_PATH}:${BUILDKITE_BUILD_CHECKOUT_PATH}/test"
   OPENBLAS_NUM_THREADS: 1
   OMPI_MCA_opal_warn_on_missing_libcuda: 0
   JULIA_MAX_NUM_PRECOMPILE_FILES: 100
@@ -16,7 +15,6 @@ steps:
     command:
 
       - echo "--- Instantiate test"
-      - "rm -rf test/Manifest.toml"
       - "julia --project=test/ -e 'using Pkg; Pkg.instantiate(;verbose=true)'"
       - "julia --project=test/ -e 'using Pkg; Pkg.develop(path=\".\"); Pkg.instantiate(;verbose=true); Pkg.precompile(;strict=true)'"
 

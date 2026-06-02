@@ -24,7 +24,7 @@ Base.zero(A::LDivOverride) = LDivOverride(zero(A.W), A.custom_ldiv!)
 """
     benchmark_step(integrator, [device]; kwargs...)
 
-Benchmarks one step of a `DistributedODEIntegrator` on a specific `ClimaComms`
+Benchmarks one step of a `TimeStepperIntegrator` on a specific `ClimaComms`
 device, along with all user-specified functions that are called during the step,
 and prints a table that summarizes the measurements. Allocation and timing data
 for user-specified functions is rescaled by the number of times they are called
@@ -40,7 +40,7 @@ Available keyword arguments are
    `crop` is `true`
 """
 function CTS.benchmark_step(
-    integrator::CTS.DistributedODEIntegrator,
+    integrator::CTS.TimeStepperIntegrator,
     device::ClimaComms.AbstractDevice = ClimaComms.device();
     with_cu_prof = :bprofile,
     trace = false,

@@ -104,7 +104,7 @@ end
 """
     algorithm(algorithm_name, [linear_implicit])
 
-Generates an appropriate `DistributedODEAlgorithm` from an `AbstractAlgorithmName`.
+Generates an appropriate `TimeSteppingAlgorithm` from an `AbstractAlgorithmName`.
 For `IMEXAlgorithmNames`, `linear_implicit` must also be specified. One Newton
 iteration is used for linear implicit problems, and two iterations are used for
 nonlinear implicit problems.

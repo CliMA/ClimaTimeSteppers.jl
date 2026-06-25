@@ -19,7 +19,8 @@ import ClimaTimeSteppers as CTS
         ),
         u0, tspan, nothing,
     )
-    int_ark = CTS.init(prob_imex, IMEXAlgorithm(ARS343(), NewtonsMethod(; max_iters=1)); dt)
+    int_ark =
+        CTS.init(prob_imex, IMEXAlgorithm(ARS343(), NewtonsMethod(; max_iters = 1)); dt)
     @test length(int_ark.cache.T_exp.data) == 4
     @test length(int_ark.cache.T_imp.data) == 3
     @test length(int_ark.cache.T_lim.data) == 4
@@ -29,7 +30,11 @@ import ClimaTimeSteppers as CTS
     @test int_ark.cache.newtons_method_cache.f == z0
 
     # 2. SSP IMEX
-    int_ssp = CTS.init(prob_imex, IMEXAlgorithm(SSP333(), NewtonsMethod(; max_iters=1), SSP()); dt)
+    int_ssp = CTS.init(
+        prob_imex,
+        IMEXAlgorithm(SSP333(), NewtonsMethod(; max_iters = 1), SSP());
+        dt,
+    )
     @test length(int_ssp.cache.T_imp.data) == 3
     @test int_ssp.cache.U == z0
     @test int_ssp.cache.U_exp == z0
@@ -50,7 +55,9 @@ import ClimaTimeSteppers as CTS
 
     # 4. Low-Storage RK (2N)
     prob_lsrk = CTS.ODEProblem(
-        CTS.IncrementingODEFunction{true}((du, u, p, t, α=true, β=false) -> (du .= α .* u .+ β .* du)),
+        CTS.IncrementingODEFunction{true}(
+            (du, u, p, t, α = true, β = false) -> (du .= α .* u .+ β .* du),
+        ),
         u0, tspan, nothing,
     )
     int_lsrk = CTS.init(prob_lsrk, LSRK54CarpenterKennedy(); dt)
@@ -58,11 +65,18 @@ import ClimaTimeSteppers as CTS
 
     # 5. Multirate
     prob_mr = CTS.SplitODEProblem(
-        CTS.IncrementingODEFunction{true}((du, u, p, t, α=true, β=false) -> (du .= α .* u .+ β .* du)),
+        CTS.IncrementingODEFunction{true}(
+            (du, u, p, t, α = true, β = false) -> (du .= α .* u .+ β .* du),
+        ),
         (du, u, p, t) -> (du .= -u),
         u0, tspan, nothing,
     )
-    int_mr = CTS.init(prob_mr, Multirate(LSRK54CarpenterKennedy(), MIS3C()); dt=0.1, fast_dt=0.01)
+    int_mr = CTS.init(
+        prob_mr,
+        Multirate(LSRK54CarpenterKennedy(), MIS3C());
+        dt = 0.1,
+        fast_dt = 0.01,
+    )
     @test length(int_mr.cache.outercache.ΔU) == 3
     @test length(int_mr.cache.outercache.F) == 3
     @test int_mr.cache.innerinteg.cache.du == z0

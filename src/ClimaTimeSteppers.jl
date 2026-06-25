@@ -194,24 +194,6 @@ include("solvers/rosenbrock.jl")
 
 include("Callbacks.jl")
 
-"""
-    benchmark_step(integrator, [device]; kwargs...)
-
-Benchmarks one step of a `TimeStepperIntegrator` on a specific `ClimaComms`
-device, along with all user-specified functions that are called during the step,
-and prints a table that summarizes the measurements. Allocation and timing data
-for user-specified functions is rescaled by the number of times they are called
-during the step, so that the total costs of different functions can be compared.
-
-Available keyword arguments are
- - `with_cu_prof`: `:profile` or `:bprofile`, to use either `CUDA.@profile` or
-   `CUDA.@bprofile` when running on a `CUDADevice`
- - `trace`: boolean flag passed to `CUDA.@profile` (see docs for `CUDA.jl`)
- - `crop`: boolean indicating whether the table printed by `CUDA.@profile`
-   should be cropped
- - `hcrop`: number of horizontal characters to include in the cropped table when
-   `crop` is `true`
-"""
 benchmark_step(integrator, device = ClimaComms.device()) =
     @warn "BenchmarkTools and CUDA must be loaded to call benchmark_step"
 

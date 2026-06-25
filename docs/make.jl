@@ -1,6 +1,7 @@
 using Documenter, DocumenterCitations
 using InteractiveUtils: subtypes
 using ClimaTimeSteppers
+using BenchmarkTools, CUDA, OrderedCollections, PrettyTables
 
 # Tutorials are plain .md files with @example blocks (executed by Documenter)
 tutorial_dir = joinpath(@__DIR__, "src", "tutorials")
@@ -92,7 +93,7 @@ makedocs(;
     plugins = [bib],
     sitename = "ClimaTimeSteppers",
     format = format,
-    modules = [ClimaTimeSteppers],
+    modules = [ClimaTimeSteppers, Base.get_extension(ClimaTimeSteppers, :ClimaTimeSteppersBenchmarkToolsExt)],
     checkdocs = :exports,
     clean = true,
     pages = pages,

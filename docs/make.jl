@@ -93,7 +93,10 @@ makedocs(;
     plugins = [bib],
     sitename = "ClimaTimeSteppers",
     format = format,
-    modules = [ClimaTimeSteppers, Base.get_extension(ClimaTimeSteppers, :ClimaTimeSteppersBenchmarkToolsExt)],
+    modules = [
+        ClimaTimeSteppers,
+        Base.get_extension(ClimaTimeSteppers, :ClimaTimeSteppersBenchmarkToolsExt),
+    ],
     checkdocs = :exports,
     clean = true,
     pages = pages,

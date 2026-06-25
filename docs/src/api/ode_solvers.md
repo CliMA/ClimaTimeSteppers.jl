@@ -50,6 +50,7 @@ solve!
 step!
 reinit!
 add_tstop!
+add_saveat!
 get_dt
 set_dt!
 ```
@@ -61,6 +62,7 @@ TimeSteppingAlgorithm
 AbstractAlgorithmConstraint
 Unconstrained
 SSP
+tableau
 ```
 
 ## IMEX Algorithms
@@ -187,4 +189,10 @@ linear solve per stage. See the
 ClimaTimeSteppers.RosenbrockTableau
 RosenbrockAlgorithm
 SSPKnoth
+```
+
+## Benchmarking
+
+```@docs
+benchmark_step
 ```

@@ -53,3 +53,12 @@ f_{\text{offset}}(u, p, \tau) = f_F(u, p, \alpha + \beta \tau) + \gamma \cdot x
 ```
 
 The parameters ``\alpha, \beta, \gamma, x`` are mutated in-place by the outer multirate solver at the start of each stage. This design achieves zero-allocation multirate stepping.
+
+### Sparse Containers and Coefficients
+
+To achieve zero-allocation stepping and eliminate operations on zero coefficients at compile time, `ClimaTimeSteppers.jl` uses specialized sparse structures for storing and masking Butcher tableaux.
+
+```@docs
+ClimaTimeSteppers.SparseContainer
+ClimaTimeSteppers.SparseCoeffs
+```

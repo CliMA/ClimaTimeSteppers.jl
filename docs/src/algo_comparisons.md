@@ -1,5 +1,9 @@
 # Algorithm Comparisons
 
+```@meta
+CurrentModule = ClimaTimeSteppers
+```
+
 ClimaTimeSteppers.jl provides several distinct families of time-stepping algorithms, each tailored to specific physical regimes, computational trade-offs, and memory constraints found in climate and weather modeling.
 
 This page summarizes the comparative strengths, storage requirements, and use cases for each algorithm family to help modelers choose the most efficient solver for their specific partial differential equation (PDE) system.

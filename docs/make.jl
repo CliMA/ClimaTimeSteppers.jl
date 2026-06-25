@@ -68,7 +68,7 @@ pages = [
         "Newtons Method" => "api/newtons_method.md",
         "Callbacks" => "api/callbacks.md",
     ],
-    # "Algorithm comparisons" => "algo_comparisons.md", # TODO: fill out
+    "Algorithm comparisons" => "algo_comparisons.md",
     "Developer docs" => [
         "Types" => "dev/types.md",
         "Developer Guide" => "dev/report_gen.md",

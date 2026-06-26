@@ -71,6 +71,13 @@ abstract type TimeSteppingAlgorithm end
 abstract type AbstractAlgorithmName end
 
 """
+    tableau(name::AbstractAlgorithmName, [eltype])
+
+Return the Butcher or Rosenbrock tableau associated with the given algorithm `name`.
+"""
+function tableau end
+
+"""
     AbstractAlgorithmConstraint
 
 A mechanism for constraining which operations can be performed by an algorithm

@@ -45,6 +45,7 @@ Mapped to the architectural layers in
 | Utilities | `src/utilities/sparse_coeffs.jl` | `SparseCoeffs` — compile-time zero-coefficient masking for tableaux |
 | Utilities | `src/sparse_containers.jl` | `SparseContainer` — sparse coefficient containers for tableau storage |
 | Callbacks | `src/Callbacks.jl` | Callback infrastructure (periodic, at-tstop) |
+| Extensions | `ext/` | Package extensions (BenchmarkTools, CUDA profiling) |
 | Tests | `test/` | See Test groups below |
 | Benchmarks | `perf/` | Performance benchmarking scripts |
 | Documentation | `docs/` | Documenter.jl setup; `docs/dev-guides/` is the DeveloperGuides subtree |
@@ -61,6 +62,7 @@ Mapped to the architectural layers in
    - `dss!(u, p, t)` — direct stiffness summation for spectral element continuity
    - `initialize_imp!(u, p, γdt)` — called once per implicit stage to set up the Newton solve
    - `cache!(u, p, t)` — update the parameter cache `p` to reflect state `u`
+   - `cache_imp!(u, p, t)` — update cache components needed by `T_imp!` (defaults to `cache!`)
 
    Explicit-only, implicit-only, and IMEX problems are all expressed through this single type.
 

@@ -1,6 +1,7 @@
-using Documenter, DocumenterCitations
+using Documenter, DocumenterCitations, DocumenterMermaid
 using InteractiveUtils: subtypes
 using ClimaTimeSteppers
+using BenchmarkTools, CUDA, OrderedCollections, PrettyTables
 
 # Tutorials are plain .md files with @example blocks (executed by Documenter)
 tutorial_dir = joinpath(@__DIR__, "src", "tutorials")
@@ -68,7 +69,7 @@ pages = [
         "Newtons Method" => "api/newtons_method.md",
         "Callbacks" => "api/callbacks.md",
     ],
-    # "Algorithm comparisons" => "algo_comparisons.md", # TODO: fill out
+    "Algorithm comparisons" => "algo_comparisons.md",
     "Developer docs" => [
         "Types" => "dev/types.md",
         "Developer Guide" => "dev/report_gen.md",
@@ -92,7 +93,10 @@ makedocs(;
     plugins = [bib],
     sitename = "ClimaTimeSteppers",
     format = format,
-    modules = [ClimaTimeSteppers],
+    modules = [
+        ClimaTimeSteppers,
+        Base.get_extension(ClimaTimeSteppers, :ClimaTimeSteppersBenchmarkToolsExt),
+    ],
     checkdocs = :exports,
     clean = true,
     pages = pages,

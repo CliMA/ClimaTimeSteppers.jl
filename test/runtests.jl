@@ -52,6 +52,10 @@ end
     include("unit/forward_diff.jl")
 end
 
+@safetestset "Cache sizes" begin
+    include("unit/cache_sizes.jl")
+end
+
 # ============================================================================ #
 # Solver correctness tests (Newton's method)
 # ============================================================================ #

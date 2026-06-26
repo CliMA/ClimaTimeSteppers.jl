@@ -1,4 +1,4 @@
-using Documenter, DocumenterCitations
+using Documenter, DocumenterCitations, DocumenterMermaid
 using InteractiveUtils: subtypes
 using ClimaTimeSteppers
 using BenchmarkTools, CUDA, OrderedCollections, PrettyTables

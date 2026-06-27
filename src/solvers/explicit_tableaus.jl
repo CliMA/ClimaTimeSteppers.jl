@@ -13,11 +13,16 @@ name such as [`SSP33ShuOsher`](@ref).
 - `a`: Butcher matrix (strictly lower triangular, required)
 - `b`: weights (default: last row of `a`, i.e., first same as last, FSAL)
 - `c`: abscissae (default: row sums of `a`)
+
+# Fields
+- `a`: Butcher matrix (size `s×s`).
+- `b`: weight vector (length `s`).
+- `c`: abscissa vector (length `s`).
 """
 struct ExplicitTableau{A <: SPCO, B <: SPCO, C <: SPCO}
-    a::A # matrix of size s×s
-    b::B # vector of length s
-    c::C # vector of length s
+    a::A
+    b::B
+    c::C
 end
 ExplicitTableau(args...) = ExplicitTableau(map(x -> SparseCoeffs(x), args)...)
 function ExplicitTableau(; a, b = a[end, :], c = vec(sum(a; dims = 2)))

@@ -89,6 +89,11 @@ Pkg.add("ClimaTimeSteppers")
 
 See the [contributor guide](https://CliMA.github.io/ClimaTimeSteppers.jl/dev/contributing/) for information on contributing.
 
+Before making significant changes, please also read the [Agent Guide](AGENTS.md)
+and the [repo-specific guide](docs/clima_timesteppers_specific.md). The shared
+CliMA engineering guidelines — covering documentation policy, code style,
+performance, and testing — are vendored at [`docs/dev-guides/`](docs/dev-guides/).
+
 ## Release Policy
 
 ClimaTimeSteppers.jl is a core component of the CliMA ecosystem and can have

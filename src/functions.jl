@@ -1,6 +1,14 @@
 export AbstractClimaODEFunction
 export ClimaODEFunction, ForwardEulerODEFunction
 
+"""
+    AbstractClimaODEFunction
+
+Abstract supertype for ODE function wrappers in ClimaTimeSteppers.
+
+Subtypes:
+- [`ClimaODEFunction`](@ref): IMEX / Rosenbrock tendency container.
+"""
 abstract type AbstractClimaODEFunction end
 
 """
@@ -15,20 +23,43 @@ unnecessary allocations.
 # Keyword Arguments
 
 **Tendency functions** (at least one must be provided):
-- `T_exp!(du, u, p, t)`: explicit tendency (not limited)
-- `T_lim!(du, u, p, t)`: explicit tendency passed through the limiter
-- `T_exp_T_lim!(du_exp, du_lim, u, p, t)`: fused alternative to separate `T_exp!`/`T_lim!`
-- `T_imp!`: implicit tendency — typically an [`ClimaTimeSteppers.ODEFunction`](@ref) carrying Jacobian info
+- `T_exp!(du, u, p, t)`: explicit tendency (not limited).
+- `T_lim!(du, u, p, t)`: explicit tendency passed through the limiter.
+- `T_exp_T_lim!(du_exp, du_lim, u, p, t)`: fused alternative to separate `T_exp!`/`T_lim!`.
+- `T_imp!`: implicit tendency — typically an [`ClimaTimeSteppers.ODEFunction`](@ref) carrying Jacobian info.
 
 **Auxiliary functions** (default to no-ops):
-- `lim!(u, p, t, u_ref)`: limiter applied after incrementing `u` from `u_ref` by `T_lim!`
-- `dss!(u, p, t)`: direct stiffness summation (spectral element continuity)
-- `initialize_imp!(u, p, γdt)`: called once per implicit stage to set up the Newton solve
-- `cache!(u, p, t)`: update the parameter cache `p` to reflect state `u`
-- `cache_imp!(u, p, t)`: update cache components needed by `T_imp!` (defaults to `cache!`)
+- `lim!(u, p, t, u_ref)`: limiter applied after incrementing `u` from `u_ref` by `T_lim!`.
+- `dss!(u, p, t)`: direct stiffness summation (spectral element continuity).
+- `initialize_imp!(u, p, γdt)`: called once per implicit stage to set up the Newton solve.
+- `cache!(u, p, t)`: update the parameter cache `p` to reflect state `u`.
+- `cache_imp!(u, p, t)`: update cache components needed by `T_imp!` (defaults to `cache!`).
+
+# Fields
+- `T_exp_T_lim!`: fused explicit tendency function (built from `T_exp!`/`T_lim!` at construction).
+- `T_imp!`: implicit tendency function (or `nothing`).
+- `lim!`: monotonicity limiter.
+- `dss!`: direct stiffness summation operator.
+- `initialize_imp!`: implicit-stage initializer.
+- `cache!`: parameter cache updater.
+- `cache_imp!`: implicit-specific cache updater.
+- `_has_lim::Bool`: internal flag; `true` when the limiter path should be used.
 
 Internally, `T_exp!` and `T_lim!` are merged into a single `T_exp_T_lim!`
 at construction time.
+
+# Examples
+```julia
+import ClimaTimeSteppers as CTS
+
+# Explicit-only problem
+T_exp!(du, u, p, t) = (du .= -u)
+f = ClimaODEFunction(; T_exp!)
+
+# IMEX problem with implicit Jacobian
+T_imp = CTS.ODEFunction(T_imp!; jac_prototype = W, Wfact = Wfact!)
+f = ClimaODEFunction(; T_exp!, T_imp! = T_imp)
+```
 """
 struct ClimaODEFunction{TEL, TI, L, D, IS, C, CI} <: AbstractClimaODEFunction
     T_exp_T_lim!::TEL
@@ -86,10 +117,19 @@ struct ClimaODEFunction{TEL, TI, L, D, IS, C, CI} <: AbstractClimaODEFunction
     end
 end
 
+"""Return `true` when the ODE function has an explicit tendency."""
 has_T_exp(f::ClimaODEFunction) = !isnothing(f.T_exp_T_lim!)
+
+"""Return `true` when the ODE function uses the limiter path."""
 has_T_lim(f::ClimaODEFunction) = f._has_lim
 
-"""Called by `init` to set up the initial cache state. No-op for non-Clima functions."""
+"""
+    initialize_function!(f, u0, p, t0)
+
+Call the parameter-cache initializer for `f` at `(u0, p, t0)`. Called by
+[`init`](@ref) to set up the initial cache state. No-op for non-Clima
+functions.
+"""
 initialize_function!(f, u0, p, t0) = nothing
 initialize_function!(f::ClimaODEFunction, u0, p, t0) =
     isnothing(f.cache!) || f.cache!(u0, p, t0)
@@ -105,8 +145,8 @@ forward-Euler-style update `un .= u .+ dt * tendency(u, p, t)`.
 
 # Keyword Arguments
 - `jac_prototype`: prototype matrix for the Jacobian
-- `Wfact`: function `Wfact(W, u, p, dtγ, t)` computing ``W = J \\Delta t \\gamma - I``
-- `tgrad`: function `tgrad(∂f∂t, u, p, t)` for the explicit time derivative
+- `Wfact`: function `Wfact(W, u, p, dtγ, t)` computing ``W = dt\\gamma\\, J - I``.
+- `tgrad`: function `tgrad(∂f∂t, u, p, t)` for the explicit time derivative.
 """
 struct ForwardEulerODEFunction{F, J, W, T}
     f::F
@@ -121,16 +161,25 @@ ForwardEulerODEFunction(f; jac_prototype = nothing, Wfact = nothing, tgrad = not
 """
     OffsetODEFunction(f, α, β, γ, x)
 
-Internal wrapper used by multirate methods. Evaluates `f` with a time offset
-and adds a constant forcing term:
+Internal wrapper used by multirate methods. Evaluate `f` with a time offset
+and add a constant forcing term:
 
 ```math
 f(u, p, \\alpha + \\beta t) + \\gamma \\cdot x
 ```
 
 Supports 3-arg (out-of-place), 4-arg, 5-arg (`α`), and 6-arg (`α, β`)
-in-place call forms. The fields `α`, `β`, `γ`, and `x` are mutable so that
-multirate outer solvers can update them between stages.
+in-place call forms.
+
+# Fields
+- `f`: the wrapped ODE function.
+- `α`: time offset.
+- `β`: time scaling factor.
+- `γ`: forcing coefficient.
+- `x`: forcing vector.
+
+This is a `mutable struct`, so multirate outer solvers can update the scalar
+coefficients (`α`, `β`, `γ`) in place between stages.
 """
 mutable struct OffsetODEFunction{F, S, A}
     f::F

@@ -86,7 +86,7 @@ Mapped to the architectural layers in
 
    Users supply the Jacobian by wrapping `T_imp!` in a `ClimaTimeSteppers.ODEFunction`
    that carries `jac_prototype` (a pre-allocated operator) and `Wfact` (fills
-   `W = M - γJ`).
+   `W = dtγ J - I`).
 
 5. **Tableau types** (`src/solvers/imex_tableaus.jl`,
    `src/solvers/explicit_tableaus.jl`) — pure-data structs describing Butcher
@@ -144,8 +144,10 @@ solver file). Locally (`Pkg.test()`), they run sequentially inside one
   free of heap allocations on the hot path. Use `test/performance/allocations.jl`
   to guard regressions.
 - **`Wfact` interface for implicit solves**: Pass `jac_prototype` (a
-  pre-allocated operator) and `Wfact` (a function that fills `W = M - γJ`) to
-  the `ClimaTimeSteppers.ODEFunction` wrapping `T_imp!`. The Newton solver
+  pre-allocated operator) and `Wfact` (a function that fills `W = dtγ J - I`,
+  where `dtγ` is the product of the timestep and the implicit diagonal
+  coefficient, and `J` is the Jacobian of `T_imp!`) to the
+  `ClimaTimeSteppers.ODEFunction` wrapping `T_imp!`. The Newton solver
   reads the operator via `jac_prototype` and refreshes it by calling `Wfact`.
 - **Type stability is required**: All kernels must be `@inferred`-clean for the
   element type in use (usually `Float32` on GPU, `Float64` on CPU). Guard with

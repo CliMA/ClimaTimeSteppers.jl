@@ -7,15 +7,25 @@ has_jac(T_imp!) =
     !isnothing(T_imp!.jac_prototype)
 
 """
-    IMEXARKCache
+    IMEXARKCache{SCU, SCE, SCI, T, Γ, NMC, TAB}
 
 Pre-allocated workspace for an unconstrained IMEX ARK timestep.
+
+# Fields
+- `U`: stage state (sparse container of length `s`).
+- `T_lim`: limited explicit tendency at each stage.
+- `T_exp`: explicit tendency at each stage.
+- `T_imp`: implicit tendency at each stage.
+- `temp`: scratch array for the implicit solve.
+- `γ`: common SDIRK diagonal coefficient (or `nothing` for non-SDIRK).
+- `newtons_method_cache`: cache for [`NewtonsMethod`](@ref).
+- `tableau`: the [`IMEXTableau`](@ref) with optional eltype cast.
 """
 struct IMEXARKCache{SCU, SCE, SCI, T, Γ, NMC, TAB}
-    U::SCU     # sparse container of length s
-    T_lim::SCE # sparse container of length s
-    T_exp::SCE # sparse container of length s
-    T_imp::SCI # sparse container of length s
+    U::SCU
+    T_lim::SCE
+    T_exp::SCE
+    T_imp::SCI
     temp::T
     γ::Γ
     newtons_method_cache::NMC

@@ -1,7 +1,20 @@
 """
-    IMEXSSPRKCache
+    IMEXSSPRKCache{U, SCI, B, Γ, NMC, TAB}
 
 Pre-allocated workspace for an SSP-constrained IMEX SSPRK timestep.
+
+# Fields
+- `U`: stage state.
+- `U_exp`: explicit stage state.
+- `U_lim`: stage state for the limiter update.
+- `T_lim`: limited explicit tendency.
+- `T_exp`: explicit tendency.
+- `T_imp`: implicit tendency (sparse container of length `s`).
+- `temp`: scratch array for the implicit solve.
+- `β`: low-storage Shu-Osher coefficients of the explicit SSPRK tableau.
+- `γ`: common SDIRK diagonal coefficient (or `nothing` for non-SDIRK).
+- `newtons_method_cache`: cache for [`NewtonsMethod`](@ref).
+- `tableau`: the [`IMEXTableau`](@ref) with optional eltype cast.
 """
 struct IMEXSSPRKCache{U, SCI, B, Γ, NMC, TAB}
     U::U
@@ -9,7 +22,7 @@ struct IMEXSSPRKCache{U, SCI, B, Γ, NMC, TAB}
     U_lim::U
     T_lim::U
     T_exp::U
-    T_imp::SCI # sparse container of length s
+    T_imp::SCI
     temp::U
     β::B
     γ::Γ

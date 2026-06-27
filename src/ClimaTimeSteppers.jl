@@ -68,6 +68,16 @@ Concrete subtypes include [`IMEXAlgorithm`](@ref),
 """
 abstract type TimeSteppingAlgorithm end
 
+"""
+    AbstractAlgorithmName
+
+Abstract supertype for algorithm name tags that identify a specific Butcher
+tableau or Rosenbrock coefficient set.
+
+Subtypes include `IMEXARKAlgorithmName` (IMEX ARK tableaux, e.g. [`ARS343`](@ref)),
+`ERKAlgorithmName` (explicit RK tableaux, e.g. [`RK4`](@ref)), and
+`RosenbrockAlgorithmName` (Rosenbrock tableaux, e.g. [`SSPKnoth`](@ref)).
+"""
 abstract type AbstractAlgorithmName end
 
 """

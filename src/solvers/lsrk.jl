@@ -16,20 +16,31 @@ abstract type LowStorageRungeKutta2N <: TimeSteppingAlgorithm end
 
 
 """
-    LowStorageRungeKutta2NTableau
+    LowStorageRungeKutta2NTableau{T}
 
 Storage for the tableau of a [`LowStorageRungeKutta2N`](@ref) algorithm.
+
+# Fields
+- `A`: coefficient vector for RHS scaling (length `s`).
+- `B`: coefficient vector for accumulation scaling (length `s`).
+- `C`: coefficient vector for time scaling (length `s`).
 """
 struct LowStorageRungeKutta2NTableau{T <: NTuple}
-    "low storage RK coefficient vector A (rhs scaling)"
     A::T
-    "low storage RK coefficient vector B (rhs add in scaling)"
     B::T
-    "low storage RK coefficient vector C (time scaling)"
     C::T
 end
 n_stages(::LowStorageRungeKutta2NTableau{T}) where {T} = n_stages_ntuple(T)
 
+"""
+    LowStorageRungeKutta2NIncCache{T, A}
+
+Pre-allocated workspace for a [`LowStorageRungeKutta2N`](@ref) method.
+
+# Fields
+- `tableau`: the [`LowStorageRungeKutta2NTableau`](@ref).
+- `du`: the single accumulated increment kept by the 2N low-storage scheme.
+"""
 struct LowStorageRungeKutta2NIncCache{T <: LowStorageRungeKutta2NTableau, A}
     tableau::T
     du::A
@@ -98,7 +109,7 @@ end
 """
     LSRK54CarpenterKennedy()
 
-The 4th-order, 5-stage [`LowStorageRungeKutta2N`])(ref) scheme from Solution
+The 4th-order, 5-stage [`LowStorageRungeKutta2N`](@ref) scheme from Solution
 3 of [CK1994](@cite).
 """
 struct LSRK54CarpenterKennedy <: LowStorageRungeKutta2N end
@@ -134,8 +145,8 @@ end
 """
     LSRK144NiegemannDiehlBusch()
 
-The 4th-order, 14-stage, [`LowStorageRungeKutta2N`])(ref) scheme of
-[NDB2012](@cite) with optimized stability region
+The 4th-order, 14-stage [`LowStorageRungeKutta2N`](@ref) scheme of
+[NDB2012](@cite) with optimized stability region.
 """
 struct LSRK144NiegemannDiehlBusch <: LowStorageRungeKutta2N end
 

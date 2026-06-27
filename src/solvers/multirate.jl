@@ -34,6 +34,18 @@ struct Multirate{F, S} <: TimeSteppingAlgorithm
 end
 
 
+"""
+    MultirateCache{OC, II}
+
+Pre-allocated workspace for a [`Multirate`](@ref) method.
+
+# Fields
+- `outercache`: cache for the slow (outer) algorithm `alg.slow`, advancing the
+  slow tendency `f2`.
+- `innerinteg`: a full sub-integrator for the fast (inner) algorithm `alg.fast`,
+  advancing the fast tendency `f1` (wrapped in an [`OffsetODEFunction`](@ref)
+  carrying the slow forcing) over the inner timestep `fast_dt`.
+"""
 struct MultirateCache{OC, II}
     outercache::OC
     innerinteg::II

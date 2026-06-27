@@ -32,6 +32,7 @@ use [`ClimaODEFunction`](@ref) for IMEX and Rosenbrock methods, or
 [`IncrementingODEFunction`](@ref) for low-storage RK methods.
 
 ```@docs
+AbstractClimaODEFunction
 ClimaODEFunction
 ForwardEulerODEFunction
 ```
@@ -59,6 +60,7 @@ set_dt!
 
 ```@docs
 TimeSteppingAlgorithm
+AbstractAlgorithmName
 AbstractAlgorithmConstraint
 Unconstrained
 SSP

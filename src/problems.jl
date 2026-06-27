@@ -1,7 +1,5 @@
-"""
-Local problem and function types.
-"""
-
+# Local problem and function types.
+#
 # ODEProblem, SplitODEProblem, IncrementingODEFunction, ODEFunction:
 # not exported; use qualified access (e.g., CTS.ODEProblem).
 
@@ -38,12 +36,15 @@ end
 
 A split ODE function representing ``du/dt = f_1(u,p,t) + f_2(u,p,t)``.
 
-Used with [`Multirate`](@ref) algorithms where `f1` is the fast component
-and `f2` is the slow component.
+Used with [`Multirate`](@ref) algorithms, where `f1` is the **fast
+tendency** (advanced by the inner solver) and `f2` is the **slow tendency**
+(advanced by the outer solver). Note the distinction: `f1`/`f2` are
+*tendency functions*, while [`Multirate`](@ref) takes *algorithm* arguments
+`fast`/`slow`.
 
 # Arguments
-- `f1`: fast component (typically an `IncrementingODEFunction`)
-- `f2`: slow component
+- `f1`: fast tendency (typically an [`IncrementingODEFunction`](@ref)).
+- `f2`: slow tendency.
 """
 struct SplitFunction{F1, F2}
     f1::F1
@@ -94,8 +95,8 @@ implicit solvers. Used as the `T_imp!` field of [`ClimaODEFunction`](@ref).
 
 # Keyword Arguments
 - `jac_prototype`: prototype matrix for the Jacobian (determines sparsity/structure)
-- `Wfact`: function `Wfact(W, u, p, dtγ, t)` that computes ``W = J \\Delta t \\gamma - I``
-- `tgrad`: function `tgrad(∂f∂t, u, p, t)` for the explicit time derivative
+- `Wfact`: function `Wfact(W, u, p, dtγ, t)` that computes ``W = dt\\gamma\\, J - I``.
+- `tgrad`: function `tgrad(∂f∂t, u, p, t)` for the explicit time derivative.
 """
 struct ODEFunction{F, JP, WF, TG}
     f::F
@@ -113,11 +114,14 @@ end
 
 Solution object returned by [`solve`](@ref) and [`solve!`](@ref).
 
+`T` is the time element type, `U` is the saved-state type, `P` is the
+problem type, and `A` is the algorithm type.
+
 # Fields
-- `t::Vector{T}`: saved time points
-- `u::Vector{U}`: saved state values (one per time point)
-- `prob`: the original [`ODEProblem`](@ref)
-- `alg`: the algorithm used
+- `t::Vector{T}`: saved time points.
+- `u::Vector{U}`: saved state values (one per time point).
+- `prob::P`: the original [`ODEProblem`](@ref).
+- `alg::A`: the algorithm used.
 
 Calling `sol(t)` returns the saved state nearest to time `t`
 (**not** an interpolation — nearest-neighbor lookup only).
@@ -131,7 +135,7 @@ end
 
 
 """
-  (sol::ODESolution)(t)
+    (sol::ODESolution)(t)
 
 Return the saved state nearest to time `t`. This is **not** an interpolation;
 it returns `sol.u[i]` where `i = argmin(|sol.t .- t|)`. Only use this for

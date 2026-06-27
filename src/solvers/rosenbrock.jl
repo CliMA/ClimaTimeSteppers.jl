@@ -14,17 +14,19 @@ Tableau for an `N`-stage Rosenbrock method. Stores the transformed coefficients
 ``α`` and ``Γ``.
 
 See the [Rosenbrock algorithm formulation](@ref rosenbrock-methods) for details.
+
+# Fields
+- `A`: transformed coefficient matrix ``A = α Γ^{-1}``.
+- `α`: original time-dependent coefficient matrix.
+- `C`: stepping matrix ``C = \\mathrm{diag}(Γ^{-1}) - Γ^{-1}``.
+- `Γ`: substage contribution matrix.
+- `m`: weight vector ``m = b Γ^{-1}``, used to compute the increments `k`.
 """
 struct RosenbrockTableau{N, SM <: SMatrix{N, N}, SM1 <: SMatrix{N, 1}}
-    """A = α Γ⁻¹"""
     A::SM
-    """Tableau used for the time-dependent part"""
     α::SM
-    """Stepping matrix. C = 1/diag(Γ) - Γ⁻¹"""
     C::SM
-    """Substage contribution matrix"""
     Γ::SM
-    """m = b Γ⁻¹, used to compute the increments k"""
     m::SM1
 end
 n_stages(::RosenbrockTableau{N}) where {N} = N
@@ -65,37 +67,32 @@ struct RosenbrockAlgorithm{T <: RosenbrockTableau} <:
 end
 
 """
-    RosenbrockCache{N, A, WT}
+    RosenbrockCache{Nstages, A, WT}
 
-Contains everything that is needed to run a Rosenbrock-type method.
+Pre-allocated workspace for a Rosenbrock-type method.
 
-- Nstages: number of stages,
-- A: type of the evolved state (e.g., a ClimaCore.FieldVector),
-- WT: type of the Jacobian (Wfact)
+`Nstages` is the number of stages, `A` is the type of the evolved state
+(e.g., a `ClimaCore.FieldVector`), and `WT` is the type of the Jacobian
+operator (`Wfact`).
+
+# Fields
+- `U`: preallocated space for the stage state.
+- `fU`: preallocated space for the total tendency.
+- `fU_imp`: preallocated space for the implicit tendency.
+- `fU_exp`: preallocated space for the explicit tendency.
+- `fU_lim`: preallocated space for the limited tendency.
+- `k`: stage increments (one per stage).
+- `W`: preallocated Jacobian operator ``W = dtγ\\, J - I``.
+- `∂Y∂t`: preallocated space for the explicit time derivative.
 """
 struct RosenbrockCache{Nstages, A, WT}
-    """Preallocated space for the state"""
     U::A
-
-    """Preallocated space for the tendency"""
     fU::A
-
-    """Preallocated space for the implicit contribution to the tendency"""
     fU_imp::A
-
-    """Preallocated space for the explicit contribution to the tendency"""
     fU_exp::A
-
-    """Preallocated space for the limited contribution to the tendency"""
     fU_lim::A
-
-    """Contributions to the state for each stage"""
     k::NTuple{Nstages, A}
-
-    """Preallocated space for the Wfact, dtγJ - 𝕀, or Wfact_t, 𝕀/dtγ - J, with J the Jacobian of the implicit tendency"""
     W::WT
-
-    """Preallocated space for the explicit time derivative of the tendency"""
     ∂Y∂t::A
 end
 

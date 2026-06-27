@@ -44,7 +44,7 @@ methods in practice, but provides intuition for setting `step_adjustment` in a
 
 Reference: [Oregon State roundoff/truncation notes](https://web.engr.oregonstate.edu/~webbky/MAE4020_5020_files/Section%204%20Roundoff%20and%20Truncation%20Error.pdf).
 
-# Result
+# Returns
 
 The optimal step size that minimizes the error upper bound is
 
@@ -375,7 +375,7 @@ This is a wrapper around `Krylov.jl` solvers. By default, GMRES is used with a
 Krylov subspace of size 20.
 
 # Keyword Arguments
-- `type`: Krylov solver type, wrapped in `Val` (default `Val(Krylov.GmresSolver)`)
+- `type`: Krylov solver type, wrapped in `Val` (default `Val(GmresWorkspace)`).
 - `jacobian_free_jvp`: a [`JacobianFreeJVP`](@ref) for matrix-free operation
   (default `nothing` → uses `j` directly)
 - `forcing_term`: a [`ForcingTerm`](@ref) setting `rtol[n]`
@@ -533,8 +533,9 @@ Solve `f(x) = 0` by iterating `x[n+1] = x[n] - j(x[n]) \\ f(x[n])`, where
   iterations; if convergence has not been reached by `max_iters`, a warning
   is printed.
 - `verbose`: `Verbose()` to print `‖x‖` and `‖Δx‖` each iteration
-- `line_search`: if `true`, applies backtracking (halving up to 5×) when the
-  residual norm does not decrease or becomes `NaN`
+- `line_search`: a [`LineSearch`](@ref) instance to apply backtracking
+  (halving up to 5×) when the residual norm does not decrease or becomes
+  `NaN`. Default `nothing` (no line search).
 
 # Jacobian update strategies
 
@@ -555,7 +556,7 @@ Jacobian-free JVP (see [`ForwardDiffJVP`](@ref)), neither `j_prototype`
 nor `j!` need to be specified (*Jacobian-free Newton-Krylov*). When both
 a JVP and `j` are provided, `j` serves as a left preconditioner.
 
-# Notes on `j_prototype`
+# Notes on `j_prototype` (in `allocate_cache`)
 
 `j_prototype` should support `ldiv!` directly (e.g., a pre-factorized matrix
 or `LinearOperator`). Dense matrices are accepted for convenience but trigger

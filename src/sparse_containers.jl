@@ -5,7 +5,7 @@
 A compact container that allows dense-like
 indexing into a sparse, uniform, container.
 
-# Example
+# Examples
 
 ```julia
 using Test

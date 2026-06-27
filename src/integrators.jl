@@ -49,12 +49,29 @@ end
 The main integrator type for ClimaTimeSteppers. Created by [`init`](@ref),
 advanced by [`step!`](@ref), and run to completion by [`solve!`](@ref).
 
-# Key fields (user-facing)
-- `u`: current state vector (mutated in place)
-- `p`: parameters
-- `t`: current time
-- `dt`: current timestep (may differ from `_dt` near tstops)
-- `sol`: the [`ODESolution`](@ref) being built
+# Fields
+
+**User-facing:**
+- `u`: current state vector (mutated in place).
+- `p`: parameters.
+- `t`: current time.
+- `dt`: current timestep (adjusted near tstops).
+- `sol::ODESolution`: the solution being built.
+
+**Configuration:**
+- `alg`: the time-stepping algorithm.
+- `_dt`: original `dt` passed to [`init`](@ref).
+- `dtchangeable::Bool`: whether `dt` may be shortened to hit tstops.
+- `tstops`: min-heap of upcoming stop times.
+- `_tstops`: original tstops passed to [`init`](@ref) (used by `reinit!`).
+- `saveat`: min-heap of upcoming save times.
+- `_saveat`: original saveat passed to [`init`](@ref) (used by `reinit!`).
+- `step::Int`: current step counter.
+- `stepstop::Int`: maximum number of steps (0 = unlimited).
+- `callback`: discrete callbacks invoked after each step.
+- `advance_to_tstop::Bool`: when `true`, [`step!`](@ref) advances to the next tstop.
+- `cache`: solver-specific pre-allocated workspace.
+- `tdir::Int`: `+1` for forward integration, `-1` for reverse.
 """
 mutable struct TimeStepperIntegrator{
     algType,
@@ -322,7 +339,9 @@ function step!(integrator::TimeStepperIntegrator, dt, stop_at_tdt = false)
     end
 end
 
-# helper functions for dealing with time-reversed integrators
+# Helper functions for time-reversed integrators. `tdir` returns +1 or -1,
+# `is_past_t` checks whether time `t` has been passed, and `reached_tstop`
+# checks whether the integrator has reached or passed a stop time.
 tdir(integrator) = integrator.tdir
 is_past_t(integrator, t) = tdir(integrator) * (t - integrator.t) < zero(integrator.t)
 reached_tstop(integrator, tstop, stop_at_tstop = integrator.dtchangeable) =

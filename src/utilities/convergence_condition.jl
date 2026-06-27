@@ -77,12 +77,19 @@ updated_cache((; max_reduction)::MaximumErrorReduction, cache, val, err, iter) =
 """
     MinimumRateOfConvergence(rate, order = 1)
 
-Checks whether `err[iter] ≥ rate * err[iter - 1]^order` for all `iter ≥ 1`.
-Since `err[iter] ≥ 0`, this can only be `true` if `rate ≥ 0`. Also, if
-`order == 1`, it must be the case that `rate ≤ 1` in order for the sequence to
-not diverge (i.e., to avoid `err[iter] > err[iter - 1]`). In addition, if
-`err[iter] < 1` for all sufficiently large values of `iter`, it must be the case
-that `order ≥ 1` for the sequence to not diverge.
+Stop iterating when convergence is too slow. Reports `has_converged = true`
+(i.e., "stop the iteration") when `err[iter] ≥ rate * err[iter - 1]^order`
+for any `iter ≥ 1`. In other words, if the error fails to decrease fast
+enough relative to the previous iteration, the solver gives up.
+
+!!! note
+    Despite the name `has_converged`, a `true` result here means the
+    iteration should *stop* because convergence is stalling — not that the
+    sequence has converged to the limit. This is a **divergence / stagnation
+    detector**, consistent with the `ConvergenceChecker` interface where
+    `is_converged!` returning `true` triggers a `break`.
+
+Typical values: `rate ∈ (0, 1]`, `order ≥ 1`.
 """
 struct MinimumRateOfConvergence{FT, FT2} <: ConvergenceCondition
     rate::FT

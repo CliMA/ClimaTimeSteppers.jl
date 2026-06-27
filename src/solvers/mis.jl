@@ -19,6 +19,20 @@ abstract type MultirateInfinitesimalStep <: TimeSteppingAlgorithm end
 const T1Type = SArray{NTuple{1, Nstages}, RT, 1, Nstages} where {Nstages, RT}
 const T2Type = SArray{NTuple{2, Nstages}, RT, 2, Nstages²} where {Nstages, RT, Nstages²}
 
+"""
+    MultirateInfinitesimalStepTableau{T2, T1}
+
+Tableau for MIS methods, storing the coefficients from
+[WKG2009](@cite) and [KW2014](@cite).
+
+# Fields
+- `α`: coupling matrix (MIS state combination coefficients).
+- `β`: slow forcing contribution matrix.
+- `γ`: coupling matrix for increments.
+- `d`: derived row sums of `β` (KW2014 eq. 2).
+- `c`: effective abscissae (substep fraction of `dt`).
+- `c̃`: auxiliary abscissae `α * c`.
+"""
 struct MultirateInfinitesimalStepTableau{T2 <: T2Type, T1 <: T1Type}
     α::T2
     β::T2
@@ -45,10 +59,18 @@ function MultirateInfinitesimalStepTableau(α, β, γ)
 end
 
 
+"""
+    MultirateInfinitesimalStepCache{T, TT}
+
+Pre-allocated workspace for a [`MultirateInfinitesimalStep`](@ref) method.
+
+# Fields
+- `ΔU`: difference between stage and initial value ``U^{(i)} - u``.
+- `F`: evaluated slow tendency at each stage ``f_{\\mathrm{slow}}(U^{(i)})``.
+- `tableau`: the [`MultirateInfinitesimalStepTableau`](@ref).
+"""
 struct MultirateInfinitesimalStepCache{T, TT <: MultirateInfinitesimalStepTableau}
-    "difference between stage and initial value ``U^{(i)} - u``"
     ΔU::T
-    "evaluated slow part of each stage ``f_slow(U^{(i)})``"
     F::T
     tableau::TT
 end

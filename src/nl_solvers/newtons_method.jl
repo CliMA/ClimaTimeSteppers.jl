@@ -353,11 +353,11 @@ end
 
 """
     KrylovMethod(;
-        type = Val(Krylov.GmresSolver),
+        type = Val(GmresWorkspace),
         jacobian_free_jvp = nothing,
         forcing_term = ConstantForcing(0),
-        args = (20,),
-        kwargs = (;),
+        args = (),
+        kwargs = (; memory = 20),
         solve_kwargs = (;),
         disable_preconditioner = false,
         verbose = Silent(),
@@ -381,6 +381,7 @@ Krylov subspace of size 20.
 - `forcing_term`: a [`ForcingTerm`](@ref) setting `rtol[n]`
   (default `ConstantForcing(0)` → exact solve)
 - `args`, `kwargs`: forwarded to the `Krylov.KrylovSolver` constructor
+  (default `args = ()`, `kwargs = (; memory = 20)` → GMRES subspace size 20)
 - `solve_kwargs`: forwarded to `Krylov.solve!`
 - `disable_preconditioner`: if `true`, skip preconditioning even when `j` is
   available (default `false`)

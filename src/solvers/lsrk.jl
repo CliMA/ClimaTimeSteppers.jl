@@ -32,6 +32,15 @@ struct LowStorageRungeKutta2NTableau{T <: NTuple}
 end
 n_stages(::LowStorageRungeKutta2NTableau{T}) where {T} = n_stages_ntuple(T)
 
+"""
+    LowStorageRungeKutta2NIncCache{T, A}
+
+Pre-allocated workspace for a [`LowStorageRungeKutta2N`](@ref) method.
+
+# Fields
+- `tableau`: the [`LowStorageRungeKutta2NTableau`](@ref).
+- `du`: the single accumulated increment kept by the 2N low-storage scheme.
+"""
 struct LowStorageRungeKutta2NIncCache{T <: LowStorageRungeKutta2NTableau, A}
     tableau::T
     du::A

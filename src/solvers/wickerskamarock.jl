@@ -14,12 +14,29 @@ Available implementations are:
 """
 abstract type WickerSkamarockRungeKutta <: TimeSteppingAlgorithm end
 
+"""
+    WickerSkamarockRungeKuttaTableau{T}
+
+Storage for the tableau of a [`WickerSkamarockRungeKutta`](@ref) algorithm.
+
+# Fields
+- `c`: time-scaling coefficient vector (length `s`).
+"""
 struct WickerSkamarockRungeKuttaTableau{T <: NTuple}
-    "Time-scaling coefficients c"
     c::T
 end
 n_stages(::WickerSkamarockRungeKuttaTableau{T}) where {T} = n_stages_ntuple(T)
 
+"""
+    WickerSkamarockRungeKuttaCache{T, A}
+
+Pre-allocated workspace for a [`WickerSkamarockRungeKutta`](@ref) method.
+
+# Fields
+- `tableau`: the [`WickerSkamarockRungeKuttaTableau`](@ref).
+- `U`: preallocated space for the stage state.
+- `F`: preallocated space for the slow tendency at each stage.
+"""
 struct WickerSkamarockRungeKuttaCache{T <: WickerSkamarockRungeKuttaTableau, A}
     tableau::T
     U::A

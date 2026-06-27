@@ -166,6 +166,18 @@ Create a [`TimeStepperIntegrator`](@ref) for the given problem and algorithm.
 
 # Returns
 - a [`TimeStepperIntegrator`](@ref)
+
+# Examples
+```julia
+import ClimaTimeSteppers as CTS
+
+prob = CTS.ODEProblem(f, u0, (0.0, 1.0), p)
+integrator = CTS.init(prob, alg; dt = 0.01)
+CTS.step!(integrator)   # advance one step
+CTS.solve!(integrator)  # run to completion
+```
+
+See also [`solve`](@ref), [`solve!`](@ref), [`step!`](@ref), [`reinit!`](@ref).
 """
 function init(
     prob::ODEProblem,
@@ -277,6 +289,16 @@ Accepts the same keyword arguments as [`init`](@ref).
 
 # Returns
 - an [`ODESolution`](@ref)
+
+# Examples
+```julia
+import ClimaTimeSteppers as CTS
+
+prob = CTS.ODEProblem(f, u0, (0.0, 1.0), p)
+sol = CTS.solve(prob, alg; dt = 0.01)
+```
+
+See also [`init`](@ref), [`solve!`](@ref).
 """
 function solve(
     prob::ODEProblem,
@@ -295,6 +317,8 @@ Run the integrator to completion (until `tstops` is empty or `stepstop` is reach
 
 # Returns
 - the [`ODESolution`](@ref) stored in `integrator.sol`
+
+See also [`init`](@ref), [`solve`](@ref), [`step!`](@ref).
 """
 NVTX.@annotate function solve!(integrator::TimeStepperIntegrator)
     while !isempty(integrator.tstops) && integrator.step != integrator.stepstop
@@ -315,6 +339,8 @@ The two-argument form advances by exactly `dt` time units.
 # Arguments
 - `dt`: time interval to advance (must be positive)
 - `stop_at_tdt`: if `true`, add `t + dt` as a tstop to guarantee exact stopping
+
+See also [`init`](@ref), [`solve!`](@ref).
 """
 function step!(integrator::TimeStepperIntegrator)
     if integrator.advance_to_tstop

@@ -178,8 +178,8 @@ in-place call forms.
 - `γ`: forcing coefficient.
 - `x`: forcing vector.
 
-All scalar fields (`α`, `β`, `γ`) are mutable so that multirate outer
-solvers can update them between stages.
+This is a `mutable struct`, so multirate outer solvers can update the scalar
+coefficients (`α`, `β`, `γ`) in place between stages.
 """
 mutable struct OffsetODEFunction{F, S, A}
     f::F

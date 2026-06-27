@@ -86,7 +86,7 @@ Mapped to the architectural layers in
 
    Users supply the Jacobian by wrapping `T_imp!` in a `ClimaTimeSteppers.ODEFunction`
    that carries `jac_prototype` (a pre-allocated operator) and `Wfact` (fills
-   `W = M - γJ`).
+   `W = dtγ J - I`).
 
 5. **Tableau types** (`src/solvers/imex_tableaus.jl`,
    `src/solvers/explicit_tableaus.jl`) — pure-data structs describing Butcher

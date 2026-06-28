@@ -116,9 +116,7 @@ steps:
         command: "julia --project=test/ --check-bounds=yes test/integration/callbacks.jl"
 
       # Launch with 2 ranks via srun so the distributed EveryXWallTimeSeconds
-      # path (root-rank wall-time check + broadcast) is actually exercised.
-      # Without srun + slurm_ntasks this runs single-rank and the MPI logic is
-      # never tested.
+      # path (root-rank wall-time check + broadcast) is exercised.
       - label: "integration: callbacks (MPI)"
         command: "srun julia --project=test/ --check-bounds=yes test/integration/callbacks.jl"
         env:

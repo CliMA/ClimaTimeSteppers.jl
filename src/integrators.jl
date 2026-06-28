@@ -32,12 +32,14 @@ end
 function Base.push!(q::SortedQueue, val)
     # Insert val into the reverse-sorted vector at the correct position
     data = q.data
+    # Use a positional `Ordering` rather than the `rev` keyword: the keyword
+    # form of `searchsortedfirst` allocates, the positional form does not.
     if q.forward
         # data is sorted descending; find insertion point for descending order
-        i = searchsortedfirst(data, val; rev = true)
+        i = searchsortedfirst(data, val, Base.Order.Reverse)
     else
         # data is sorted ascending; find insertion point for ascending order
-        i = searchsortedfirst(data, val)
+        i = searchsortedfirst(data, val, Base.Order.Forward)
     end
     insert!(data, i, val)
     return q
@@ -161,6 +163,9 @@ Create a [`TimeStepperIntegrator`](@ref) for the given problem and algorithm.
 - `callback`: a [`DiscreteCallback`](@ref) or [`CallbackSet`](@ref)
 - `advance_to_tstop`: if `true`, [`step!`](@ref) advances to the next tstop
 - `save_func`: function `(u, t) -> value` applied before saving (default: `copy`)
+- `save`: attach the saving callback that records the solution (default: `true`);
+  set to `false` for an integrator whose output is never read (e.g. the inner
+  integrator of a multirate method) to avoid per-step saving allocations
 - `dtchangeable`: allow dt reduction near tstops (default: `true`)
 - `stepstop`: stop after this many steps (`-1` = unlimited)
 
@@ -190,6 +195,7 @@ function init(
     callback = nothing,
     advance_to_tstop = false,
     save_func = (u, t) -> copy(u),
+    save = true,
     dtchangeable = true,
     stepstop = -1,
     tdir = compute_tdir(prob.tspan),
@@ -211,9 +217,19 @@ function init(
     sol = ODESolution(typeof(t0)[], typeof(save_func(u0, t0))[], prob, alg)
     # SavedValues shares sol.t and sol.u vectors: the callback's push!
     # directly populates the solution. Do not replace these vectors.
-    saving_callback =
-        NonInterpolatingSavingCallback(save_func, SavedValues(sol.t, sol.u), save_everystep)
-    callback = CallbackSet(callback, saving_callback)
+    # `save = false` skips the saving callback entirely; this is used for the
+    # inner integrator of multirate methods, whose substeps are never saved,
+    # so its `solve!` does not allocate a saved state per stage.
+    callback = if save
+        saving_callback = NonInterpolatingSavingCallback(
+            save_func,
+            SavedValues(sol.t, sol.u),
+            save_everystep,
+        )
+        CallbackSet(callback, saving_callback)
+    else
+        CallbackSet(callback)
+    end
 
     integrator = TimeStepperIntegrator(
         alg,
@@ -274,7 +290,9 @@ function reinit!(
     end
     if reinit_callbacks
         initialize_callbacks!(integrator.callback, u0, t0, integrator)
-    else # always reinit the saving callback so that t0 can be saved if needed
+    elseif !isempty(integrator.callback.discrete_callbacks)
+        # always reinit the saving callback so that t0 can be saved if needed
+        # (an integrator built with `save = false` has no saving callback)
         saving_callback = integrator.callback.discrete_callbacks[end]
         saving_callback.initialize(saving_callback, u0, t0, integrator)
     end

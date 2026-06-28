@@ -76,7 +76,9 @@ function init_cache(
 
     innerfun = init_inner(prob, outercache, dt)
     innerprob = cts_remake(prob; f = innerfun)
-    innerinteg = init(innerprob, alg.fast; dt = fast_dt, kwargs...)
+    # The inner integrator's substeps are never saved, so disable its saving
+    # callback to keep `solve!(innerinteg)` allocation-free.
+    innerinteg = init(innerprob, alg.fast; dt = fast_dt, save = false, kwargs...)
     return MultirateCache(outercache, innerinteg)
 end
 

@@ -71,6 +71,9 @@ steps:
       - label: "unit: forward_euler"
         command: "julia --project=test/ --check-bounds=yes test/unit/forward_euler.jl"
 
+      - label: "unit: forward_diff"
+        command: "julia --project=test/ --check-bounds=yes test/unit/forward_diff.jl"
+
       - label: "unit: incrementing_ode"
         command: "julia --project=test/ --check-bounds=yes test/unit/incrementing_ode.jl"
 
@@ -79,6 +82,12 @@ steps:
 
       - label: "unit: jacobian_accuracy"
         command: "julia --project=test/ --check-bounds=yes test/unit/jacobian_accuracy.jl"
+
+      - label: "unit: jacobian_update"
+        command: "julia --project=test/ --check-bounds=yes test/unit/jacobian_update.jl"
+
+      - label: "unit: cache_sizes"
+        command: "julia --project=test/ --check-bounds=yes test/unit/cache_sizes.jl"
 
       - label: "unit: aqua"
         command: "julia --project=test/ --check-bounds=yes test/aqua.jl"
@@ -106,10 +115,16 @@ steps:
       - label: "integration: callbacks (CPU)"
         command: "julia --project=test/ --check-bounds=yes test/integration/callbacks.jl"
 
+      # Launch with 2 ranks via srun so the distributed EveryXWallTimeSeconds
+      # path (root-rank wall-time check + broadcast) is actually exercised.
+      # Without srun + slurm_ntasks this runs single-rank and the MPI logic is
+      # never tested.
       - label: "integration: callbacks (MPI)"
-        command: "julia --project=test/ --check-bounds=yes test/integration/callbacks.jl"
+        command: "srun julia --project=test/ --check-bounds=yes test/integration/callbacks.jl"
         env:
           CLIMACOMMS_CONTEXT: "MPI"
+        agents:
+          slurm_ntasks: 2
 
       - label: "integration: integrator"
         command: "julia --project=test/ --check-bounds=yes test/integration/integrator.jl"

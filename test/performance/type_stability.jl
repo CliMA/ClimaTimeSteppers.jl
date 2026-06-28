@@ -62,7 +62,13 @@ end
     @testset "ConvergenceChecker" begin
         checker = ConvergenceChecker(; norm_condition = MaximumRelativeError(1e-8))
         cache = CTS.allocate_cache(checker, ArrayType([1.0, 2.0]))
-        @inferred CTS.is_converged!(checker, cache, ArrayType([1.0, 2.0]), ArrayType([0.01, 0.02]), 1)
+        @inferred CTS.is_converged!(
+            checker,
+            cache,
+            ArrayType([1.0, 2.0]),
+            ArrayType([0.01, 0.02]),
+            1,
+        )
     end
 
     @testset "Solver stepping (step_u! type stability)" begin

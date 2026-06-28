@@ -24,6 +24,10 @@ end
     include("unit/line_search.jl")
 end
 
+@safetestset "OffsetODEFunction" begin
+    include("unit/offset_ode.jl")
+end
+
 @safetestset "Convergence checker" begin
     include("utils/convergence_checker.jl")
 end

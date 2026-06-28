@@ -1,9 +1,10 @@
 #=
 Allocation tests: verify that stepping allocations stay within bounds.
 
-These tests catch allocation regressions. Explicit methods should be
-allocation-free. Implicit methods may allocate small amounts for the
-linear solver, so we use upper bounds based on current behavior.
+These tests catch allocation regressions. Every method should be
+allocation-free: the implicit methods (IMEX ARK/SSPRK, Rosenbrock) use a
+diagonal mock Jacobian with an allocation-free `ldiv!`, and Multirate runs
+its inner integrator with saving disabled so its substeps do not allocate.
 =#
 using ClimaTimeSteppers, LinearAlgebra, Test
 using ClimaComms
@@ -14,34 +15,34 @@ import ClimaTimeSteppers: ODEProblem, ODEFunction, IncrementingODEFunction, Spli
 const device = ClimaComms.device()
 const ArrayType = ClimaComms.array_type(device)
 
-# Type piracy (confined to test code): Base.zero(::LU) is not defined in
-# LinearAlgebra. NewtonsMethod calls `zero(jac_prototype)` to initialize the
-# Jacobian cache, and we pass an LU factorization as the prototype for
-# in-place solves. This extends Base.zero for that purpose.
-Base.zero(x::LU) = lu(zero(x.factors); check = false)
-
 # ============================================================================ #
 # Test problems parameterized by float type FT
 # ============================================================================ #
 
+# Diagonal stand-in for the implicit Jacobian/`W` operator. `NewtonsMethod`
+# calls `zero(jac_prototype)` to allocate the cache and `ldiv!(Δx, W, f)` for
+# the linear solve; both are allocation-free here, so the implicit step can
+# reach exactly zero allocations (a dense LU prototype would allocate).
+struct MockDiagonalJacobian{A}
+    diag::A
+end
+Base.zero(x::MockDiagonalJacobian) = MockDiagonalJacobian(zero(x.diag))
+LinearAlgebra.ldiv!(x, A::MockDiagonalJacobian, b) = (x .= b ./ A.diag)
+
 function make_split_prob_for_alloc_test(::Type{FT}) where {FT}
     n = 3
-    Id = Matrix{FT}(I, n, n)
     ODEProblem(
         ClimaODEFunction(;
             T_exp! = (du, u, p, t) -> (du .= FT(0.1) .* u),
             T_imp! = ODEFunction(
                 (du, u, p, t) -> (du .= FT(-0.5) .* u);
-                jac_prototype = lu(zeros(FT, n, n), check = false),
+                jac_prototype = MockDiagonalJacobian(ArrayType(zeros(FT, n))),
                 Wfact = (W, u, p, dtγ, t) -> begin
-                    W.factors .= FT(-0.5) * dtγ .* Id .- Id
-                    W.ipiv .= 1:n
-                    # Trigger factorization in-place
-                    LinearAlgebra.lu!(W.factors, NoPivot(); check = false)
+                    W.diag .= FT(-0.5) * dtγ .- FT(1)
                 end,
             ),
         ),
-        ones(FT, n),
+        ArrayType(ones(FT, n)),
         (FT(0), FT(1)),
         nothing,
     )
@@ -50,7 +51,7 @@ end
 function make_explicit_prob_for_alloc_test(::Type{FT}) where {FT}
     ODEProblem(
         ClimaODEFunction(; T_exp! = (du, u, p, t) -> (du .= FT(-0.5) .* u)),
-        FT[1.0, 2.0, 3.0],
+        ArrayType(FT[1.0, 2.0, 3.0]),
         (FT(0), FT(1)),
         nothing,
     )
@@ -61,7 +62,7 @@ function make_lsrk_prob_for_alloc_test(::Type{FT}) where {FT}
         IncrementingODEFunction{true}(
             (du, u, p, t, α = true, β = false) -> (du .= α .* FT(-0.5) .* u .+ β .* du),
         ),
-        FT[1.0, 2.0, 3.0],
+        ArrayType(FT[1.0, 2.0, 3.0]),
         (FT(0), FT(1)),
         nothing,
     )
@@ -75,7 +76,7 @@ function make_multirate_prob_for_alloc_test()
         IncrementingODEFunction{true}(
             (du, u, p, t, α = true, β = false) -> (du .= α .* (-0.5) .* u .+ β .* du),
         ),
-        [1.0, 2.0, 3.0],
+        ArrayType([1.0, 2.0, 3.0]),
         (0.0, 1.0),
         nothing,
     )
@@ -126,7 +127,7 @@ end
             end
         end
 
-        @testset "IMEX ARK — bounded allocations$ft_name" begin
+        @testset "IMEX ARK — zero allocations$ft_name" begin
             prob = make_split_prob_for_alloc_test(FT)
             imex_algs = if FT == Float64
                 (ARS111(), ARS232(), ARS343(), ARK437L2SA1(), ARK548L2SA2())
@@ -136,35 +137,33 @@ end
             for name in imex_algs
                 alg = CTS.IMEXAlgorithm(name, NewtonsMethod(; max_iters = 2))
                 allocs = test_step_allocations(alg, prob, dt)
-                # Highest measured: ARK548L2SA2 ≈ 1760 bytes from the deeper
-                # lazy-broadcast trees built per stage.
-                @test allocs ≤ 2000
+                @test allocs == 0
             end
         end
 
         if FT == Float64
-            @testset "IMEX SSPRK — bounded allocations" begin
+            @testset "IMEX SSPRK — zero allocations" begin
                 prob = make_split_prob_for_alloc_test(FT)
                 for name in (SSP222(), SSP333())
                     alg = CTS.IMEXAlgorithm(name, NewtonsMethod(; max_iters = 2))
                     allocs = test_step_allocations(alg, prob, dt)
-                    @test allocs ≤ 500
+                    @test allocs == 0
                 end
             end
 
-            @testset "Rosenbrock — bounded allocations" begin
+            @testset "Rosenbrock — zero allocations" begin
                 prob = make_split_prob_for_alloc_test(FT)
                 alg = CTS.RosenbrockAlgorithm(ClimaTimeSteppers.tableau(SSPKnoth()))
                 allocs = test_step_allocations(alg, prob, dt)
-                @test allocs ≤ 550
+                @test allocs == 0
             end
 
-            @testset "Multirate — bounded allocations" begin
+            @testset "Multirate — zero allocations" begin
                 prob = make_multirate_prob_for_alloc_test()
                 for slow_alg in (LSRK54CarpenterKennedy(), MIS3C(), WSRK2())
                     alg = Multirate(LSRK54CarpenterKennedy(), slow_alg)
                     allocs = test_step_allocations(alg, prob, 0.1)
-                    @test allocs < 10000
+                    @test allocs == 0
                 end
             end
         end

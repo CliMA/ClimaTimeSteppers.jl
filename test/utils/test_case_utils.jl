@@ -13,8 +13,6 @@ struct IntegratorTestCase{FT, A, P, SP}
     analytic_sol::A
     prob::P
     split_prob::SP
-    default_num_steps::Int
-    high_order_sample_shifts::Int
 end
 
 function ClimaIntegratorTestCase(;
@@ -28,8 +26,6 @@ function ClimaIntegratorTestCase(;
     explicit_tendency! = nothing,
     Wfact!,
     tgrad! = nothing,
-    default_num_steps = 100,
-    high_order_sample_shifts = 1,
 )
     FT = typeof(t_end)
     jac_prototype = Matrix{FT}(undef, length(Y₀), length(Y₀))
@@ -50,8 +46,6 @@ function ClimaIntegratorTestCase(;
         analytic_sol,
         make_prob(tendency_func),
         make_prob(split_tendency_func),
-        default_num_steps,
-        high_order_sample_shifts,
     )
 end
 

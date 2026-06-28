@@ -137,3 +137,106 @@ end
     @test sol.t == [t0, t0 + dt, t0 + 2 * dt, t0 + 3 * dt]
     @test sol.u ≈ map(analytic_sol, sol.t) atol = 10 * eps()
 end
+
+@testset "advance_to_tstop: step! advances to the next tstop" begin
+    # With advance_to_tstop = true, a single step! should advance all the way to
+    # the next tstop (shortening dt to land on it exactly), not take one base-dt
+    # internal step.
+    alg = ExplicitAlgorithm(SSP33ShuOsher())
+    (; prob, analytic_sol) = clima_constant_tendency_test(Float64)
+    tstops = [0.25, 0.7, 1.0]
+    integrator =
+        init(deepcopy(prob), alg; dt = 0.1, tstops, advance_to_tstop = true)
+
+    step!(integrator)
+    @test integrator.t == 0.25            # landed exactly on the first tstop
+    @test integrator.u ≈ analytic_sol(0.25) atol = 10 * eps()
+
+    step!(integrator)
+    @test integrator.t == 0.7             # not 0.35 (a single base-dt step)
+    @test integrator.u ≈ analytic_sol(0.7) atol = 10 * eps()
+
+    step!(integrator)
+    @test integrator.t == 1.0
+    @test integrator.u ≈ analytic_sol(1.0) atol = 10 * eps()
+end
+
+@testset "two-arg step!(integrator, dt, stop_at_tdt)" begin
+    alg = ExplicitAlgorithm(SSP33ShuOsher())
+    (; prob, analytic_sol) = clima_constant_tendency_test(Float64)
+
+    # stop_at_tdt = true adds t + dt as a tstop and lands on it exactly, even
+    # though dt = 0.4 is not a multiple of the base dt = 0.1.
+    integrator = init(deepcopy(prob), alg; dt = 0.1)
+    step!(integrator, 0.4, true)
+    @test integrator.t ≈ 0.4 atol = 1e-12
+    @test integrator.u ≈ analytic_sol(integrator.t) atol = 10 * eps()
+
+    t_before = integrator.t
+    step!(integrator, 0.25, true)
+    @test integrator.t ≈ t_before + 0.25 atol = 1e-12
+    @test integrator.u ≈ analytic_sol(integrator.t) atol = 10 * eps()
+
+    # Default stop_at_tdt = false advances to the first step at or past t + dt.
+    integrator = init(deepcopy(prob), alg; dt = 0.1)
+    step!(integrator, 0.25)
+    @test integrator.t ≥ 0.25
+    @test integrator.t ≤ 0.25 + 0.1 + 1e-12
+    @test integrator.u ≈ analytic_sol(integrator.t) atol = 10 * eps()
+end
+
+@testset "integrator API error branches" begin
+    alg = ExplicitAlgorithm(SSP33ShuOsher())
+    (; prob) = clima_constant_tendency_test(Float64)
+
+    # init: dt must be positive
+    @test_throws ErrorException init(deepcopy(prob), alg; dt = -0.1)
+    @test_throws ErrorException init(deepcopy(prob), alg; dt = 0.0)
+
+    integrator = init(deepcopy(prob), alg; dt = 0.1)
+
+    # set_dt!: dt must be positive
+    @test_throws ErrorException CTS.set_dt!(integrator, -1.0)
+    @test_throws ErrorException CTS.set_dt!(integrator, 0.0)
+
+    # two-arg step!: dt must be positive
+    @test_throws ErrorException step!(integrator, -0.1)
+
+    # add_tstop! / add_saveat! cannot schedule a time behind the current time
+    @test_throws ErrorException CTS.add_tstop!(integrator, -1.0)
+    @test_throws ErrorException CTS.add_saveat!(integrator, -1.0)
+
+    # stop_at_tdt = true requires dtchangeable
+    fixed = init(deepcopy(prob), alg; dt = 0.1, dtchangeable = false)
+    @test_throws ErrorException step!(fixed, 0.1, true)
+end
+
+@testset "reinit!(reinit_callbacks = false) leaves user callbacks alone" begin
+    # Regression test: with `save = false` there is no saving callback, so the
+    # last discrete callback is the user callback. `reinit_callbacks = false`
+    # must reinit only the saving callback (here, none) and must NOT
+    # re-initialize the user callback.
+    alg = ExplicitAlgorithm(SSP33ShuOsher())
+    (; prob) = clima_constant_tendency_test(Float64)
+
+    n_inits = Ref(0)
+    user_cb = CTS.DiscreteCallback(
+        (u, t, integrator) -> false,        # never fires during stepping
+        integrator -> nothing;
+        initialize = (cb, u, t, integrator) -> (n_inits[] += 1),
+    )
+
+    integrator =
+        init(deepcopy(prob), alg; dt = 0.1, save = false, callback = user_cb)
+    @test n_inits[] == 1   # init runs the callback's initialize once
+    step!(integrator)
+
+    # reinit without reinitializing callbacks: user callback must be untouched
+    # (and no BoundsError from a missing saving callback)
+    reinit!(integrator; reinit_callbacks = false)
+    @test n_inits[] == 1
+
+    # reinit_callbacks = true should re-initialize the user callback
+    reinit!(integrator; reinit_callbacks = true)
+    @test n_inits[] == 2
+end

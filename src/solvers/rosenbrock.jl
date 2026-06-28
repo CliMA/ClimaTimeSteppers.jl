@@ -161,8 +161,16 @@ function step_u!(int, cache::RosenbrockCache{Nstages}) where {Nstages}
         # Reset tendency
         fill!(fU, 0)
 
-        αi = sum(α[i, 1:(i - 1)]; init = zero(eltype(α)))
-        γi = sum(Γ[i, 1:i]; init = zero(eltype(Γ)))
+        # Sum over the tableau rows with explicit loops rather than slices
+        # to avoid heap allocations
+        αi = zero(eltype(α))
+        γi = zero(eltype(Γ))
+        for j in 1:(i - 1)
+            αi += α[i, j]
+        end
+        for j in 1:i
+            γi += Γ[i, j]
+        end
 
         U .= u
         for j in 1:(i - 1)

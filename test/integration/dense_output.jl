@@ -1,15 +1,16 @@
 #=
-Dense output tests: verify that sol(t) interpolation is consistent.
+Solution-lookup tests for `(sol::ODESolution)(t)`.
 
-CTS uses linear interpolation between saved steps for dense output.
+`sol(t)` is a NEAREST-NEIGHBOR lookup, NOT an interpolation: it returns
+`sol.u[argmin(abs.(sol.t .- t))]` (see src/problems.jl). These tests pin down
+that contract — exact match at saved points, nearest-neighbor selection between
+them, tie-breaking, and clamping for out-of-range queries.
 =#
 using ClimaTimeSteppers, LinearAlgebra, Test
 import ClimaTimeSteppers as CTS
-import ClimaTimeSteppers: ODEProblem, ODEFunction, solve
+import ClimaTimeSteppers: ODEProblem, ODEFunction, ODESolution, solve
 
-@testset "Dense output" begin
-
-
+@testset "Solution lookup sol(t)" begin
 
     @testset "Explicit method: sol(t) matches at saved points" begin
         prob = ODEProblem(
@@ -21,9 +22,10 @@ import ClimaTimeSteppers: ODEProblem, ODEFunction, solve
         alg = ExplicitAlgorithm(SSP33ShuOsher())
         sol = solve(prob, alg; dt = 0.01, save_everystep = true)
 
-        # At every saved timestep, sol(t) should exactly match the saved value
+        # Querying at a saved time returns exactly that saved state (the stored
+        # object, not a recomputed/interpolated value).
         for (i, t) in enumerate(sol.t)
-            @test sol(t) ≈ sol.u[i] atol = 100 * eps(Float64)
+            @test sol(t) == sol.u[i]
         end
     end
 
@@ -48,55 +50,48 @@ import ClimaTimeSteppers: ODEProblem, ODEFunction, solve
         sol = solve(prob, alg; dt = 0.01, save_everystep = true)
 
         for (i, t) in enumerate(sol.t)
-            @test sol(t) ≈ sol.u[i] atol = 100 * eps(Float64)
+            @test sol(t) == sol.u[i]
         end
     end
 
-    @testset "Interpolation between saved points is bounded" begin
-        # For du/dt = -u, u(t) = e^{-t}. The solution is monotonically decreasing.
-        # CTS uses linear interpolation between saved steps, so the interpolated
-        # value at a midpoint must lie strictly between the two saved endpoints.
-        prob = ODEProblem(
-            ClimaODEFunction(; T_exp! = (du, u, p, t) -> (du .= -u)),
-            [1.0],
-            (0.0, 1.0),
-            nothing,
-        )
-        alg = ExplicitAlgorithm(RK4())
-        sol = solve(prob, alg; dt = 0.1, save_everystep = true)
+    # The remaining testsets pin the nearest-neighbor contract using a
+    # hand-built solution with known, evenly-spaced save times, so the expected
+    # index is independent of any floating-point solver output.
+    times = [0.0, 1.0, 2.0, 3.0, 4.0]
+    states = [[10.0 * i] for i in 0:4]   # distinct, easy-to-identify states
+    sol = ODESolution(times, states, nothing, nothing)
 
-        for i in 1:(length(sol.t) - 1)
-            t_mid = (sol.t[i] + sol.t[i + 1]) / 2
-            u_mid = sol(t_mid)
-            u_lo = min(sol.u[i][1], sol.u[i + 1][1])
-            u_hi = max(sol.u[i][1], sol.u[i + 1][1])
-            # Linear interpolation must return a value between the two saved points
-            @test u_lo ≤ u_mid[1] ≤ u_hi
+    @testset "sol(t) returns a saved state, never an interpolant" begin
+        # Halfway-ish queries must return one of the two stored states exactly,
+        # not a blended value. 25.0 (the linear interpolant at t=2.5) must never
+        # appear.
+        for t in (0.4, 1.6, 2.5, 3.9)
+            @test sol(t) in states
         end
     end
 
-    @testset "Interpolation accuracy via linear interpolation" begin
-        # du/dt = -u, u(0) = 1 ⟹ u(t) = e^{-t}
-        # CTS stores discrete values; we test linear interpolation accuracy
-        # between saved points. Linear interpolation error is O(dt^2).
-        prob = ODEProblem(
-            ClimaODEFunction(; T_exp! = (du, u, p, t) -> (du .= -u)),
-            [1.0],
-            (0.0, 1.0),
-            nothing,
-        )
-        alg = ExplicitAlgorithm(RK4())
-        dt = 0.05
-        sol = solve(prob, alg; dt, save_everystep = true)
+    @testset "Nearest-neighbor selection between saved points" begin
+        @test sol(0.4) == states[1]   # closer to t=0.0
+        @test sol(0.6) == states[2]   # closer to t=1.0
+        @test sol(2.4) == states[3]   # closer to t=2.0
+        @test sol(2.6) == states[4]   # closer to t=3.0
+    end
 
-        # Manually linear-interpolate between consecutive saved points and check
-        # against the analytic solution. Error bound: O(dt^2) for linear interp.
-        for i in 1:(length(sol.t) - 1)
-            t_mid = (sol.t[i] + sol.t[i + 1]) / 2
-            # Linear interpolation between saved points
-            u_lin = (sol.u[i][1] + sol.u[i + 1][1]) / 2
-            u_exact = exp(-t_mid)
-            @test abs(u_lin - u_exact) < dt^2
+    @testset "Tie-breaking: argmin returns the earlier point" begin
+        # At an exact midpoint both neighbors are equidistant; argmin returns the
+        # first (lower-index) minimum.
+        @test sol(0.5) == states[1]
+        @test sol(2.5) == states[3]
+    end
+
+    @testset "Out-of-range queries clamp to the endpoints" begin
+        @test sol(-100.0) == states[1]     # before the first saved time
+        @test sol(100.0) == states[end]    # after the last saved time
+    end
+
+    @testset "Exact match at every saved time" begin
+        for (i, t) in enumerate(times)
+            @test sol(t) == states[i]
         end
     end
 end

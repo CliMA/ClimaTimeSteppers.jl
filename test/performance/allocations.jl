@@ -1,11 +1,11 @@
 #=
 Allocation tests: verify that stepping allocations stay within bounds.
 
-These tests catch allocation regressions. Explicit, LSRK, and the IMEX
-methods (ARK and SSPRK) should be allocation-free; the IMEX cases use a
+These tests catch allocation regressions. Explicit, LSRK, IMEX (ARK and
+SSPRK), and Rosenbrock should be allocation-free; the implicit methods use a
 diagonal mock Jacobian with an allocation-free `ldiv!` so the implicit solve
-itself does not allocate. Rosenbrock and Multirate still allocate small
-amounts, so we guard those with upper bounds based on current behavior.
+itself does not allocate. Multirate still allocates small amounts (its inner
+integrator's saving callback), so we guard it with an upper bound.
 =#
 using ClimaTimeSteppers, LinearAlgebra, Test
 using ClimaComms
@@ -152,11 +152,11 @@ end
                 end
             end
 
-            @testset "Rosenbrock — bounded allocations" begin
+            @testset "Rosenbrock — zero allocations" begin
                 prob = make_split_prob_for_alloc_test(FT)
                 alg = CTS.RosenbrockAlgorithm(ClimaTimeSteppers.tableau(SSPKnoth()))
                 allocs = test_step_allocations(alg, prob, dt)
-                @test allocs ≤ 550
+                @test allocs == 0
             end
 
             @testset "Multirate — bounded allocations" begin

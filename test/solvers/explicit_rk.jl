@@ -22,8 +22,6 @@ function explicit_linear_test_cts(::Type{FT}) where {FT}
         (t) -> linear_sol(prob.u0, prob.p, t),
         prob,
         prob,
-        200,
-        1,
     )
 end
 
@@ -43,8 +41,6 @@ function explicit_sincos_test_cts(::Type{FT}) where {FT}
         (t) -> sincos_sol(prob.u0, prob.p, t),
         prob,
         prob,
-        200,
-        1,
     )
 end
 

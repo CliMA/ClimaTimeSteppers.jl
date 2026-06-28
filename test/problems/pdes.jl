@@ -70,8 +70,6 @@ function finitediff_2Dheat_test_cts(::Type{FT}) where {FT}
         analytic_sol,
         make_prob(tendency_func),
         make_prob(split_tendency_func),
-        50,
-        1,
     )
 end
 
@@ -125,7 +123,5 @@ function finitediff_1Dheat_test_cts(::Type{FT}) where {FT}
         analytic_sol,
         make_prob(tendency_func),
         make_prob(split_tendency_func),
-        50,
-        1,
     )
 end

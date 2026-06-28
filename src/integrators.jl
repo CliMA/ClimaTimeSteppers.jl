@@ -291,8 +291,10 @@ function reinit!(
     if reinit_callbacks
         initialize_callbacks!(integrator.callback, u0, t0, integrator)
     elseif !isempty(integrator.callback.discrete_callbacks)
-        # always reinit the saving callback so that t0 can be saved if needed
-        # (an integrator built with `save = false` has no saving callback)
+        # reinit the saving callback (when present) so that t0 can be saved if
+        # needed, without touching user callbacks. An integrator built with
+        # `save = false` has no saving callback; identify it by type rather than
+        # position, since the last callback may be a user callback in that case.
         saving_callback = integrator.callback.discrete_callbacks[end]
         if saving_callback.affect! isa NonInterpolatingSavingAffect
             saving_callback.initialize(saving_callback, u0, t0, integrator)

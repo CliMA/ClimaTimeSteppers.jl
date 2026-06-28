@@ -210,3 +210,33 @@ end
     fixed = init(deepcopy(prob), alg; dt = 0.1, dtchangeable = false)
     @test_throws ErrorException step!(fixed, 0.1, true)
 end
+
+@testset "reinit!(reinit_callbacks = false) leaves user callbacks alone" begin
+    # Regression test: with `save = false` there is no saving callback, so the
+    # last discrete callback is the user callback. `reinit_callbacks = false`
+    # must reinit only the saving callback (here, none) and must NOT
+    # re-initialize the user callback.
+    alg = ExplicitAlgorithm(SSP33ShuOsher())
+    (; prob) = clima_constant_tendency_test(Float64)
+
+    n_inits = Ref(0)
+    user_cb = CTS.DiscreteCallback(
+        (u, t, integrator) -> false,        # never fires during stepping
+        integrator -> nothing;
+        initialize = (cb, u, t, integrator) -> (n_inits[] += 1),
+    )
+
+    integrator =
+        init(deepcopy(prob), alg; dt = 0.1, save = false, callback = user_cb)
+    @test n_inits[] == 1   # init runs the callback's initialize once
+    step!(integrator)
+
+    # reinit without reinitializing callbacks: user callback must be untouched
+    # (and no BoundsError from a missing saving callback)
+    reinit!(integrator; reinit_callbacks = false)
+    @test n_inits[] == 1
+
+    # reinit_callbacks = true should re-initialize the user callback
+    reinit!(integrator; reinit_callbacks = true)
+    @test n_inits[] == 2
+end

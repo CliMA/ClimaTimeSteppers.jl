@@ -1,9 +1,11 @@
 #=
 Allocation tests: verify that stepping allocations stay within bounds.
 
-These tests catch allocation regressions. Explicit methods should be
-allocation-free. Implicit methods may allocate small amounts for the
-linear solver, so we use upper bounds based on current behavior.
+These tests catch allocation regressions. Explicit, LSRK, and the IMEX
+methods (ARK and SSPRK) should be allocation-free; the IMEX cases use a
+diagonal mock Jacobian with an allocation-free `ldiv!` so the implicit solve
+itself does not allocate. Rosenbrock and Multirate still allocate small
+amounts, so we guard those with upper bounds based on current behavior.
 =#
 using ClimaTimeSteppers, LinearAlgebra, Test
 using ClimaComms
@@ -14,16 +16,14 @@ import ClimaTimeSteppers: ODEProblem, ODEFunction, IncrementingODEFunction, Spli
 const device = ClimaComms.device()
 const ArrayType = ClimaComms.array_type(device)
 
-# Type piracy (confined to test code): Base.zero(::LU) is not defined in
-# LinearAlgebra. NewtonsMethod calls `zero(jac_prototype)` to initialize the
-# Jacobian cache, and we pass an LU factorization as the prototype for
-# in-place solves. This extends Base.zero for that purpose.
-Base.zero(x::LU) = lu(zero(x.factors); check = false)
-
 # ============================================================================ #
 # Test problems parameterized by float type FT
 # ============================================================================ #
 
+# Diagonal stand-in for the implicit Jacobian/`W` operator. `NewtonsMethod`
+# calls `zero(jac_prototype)` to allocate the cache and `ldiv!(Δx, W, f)` for
+# the linear solve; both are allocation-free here, so the implicit step can
+# reach exactly zero allocations (a dense LU prototype would allocate).
 struct MockDiagonalJacobian{A}
     diag::A
 end

@@ -23,6 +23,33 @@ if device isa ClimaComms.CUDADevice
     CUDA.allowscalar(false)
 end
 
+# Diagonal stand-in for the implicit Jacobian/`W` operator, so the implicit
+# problems below can use device arrays (a dense matrix prototype would not run
+# on the GPU). `NewtonsMethod` calls `zero(jac_prototype)` and `ldiv!(Δx, W, f)`.
+struct MockDiagonalJacobian{A}
+    diag::A
+end
+Base.zero(x::MockDiagonalJacobian) = MockDiagonalJacobian(zero(x.diag))
+LinearAlgebra.ldiv!(x, A::MockDiagonalJacobian, b) = (x .= b ./ A.diag)
+
+# Device-aware IMEX/Rosenbrock test problem: explicit forcing `0.1u`, implicit
+# `-0.5u`, with a diagonal mock `W = dtγ J - I = (-0.5 dtγ - 1) I`.
+function mock_implicit_prob(::Type{FT} = Float64; n = 3) where {FT}
+    ODEProblem(
+        ClimaODEFunction(;
+            T_exp! = (du, u, p, t) -> (du .= FT(0.1) .* u),
+            T_imp! = ODEFunction(
+                (du, u, p, t) -> (du .= FT(-0.5) .* u);
+                jac_prototype = MockDiagonalJacobian(ArrayType(zeros(FT, n))),
+                Wfact = (W, u, p, dtγ, t) -> (W.diag .= FT(-0.5) * dtγ - FT(1)),
+            ),
+        ),
+        ArrayType(ones(FT, n)),
+        (FT(0), FT(1)),
+        nothing,
+    )
+end
+
 # Assert that one `step_u!` of `int` is free of runtime dispatch / type
 # instability within ClimaTimeSteppers, after a warmup step to force compilation.
 function test_step_u_inferred(int)
@@ -105,63 +132,21 @@ end
         end
 
         @testset "IMEX ARK (ARS232)" begin
-            n = 3
-            Id = Matrix{Float64}(I, n, n)
-            prob = ODEProblem(
-                ClimaODEFunction(;
-                    T_exp! = (du, u, p, t) -> (du .= 0.1 .* u),
-                    T_imp! = ODEFunction(
-                        (du, u, p, t) -> (du .= -0.5 .* u);
-                        jac_prototype = zeros(n, n),
-                        Wfact = (W, u, p, dtγ, t) -> (W .= -0.5 * dtγ .* Id .- Id),
-                    ),
-                ),
-                ones(n),
-                (0.0, 1.0),
-                nothing,
-            )
+            prob = mock_implicit_prob()
             alg = CTS.IMEXAlgorithm(ARS232(), NewtonsMethod(; max_iters = 2))
             int = CTS.init(deepcopy(prob), alg; dt = 0.1, save_everystep = false)
             test_step_u_inferred(int)
         end
 
         @testset "IMEX SSPRK (SSP333)" begin
-            n = 3
-            Id = Matrix{Float64}(I, n, n)
-            prob = ODEProblem(
-                ClimaODEFunction(;
-                    T_exp! = (du, u, p, t) -> (du .= 0.1 .* u),
-                    T_imp! = ODEFunction(
-                        (du, u, p, t) -> (du .= -0.5 .* u);
-                        jac_prototype = zeros(n, n),
-                        Wfact = (W, u, p, dtγ, t) -> (W .= -0.5 * dtγ .* Id .- Id),
-                    ),
-                ),
-                ones(n),
-                (0.0, 1.0),
-                nothing,
-            )
+            prob = mock_implicit_prob()
             alg = CTS.IMEXAlgorithm(SSP333(), NewtonsMethod(; max_iters = 2))
             int = CTS.init(deepcopy(prob), alg; dt = 0.1, save_everystep = false)
             test_step_u_inferred(int)
         end
 
         @testset "Rosenbrock (SSPKnoth)" begin
-            n = 3
-            Id = Matrix{Float64}(I, n, n)
-            prob = ODEProblem(
-                ClimaODEFunction(;
-                    T_exp! = (du, u, p, t) -> (du .= 0.1 .* u),
-                    T_imp! = ODEFunction(
-                        (du, u, p, t) -> (du .= -0.5 .* u);
-                        jac_prototype = zeros(n, n),
-                        Wfact = (W, u, p, dtγ, t) -> (W .= -0.5 * dtγ .* Id .- Id),
-                    ),
-                ),
-                ones(n),
-                (0.0, 1.0),
-                nothing,
-            )
+            prob = mock_implicit_prob()
             alg = CTS.RosenbrockAlgorithm(ClimaTimeSteppers.tableau(SSPKnoth()))
             int = CTS.init(deepcopy(prob), alg; dt = 0.1, save_everystep = false)
             test_step_u_inferred(int)
@@ -229,22 +214,7 @@ end
         end
 
         @testset "IMEX ARK Float32" begin
-            n = 3
-            Id = Matrix{Float32}(I, n, n)
-            prob = ODEProblem(
-                ClimaODEFunction(;
-                    T_exp! = (du, u, p, t) -> (du .= 0.1f0 .* u),
-                    T_imp! = ODEFunction(
-                        (du, u, p, t) -> (du .= -0.5f0 .* u);
-                        jac_prototype = zeros(Float32, n, n),
-                        Wfact = (W, u, p, dtγ, t) ->
-                            (W .= Float32(-0.5) * dtγ .* Id .- Id),
-                    ),
-                ),
-                ones(Float32, n),
-                (0.0f0, 1.0f0),
-                nothing,
-            )
+            prob = mock_implicit_prob(Float32)
             alg = CTS.IMEXAlgorithm(ARS232(), NewtonsMethod(; max_iters = 2))
             int = CTS.init(deepcopy(prob), alg; dt = 0.1f0, save_everystep = false)
             test_step_u_inferred(int)

@@ -65,6 +65,9 @@ steps:
       - label: "unit: line_search"
         command: "julia --project=test/ --check-bounds=yes test/unit/line_search.jl"
 
+      - label: "unit: offset_ode"
+        command: "julia --project=test/ --check-bounds=yes test/unit/offset_ode.jl"
+
       - label: "unit: convergence_checker"
         command: "julia --project=test/ --check-bounds=yes test/utils/convergence_checker.jl"
 

@@ -12,6 +12,16 @@ import JET
 import ClimaTimeSteppers as CTS
 import ClimaTimeSteppers: ODEProblem, ODEFunction, IncrementingODEFunction, SplitODEProblem
 using ClimaTimeSteppers: SparseCoeffs, fused_increment, SparseContainer
+using ClimaComms
+
+@static isdefined(ClimaComms, :device_type) && ClimaComms.@import_required_backends
+const device = ClimaComms.device()
+const ArrayType = ClimaComms.array_type(device)
+
+if device isa ClimaComms.CUDADevice
+    import CUDA
+    CUDA.allowscalar(false)
+end
 
 # Assert that one `step_u!` of `int` is free of runtime dispatch / type
 # instability within ClimaTimeSteppers, after a warmup step to force compilation.
@@ -25,7 +35,7 @@ end
 @testset "Type stability" begin
 
     @testset "fused_increment" begin
-        u = [1.0, 2.0, 3.0]
+        u = ArrayType([1.0, 2.0, 3.0])
         tend = ntuple(i -> u .* i, 3)
         coeffs = ones(3, 3)
         sc = SparseCoeffs(coeffs)
@@ -34,8 +44,8 @@ end
     end
 
     @testset "SparseContainer" begin
-        a1 = ones(3) .* 1
-        a2 = ones(3) .* 2
+        a1 = ArrayType(ones(3) .* 1)
+        a2 = ArrayType(ones(3) .* 2)
         v = SparseContainer((a1, a2), (1, 3))
         @test (@inferred v[1]) == a1
         @test (@inferred v[3]) == a2
@@ -51,8 +61,8 @@ end
 
     @testset "ConvergenceChecker" begin
         checker = ConvergenceChecker(; norm_condition = MaximumRelativeError(1e-8))
-        cache = CTS.allocate_cache(checker, [1.0, 2.0])
-        @inferred CTS.is_converged!(checker, cache, [1.0, 2.0], [0.01, 0.02], 1)
+        cache = CTS.allocate_cache(checker, ArrayType([1.0, 2.0]))
+        @inferred CTS.is_converged!(checker, cache, ArrayType([1.0, 2.0]), ArrayType([0.01, 0.02]), 1)
     end
 
     @testset "Solver stepping (step_u! type stability)" begin
@@ -60,7 +70,7 @@ end
         @testset "Explicit RK (SSP33ShuOsher)" begin
             prob = ODEProblem(
                 ClimaODEFunction(; T_exp! = (du, u, p, t) -> (du .= -0.5 .* u)),
-                [1.0, 2.0, 3.0],
+                ArrayType([1.0, 2.0, 3.0]),
                 (0.0, 1.0),
                 nothing,
             )
@@ -75,7 +85,7 @@ end
                     (du, u, p, t, α = true, β = false) ->
                         (du .= α .* (-0.5) .* u .+ β .* du),
                 ),
-                [1.0, 2.0, 3.0],
+                ArrayType([1.0, 2.0, 3.0]),
                 (0.0, 1.0),
                 nothing,
             )
@@ -161,7 +171,7 @@ end
                     (du, u, p, t, α = true, β = false) ->
                         (du .= α .* (-0.5) .* u .+ β .* du),
                 ),
-                [1.0, 2.0, 3.0],
+                ArrayType([1.0, 2.0, 3.0]),
                 (0.0, 1.0),
                 nothing,
             )
@@ -182,7 +192,7 @@ end
         @testset "Explicit RK Float32" begin
             prob = ODEProblem(
                 ClimaODEFunction(; T_exp! = (du, u, p, t) -> (du .= -0.5f0 .* u)),
-                Float32[1.0, 2.0, 3.0],
+                ArrayType(Float32[1.0, 2.0, 3.0]),
                 (0.0f0, 1.0f0),
                 nothing,
             )
@@ -198,7 +208,7 @@ end
                     (du, u, p, t, α = true, β = false) ->
                         (du .= α .* (-0.5f0) .* u .+ β .* du),
                 ),
-                Float32[1.0, 2.0, 3.0],
+                ArrayType(Float32[1.0, 2.0, 3.0]),
                 (0.0f0, 1.0f0),
                 nothing,
             )

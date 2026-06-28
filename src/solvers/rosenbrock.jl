@@ -1,4 +1,4 @@
-export SSPKnoth
+export SSPKnoth, RosenbrockAlgorithm
 using StaticArrays
 import LinearAlgebra: ldiv!, diagm
 import LinearAlgebra
@@ -14,6 +14,10 @@ Tableau for an `N`-stage Rosenbrock method. Stores the transformed coefficients
 ``α`` and ``Γ``.
 
 See the [Rosenbrock algorithm formulation](@ref rosenbrock-methods) for details.
+
+!!! note
+    The diagonal of `Γ` must be constant (all `Γ[i, i]` equal): the stepper uses
+    a single `dtγ = dt * Γ[1, 1]` for every stage. The constructor asserts this.
 
 # Fields
 - `A`: transformed coefficient matrix ``A = α Γ^{-1}``.
@@ -32,6 +36,14 @@ end
 n_stages(::RosenbrockTableau{N}) where {N} = N
 
 function RosenbrockTableau(α::SMatrix{N, N}, Γ::SMatrix{N, N}, b::SMatrix{1, N}) where {N}
+    # `step_u!` uses a single `dtγ = dt * Γ[1, 1]` for the Wfact and the stage
+    # scaling of every stage, which is only correct when the diagonal of Γ is
+    # constant. Reject tableaux that violate this rather than silently
+    # producing wrong results on stages 2..N.
+    @assert allequal(diag(Γ)) string(
+        "RosenbrockAlgorithm requires a constant diagonal Γ (all Γ[i, i] equal); ",
+        "got diag(Γ) = $(diag(Γ)).",
+    )
     A = α / Γ
     invΓ = inv(Γ)
     diag_invΓ = SMatrix{N, N}(diagm([invΓ[i, i] for i in 1:N]))
@@ -45,26 +57,27 @@ function RosenbrockTableau(α::SMatrix{N, N}, Γ::SMatrix{N, N}, b::SMatrix{1, N
 end
 
 """
-    RosenbrockAlgorithm(tableau)
+    RosenbrockAlgorithm(name::RosenbrockAlgorithmName)
+    RosenbrockAlgorithm(tableau::RosenbrockTableau)
 
 A Rosenbrock-type ODE algorithm. The implicit system at each stage is a single
 linear solve (no Newton iteration), making Rosenbrock methods cheaper per step
 than fully implicit IMEX methods when updating the Jacobian is inexpensive.
 
-# Arguments
-- `tableau`: a [`RosenbrockTableau`](@ref) (e.g. `tableau(SSPKnoth())`)
+The preferred constructor takes an algorithm name (e.g. [`SSPKnoth`](@ref)); a
+raw [`RosenbrockTableau`](@ref) may also be passed.
 
 # Example
 ```julia
-import ClimaTimeSteppers as CTS
-
-alg = CTS.RosenbrockAlgorithm(CTS.tableau(SSPKnoth()))
+alg = RosenbrockAlgorithm(SSPKnoth())
 ```
 """
 struct RosenbrockAlgorithm{T <: RosenbrockTableau} <:
        ClimaTimeSteppers.TimeSteppingAlgorithm
     tableau::T
 end
+
+RosenbrockAlgorithm(name::RosenbrockAlgorithmName) = RosenbrockAlgorithm(tableau(name))
 
 """
     RosenbrockCache{Nstages, A, WT}
@@ -125,7 +138,12 @@ end
 """
     step_u!(int, cache::RosenbrockCache{Nstages})
 
-Take one step with the Rosenbrock-method with the given `cache`.
+Take one step with the Rosenbrock method using the given `cache`.
+
+!!! note
+    The `tgrad` correction accounts only for the explicit time dependence of the
+    *implicit* tendency `T_imp!` (`tgrad` lives on the [`ODEFunction`](@ref)
+    wrapping `T_imp!`). Explicit time dependence of `T_exp!` is not included.
 
 Some choices are being made here. Most of these are empirically motivated and should be
 revisited on different problems.
@@ -153,6 +171,10 @@ function step_u!(int, cache::RosenbrockCache{Nstages}) where {Nstages}
         Wfact! = int.sol.prob.f.T_imp!.Wfact
         Wfact!(W, u, p, dtγ, t)
     end
+    # W is constant across stages, so a dense W (CPU testing only) is factored
+    # once here rather than re-factoring it every stage. Custom operators and GPU
+    # arrays support `ldiv!` directly and skip the factorization.
+    W_factorized = (!isnothing(T_imp!) && W isa DenseMatrix) ? lu(W) : W
 
     if !isnothing(tgrad!)
         tgrad!(∂Y∂t, u, p, t)
@@ -199,7 +221,7 @@ function step_u!(int, cache::RosenbrockCache{Nstages}) where {Nstages}
 
         if !isnothing(T_exp_T_lim!)
             T_exp_T_lim!(fU_exp, fU_lim, U, p, t + αi * dt)
-            fU .+= fU_exp
+            has_T_exp(f) && (fU .+= fU_exp)
             has_T_lim(f) && (fU .+= fU_lim)
         end
 
@@ -214,11 +236,7 @@ function step_u!(int, cache::RosenbrockCache{Nstages}) where {Nstages}
         fU .*= -float(dtγ)
 
         if !isnothing(T_imp!)
-            if W isa Matrix
-                ldiv!(k[i], lu(W), fU)
-            else
-                ldiv!(k[i], W, fU)
-            end
+            ldiv!(k[i], W_factorized, fU)
         else
             k[i] .= .-fU
         end

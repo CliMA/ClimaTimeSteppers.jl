@@ -102,7 +102,10 @@ function EveryXSimulationTime(f!, Δt; atinit = false)
     t_next = zero(Δt)
 
     function _initialize(c, u, t, integrator)
-        t_next = Δt
+        # Trigger relative to the start time `t` and in the integration
+        # direction, so this works for reverse-time integration (tdir = -1)
+        # and for a nonzero start time, not just forward runs from t = 0.
+        t_next = t + integrator.tdir * Δt
         initialize!(c.affect!, integrator)
         if atinit
             c.affect!(integrator)
@@ -114,9 +117,11 @@ function EveryXSimulationTime(f!, Δt; atinit = false)
     end
 
     function condition(u, t, integrator)
-        if t >= t_next
-            while t >= t_next
-                t_next += Δt
+        tdir = integrator.tdir
+        # Has `t` reached/passed `t_next` in the integration direction?
+        if tdir * (t - t_next) >= zero(t_next)
+            while tdir * (t - t_next) >= zero(t_next)
+                t_next += tdir * Δt
             end
             return true
         else

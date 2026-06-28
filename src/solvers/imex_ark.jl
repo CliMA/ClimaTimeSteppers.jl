@@ -167,9 +167,12 @@ end
 """
     solve_stage_implicit!(U, temp, p, t_exp, t_imp, dtγ, i, f, alg, cache)
 
-Apply DSS to the stage value and run the implicit solver.
-Skips DSS on stage 1 (already applied at end of previous timestep).
-Skips implicit solve when γ == 0.
+Apply DSS to the stage value, set up the implicit solve (calling
+`initialize_imp!` and refreshing the implicit cache), and run the implicit
+solver. The pre-solve DSS is skipped on stage 1 (the state is already
+continuous from the end of the previous timestep), but `initialize_imp!` and
+the implicit-cache refresh still run. Skips the implicit solve when γ == 0.
+Shared by the IMEX-ARK and IMEX-SSPRK stage loops.
 """
 @inline function solve_stage_implicit!(
     U,

@@ -35,6 +35,9 @@ end
 """
 function fused_increment end
 
+# Lazy `u + Σ dt·coeff·tend` as a single `Broadcasted` object. Not used by the
+# in-repo steppers (which use `fused_raw_increment`/`assign_fused_increment!`),
+# but a public, tested utility — keep it.
 @inline fused_increment(u, dt, sc::SparseCoeffs, tend, v) =
     Base.Broadcast.broadcasted(+, u, fused_raw_increment(dt, sc, tend, v))
 

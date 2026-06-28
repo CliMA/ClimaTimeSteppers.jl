@@ -410,6 +410,16 @@ missing, or preconditioning is disabled, `M = I`.
 the forcing term from driving the residual to zero, breaking the convergence
 guarantees of the Newton-Krylov method.
 
+# Convergence failures
+
+A failed Krylov solve (most often a singular or inconsistent Jacobian) is *not*
+raised or warned about: warning from inside the hot, GPU-dispatched Newton loop
+would be both noisy and problematic on accelerators. Instead, `Δx` is set to the
+least-squares solution returned by `Krylov.jl`, and the failure is reported only
+at `@debug` level. To diagnose suspected non-convergence, set `verbose =
+Verbose()` (to print the Krylov residual each iteration) or attach a
+[`KrylovMethodDebugger`](@ref) such as [`PrintConditionNumber`](@ref).
+
 # Extensibility
 
 All constructor and solver arguments can be overridden via `args`, `kwargs`, and
@@ -490,6 +500,11 @@ NVTX.@annotate function solve_krylov!(
     krylov_solve!(solver, opj, f; M, ldiv, atol, rtol, verbose, solve_kwargs...)
     iter = solver.stats.niter
     if !solver.stats.solved
+        # The Krylov solve failed (a singular/inconsistent Jacobian is the usual
+        # cause). We report this only at `@debug` level rather than `@warn`:
+        # warning from inside this hot, GPU-dispatched loop is both noisy and
+        # problematic on accelerators. A singular Jacobian leaves `Δx` at the
+        # least-squares solution Krylov returns; see the docstring for diagnosis.
         str1 = isnothing(j) ? () : ("the Jacobian",)
         str2 = isnothing(jacobian_free_jvp) ? () : ("the Jacobian-vector product",)
         str = join((str1..., str2...), " and/or ")
@@ -531,8 +546,8 @@ Solve `f(x) = 0` by iterating `x[n+1] = x[n] - j(x[n]) \\ f(x[n])`, where
   approximately. If `nothing`, uses direct `ldiv!` (see *Krylov variant* below)
 - `convergence_checker`: a [`ConvergenceChecker`](@ref) that can terminate
   early based on `x[n]` and `Δx[n]`. Without one, always runs `max_iters`
-  iterations; if convergence has not been reached by `max_iters`, a warning
-  is printed.
+  iterations; if `verbose` is set, a warning is printed when convergence has
+  not been reached by `max_iters`.
 - `verbose`: `Verbose()` to print `‖x‖` and `‖Δx‖` each iteration
 - `line_search`: a [`LineSearch`](@ref) instance to apply backtracking
   (halving up to 5×) when the residual norm does not decrease or becomes
@@ -621,14 +636,18 @@ NVTX.@annotate function solve_newton!(
         j!(j, x)
     end
     f!(f, x)
-    for n in 1:max_iters
+    for n in 0:(max_iters - 1)
         # Compute Δx[n].
         if (!isnothing(j)) && needs_update!(update_j, NewNewtonIteration())
             j!(j, x)
         end
         if isnothing(krylov_method)
+            # A dense `j` (CPU testing only) must be factored before `ldiv!`;
+            # custom operators and GPU arrays support `ldiv!` directly. Keep the
+            # factorization local to this branch so `j` itself stays a matrix, for
+            # the next `j!` update and for the Krylov `mul!` path below.
             if j isa DenseMatrix
-                ldiv!(Δx, lu(j), f) # Highly inefficient! Only used for testing.
+                ldiv!(Δx, lu(j), f)
             else
                 ldiv!(Δx, j, f)
             end
@@ -640,26 +659,27 @@ NVTX.@annotate function solve_newton!(
                 x,
                 f!,
                 f,
-                n - 1,
+                n,
                 prepare_for_f!,
                 j,
             )
         end
         is_verbose(verbose) &&
-            @info "Newton iteration $n: ‖x‖ = $(norm(x)), ‖Δx‖ = $(norm(Δx))"
+            @info "Newton iteration $(n + 1): ‖x‖ = $(norm(x)), ‖Δx‖ = $(norm(Δx))"
 
         x .-= Δx
         line_search!(line_search, x, Δx, f, f!, prepare_for_f!)
 
-        # Update x[n] with Δx[n - 1], and exit the loop if Δx[n] is not needed.
-        # Check for convergence if necessary.
+        # Update x[n] with Δx[n], and exit the loop if Δx[n + 1] is not needed.
+        # Check for convergence if necessary. The `ConvergenceChecker` interface
+        # and `solve_krylov!` are both 0-based, matching the loop variable `n`.
         if is_converged!(convergence_checker, convergence_checker_cache, x, Δx, n)
             break
-        elseif n < max_iters && isnothing(line_search)
+        elseif n < max_iters - 1 && isnothing(line_search)
             isnothing(prepare_for_f!) || prepare_for_f!(x)
             f!(f, x)
-        elseif n == max_iters && is_verbose(verbose)
-            @warn "Newton's method did not converge within $n iterations: ‖x‖ = $(norm(x)), ‖Δx‖ = $(norm(Δx))"
+        elseif n == max_iters - 1 && is_verbose(verbose)
+            @warn "Newton's method did not converge within $(n + 1) iterations: ‖x‖ = $(norm(x)), ‖Δx‖ = $(norm(Δx))"
         end
     end
 end

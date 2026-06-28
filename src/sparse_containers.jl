@@ -23,7 +23,7 @@ v = SparseContainer((a1,a2,a3,a4), (1,3,5,7))
 struct SparseContainer{SIM, T}
     data::T
     function SparseContainer(compressed_data::T, sparse_index_map::Tuple) where {T}
-        @assert all(map(x -> eltype(compressed_data) .== typeof(x), compressed_data))
+        @assert isconcretetype(eltype(compressed_data)) "all elements of a SparseContainer must have the same type"
         SIM = zeros(Int, maximum(sparse_index_map))
         for i in 1:length(SIM)
             i in sparse_index_map || continue

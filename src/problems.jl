@@ -142,6 +142,8 @@ it returns `sol.u[i]` where `i = argmin(|sol.t .- t|)`. Only use this for
 quick lookups when saved time points are dense enough for your purpose.
 """
 function (sol::ODESolution)(t)
-    idx = argmin(abs.(sol.t .- t))
+    isempty(sol.t) && error("ODESolution has no saved states to look up")
+    # Generator avoids allocating `abs.(sol.t .- t)`.
+    idx = argmin(abs(t′ - t) for t′ in sol.t)
     return sol.u[idx]
 end

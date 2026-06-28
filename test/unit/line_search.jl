@@ -74,6 +74,22 @@ import ClimaTimeSteppers as CTS
         @test norm(f_final) <= normf_old
     end
 
+    @testset "Falls back to the previous iterate when every step is non-finite" begin
+        # f is NaN for x < 2; the previous iterate x_old = 2 is finite. Every
+        # backtracked step stays in the NaN region, so the line search must
+        # return x_old rather than a NaN iterate.
+        f!(f, x) = f .= (x[1] >= 2.0 ? [(x[1] - 2.0)^2] : [NaN])
+        ls = LineSearch()
+        x_old = [2.0]
+        f_old = [0.0]            # f(2) = 0
+        Δx = [1.0]
+        x = copy(x_old)
+        x .-= Δx                 # x = 1.0, in the NaN region
+        CTS.line_search!(ls, x, Δx, f_old, f!, nothing)
+        @test x ≈ x_old          # returned to the finite previous iterate
+        @test isfinite(only(f_old))
+    end
+
     @testset "No-op when line_search is nothing" begin
         x = [1.0, 2.0]
         x_copy = copy(x)

@@ -4,6 +4,32 @@ ClimaTimeSteppers.jl Release Notes
 main
 -------
 
+v0.10.1
+-------
+- ![][badge-💥breaking] Deprecated the standalone `SavedValues(tType, savevalType)` constructor; `SavedValues` is an internal container managed directly by `CTS.init`.
+- ![][badge-💥breaking] `UpdateEveryDt(dt)` now takes the time-interval *value*, not an element
+  type. (The previous `UpdateEveryDt(::Type)` form never produced a working handler.)
+- ![][badge-✨feature/enhancement] `RosenbrockAlgorithm` is now exported and can be constructed
+  from an algorithm name directly: `RosenbrockAlgorithm(SSPKnoth())`.
+- ![][badge-✨feature/enhancement] `tableau(name)` now works for IMEX-ARK and explicit-RK names
+  (e.g. `tableau(ARS343())`, `tableau(RK4())`), not only the low-storage / multirate families.
+- ![][badge-🔥behavioralΔ] `EveryXSimulationTime` is now direction-aware and anchored to the start
+  time, so it fires correctly under reverse-time integration and from a nonzero start time.
+- ![][badge-🐛bugfix] Fixed wrong results from Wicker-Skamarock multirate methods: the inner
+  integrator no longer overshoots its substep on state-coupled problems.
+- ![][badge-🐛bugfix] The IMEX SSPRK stepper now honors the `initialize_imp!` hook (previously
+  silently ignored on the SSP path).
+- ![][badge-🐛bugfix] Fixed the iteration index passed to stateful `ConvergenceChecker` conditions
+  (`MaximumErrorReduction`, `MinimumRateOfConvergence`) inside Newton's method.
+- ![][badge-🐛bugfix] Fixed `UpdateEveryN`'s reset-signal dispatch (the counter previously never
+  reset).
+- ![][badge-🐛bugfix] `reinit!` now recomputes the integration direction, so a forward solve can be
+  reinitialized as a reverse-time solve.
+- ![][badge-🐛bugfix] Various robustness fixes: `RosenbrockAlgorithm` asserts a constant-diagonal Γ;
+  `step!` with `advance_to_tstop` no longer errors when all tstops are consumed; out-of-range
+  `saveat` values are filtered to `[t0, tf]`; `IMEXTableau`/`ExplicitTableau` validate stage
+  counts and abscissae; `has_T_exp` is `false` for a limiter-only `ClimaODEFunction`.
+
 v0.10.0
 -------
 - ![][badge-💥breaking] Removed `SciMLBase` and `DiffEqBase` backward-compatibility extensions

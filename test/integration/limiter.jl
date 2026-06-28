@@ -98,4 +98,12 @@ import ClimaTimeSteppers: ODEProblem, ODEFunction, solve
         @test u_final[2] ≈ 2 * exp(-0.09) atol = 0.01
         @test all(u_final .>= 0)
     end
+
+    @testset "has_T_exp reflects an explicit tendency" begin
+        f_exp = ClimaODEFunction(; T_exp! = (du, u, p, t) -> (du .= -u))
+        f_lim = ClimaODEFunction(; T_lim! = (du, u, p, t) -> (du .= -u))
+        @test CTS.has_T_exp(f_exp)        # explicit tendency present
+        @test !CTS.has_T_exp(f_lim)       # limiter-only: no explicit tendency
+        @test CTS.has_T_lim(f_lim)        # but it does use the limiter path
+    end
 end

@@ -294,7 +294,9 @@ function reinit!(
         # always reinit the saving callback so that t0 can be saved if needed
         # (an integrator built with `save = false` has no saving callback)
         saving_callback = integrator.callback.discrete_callbacks[end]
-        saving_callback.initialize(saving_callback, u0, t0, integrator)
+        if saving_callback.affect! isa NonInterpolatingSavingAffect
+            saving_callback.initialize(saving_callback, u0, t0, integrator)
+        end
     end
 end
 
@@ -488,6 +490,15 @@ end
 # ============================================================================ #
 # Saving callback
 # ============================================================================ #
+struct NonInterpolatingSavingAffect{T, U, F}
+    saved_values::SavedValues{T, U}
+    save_func::F
+end
+function (affect::NonInterpolatingSavingAffect)(integrator)
+    push!(affect.saved_values.t, integrator.t)
+    push!(affect.saved_values.saveval, affect.save_func(integrator.u, integrator.t))
+end
+
 function NonInterpolatingSavingCallback(save_func, saved_values, save_everystep)
     if save_everystep
         condition = Returns(true)
@@ -505,10 +516,7 @@ function NonInterpolatingSavingCallback(save_func, saved_values, save_everystep)
                 return cond
             end
     end
-    function affect!(integrator)
-        push!(saved_values.t, integrator.t)
-        push!(saved_values.saveval, save_func(integrator.u, integrator.t))
-    end
+    affect! = NonInterpolatingSavingAffect(saved_values, save_func)
     initialize(cb, u, t, integrator) = condition(u, t, integrator) && affect!(integrator)
     finalize(cb, u, t, integrator) =
         !save_everystep && !isempty(integrator.saveat) && affect!(integrator)

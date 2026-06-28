@@ -51,7 +51,7 @@ function init_cache(prob, alg::IMEXAlgorithm{Unconstrained}; kwargs...)
     check_sdirk_compat(alg, γ)
     jac_prototype = has_jac(T_imp!) ? T_imp!.jac_prototype : nothing
     newtons_method_cache =
-        isnothing(T_imp!) || isnothing(newtons_method) ? nothing :
+        !has_T_imp(f) || isnothing(newtons_method) ? nothing :
         allocate_cache(newtons_method, u0, jac_prototype)
 
     # Cast tableau coefficients to `eltype(u0)` if requested via
@@ -80,7 +80,7 @@ function step_u!(integrator, cache::IMEXARKCache)
 
     inc_exp = has_T_exp(f) ? fused_raw_increment(dt, b_exp, T_exp, v_s) : NullBroadcasted()
     inc_imp =
-        isnothing(T_imp!) ? NullBroadcasted() : fused_raw_increment(dt, b_imp, T_imp, v_s)
+        !has_T_imp(f) ? NullBroadcasted() : fused_raw_increment(dt, b_imp, T_imp, v_s)
 
     if has_T_lim(f)
         assign_fused_increment!(temp, u, dt, b_exp, T_lim, v_s)
@@ -153,7 +153,7 @@ Butcher tableau from previous explicit (limited + unlimited) and implicit tenden
 ) where {i}
     inc_exp = has_T_exp(f) ? fused_raw_increment(dt, a_exp, T_exp, v_i) : NullBroadcasted()
     inc_imp =
-        isnothing(f.T_imp!) ? NullBroadcasted() : fused_raw_increment(dt, a_imp, T_imp, v_i)
+        !has_T_imp(f) ? NullBroadcasted() : fused_raw_increment(dt, a_imp, T_imp, v_i)
 
     if has_T_lim(f)
         assign_fused_increment!(U, u, dt, a_exp, T_lim, v_i)
@@ -167,9 +167,12 @@ end
 """
     solve_stage_implicit!(U, temp, p, t_exp, t_imp, dtγ, i, f, alg, cache)
 
-Apply DSS to the stage value and run the implicit solver.
-Skips DSS on stage 1 (already applied at end of previous timestep).
-Skips implicit solve when γ == 0.
+Apply DSS to the stage value, set up the implicit solve (calling
+`initialize_imp!` and refreshing the implicit cache), and run the implicit
+solver. The pre-solve DSS is skipped on stage 1 (the state is already
+continuous from the end of the previous timestep), but `initialize_imp!` and
+the implicit-cache refresh still run. Skips the implicit solve when γ == 0.
+Shared by the IMEX-ARK and IMEX-SSPRK stage loops.
 """
 @inline function solve_stage_implicit!(
     U,
@@ -192,7 +195,7 @@ Skips implicit solve when γ == 0.
     # (fire `EndOfStageSignal`, which is `<: WithDSS`, so both handler
     # families see it). Otherwise fire only `WithDSSSignal` (pre-implicit
     # DSS — the state isn't state-ready until after the Newton solve).
-    no_implicit_stage = isnothing(T_imp!) || iszero(dtγ)
+    no_implicit_stage = !has_T_imp(f) || iszero(dtγ)
     stage_top_sig = no_implicit_stage ? EndOfStageSignal() : WithDSSSignal()
 
     if i ≠ 1
@@ -255,7 +258,7 @@ in later stages and the final update.
 ) where {i}
     has_exp_terms = !zero_column(typeof(a_exp), v_i) || !zero_coeff(typeof(b_exp), i)
     if has_exp_terms
-        isnothing(f.T_exp_T_lim!) || f.T_exp_T_lim!(T_exp[i], T_lim[i], U, p, t_exp)
+        has_T_exp_T_lim(f) && f.T_exp_T_lim!(T_exp[i], T_lim[i], U, p, t_exp)
     end
 
     # Implicit tendencies
@@ -263,10 +266,10 @@ in later stages and the final update.
     if has_imp_terms
         if iszero(dtγ)
             # γ == 0: T_imp is treated explicitly
-            isnothing(f.T_imp!) || f.T_imp!(T_imp[i], U, p, t_imp)
+            has_T_imp(f) && f.T_imp!(T_imp[i], U, p, t_imp)
         else
             # γ ≠ 0: T_imp satisfies the implicit equation
-            isnothing(f.T_imp!) || @. T_imp[i] = (U - temp) / dtγ
+            has_T_imp(f) && @. T_imp[i] = (U - temp) / dtγ
         end
     end
 end

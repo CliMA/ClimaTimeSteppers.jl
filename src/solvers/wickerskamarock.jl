@@ -79,9 +79,14 @@ function update_inner!(
         innerinteg.u = u
     end
 
+    # Re-arm the inner integrator for this stage's substep [t, t_star]. The
+    # inner integrator was built from the full outer tspan, so its tstops queue
+    # still holds the outer end time; it must be cleared (as MIS and LSRK do)
+    # or `solve!` would drain past t_star to the outer tf and overshoot.
     innerinteg.t = t
+    empty!(innerinteg.tstops)
     t_star = i == N ? t + dt : t + c[i + 1] * dt
-    add_tstop!(innerinteg, t_star) # TODO: verify correctness
+    push!(innerinteg.tstops, t_star)
 end
 
 

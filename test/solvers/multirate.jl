@@ -14,6 +14,12 @@ end
     names_probs_sols = [
         (:imex_auto, imex_autonomous_prob(Array{Float64}), imex_autonomous_sol),
         (:imex_nonauto, imex_nonautonomous_prob(Array{Float64}), imex_nonautonomous_sol),
+        # State-coupled slow tendency: exposes inner/outer stage-coupling bugs
+        # (e.g. an inner integrator that overshoots its substep) that the two
+        # problems above cannot, since their slow tendency ignores the state.
+        # Pairing this problem with WSRK2 below is the key regression guard
+        # for the WSRK tstop fix.
+        (:imex_statedep, imex_statedep_slow_prob(Array{Float64}), imex_statedep_slow_sol),
     ]
 
     algs_orders = [

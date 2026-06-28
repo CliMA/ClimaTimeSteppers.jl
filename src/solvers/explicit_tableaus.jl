@@ -26,10 +26,18 @@ struct ExplicitTableau{A <: SPCO, B <: SPCO, C <: SPCO}
 end
 ExplicitTableau(args...) = ExplicitTableau(map(x -> SparseCoeffs(x), args)...)
 function ExplicitTableau(; a, b = a[end, :], c = vec(sum(a; dims = 2)))
+    s = size(a, 1)
     @assert all(iszero, UpperTriangular(a))
+    @assert length(b) == s "b must have length $s (got $(length(b)))"
+    @assert length(c) == s "c must have length $s (got $(length(c)))"
+    # c must be the abscissae (row sums of a); compare in floating point to
+    # avoid Int/Rational overflow on high-order tableaux.
+    @assert float.(c) ≈ vec(sum(float.(a); dims = 2)) "c must equal the row sums of a"
     b, c = promote(b, c) # TODO: add generic promote_eltype
     return ExplicitTableau(a, b, c)
 end
+
+tableau(name::ERKAlgorithmName) = ExplicitTableau(name)
 
 """
     ExplicitAlgorithm(name, [constraint])

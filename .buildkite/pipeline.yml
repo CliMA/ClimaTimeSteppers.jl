@@ -80,6 +80,9 @@ steps:
       - label: "unit: incrementing_ode"
         command: "julia --project=test/ --check-bounds=yes test/unit/incrementing_ode.jl"
 
+      - label: "unit: initialize_imp"
+        command: "julia --project=test/ --check-bounds=yes test/unit/initialize_imp.jl"
+
       - label: "unit: edge_cases"
         command: "julia --project=test/ --check-bounds=yes test/unit/edge_cases.jl"
 

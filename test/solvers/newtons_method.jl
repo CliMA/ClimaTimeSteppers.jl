@@ -172,6 +172,31 @@ end
     @test norm(x .- x_exact) / norm(x_exact) < 0.01
 end
 
+@testset "Stateful convergence conditions" begin
+    # Regression test for the 0-based iteration index passed to `is_converged!`
+    # from `solve_newton!`. `MaximumErrorReduction` and `MinimumRateOfConvergence`
+    # are stateful: they seed/read a per-solve cache keyed on a 0-based iteration
+    # index (the cache is seeded at iter 0). A 1-based index leaves the cache
+    # unseeded, so the first check reads uninitialized memory and the solve can
+    # stop early at a wrong answer. Drive `solve_newton!` end-to-end with each
+    # condition and require an accurate solution. Use the gentle (diagonally
+    # dominant) problem so Newton converges quadratically and the stagnation
+    # detector `MinimumRateOfConvergence` only triggers at true convergence.
+    FT = Float64
+    conditions =
+        (MaximumErrorReduction(FT(1e-4)), MinimumRateOfConvergence(FT(1 // 2)))
+    for n in (1, 3, 10), condition in conditions
+        f!, j!, x_exact, x_init = nonlinear_equation_gentle(FT, n)
+        convergence_checker = ConvergenceChecker(; norm_condition = condition)
+        alg = NewtonsMethod(; max_iters = 20, convergence_checker)
+        x = copy(x_init)
+        j_prototype = similar(x, n, n)
+        cache = CTS.allocate_cache(alg, x, j_prototype)
+        CTS.solve_newton!(alg, cache, x, f!, j!)
+        @test norm(x .- x_exact) / norm(x_exact) < 1e-6
+    end
+end
+
 @testset "Dense Matrix From Operator" begin
     n = 10
     rng = MersenneTwister(1)

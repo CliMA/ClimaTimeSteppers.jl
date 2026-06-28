@@ -68,7 +68,7 @@ function init_cache(prob, alg::IMEXAlgorithm{SSP}; kwargs...)
     check_sdirk_compat(alg, γ)
     jac_prototype = has_jac(T_imp!) ? T_imp!.jac_prototype : nothing
     newtons_method_cache =
-        isnothing(T_imp!) || isnothing(newtons_method) ? nothing :
+        !has_T_imp(f) || isnothing(newtons_method) ? nothing :
         allocate_cache(newtons_method, u0, jac_prototype)
 
     # Cast tableau coefficients to `eltype(u0)` if requested via
@@ -104,7 +104,7 @@ function step_u!(integrator, cache::IMEXSSPRKCache)
 
     t_final = t + dt
 
-    inc_imp_final = isnothing(T_imp!) ? 0 : fused_raw_increment(dt, b_imp, T_imp, v_s)
+    inc_imp_final = !has_T_imp(f) ? 0 : fused_raw_increment(dt, b_imp, T_imp, v_s)
 
     s = val_to_int(v_s)
     if !iszero(β[s])
@@ -141,11 +141,9 @@ end
 @inline function update_stage!(integrator, cache::IMEXSSPRKCache, v_i::Val{i}) where {i}
     (; u, p, t, dt, alg) = integrator
     (; f) = integrator.sol.prob
-    (; newtons_method) = alg
-    (; cache!, cache_imp!, T_imp!, lim!, dss!, constrain_state!) = f
-    (; update_constrain_state, update_cache) = f
+    (; T_imp!, lim!) = f
     (; a_imp, b_imp, c_exp, c_imp) = cache.tableau
-    (; U, U_lim, U_exp, T_lim, T_exp, T_imp, temp, β, newtons_method_cache) = cache
+    (; U, U_lim, U_exp, T_lim, T_exp, T_imp, temp, β) = cache
 
     t_exp = t + dt * c_exp[i]
     t_imp = t + dt * c_imp[i]
@@ -165,55 +163,27 @@ end
         @. U_exp = (1 - β[i - 1]) * u + β[i - 1] * U_exp
     end
 
-    inc_imp = isnothing(T_imp!) ? 0 : fused_raw_increment(dt, a_imp, T_imp, v_i)
+    inc_imp = !has_T_imp(f) ? 0 : fused_raw_increment(dt, a_imp, T_imp, v_i)
     @. U = U_exp + inc_imp
 
-    # Run the implicit solver, apply DSS, and update the cache. When γ == 0,
-    # the implicit solver does not need to be run. On stage i == 1, we do
-    # not need to apply DSS and update the cache because we did that at the
-    # end of the previous timestep.
-    # No-implicit stage → state is ready for tendency eval right after DSS
-    # (fire `EndOfStageSignal`, which is `<: WithDSS`). Otherwise fire only
-    # `WithDSSSignal` (pre-implicit DSS).
-    no_implicit_stage = isnothing(T_imp!) || iszero(a_imp[i, i])
-    stage_top_sig = no_implicit_stage ? EndOfStageSignal() : WithDSSSignal()
-    if i ≠ 1
-        dss!(U, p, t_exp)
-        needs_update!(update_constrain_state, stage_top_sig) &&
-            constrain_state!(U, p, t_exp)
-        no_implicit_stage &&
-            needs_update!(update_cache, EndOfStageSignal()) && cache!(U, p, t_exp)
-    end
-    if !no_implicit_stage
-        @assert !isnothing(newtons_method)
-        i ≠ 1 && cache_imp!(U, p, t_imp)
-        @. temp = U
-        solve_implicit_equation!(
-            U, temp, p, t_imp, dtγ,
-            T_imp!, newtons_method, newtons_method_cache, cache_imp!,
-        )
-        # Post-Newton DSS is required for `T_imp[i] = (U − temp) / dtγ`
-        # to see a DSSed `U`. SSPRK's Shu-Osher update does not satisfy
-        # `u ≡ U_s`, so we don't apply the ARK FSAL last-stage skip here
-        # and always fire `EndOfStageSignal`.
-        dss!(U, p, t_imp)
-        needs_update!(update_constrain_state, EndOfStageSignal()) &&
-            constrain_state!(U, p, t_imp)
-        needs_update!(update_cache, EndOfStageSignal()) && cache!(U, p, t_imp)
-    end
+    # Apply DSS, set up and run the implicit solve (honoring `initialize_imp!`),
+    # and update the cache/constraints. Shared with the IMEX-ARK path so the two
+    # stay in sync. SSPRK is never FSAL (its Shu-Osher assembly does not satisfy
+    # `u ≡ U_s`), so the shared helper's last-stage skip never fires here.
+    solve_stage_implicit!(U, temp, p, t_exp, t_imp, dtγ, i, f, alg, cache)
 
     if !iszero(β[i])
-        isnothing(f.T_exp_T_lim!) || f.T_exp_T_lim!(T_exp, T_lim, U, p, t_exp)
+        has_T_exp_T_lim(f) && f.T_exp_T_lim!(T_exp, T_lim, U, p, t_exp)
     end
     if !zero_column(typeof(a_imp), v_i) || !zero_coeff(typeof(b_imp), i)
         if iszero(a_imp[i, i])
             # When γ == 0, T_imp[i] is treated explicitly.
-            isnothing(T_imp!) || T_imp!(T_imp[i], U, p, t_imp)
+            has_T_imp(f) && T_imp!(T_imp[i], U, p, t_imp)
         else
             # When γ != 0, T_imp[i] is treated implicitly, so it must satisfy
             # the implicit equation. To ensure that T_imp[i] only includes the
             # effect of applying DSS to T_imp!, U and temp must be DSSed.
-            isnothing(T_imp!) || @. T_imp[i] = (U - temp) / dtγ
+            has_T_imp(f) && @. T_imp[i] = (U - temp) / dtγ
         end
     end
     return nothing

@@ -65,8 +65,7 @@ jobs:
           repository: 'CliMA/ClimaLand.jl'
           path: climaland
       - run: |
-          julia --color=yes --project=climaland/.buildkite -e 'using Pkg; Pkg.instantiate()'
-          julia --color=yes --project=climaland/.buildkite -e 'using Pkg; Pkg.develop(path=".")'
+          julia --color=yes --project=climaland/.buildkite -e 'using Pkg; Pkg.develop(path="."); Pkg.resolve(); Pkg.instantiate()'
           julia --color=yes --project=climaland/.buildkite -e 'using Pkg; Pkg.precompile()'
           julia --color=yes --project=climaland/.buildkite .buildkite/downstream/climaland.jl
 

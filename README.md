@@ -1,108 +1,122 @@
-<div align="center">
-  <img src="docs/src/assets/logo.svg" alt="ClimaTimeSteppers.jl Logo" width="128" height="128">
-</div>
+# DeveloperGuides
 
-# ClimaTimeSteppers.jl
+Shared engineering standards, architectural patterns, and development guidelines for human and AI developers across the [CliMA](https://clima.caltech.edu) ecosystem.
 
-High-performance ODE solvers for climate model time-stepping. Designed for
-distributed and GPU computation with minimal memory footprint.
+## Guides
 
-ClimaTimeSteppers.jl provides the time integration layer for
-[ClimaAtmos.jl](https://github.com/CliMA/ClimaAtmos.jl),
-[ClimaLand.jl](https://github.com/CliMA/ClimaLand.jl), and
-[ClimaCoupler.jl](https://github.com/CliMA/ClimaCoupler.jl).
+Every guide applies across the CliMA ecosystem unless it says otherwise.
 
-|                           |                                                                          |
-|--------------------------:|:-------------------------------------------------------------------------|
-| **Stable Release**        | [![stable][stable-img]][stable-url] [![docs-stable][docs-stable-img]][docs-stable-url] |
-| **Unit Tests**            | [![unit tests][gha-ci-img]][gha-ci-url] [![codecov][codecov-img]][codecov-url] |
-| **Downloads**             | [![Downloads][dlt-img]][dlt-url]                                         |
+### Architecture
 
-[stable-img]: https://img.shields.io/github/v/release/CliMA/ClimaTimeSteppers.jl?label=stable
-[stable-url]: https://github.com/CliMA/ClimaTimeSteppers.jl/releases/latest
+- [repo_structure.md](architecture/repo_structure.md): how to navigate any CliMA Julia package.
+- [ecosystem_conventions.md](architecture/ecosystem_conventions.md): module aliases, `Y`/`Yₜ`/`p` state layout, `ᶜ`/`ᶠ` notation, CI structure, reproducibility, diagnostics.
+- [architectural_boundaries.md](architecture/architectural_boundaries.md): layered architecture and boundary rules.
+- [cross_repo_contracts.md](architecture/cross_repo_contracts.md): call-site conventions for ecosystem packages.
+- [dependency_management.md](architecture/dependency_management.md): runtime vs dev dependencies, compat bounds.
 
-[docs-stable-img]: https://img.shields.io/badge/docs-stable-green.svg
-[docs-stable-url]: https://CliMA.github.io/ClimaTimeSteppers.jl/stable/
+### Performance
 
-[gha-ci-img]: https://github.com/CliMA/ClimaTimeSteppers.jl/actions/workflows/ci.yml/badge.svg
-[gha-ci-url]: https://github.com/CliMA/ClimaTimeSteppers.jl/actions/workflows/ci.yml
+- [gpu_performance.md](performance/gpu_performance.md): GPU kernel rules, broadcast patterns, allocation avoidance.
+- [branchless_code.md](performance/branchless_code.md): avoiding warp divergence with `ifelse`, evaluate-both-cases splits, and fixed-iteration solvers chosen by offline tests.
+- [type_stability.md](performance/type_stability.md): Float32 compatibility, inference checks, struct field rules.
+- [numerical_robustness.md](performance/numerical_robustness.md): denominator regularization, clamping, NaN/Inf avoidance.
+- [ad_compatibility.md](performance/ad_compatibility.md): AD-safe patterns for ForwardDiff and Enzyme.
+- [allocation_debugging.md](performance/allocation_debugging.md): locating heap allocations with `Profile.Allocs`, JET, `@code_warntype`, flame graphs.
 
-[codecov-img]: https://codecov.io/gh/CliMA/ClimaTimeSteppers.jl/branch/main/graph/badge.svg
-[codecov-url]: https://codecov.io/gh/CliMA/ClimaTimeSteppers.jl
+### Code Quality
 
-[dlt-img]: https://img.shields.io/badge/dynamic/json?url=http%3A%2F%2Fjuliapkgstats.com%2Fapi%2Fv1%2Ftotal_downloads%2FClimaTimeSteppers&query=total_requests&label=Downloads
-[dlt-url]: https://juliapkgstats.com/pkg/ClimaTimeSteppers
+- [getting_started.md](code-quality/getting_started.md): orienting newcomers to writing pointwise code compatible with ClimaCore `Field`s and broadcasting.
+- [code_style.md](code-quality/code_style.md): formatting, variable locality, Git workflow, feature removal, naming conventions.
+- [documentation_policy.md](code-quality/documentation_policy.md): docstrings, repository-level docs, minimally viable documentation.
+- [changelogs_and_versions.md](code-quality/changelogs_and_versions.md): `NEWS.md` format, SemVer rules, and the release/tagging flow.
+- [variable_list.md](code-quality/variable_list.md): standardized CliMA variable naming conventions.
+- [glossary.md](code-quality/glossary.md): general CliMA software and simulation terminology.
+- [software_design_patterns.md](code-quality/software_design_patterns.md): numbered SDPs for branchless logic, functors, parameter extraction, and more.
 
-## Features
+### Infrastructure
 
-- **IMEX methods**: 30+ implicit-explicit additive Runge-Kutta tableaux (ARS, IMKG, SSP, ARK families) up to 5th order
-- **SSP methods**: Strong stability preserving methods with built-in limiter support
-- **Rosenbrock methods**: Linearly implicit — single linear solve per stage, no Newton iteration
-- **Low-storage Runge-Kutta**: 2N-storage explicit methods (only two state-sized arrays)
-- **Multirate methods**: MIS and Wicker-Skamarock schemes for separated timescales
-- **Flexible Newton solver**: Krylov (GMRES), Jacobian-free Newton-Krylov (JFNK), configurable update strategies
-- **AD compatible**: Propagates dual numbers and works with automatic differentiation packages (e.g., [ForwardDiff.jl](https://github.com/JuliaDiff/ForwardDiff.jl)) for gradient-based calibration
-- **GPU ready**: Type-stable, allocation-free stepping kernels
+- [testing_and_validation.md](infrastructure/testing_and_validation.md): type-stability checks, Aqua.jl, allocation regression, AD tests.
+- [clima_comms.md](infrastructure/clima_comms.md): device-agnostic and MPI-distributed code patterns.
 
-## Quick Example
+### Workflow
 
-```julia
-using ClimaTimeSteppers
-import ClimaTimeSteppers as CTS
+- [onboarding.md](workflow/onboarding.md): install Julia, clone a CliMA repo, set up Revise/Infiltrator/JuliaFormatter, first PR loop.
+- [running_on_gpu.md](workflow/running_on_gpu.md): run a model on GPU — install Julia, add `CUDA.jl`, CUDA runtime compatibility, `CLIMACOMMS_DEVICE`, verify the device.
+- [agent_autonomy.md](workflow/agent_autonomy.md): actions that require explicit user approval.
+- [debugging.md](workflow/debugging.md): interactive debugging recipes for numerical instabilities, dispatch, and `Field` plotting.
+- [review.md](workflow/review.md): PR review instructions and checklist.
+- [ci_triage.md](workflow/ci_triage.md): checklist for "passes locally, fails on CI" failure modes.
+- [cross_repo_issue_pr_search.md](workflow/cross_repo_issue_pr_search.md): org-scoped GitHub search to find and filter issues/PRs across CliMA.
 
-# Define du/dt = -u (exponential decay)
-f = ClimaODEFunction(; T_exp! = (du, u, p, t) -> (du .= -u))
-prob = CTS.ODEProblem(f, [1.0], (0.0, 5.0), nothing)
+---
 
-# Solve with an explicit RK4 algorithm
-alg = ExplicitAlgorithm(RK4())
-sol = CTS.solve(prob, alg; dt = 0.1)
+## About DeveloperGuides
 
-# Or step manually
-integrator = CTS.init(prob, alg; dt = 0.1)
-CTS.step!(integrator)
-CTS.solve!(integrator)
+These guides are maintained in [CliMA/DeveloperGuides](https://github.com/CliMA/DeveloperGuides) and vendored into consumer repos as a Git subtree at the standardized path `docs/dev-guides/`. The material below is for maintaining and consuming that subtree; readers looking for engineering guidance want the [Guides](#guides) overview above.
+
+### Using the guides in a consumer repo
+
+A consumer repo keeps its own `AGENTS.md` at the root, which references `docs/dev-guides/AGENTS.md` (the agent entry point) plus a repo-specific guide (e.g. `docs/clima_atmos_specific.md`). See [`templates/`](templates/) for ready-to-copy starter files: a root `AGENTS.md`, a repo-specific guide skeleton, and the monthly sync workflow.
+
+```bash
+# Add the subtree to a new consumer repo
+git subtree add --prefix docs/dev-guides \
+    https://github.com/CliMA/DeveloperGuides.git main --squash
+
+# Pull the latest guides manually (most repos automate this monthly via update_dev_guides.yml)
+git subtree pull --prefix docs/dev-guides \
+    https://github.com/CliMA/DeveloperGuides.git main --squash \
+    -m "chore: sync dev guides from central repo"
 ```
 
-For IMEX problems (e.g., stiff vertical diffusion + explicit horizontal
-advection), provide an implicit tendency with a Jacobian:
+> [!NOTE]
+> **Subtree pitfalls.**
+>
+> - DeveloperGuides ships its own `AGENTS.md`, `LICENSE`, and `README.md` at the repo root, which conflict with the consumer's own root files during `git subtree add`. Resolve by keeping the consumer's versions: `git checkout --ours AGENTS.md LICENSE README.md && git add … && git rebase --continue`.
+> - `git subtree pull` exits with an error when there are no new commits upstream. In an automated workflow, append `|| true` so the step does not fail on months with no DeveloperGuides changes.
 
-```julia
-T_imp! = CTS.ODEFunction(T_imp!; jac_prototype = W, Wfact = Wfact!)
-f = ClimaODEFunction(; T_exp!, T_imp!, dss!)
-alg = IMEXAlgorithm(ARS343(), NewtonsMethod(; max_iters = 2))
+### Contributing
+
+Edits to shared guidelines belong in [CliMA/DeveloperGuides](https://github.com/CliMA/DeveloperGuides), not in the vendored copy inside a consumer repo. Open PRs there; once merged, the next subtree pull propagates them to every consumer.
+
+- Each guide has a **Self-correction** section: if you discover a guide is stale or missing a pattern, update it directly.
+- New guides go in the appropriate category directory and are added to this overview and to [AGENTS.md](AGENTS.md).
+- Cross-references between guides use relative paths (e.g. `../performance/gpu_performance.md`).
+
+### Repository layout
+
+```text
+├── AGENTS.md                  # Agent entry point: autonomy gate + guide index
+├── README.md                  # This file: guide overview + repo info
+├── architecture/              # System design, layering, contracts
+├── performance/               # GPU, type stability, numerics, AD
+├── code-quality/              # Style, docstrings, changelogs, naming
+├── infrastructure/            # Testing, device abstraction
+├── workflow/                  # Onboarding, debugging, review, CI triage
+└── templates/                 # Starter files for consumer repos
 ```
 
-See the [documentation](https://CliMA.github.io/ClimaTimeSteppers.jl/dev/)
-for the full tutorial.
+### CliMA ecosystem
 
-## Installation
+These guides are the central source of engineering standards across [CliMA](https://github.com/CliMA), including:
 
-ClimaTimeSteppers.jl is a registered Julia package:
+- [ClimaAtmos](https://github.com/CliMA/ClimaAtmos.jl)
+- [ClimaCore](https://github.com/CliMA/ClimaCore.jl)
+- [ClimaLand](https://github.com/CliMA/ClimaLand.jl)
+- [ClimaOcean](https://github.com/CliMA/ClimaOcean.jl)
+- [ClimaCoupler](https://github.com/CliMA/ClimaCoupler.jl)
+- [Thermodynamics](https://github.com/CliMA/Thermodynamics.jl)
+- [CloudMicrophysics](https://github.com/CliMA/CloudMicrophysics.jl)
+- [SurfaceFluxes](https://github.com/CliMA/SurfaceFluxes.jl)
+- [ClimaTimeSteppers](https://github.com/CliMA/ClimaTimeSteppers.jl)
 
-```julia
-using Pkg
-Pkg.add("ClimaTimeSteppers")
-```
+### License
 
-## Contributing
+[![license][license-img]][license-url] Apache 2.0; see [LICENSE](LICENSE).
 
-See the [contributor guide](https://CliMA.github.io/ClimaTimeSteppers.jl/dev/contributing/) for information on contributing.
+[license-img]: https://img.shields.io/github/license/CliMA/DeveloperGuides
+[license-url]: https://github.com/CliMA/DeveloperGuides/blob/main/LICENSE
 
-## Release Policy
+### Getting help
 
-ClimaTimeSteppers.jl is a core component of the CliMA ecosystem and can have
-a significant impact on downstream packages. Before making a breaking release,
-a stable patch release must be exercised by user repos (ClimaAtmos, ClimaLand,
-ClimaCoupler) without new issues.
-
-## Related Packages
-
-ClimaTimeSteppers.jl is part of the [CliMA](https://github.com/CliMA) ecosystem:
-
-- [ClimaAtmos.jl](https://github.com/CliMA/ClimaAtmos.jl) — Atmospheric model
-- [ClimaLand.jl](https://github.com/CliMA/ClimaLand.jl) — Land surface model
-- [ClimaCoupler.jl](https://github.com/CliMA/ClimaCoupler.jl) — Model coupler
-- [ClimaCore.jl](https://github.com/CliMA/ClimaCore.jl) — Spectral element spatial discretization
-- [ClimaComms.jl](https://github.com/CliMA/ClimaComms.jl) — Distributed and GPU communication
-
+For questions or suggestions, open an issue on [GitHub](https://github.com/CliMA/DeveloperGuides/issues).

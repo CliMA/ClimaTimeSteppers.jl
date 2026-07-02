@@ -226,20 +226,21 @@ Shared by the IMEX-ARK and IMEX-SSPRK stage loops.
         T_imp!, newtons_method, newtons_method_cache, cache_imp!,
     )
 
-    # Post-Newton: DSS the solved stage value (required so that
-    # `T_imp[i] = (U − temp) / dtγ` sees a DSSed `U`). Then fire
-    # `EndOfStageSignal` for `cache!` / `constrain_state!`, EXCEPT on the
-    # last stage of an FSAL tableau: there `u ≡ U_s` at end of step, so
-    # end-of-step will handle the same state, and stage-`s` tendency
-    # evaluation does not consume `cache!`'s output (T_exp[s] is skipped
-    # because `b_exp[s] = 0`, T_imp[s] is computed algebraically as
-    # `(U − temp) / dtγ`).
+    # Post-Newton: DSS the solved stage value. Fire `EndOfStageSignal` for
+    # `cache!` / `constrain_state!`, EXCEPT at the last stage of an FSAL
+    # tableau (where `u ≡ U_s` and end-of-step handles it). When `cache!`
+    # is skipped by policy, fall back to `cache_imp!` so the implicit
+    # cache still tracks the post-DSS solved state.
     dss!(U, p, t_imp)
     s = val_to_int(get_val_S(cache.tableau.b_imp))
     if !(i == s && is_fsal(alg))
         needs_update!(update_constrain_state, EndOfStageSignal()) &&
             constrain_state!(U, p, t_imp)
-        needs_update!(update_cache, EndOfStageSignal()) && cache!(U, p, t_imp)
+        if needs_update!(update_cache, EndOfStageSignal())
+            cache!(U, p, t_imp)
+        else
+            cache_imp!(U, p, t_imp)
+        end
     end
     return nothing
 end

@@ -3,12 +3,30 @@ ClimaTimeSteppers.jl Release Notes
 
 main
 -------
+
+v0.10.0
+-------
 - ![][badge-💥breaking] Removed `SciMLBase` and `DiffEqBase` backward-compatibility extensions
   (`ClimaTimeSteppersSciMLExt`, `ClimaTimeSteppersDiffEqExt`) and the `CTS.DiffEqBase` stub module.
   Use `CTS.init`, `CTS.solve`, `CTS.step!`, etc. directly.
 - ![][badge-💥breaking] Removed backward-compatibility aliases `DistributedODEAlgorithm`
   (use `TimeSteppingAlgorithm`) and `DistributedODEIntegrator` (use `TimeStepperIntegrator`).
   Removed the `continuous_callbacks` field from `CallbackSet`; use only `discrete_callbacks`.
+- ![][badge-✨feature/enhancement] Added `constrain_state!` hook on `ClimaODEFunction`
+  for enforcing physical state constraints. Applied after `dss!`.
+- ![][badge-✨feature/enhancement] Added an update-signal hierarchy
+  `EndOfStep <: EndOfStage <: WithDSS <: UpdateSignal`, and new keyword
+  arguments `update_cache` and `update_constrain_state` on `ClimaODEFunction`
+  that accept any `UpdateSignalHandler` to control when `cache!` and
+  `constrain_state!` fire. Defaults: `UpdateEvery(EndOfStage)` for `cache!`
+  and `UpdateEvery(EndOfStep)` for `constrain_state!`. `UpdateEvery(WithDSS)`
+  fires at every `dss!` site (including pre-implicit and post-`initialize_imp!`
+  DSSes).
+- ![][badge-✨feature/enhancement] Added `is_fsal(tableau)` / `is_fsal(alg)`
+  trait for IMEX tableaux (`b == a[end, :]` on both explicit and implicit
+  sides). The IMEX-ARK integrator uses this to skip the redundant post-Newton
+  `cache!` / `constrain_state!` firing at end of the final stage when
+  `u ≡ U_s`, since the end-of-step firing already handles the same state.
 
 v0.8.9
 ------

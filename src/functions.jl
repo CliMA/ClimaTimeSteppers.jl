@@ -12,9 +12,9 @@ Subtypes:
 abstract type AbstractClimaODEFunction end
 
 """
-    ClimaODEFunction(; T_imp!, [dss!], [initialize_imp!], [cache!], [cache_imp!])
-    ClimaODEFunction(; T_exp!, [T_lim!], [T_imp!], [lim!], [dss!], [initialize_imp!], [cache!], [cache_imp!])
-    ClimaODEFunction(; T_exp_T_lim!, [T_imp!], [lim!], [dss!], [initialize_imp!], [cache!], [cache_imp!])
+    ClimaODEFunction(; T_imp!, [dss!], [constrain_state!], [initialize_imp!], [cache!], [cache_imp!])
+    ClimaODEFunction(; T_exp!, [T_lim!], [T_imp!], [lim!], [dss!], [constrain_state!], [initialize_imp!], [cache!], [cache_imp!])
+    ClimaODEFunction(; T_exp_T_lim!, [T_imp!], [lim!], [dss!], [constrain_state!], [initialize_imp!], [cache!], [cache_imp!])
 
 Container for all tendency and auxiliary functions used by IMEX and Rosenbrock
 time-stepping algorithms. Tendencies set to `nothing` are skipped, avoiding
@@ -31,18 +31,35 @@ unnecessary allocations.
 **Auxiliary functions** (default to no-ops):
 - `lim!(u, p, t, u_ref)`: limiter applied after incrementing `u` from `u_ref` by `T_lim!`.
 - `dss!(u, p, t)`: direct stiffness summation (spectral element continuity).
+- `constrain_state!(u, p, t)`: applies physical constraints to `u`; fired at points
+    controlled by `update_constrain_state` (defaults to every `EndOfStep`).
 - `initialize_imp!(u, p, γdt)`: called once per implicit stage to set up the Newton solve.
-- `cache!(u, p, t)`: update the parameter cache `p` to reflect state `u`.
+- `cache!(u, p, t)`: update the parameter cache `p` to reflect state `u`; fired at
+    points controlled by `update_cache` (defaults to every `EndOfStage`).
 - `cache_imp!(u, p, t)`: update cache components needed by `T_imp!` (defaults to `cache!`).
+
+**Update-signal handlers** (control when `cache!` / `constrain_state!` fire):
+- `update_cache::UpdateSignalHandler`: policy for `cache!` (default: `UpdateEvery(EndOfStage)`).
+- `update_constrain_state::UpdateSignalHandler`: policy for `constrain_state!`
+    (default: `UpdateEvery(EndOfStep)`).
+
+Use `UpdateEvery(EndOfStep)` to fire only at step end, `UpdateEvery(EndOfStage)` at
+every state-ready-for-tendency-eval point, or `UpdateEvery(WithDSS)` immediately
+before every `dss!` call (useful when constraints must be enforced on every
+DSS-going state, including pre-implicit and post-`initialize_imp!` states).
+Use `UpdateEveryN(n, ...)` to skip every N-th call; see [`UpdateSignalHandler`](@ref).
 
 # Fields
 - `T_exp_T_lim!`: fused explicit tendency function (built from `T_exp!`/`T_lim!` at construction).
 - `T_imp!`: implicit tendency function (or `nothing`).
 - `lim!`: monotonicity limiter.
 - `dss!`: direct stiffness summation operator.
+- `constrain_state!`: physical-constraint enforcer.
 - `initialize_imp!`: implicit-stage initializer.
 - `cache!`: parameter cache updater.
 - `cache_imp!`: implicit-specific cache updater.
+- `update_cache`: signal-handler policy for `cache!`.
+- `update_constrain_state`: signal-handler policy for `constrain_state!`.
 - `_has_lim::Bool`: internal flag; `true` when the limiter path should be used.
 
 Internally, `T_exp!` and `T_lim!` are merged into a single `T_exp_T_lim!`
@@ -61,14 +78,17 @@ T_imp = CTS.ODEFunction(T_imp!; jac_prototype = W, Wfact = Wfact!)
 f = ClimaODEFunction(; T_exp!, T_imp! = T_imp)
 ```
 """
-struct ClimaODEFunction{TEL, TI, L, D, IS, C, CI} <: AbstractClimaODEFunction
+struct ClimaODEFunction{TEL, TI, L, D, CS, IS, C, CI, UC, UCS} <: AbstractClimaODEFunction
     T_exp_T_lim!::TEL
     T_imp!::TI
     lim!::L
     dss!::D
+    constrain_state!::CS
     initialize_imp!::IS
     cache!::C
     cache_imp!::CI
+    update_cache::UC
+    update_constrain_state::UCS
     _has_lim::Bool  # true when the limiter path should be used
     function ClimaODEFunction(;
         T_exp_T_lim! = nothing,
@@ -77,9 +97,12 @@ struct ClimaODEFunction{TEL, TI, L, D, IS, C, CI} <: AbstractClimaODEFunction
         T_imp! = nothing,
         lim! = Returns(nothing),
         dss! = Returns(nothing),
+        constrain_state! = Returns(nothing),
         initialize_imp! = Returns(nothing),
         cache! = Returns(nothing),
         cache_imp! = cache!,
+        update_cache::UpdateSignalHandler = UpdateEvery(EndOfStage),
+        update_constrain_state::UpdateSignalHandler = UpdateEvery(EndOfStep),
     )
         # Normalize T_exp!/T_lim! into fused T_exp_T_lim!
         if !isnothing(T_exp_T_lim!)
@@ -109,9 +132,12 @@ struct ClimaODEFunction{TEL, TI, L, D, IS, C, CI} <: AbstractClimaODEFunction
             T_imp!,
             lim!,
             dss!,
+            constrain_state!,
             initialize_imp!,
             cache!,
             cache_imp!,
+            update_cache,
+            update_constrain_state,
         )
         return new{typeof.(args)...}(args..., _has_lim)
     end

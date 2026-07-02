@@ -67,9 +67,9 @@ end
 
 # generic fallback
 function step_u!(integrator, cache::IMEXARKCache)
-    (; u, p, t, dt) = integrator
+    (; u, p, t, dt, alg) = integrator
     (; f) = integrator.sol.prob
-    (; cache!, T_imp!, lim!, dss!) = f
+    (; cache!, T_imp!, lim!, dss!, constrain_state!) = f
     (; b_exp, a_imp, b_imp) = cache.tableau
     (; T_lim, T_exp, T_imp, temp) = cache
     v_s = get_val_S(b_imp)
@@ -90,8 +90,15 @@ function step_u!(integrator, cache::IMEXARKCache)
         assign_with_increments!(u, u, inc_exp, inc_imp)
     end
 
+    # End of step is a genuine state-ready moment; fire `EndOfStepSignal`
+    # unconditionally. `EndOfStep <: EndOfStage <: WithDSS`, so all three
+    # handler families see it. For FSAL tableaux the redundant post-Newton
+    # firing at end of stage `s` is skipped inside `solve_stage_implicit!`
+    # (since `u ≡ U_s`), so no double firing occurs.
     dss!(u, p, t_final)
-    cache!(u, p, t_final)
+    needs_update!(f.update_constrain_state, EndOfStepSignal()) &&
+        constrain_state!(u, p, t_final)
+    needs_update!(f.update_cache, EndOfStepSignal()) && cache!(u, p, t_final)
 
     return u
 end
@@ -176,16 +183,27 @@ Skips implicit solve when γ == 0.
     alg,
     cache,
 )
-    (; T_imp!, dss!, cache!, cache_imp!, initialize_imp!) = f
+    (; T_imp!, dss!, constrain_state!, cache!, cache_imp!, initialize_imp!) = f
+    (; update_constrain_state, update_cache) = f
     (; newtons_method_cache) = cache
     (; newtons_method) = alg
 
-    i ≠ 1 && dss!(U, p, t_exp)
+    # No-implicit stage → state is ready for tendency eval right after DSS
+    # (fire `EndOfStageSignal`, which is `<: WithDSS`, so both handler
+    # families see it). Otherwise fire only `WithDSSSignal` (pre-implicit
+    # DSS — the state isn't state-ready until after the Newton solve).
+    no_implicit_stage = isnothing(T_imp!) || iszero(dtγ)
+    stage_top_sig = no_implicit_stage ? EndOfStageSignal() : WithDSSSignal()
 
-    if isnothing(T_imp!) || iszero(dtγ)
-        i ≠ 1 && cache!(U, p, t_exp)
-        return
+    if i ≠ 1
+        dss!(U, p, t_exp)
+        needs_update!(update_constrain_state, stage_top_sig) &&
+            constrain_state!(U, p, t_exp)
+        no_implicit_stage &&
+            needs_update!(update_cache, EndOfStageSignal()) && cache!(U, p, t_exp)
     end
+
+    no_implicit_stage && return
 
     @assert !isnothing(newtons_method)
     @. temp = U
@@ -193,6 +211,8 @@ Skips implicit solve when γ == 0.
     if !isnothing(initialize_imp!)
         initialize_imp!(U, p, dtγ)
         dss!(U, p, t_exp)
+        needs_update!(update_constrain_state, WithDSSSignal()) &&
+            constrain_state!(U, p, t_exp)
         cache_imp!(U, p, t_imp)
     else
         i ≠ 1 && cache_imp!(U, p, t_imp)
@@ -200,9 +220,25 @@ Skips implicit solve when γ == 0.
 
     solve_implicit_equation!(
         U, temp, p, t_imp, dtγ,
-        T_imp!, newtons_method, newtons_method_cache,
-        cache_imp!, dss!, cache!,
+        T_imp!, newtons_method, newtons_method_cache, cache_imp!,
     )
+
+    # Post-Newton: DSS the solved stage value (required so that
+    # `T_imp[i] = (U − temp) / dtγ` sees a DSSed `U`). Then fire
+    # `EndOfStageSignal` for `cache!` / `constrain_state!`, EXCEPT on the
+    # last stage of an FSAL tableau: there `u ≡ U_s` at end of step, so
+    # end-of-step will handle the same state, and stage-`s` tendency
+    # evaluation does not consume `cache!`'s output (T_exp[s] is skipped
+    # because `b_exp[s] = 0`, T_imp[s] is computed algebraically as
+    # `(U − temp) / dtγ`).
+    dss!(U, p, t_imp)
+    s = val_to_int(get_val_S(cache.tableau.b_imp))
+    if !(i == s && is_fsal(alg))
+        needs_update!(update_constrain_state, EndOfStageSignal()) &&
+            constrain_state!(U, p, t_imp)
+        needs_update!(update_cache, EndOfStageSignal()) && cache!(U, p, t_imp)
+    end
+    return nothing
 end
 
 """
@@ -236,11 +272,13 @@ in later stages and the final update.
 end
 
 """
-    solve_implicit_equation!(U, U₀, p, t_imp, dtγ, T!, newtons_method, newtons_method_cache, cache_imp!, dss!, cache!)
+    solve_implicit_equation!(U, U₀, p, t_imp, dtγ, T!, newtons_method,
+                             newtons_method_cache, cache_imp!)
 
-Solve the implicit stage equation ``U = U₀ + Δtγ\\, T(U)`` via Newton's method.
-
-Called from [`update_stage!`](@ref) for each implicit stage.
+Solve the implicit stage equation ``U = U₀ + Δtγ\\, T(U)`` via Newton's
+method. Post-Newton bookkeeping (`dss!`, `constrain_state!`, `cache!`) is
+handled by the caller so that stage-index-dependent gating (e.g. skipping
+the final-stage updates for FSAL tableaux) can be applied.
 """
 @inline function solve_implicit_equation!(
     U,
@@ -252,8 +290,6 @@ Called from [`update_stage!`](@ref) for each implicit stage.
     newtons_method,
     newtons_method_cache,
     cache_imp!,
-    dss!,
-    cache!,
 )
     implicit_equation_residual! =
         (residual, U′) -> begin
@@ -268,7 +304,5 @@ Called from [`update_stage!`](@ref) for each implicit stage.
         (jacobian, U′) -> T!.Wfact(jacobian, U′, p, dtγ, t_imp),
         U′ -> cache_imp!(U′, p, t_imp),
     )
-    dss!(U, p, t_imp)
-    cache!(U, p, t_imp)
     return nothing
 end

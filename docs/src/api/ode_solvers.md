@@ -78,6 +78,7 @@ mathematical details.
 ```@docs
 IMEXTableau
 IMEXAlgorithm
+is_fsal
 ```
 
 ### ARS family ([ARS1997](@cite))

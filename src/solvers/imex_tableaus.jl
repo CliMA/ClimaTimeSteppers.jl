@@ -1,4 +1,4 @@
-export IMEXTableau, IMEXAlgorithm
+export IMEXTableau, IMEXAlgorithm, is_fsal
 export ARS111, ARS121, ARS122, ARS233, ARS232, ARS222, ARS343, ARS443
 export IMKG232a, IMKG232b, IMKG242a, IMKG242b, IMKG243a, IMKG252a, IMKG252b
 export IMKG253a, IMKG253b, IMKG254a, IMKG254b, IMKG254c, IMKG342a, IMKG343a
@@ -41,6 +41,25 @@ struct IMEXTableau{AE <: SPCO, BE <: SPCO, CE <: SPCO, AI <: SPCO, BI <: SPCO, C
     c_imp::CI # vector of length s
 end
 IMEXTableau(args...) = IMEXTableau(map(x -> SparseCoeffs(x), args)...)
+
+"""
+    is_fsal(tableau::IMEXTableau)
+    is_fsal(alg::IMEXAlgorithm)
+
+Return `true` iff the tableau is **FSAL** ("First Same As Last") /
+strictly stiffly-accurate: `b == a[end, :]` on **both** the explicit
+**and** implicit sides, in which case the final assembled step value
+`u_new` equals the last stage value `U_s`.
+
+The IMEX-ARK integrator uses this trait to skip the post-Newton
+`cache!` / `constrain_state!` firing at end of stage `s` for FSAL
+tableaux: since `u ≡ U_s` at end of step, the end-of-step firing
+(`EndOfStepSignal`) subsumes the redundant end-of-stage-`s` call.
+"""
+is_fsal(tableau::IMEXTableau) =
+    tableau.b_exp.coeffs == tableau.a_exp.coeffs[end, :] &&
+    tableau.b_imp.coeffs == tableau.a_imp.coeffs[end, :]
+is_fsal(alg) = is_fsal(alg.tableau)
 
 function IMEXTableau(;
     a_exp,

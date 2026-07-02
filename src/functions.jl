@@ -60,7 +60,8 @@ Use `UpdateEveryN(n, ...)` to skip every N-th call; see [`UpdateSignalHandler`](
 - `cache_imp!`: implicit-specific cache updater.
 - `update_cache`: signal-handler policy for `cache!`.
 - `update_constrain_state`: signal-handler policy for `constrain_state!`.
-- `_has_lim::Bool`: internal flag; `true` when the limiter path should be used.
+- `HasLim` (type parameter): `true` when the limiter path should be used.
+- `HasExp` (type parameter): `true` when there is an explicit tendency.
 
 Internally, `T_exp!` and `T_lim!` are merged into a single `T_exp_T_lim!`
 at construction time.
@@ -78,7 +79,8 @@ T_imp = CTS.ODEFunction(T_imp!; jac_prototype = W, Wfact = Wfact!)
 f = ClimaODEFunction(; T_exp!, T_imp! = T_imp)
 ```
 """
-struct ClimaODEFunction{TEL, TI, L, D, CS, IS, C, CI, UC, UCS} <: AbstractClimaODEFunction
+struct ClimaODEFunction{TEL, TI, L, D, CS, IS, C, CI, UC, UCS, HasLim, HasExp} <:
+       AbstractClimaODEFunction
     T_exp_T_lim!::TEL
     T_imp!::TI
     lim!::L
@@ -89,7 +91,6 @@ struct ClimaODEFunction{TEL, TI, L, D, CS, IS, C, CI, UC, UCS} <: AbstractClimaO
     cache_imp!::CI
     update_cache::UC
     update_constrain_state::UCS
-    _has_lim::Bool  # true when the limiter path should be used
     function ClimaODEFunction(;
         T_exp_T_lim! = nothing,
         T_lim! = nothing,
@@ -109,6 +110,7 @@ struct ClimaODEFunction{TEL, TI, L, D, CS, IS, C, CI, UC, UCS} <: AbstractClimaO
             @assert isnothing(T_exp!) "`T_exp_T_lim!` was passed, `T_exp!` must be `nothing`"
             @assert isnothing(T_lim!) "`T_exp_T_lim!` was passed, `T_lim!` must be `nothing`"
             _has_lim = true
+            _has_exp = true
         elseif !isnothing(T_exp!) && !isnothing(T_lim!)
             # Wrap separate T_exp! + T_lim! into fused form
             T_exp_T_lim! = (du_exp, du_lim, u, p, t) -> begin
@@ -116,16 +118,21 @@ struct ClimaODEFunction{TEL, TI, L, D, CS, IS, C, CI, UC, UCS} <: AbstractClimaO
                 T_lim!(du_lim, u, p, t)
             end
             _has_lim = true
+            _has_exp = true
         elseif !isnothing(T_exp!)
             # Explicit-only: wrap T_exp! into fused form, T_lim output unused
             T_exp_T_lim! = (du_exp, _du_lim, u, p, t) -> T_exp!(du_exp, u, p, t)
             _has_lim = false
+            _has_exp = true
         elseif !isnothing(T_lim!)
-            # Limiter-only: wrap T_lim! into fused form
+            # Limiter-only: wrap T_lim! into fused form. There is no explicit
+            # tendency (the T_exp output is never written), so _has_exp = false.
             T_exp_T_lim! = (_du_exp, du_lim, u, p, t) -> T_lim!(du_lim, u, p, t)
             _has_lim = true
+            _has_exp = false
         else
             _has_lim = false
+            _has_exp = false
         end
         args = (
             T_exp_T_lim!,
@@ -139,15 +146,23 @@ struct ClimaODEFunction{TEL, TI, L, D, CS, IS, C, CI, UC, UCS} <: AbstractClimaO
             update_cache,
             update_constrain_state,
         )
-        return new{typeof.(args)...}(args..., _has_lim)
+        return new{typeof.(args)..., _has_lim, _has_exp}(args...)
     end
 end
 
 """Return `true` when the ODE function has an explicit tendency."""
-has_T_exp(f::ClimaODEFunction) = !isnothing(f.T_exp_T_lim!)
+has_T_exp(
+    ::ClimaODEFunction{
+        <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, HasExp,
+    },
+) where {HasExp} = HasExp
 
 """Return `true` when the ODE function uses the limiter path."""
-has_T_lim(f::ClimaODEFunction) = f._has_lim
+has_T_lim(
+    ::ClimaODEFunction{
+        <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, HasLim,
+    },
+) where {HasLim} = HasLim
 
 """
     initialize_function!(f, u0, p, t0)

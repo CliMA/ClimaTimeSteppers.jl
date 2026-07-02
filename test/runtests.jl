@@ -40,6 +40,10 @@ end
     include("unit/incrementing_ode.jl")
 end
 
+@safetestset "initialize_imp!" begin
+    include("unit/initialize_imp.jl")
+end
+
 @safetestset "Edge cases" begin
     include("unit/edge_cases.jl")
 end

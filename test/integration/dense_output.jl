@@ -94,4 +94,9 @@ import ClimaTimeSteppers: ODEProblem, ODEFunction, ODESolution, solve
             @test sol(t) == states[i]
         end
     end
+
+    @testset "empty solution errors cleanly" begin
+        empty_sol = ODESolution(Float64[], Vector{Float64}[], nothing, nothing)
+        @test_throws ErrorException empty_sol(0.5)
+    end
 end

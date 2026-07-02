@@ -229,9 +229,6 @@ Callbacks let you run diagnostics, I/O, or checkpointing during the
 integration. Here we track the peak temperature over time:
 
 ```@example imex
-using ClimaTimeSteppers: Callbacks
-using .Callbacks
-
 peak_temps = Float64[]
 peak_times = Float64[]
 

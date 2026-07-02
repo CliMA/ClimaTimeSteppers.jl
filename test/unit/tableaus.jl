@@ -157,5 +157,38 @@ dense(sc::CTS.SparseCoeffs) = Array(Float64.(sc.coeffs))
             # C = diag(1/γ_ii) - Γ⁻¹ should be strictly lower triangular
             @test all(x -> abs(x) < 1e-14, UpperTriangular(tab.C))
         end
+
+        @testset "constant-diagonal Γ enforced" begin
+            # `step_u!` uses a single `dtγ = dt * Γ[1, 1]` for all stages, so the
+            # constructor must reject a Γ with a non-constant diagonal (which
+            # would otherwise produce silently wrong stages 2..N).
+            α = @SMatrix [0.0 0.0; 1.0 0.0]
+            b = @SMatrix [0.5 0.5]
+            Γ_const = @SMatrix [1.0 0.0; 0.0 1.0]    # constant diagonal: accepted
+            Γ_varying = @SMatrix [1.0 0.0; 0.0 2.0]  # non-constant diagonal: rejected
+            @test CTS.RosenbrockTableau(α, Γ_const, b) isa CTS.RosenbrockTableau
+            @test_throws AssertionError CTS.RosenbrockTableau(α, Γ_varying, b)
+        end
+    end
+
+    @testset "tableau(name) accessor" begin
+        # The generic accessor works for IMEX-ARK, explicit-RK, and Rosenbrock
+        # names.
+        @test CTS.tableau(ARS343()) isa IMEXTableau
+        @test CTS.tableau(RK4()) isa ExplicitTableau
+        @test CTS.tableau(SSPKnoth()) isa CTS.RosenbrockTableau
+    end
+
+    @testset "tableau constructor validation" begin
+        a = [0.0 0.0; 1.0 0.0]   # strictly lower triangular, row sums (0, 1)
+        # valid
+        @test IMEXTableau(; a_exp = a, a_imp = a) isa IMEXTableau
+        @test ExplicitTableau(; a = a) isa ExplicitTableau
+        # wrong-length b
+        @test_throws AssertionError IMEXTableau(; a_exp = a, a_imp = a, b_exp = [1.0])
+        @test_throws AssertionError ExplicitTableau(; a = a, b = [1.0])
+        # c inconsistent with the row sums of a
+        @test_throws AssertionError IMEXTableau(; a_exp = a, a_imp = a, c_exp = [0.0, 5.0])
+        @test_throws AssertionError ExplicitTableau(; a = a, c = [0.0, 5.0])
     end
 end

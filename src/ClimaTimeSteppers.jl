@@ -82,9 +82,17 @@ Subtypes include `IMEXARKAlgorithmName` (IMEX ARK tableaux, e.g. [`ARS343`](@ref
 abstract type AbstractAlgorithmName end
 
 """
-    tableau(name::AbstractAlgorithmName, [eltype])
+    tableau(name::AbstractAlgorithmName)
+    tableau(name, eltype)
 
-Return the Butcher or Rosenbrock tableau associated with the given algorithm `name`.
+Return the tableau associated with the algorithm `name`: a Butcher tableau for
+IMEX-ARK and explicit-RK names, a Rosenbrock tableau for `SSPKnoth`, or the
+family-specific tableau for the low-storage, multirate-infinitesimal-step, and
+Wicker-Skamarock methods. Those last three families additionally take an
+element type, `tableau(name, eltype)`, used to convert their coefficients.
+
+(The IMEX-ARK and explicit-RK methods are defined in `solvers/imex_tableaus.jl`
+and `solvers/explicit_tableaus.jl`, where the name types are declared.)
 """
 function tableau end
 
@@ -203,6 +211,12 @@ include("solvers/wickerskamarock.jl")
 include("solvers/rosenbrock.jl")
 
 include("Callbacks.jl")
+
+# Re-export the periodic-callback constructors so users can reach them with a
+# plain `using ClimaTimeSteppers` (the `Callbacks` submodule remains the home
+# for the `initialize!`/`finalize!` extension points).
+using .Callbacks
+export EveryXSimulationTime, EveryXSimulationSteps, EveryXWallTimeSeconds
 
 benchmark_step(integrator, device = ClimaComms.device()) =
     @warn "BenchmarkTools and CUDA must be loaded to call benchmark_step"

@@ -41,7 +41,15 @@ function Base.push!(q::SortedQueue, val)
         # data is sorted ascending; find insertion point for ascending order
         i = searchsortedfirst(data, val, Base.Order.Forward)
     end
-    insert!(data, i, val)
+    # If inserting at the end (e.g. when data is empty or val is smaller than
+    # all existing elements), use `push!` instead of `insert!`. In Julia 1.12+,
+    # `insert!` at index 1 on an empty Memory-backed Vector triggers `_growbeg!`,
+    # which allocates a new Memory buffer, whereas `push!` uses existing tail capacity.
+    if i == length(data) + 1
+        push!(data, val)
+    else
+        insert!(data, i, val)
+    end
     return q
 end
 
@@ -119,14 +127,16 @@ struct SavedValues{tType, savevalType}
     saveval::Vector{savevalType}
 end
 
-"""
-    SavedValues(tType, savevalType)
-
-Construct empty `SavedValues` for the given element types.
-"""
-function SavedValues(::Type{tType}, ::Type{savevalType}) where {tType, savevalType}
-    SavedValues{tType, savevalType}(Vector{tType}(), Vector{savevalType}())
-end
+# `false` suppresses `@deprecate`'s default re-export: `SavedValues` is an
+# internal type and must stay unexported (otherwise Documenter's exported-symbol
+# docstring check fails on it).
+@deprecate SavedValues(::Type{tType}, ::Type{savevalType}) where {tType, savevalType} SavedValues{
+    tType,
+    savevalType,
+}(
+    Vector{tType}(),
+    Vector{savevalType}(),
+) false
 
 
 # helper function for setting up sorted queues for tstops and saveat
@@ -138,8 +148,12 @@ function tstops_and_saveat_queues(t0, tf, tstops, saveat = [])
     tstops = FT[filter(t -> t0 < t < tf || tf < t < t0, tstops)..., tf]
     tstops = SortedQueue{FT}(tstops, forward)
 
+    # drop saveat points outside [t0, tf]; out-of-range points would otherwise
+    # produce spurious saves at the nearest endpoint (cf. `add_saveat!`, which
+    # rejects times behind the current time)
     isnothing(saveat) && (saveat = (t0, tf))
-    saveat = SortedQueue{FT}(saveat, forward)
+    lo, hi = minmax(t0, tf)
+    saveat = SortedQueue{FT}(filter(t -> lo <= t <= hi, saveat), forward)
 
     return tstops, saveat
 end
@@ -282,6 +296,9 @@ function reinit!(
 )
     integrator.u .= u0
     integrator.t = t0
+    # Recompute the integration direction: reinit! may flip it (e.g. a forward
+    # solve followed by a reverse-time reinit for an adjoint/checkpoint).
+    integrator.tdir = compute_tdir((t0, tf))
     integrator.tstops, integrator.saveat = tstops_and_saveat_queues(t0, tf, tstops, saveat)
     integrator.step = 0
     if erase_sol
@@ -365,12 +382,14 @@ The two-argument form advances by exactly `dt` time units.
 See also [`init`](@ref), [`solve!`](@ref).
 """
 function step!(integrator::TimeStepperIntegrator)
-    if integrator.advance_to_tstop
+    if integrator.advance_to_tstop && !isempty(integrator.tstops)
         tstop = first(integrator.tstops)
         while !reached_tstop(integrator, tstop)
             __step!(integrator)
         end
     else
+        # No tstop to advance to (e.g. after all tstops have been consumed):
+        # fall back to a single internal step.
         __step!(integrator)
     end
 end

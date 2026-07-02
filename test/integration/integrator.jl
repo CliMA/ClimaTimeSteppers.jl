@@ -240,3 +240,66 @@ end
     reinit!(integrator; reinit_callbacks = true)
     @test n_inits[] == 2
 end
+
+@testset "advance_to_tstop with no remaining tstops does not crash" begin
+    # Regression test: step!(integrator) with advance_to_tstop = true used to
+    # call first(tstops) unconditionally, which BoundsErrors once all tstops
+    # have been consumed (e.g. after solve!). It must fall back to a single step.
+    alg = ExplicitAlgorithm(SSP33ShuOsher())
+    (; prob, analytic_sol) = clima_constant_tendency_test(Float64)
+    integrator =
+        init(deepcopy(prob), alg; dt = 0.1, advance_to_tstop = true)
+    solve!(integrator)               # drains all tstops (ends at tf)
+    @test isempty(integrator.tstops)
+    t_before = integrator.t
+    step!(integrator)                # must not throw; takes one internal step
+    @test integrator.t > t_before
+    @test integrator.u ≈ analytic_sol(integrator.t) atol = 10 * eps()
+end
+
+@testset "reinit! can flip the integration direction" begin
+    # reinit! must recompute integrator.tdir from the new span, so that a forward
+    # solve followed by a reverse-time reinit steps backward and reaches tf.
+    alg = ExplicitAlgorithm(SSP33ShuOsher())
+    (; prob, analytic_sol) = clima_constant_tendency_test(Float64)   # tspan (0, 1)
+    integrator = init(deepcopy(prob), alg; dt = 0.1, save_everystep = false)
+    solve!(integrator)
+    @test integrator.t ≈ 1.0
+
+    # reinit to integrate backward from t = 1 to t = 0
+    reinit!(integrator, analytic_sol(1.0); t0 = 1.0, tf = 0.0)
+    @test integrator.tdir == -1
+    solve!(integrator)
+    @test integrator.t ≈ 0.0
+    @test integrator.u ≈ analytic_sol(0.0) atol = 10 * eps()
+end
+
+@testset "out-of-range saveat is dropped" begin
+    # saveat points outside [t0, tf] should be filtered out (like tstops), rather
+    # than collapsing to spurious saves at the endpoints.
+    alg = ExplicitAlgorithm(SSP33ShuOsher())
+    (; prob) = clima_constant_tendency_test(Float64)   # tspan (0, 1)
+    integrator =
+        init(deepcopy(prob), alg; dt = 0.1, saveat = [-1.0, 0.5, 2.0])
+    sol = solve!(integrator)
+    @test all(t -> 0.0 <= t <= 1.0, sol.t)   # no out-of-range saves
+    @test length(sol.t) == 1                 # only the in-range 0.5 is saved
+    @test sol.t[1] ≈ 0.5 atol = 0.05
+end
+
+@testset "EveryXSimulationTime fires under reverse-time integration" begin
+    # Regression test: the time-based callback assumed forward integration
+    # (t >= t_next with an upward t_next). Run backward in time and confirm it
+    # fires on the expected grid rather than once-then-never.
+    alg = ExplicitAlgorithm(SSP33ShuOsher())
+    (; prob, analytic_sol) = clima_constant_tendency_test(Float64)
+    rev_prob = reverse_problem(prob, analytic_sol)   # integrate t: 1.0 → 0.0
+    fire_times = Float64[]
+    # EveryXSimulationTime is re-exported at the top level (via `using
+    # ClimaTimeSteppers`), so no `Callbacks` qualification is needed.
+    cb = EveryXSimulationTime(integrator -> push!(fire_times, integrator.t), 0.25)
+    integrator = init(rev_prob, alg; dt = 0.05, callback = cb)
+    solve!(integrator)
+    # 1.0 → 0.0 every 0.25 ⟹ fires at 0.75, 0.5, 0.25, 0.0 (not once-then-never).
+    @test fire_times ≈ [0.75, 0.5, 0.25, 0.0] atol = 1e-8
+end

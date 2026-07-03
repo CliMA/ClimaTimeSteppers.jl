@@ -69,14 +69,26 @@ function IMEXTableau(;
     b_imp = a_imp[end, :],
     c_imp = vec(sum(a_imp; dims = 2)),
 )
+    s = size(a_exp, 1)
     @assert all(iszero, UpperTriangular(a_exp))
     @assert all(iszero, UpperTriangular(a_imp) - Diagonal(a_imp))
+    @assert size(a_imp, 1) == s "a_exp and a_imp must have the same number of stages"
+    @assert length(b_exp) == s && length(b_imp) == s "b_exp and b_imp must have length $s"
+    @assert length(c_exp) == s && length(c_imp) == s "c_exp and c_imp must have length $s"
+    # c must be the abscissae (row sums of a); compare in floating point to
+    # avoid Int/Rational overflow on high-order tableaux (e.g. ARK437/ARK548,
+    # which supply explicit c precisely because the default row-sum computation
+    # would overflow Int64).
+    @assert float.(c_exp) ≈ vec(sum(float.(a_exp); dims = 2)) "c_exp must equal the row sums of a_exp"
+    @assert float.(c_imp) ≈ vec(sum(float.(a_imp); dims = 2)) "c_imp must equal the row sums of a_imp"
 
     # TODO: add generic promote_eltype
     a_exp, a_imp = promote(a_exp, a_imp)
     b_exp, b_imp, c_exp, c_imp = promote(b_exp, b_imp, c_exp, c_imp)
     return IMEXTableau(a_exp, b_exp, c_exp, a_imp, b_imp, c_imp)
 end
+
+tableau(name::IMEXARKAlgorithmName) = IMEXTableau(name)
 
 """
     IMEXAlgorithm(name, newtons_method, [constraint]; cast_tableau_to_state_eltype)
@@ -131,6 +143,10 @@ function downcast_tableau(::Type{FT}, tb::IMEXTableau) where {FT}
         cast(tb.a_imp), cast(tb.b_imp), cast(tb.c_imp),
     )
 end
+# Hook (not exported, and currently unused by the steppers) that would let
+# specific algorithm names request Float64 accumulation of the stage increment.
+# Float32 accumulation has been accurate enough in practice, so no algorithm
+# opts in yet.
 requires_fp64_accumulation(::AbstractAlgorithmName) = false
 
 IMEXAlgorithm(

@@ -39,7 +39,7 @@ Note: the sign convention in the code is ``W \Delta x = f`` followed by ``x \mat
 ### Linear Solvers
 
 The linear system ``W \Delta x = f`` can be solved using:
-- **Direct solvers**: When the explicit Jacobian ``W`` is available as a matrix (via the user-provided `Wfact`), standard factorization methods (e.g., LU) apply. The matrix is passed as `j_prototype` and must support `ldiv!`.
+- **Direct solvers**: When the explicit Jacobian ``W`` is available as a matrix (via the user-provided `Wfact`), standard factorization methods (e.g., LU) apply. The matrix is passed as `j_prototype` and must support `ldiv!`. For dense matrices (used primarily in testing), `NewtonsMethod` caches the LU factorization across iterations to avoid redundant factorizations when `update_j` does not refresh the Jacobian every iteration.
 - **Krylov methods**: Iterative solvers such as GMRES from `Krylov.jl`, which only require matrix-vector products ``W v``. This avoids forming ``W`` explicitly and is essential for large-scale problems. Configured via [`KrylovMethod`](@ref).
 
 ### Jacobian-Free Newton-Krylov (JFNK)
@@ -57,7 +57,7 @@ When using a Krylov method, we only need the action of the Jacobian on a vector 
 
   Users can implement custom subtypes of [`JacobianFreeJVP`](@ref) for alternative JVP approximations.
 
-When both a Jacobian-free JVP and an explicit Jacobian (`j_prototype`) are provided, the Jacobian is used as a *left preconditioner* for the Krylov solver (unless `disable_preconditioner = true`).
+When both a Jacobian-free JVP and an explicit Jacobian (`j_prototype`) are provided, the Jacobian is used as a *left preconditioner* for the Krylov solver (unless `disable_preconditioner = true`). Alternatively, users can supply a standalone `preconditioner` object (such as a matrix-free preconditioner or block-diagonal operator) directly to [`KrylovMethod`](@ref), which takes precedence over `j_prototype`.
 
 ### Forcing Strategies (Inexact Newton)
 

@@ -41,3 +41,29 @@ end
 function imex_nonautonomous_sol(u0, p, t)
     (exp(sin(t)) .* (1 .+ p .* u0) .- 1) ./ p
 end
+
+"""
+Split problem whose **slow** tendency depends on the state `u`:
+`du/dt = -10u (fast, f1) + -u (slow, f2)`, with `u(t) = u₀ e^{-11t}`.
+
+The other two problems have a state-independent slow tendency (`cos(t)/p`), so a
+multirate scheme that corrupts the intermediate stage state still feeds the right
+slow forcing and converges anyway. Here the slow forcing `f2(U) = -U` sees the
+stage state, so stage-coupling bugs (e.g. an inner integrator that overshoots its
+substep) show up as order reduction. Used to guard the WSRK/MIS/LSRK coupling.
+"""
+function imex_statedep_slow_prob(::Type{ArrayType}) where {ArrayType}
+    SplitODEProblem(
+        IncrementingODEFunction{true}(
+            (du, u, p, t, α = true, β = false) -> (du .= α .* (-10) .* u .+ β .* du),
+        ),
+        IncrementingODEFunction{true}(
+            (du, u, p, t, α = true, β = false) -> (du .= α .* (-1) .* u .+ β .* du),
+        ),
+        ArrayType([1.0]),
+        (0.0, 1.0),
+        nothing,
+    )
+end
+
+imex_statedep_slow_sol(u0, p, t) = exp(-11 * t) .* u0

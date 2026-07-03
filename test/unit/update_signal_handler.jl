@@ -28,8 +28,35 @@ using ClimaTimeSteppers, Test
         @test ClimaTimeSteppers.needs_update!(handler, NewNewtonSolve()) == false
     end
 
+    @testset "UpdateEveryN reset signal" begin
+        # The third argument is the reset signal type: receiving an instance of
+        # it resets the counter to 0.
+        handler = UpdateEveryN(3, NewNewtonIteration, NewTimeStep)
+
+        @test ClimaTimeSteppers.needs_update!(handler, NewNewtonIteration()) == true  # counter 0→1
+        @test ClimaTimeSteppers.needs_update!(handler, NewNewtonIteration()) == false # counter 1→2
+
+        # Reset signal resets the counter to 0 and returns false.
+        @test ClimaTimeSteppers.needs_update!(handler, NewTimeStep(0.0)) == false
+
+        # After the reset, the next update signal fires again (counter back at 0).
+        @test ClimaTimeSteppers.needs_update!(handler, NewNewtonIteration()) == true  # counter 0→1
+    end
+
+    @testset "UpdateEveryN reset type == update type errors" begin
+        # Using the same type for the update and reset signals is ambiguous and
+        # must error when the signal is received.
+        handler = UpdateEveryN(3, NewTimeStep, NewTimeStep)
+        @test_throws ErrorException ClimaTimeSteppers.needs_update!(
+            handler,
+            NewTimeStep(0.0),
+        )
+    end
+
     @testset "UpdateEveryDt" begin
-        handler = UpdateEveryDt(0.5, Ref(true), Ref(0.0))
+        # Built via the public value constructor (regression test: this used to
+        # require a *type* argument, leaving `dt` unusable in needs_update!).
+        handler = UpdateEveryDt(0.5)
 
         # First call always triggers
         @test ClimaTimeSteppers.needs_update!(handler, NewTimeStep(0.0)) == true

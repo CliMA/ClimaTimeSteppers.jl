@@ -49,6 +49,7 @@ function CTS.benchmark_step(
     only = nothing, # for backward compatibility
 )
     (; u, p, t, dt, alg, cache) = integrator
+    dtγ = float(dt) # proxy for dtγ = float(dt) * a_imp[i, i], used by `Wfact!` and `initialize_imp!`
     if hasproperty(cache, :newtons_method_cache) && !isnothing(cache.newtons_method_cache)
         W = cache.newtons_method_cache.j
     elseif hasproperty(cache, :W)
@@ -119,7 +120,7 @@ function CTS.benchmark_step(
     call_signatures = OrderedCollections.OrderedDict()
     call_signatures["step!"] = (CTS.step!, (integrator,))
     isnothing(W) || (call_signatures["ldiv!"] = (ldiv!, (uₜ, W, u)))
-    isnothing(W) || (call_signatures["Wfact!"] = (T_imp!.Wfact, (W, u, p, dt, t)))
+    isnothing(W) || (call_signatures["Wfact!"] = (T_imp!.Wfact, (W, u, p, dtγ, t)))
     is_default(T_imp!) || (call_signatures["T_imp!"] = (T_imp!, (uₜ, u, p, t)))
     is_default(T_exp_T_lim!) ||
         (call_signatures["T_exp!"] = (T_exp_T_lim!, (uₜ, uₜ, u, p, t)))
@@ -128,7 +129,7 @@ function CTS.benchmark_step(
     is_default(constrain_state!) ||
         (call_signatures["constrain_state!"] = (constrain_state!, (u, p, t)))
     is_default(initialize_imp!) ||
-        (call_signatures["initialize_imp!"] = (initialize_imp!, (u, p, t)))
+        (call_signatures["initialize_imp!"] = (initialize_imp!, (u, p, dtγ)))
     is_default(cache!) || (call_signatures["cache!"] = (cache!, (u, p, t)))
     is_default(cache_imp!) || (call_signatures["cache_imp!"] = (cache_imp!, (u, p, t)))
 

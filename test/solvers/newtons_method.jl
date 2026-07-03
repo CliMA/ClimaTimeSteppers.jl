@@ -236,7 +236,11 @@ end
         j_prototype = similar(x, n, n)
         cache = CTS.allocate_cache(alg, x, j_prototype)
         CTS.solve_newton!(alg, cache, x, f!, j!)
-        @test norm(x .- x_exact) / norm(x_exact) < rtol
+        # Assert against a bound comfortably above machine precision: the Krylov
+        # `rtol` drives the residual, but the achievable solution error is set by
+        # roundoff and varies with the Julia/BLAS version, so `100 * eps` is too
+        # tight a bar for an equality-style check.
+        @test norm(x .- x_exact) / norm(x_exact) < 1e-10
         # The custom preconditioner (not `j`) was applied by the Krylov solve.
         @test pc.n_applications[] > 0
     end
@@ -265,7 +269,7 @@ end
         j_prototype = similar(x, n, n)
         cache = CTS.allocate_cache(alg, x, j_prototype)
         CTS.solve_newton!(alg, cache, x, f!, j!)
-        @test norm(x .- x_exact) / norm(x_exact) < rtol
+        @test norm(x .- x_exact) / norm(x_exact) < 1e-10
         @test pc.n_applications[] == 0
     end
 end

@@ -81,7 +81,22 @@ T_imp = CTS.ODEFunction(T_imp!; jac_prototype = W, Wfact = Wfact!)
 f = ClimaODEFunction(; T_exp!, T_imp! = T_imp)
 ```
 """
-struct ClimaODEFunction{TEL, TI, L, D, CS, IS, C, CI, UC, UCS, HasLim, HasExp, HasExpLim, HasImp} <:
+struct ClimaODEFunction{
+    TEL,
+    TI,
+    L,
+    D,
+    CS,
+    IS,
+    C,
+    CI,
+    UC,
+    UCS,
+    HasLim,
+    HasExp,
+    HasExpLim,
+    HasImp,
+} <:
        AbstractClimaODEFunction
     T_exp_T_lim!::TEL
     T_imp!::TI
@@ -174,7 +189,8 @@ has_T_lim(
 has_T_exp_T_lim(f) = !isnothing(f.T_exp_T_lim!)
 has_T_exp_T_lim(
     ::ClimaODEFunction{
-        <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, HasExpLim,
+        <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any,
+        HasExpLim,
     },
 ) where {HasExpLim} = HasExpLim
 
@@ -182,7 +198,8 @@ has_T_exp_T_lim(
 has_T_imp(f) = !isnothing(f.T_imp!)
 has_T_imp(
     ::ClimaODEFunction{
-        <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, HasImp,
+        <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any,
+        <:Any, HasImp,
     },
 ) where {HasImp} = HasImp
 

@@ -399,9 +399,10 @@ The solver operates on a `LinearOperator` `opj` representing `j(x[n])`:
 
 # Preconditioning
 
-When a `preconditioner` is provided, it is used as the left preconditioner `M`.
-Otherwise, when *both* a `jacobian_free_jvp` and an explicit `j` are provided (and
-`disable_preconditioner` is `false`), `j` is used as a left preconditioner `M`.
+When `disable_preconditioner` is `false` and a `preconditioner` is provided, it
+is used as the left preconditioner `M`. Otherwise, when *both* a
+`jacobian_free_jvp` and an explicit `j` are provided (and `disable_preconditioner`
+is `false`), `j` is used as a left preconditioner `M`.
 The solver calls `ldiv!(Δx′, M, f′)` (not `mul!`), so `M` is treated as an
 approximation of `j` rather than as its inverse. If no preconditioner or `j` is
 available, or preconditioning is disabled, `M = I`.
@@ -496,9 +497,12 @@ NVTX.@annotate function solve_krylov!(
         isnothing(jacobian_free_jvp) ? mul!(jΔx, j, Δx) :
         jvp!(jacobian_free_jvp, jacobian_free_jvp_cache, jΔx, Δx, x, f!, f, prepare_for_f!)
     opj = LinearOperator(eltype(x), length(x), length(x), false, false, jΔx!)
-    M = disable_preconditioner ? I :
-        (!isnothing(preconditioner) ? preconditioner :
-        ((isnothing(j) || isnothing(jacobian_free_jvp)) ? I : j))
+    M =
+        disable_preconditioner ? I :
+        (
+            !isnothing(preconditioner) ? preconditioner :
+            ((isnothing(j) || isnothing(jacobian_free_jvp)) ? I : j)
+        )
     print_debug!(debugger, debugger_cache, opj, M)
     ldiv = true
     atol = zero(eltype(Δx))

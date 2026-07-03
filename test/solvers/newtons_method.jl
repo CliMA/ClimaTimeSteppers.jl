@@ -48,6 +48,20 @@ function nonlinear_equation_gentle(FT, n)
     return (f!, j!, x_exact, x_init)
 end
 
+# A left preconditioner that records how many times it is applied, so a test can
+# confirm the `preconditioner` field of `KrylovMethod` is actually used as `M` in
+# `solve_krylov!` (and takes precedence over `j`). Wraps an exact factorization,
+# so a preconditioned GMRES solve converges in a single iteration.
+struct RecordingPreconditioner{TF}
+    factorization::TF
+    n_applications::Base.RefValue{Int}
+end
+RecordingPreconditioner(A) = RecordingPreconditioner(lu(A), Ref(0))
+function LinearAlgebra.ldiv!(y, P::RecordingPreconditioner, x)
+    P.n_applications[] += 1
+    return ldiv!(y, P.factorization, x)
+end
+
 @testset "Newton's Method" begin
     for (is_linear, FT, n, step_adjustment) in (
         (true, Float32, 1, 100000),
@@ -194,6 +208,65 @@ end
         cache = CTS.allocate_cache(alg, x, j_prototype)
         CTS.solve_newton!(alg, cache, x, f!, j!)
         @test norm(x .- x_exact) / norm(x_exact) < 1e-6
+    end
+end
+
+@testset "Custom Krylov preconditioner" begin
+    # A user-supplied `preconditioner` must be used as `M` and take precedence
+    # over the explicit `j` (which is also provided here). Using the exact
+    # Jacobian as the preconditioner makes GMRES converge in one iteration.
+    FT = Float64
+    for n in (1, 5, 10)
+        f!, j!, x_exact, x_init = linear_equation(FT, n)
+        rtol = 100 * eps(FT)
+        A = similar(x_init, n, n)
+        j!(A, x_init)
+        pc = RecordingPreconditioner(A)
+        convergence_checker =
+            ConvergenceChecker(; norm_condition = MaximumRelativeError(rtol))
+        alg = NewtonsMethod(;
+            max_iters = 1,
+            krylov_method = KrylovMethod(;
+                forcing_term = ConstantForcing(rtol),
+                preconditioner = pc,
+            ),
+            convergence_checker,
+        )
+        x = copy(x_init)
+        j_prototype = similar(x, n, n)
+        cache = CTS.allocate_cache(alg, x, j_prototype)
+        CTS.solve_newton!(alg, cache, x, f!, j!)
+        @test norm(x .- x_exact) / norm(x_exact) < rtol
+        # The custom preconditioner (not `j`) was applied by the Krylov solve.
+        @test pc.n_applications[] > 0
+    end
+
+    # When `disable_preconditioner` is `true`, the custom preconditioner must be
+    # ignored (`M = I`), so it is never applied.
+    let n = 5
+        f!, j!, x_exact, x_init = linear_equation(FT, n)
+        rtol = 100 * eps(FT)
+        A = similar(x_init, n, n)
+        j!(A, x_init)
+        pc = RecordingPreconditioner(A)
+        alg = NewtonsMethod(;
+            max_iters = 1,
+            krylov_method = KrylovMethod(;
+                forcing_term = ConstantForcing(rtol),
+                preconditioner = pc,
+                disable_preconditioner = true,
+                kwargs = (; memory = n),
+            ),
+            convergence_checker = ConvergenceChecker(;
+                norm_condition = MaximumRelativeError(rtol),
+            ),
+        )
+        x = copy(x_init)
+        j_prototype = similar(x, n, n)
+        cache = CTS.allocate_cache(alg, x, j_prototype)
+        CTS.solve_newton!(alg, cache, x, f!, j!)
+        @test norm(x .- x_exact) / norm(x_exact) < rtol
+        @test pc.n_applications[] == 0
     end
 end
 

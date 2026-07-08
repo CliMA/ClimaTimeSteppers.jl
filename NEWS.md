@@ -4,6 +4,16 @@ ClimaTimeSteppers.jl Release Notes
 main
 -------
 
+v0.10.4
+-------
+- ![][badge-✨feature/enhancement] Added optional `T_post_imp!(du, u, p, t)` field on
+  `ClimaODEFunction`. When set, it is evaluated on the Newton-solved stage state `U*`
+  (with `cache_imp!` refreshed on `U*` first) and applied as `U ← U* + dtγ · du`.
+  Its contribution is folded into `T_imp[i]` for downstream stage assembly, preserving
+  the ARK scheme structure. Useful for corrections whose dependence on the current state
+  is too nonlinear/discontinuous to include in the Newton solve itself
+  (e.g. upwind corrections where the sign of a velocity may flip during the step).
+
 v0.10.1
 -------
 

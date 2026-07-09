@@ -226,6 +226,17 @@ Shared by the IMEX-ARK and IMEX-SSPRK stage loops.
         T_imp!, newtons_method, newtons_method_cache, cache_imp!,
     )
 
+    # Post-Newton correction (optional): evaluate `T_post_imp!` on the
+    # Newton-solved `U` and apply `U ← U + dtγ · dY_post`. The correction
+    # is folded into `T_imp[i]` by the downstream `(U − temp) / dtγ`
+    # computation, and inherits the same `b_imp` weighting, so the ARK
+    # scheme structure is preserved. Use `cache.T_imp[i]` as scratch.
+    if has_T_post_imp(f)
+        cache_imp!(U, p, t_imp)
+        f.T_post_imp!(cache.T_imp[i], U, p, t_imp)
+        @. U += dtγ * cache.T_imp[i]
+    end
+
     # Post-Newton: DSS the solved stage value. Fire `EndOfStageSignal` for
     # `cache!` / `constrain_state!`, EXCEPT at the last stage of an FSAL
     # tableau (where `u ≡ U_s` and end-of-step handles it). When `cache!`

@@ -44,6 +44,10 @@ end
     include("unit/initialize_imp.jl")
 end
 
+@safetestset "T_post_imp!" begin
+    include("unit/post_imp.jl")
+end
+
 @safetestset "Edge cases" begin
     include("unit/edge_cases.jl")
 end

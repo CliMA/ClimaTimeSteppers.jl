@@ -164,6 +164,7 @@ function init_inner(prob, outercache::StepExchangeOuterCache, dt)
         cache_imp! = fast_fn.cache_imp!,
         lim! = fast_fn.lim!,
         dss! = fast_fn.dss!,
+        constrain_state! = fast_fn.constrain_state!,
         initialize_imp! = fast_fn.initialize_imp!,
     )
 end

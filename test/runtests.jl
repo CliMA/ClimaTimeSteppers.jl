@@ -64,6 +64,10 @@ end
     include("unit/cache_sizes.jl")
 end
 
+@safetestset "ITime sub-step" begin
+    include("unit/itime_substep.jl")
+end
+
 # ============================================================================ #
 # Solver correctness tests (Newton's method)
 # ============================================================================ #

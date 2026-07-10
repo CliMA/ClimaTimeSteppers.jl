@@ -28,8 +28,15 @@ exact_solution(t) = exp(A_total .* t) * Y0
 # Build a step-exchange `Multirate` integrator over the linear problem.
 # `route_lim` routes the frozen slow forcing through the limited output `G_lim`
 # (and the inner `lim!` path) instead of the unlimited output `G`; the counters
-# record how often the slow forcing freeze and the limiter fire.
-function step_exchange_integrator(outer; route_lim = false, dt, fast_dt, n_steps)
+# record how often the slow-forcing freeze and the limiter are called.
+function step_exchange_integrator(
+    outer;
+    route_lim = false,
+    constrain_state! = Returns(nothing),
+    dt,
+    fast_dt,
+    n_steps,
+)
     freeze_count = Ref(0)
     lim_count = Ref(0)
     scratch = zeros(2)
@@ -56,6 +63,7 @@ function step_exchange_integrator(outer; route_lim = false, dt, fast_dt, n_steps
         cache_imp! = Returns(nothing),
         lim!,
         dss! = Returns(nothing),
+        constrain_state!,
         initialize_imp! = Returns(nothing),
     )
     freeze! = function (G, G_lim, u, p, t)
@@ -135,12 +143,64 @@ end
         args = (; dt = 0.025, fast_dt = 0.025 / 4, n_steps = 20)
         base = run_step_exchange(LieSplitOuter(); route_lim = false, args...)
         limited = run_step_exchange(LieSplitOuter(); route_lim = true, args...)
-        # The limiter fires in the inner sub-cycle for both routings.
         @test limited.lim_count > 0
-        # Routing the frozen forcing through the limited output reproduces the
-        # unlimited routing (the loose limiter never clips these states) and
-        # converges to the exact solution.
+        # Limited routing reproduces the unlimited routing.
         @test limited.u ≈ base.u rtol = 1.0e-10
-        @test norm(limited.u .- exact_solution(0.5)) < 5.0e-3
+        @test norm(limited.u .- exact_solution(args.dt * args.n_steps)) < 5.0e-3
+    end
+
+    @testset "complement sequencing" begin
+        dt = 0.1
+        fast_dt = dt / 4
+        n_steps = 3
+        shift = [0.05, -0.02]
+
+        lie_calls = Tuple{Float64, Float64}[]
+        lie_complement = function (u, p, t, dt)
+            push!(lie_calls, (t, dt))
+            @. u += shift * dt
+            return nothing
+        end
+        lie = run_step_exchange(LieSplitOuter(lie_complement); dt, fast_dt, n_steps)
+        lie_ref = run_step_exchange(LieSplitOuter(); dt, fast_dt, n_steps)
+        # Lie applies the complement once per step over the full step.
+        @test length(lie_calls) == n_steps
+        @test all(c -> c[2] == dt, lie_calls)
+        @test lie_calls[1][1] == 0.0
+        @test lie.u != lie_ref.u
+
+        trap_calls = Tuple{Float64, Float64}[]
+        trap_complement = function (u, p, t, dt)
+            push!(trap_calls, (t, dt))
+            @. u += shift * dt
+            return nothing
+        end
+        trap =
+            run_step_exchange(TrapezoidalSplitOuter(trap_complement); dt, fast_dt, n_steps)
+        trap_ref = run_step_exchange(TrapezoidalSplitOuter(); dt, fast_dt, n_steps)
+        # Trapezoidal brackets each step with two half-step complement calls.
+        @test length(trap_calls) == 2 * n_steps
+        @test all(c -> c[2] == dt / 2, trap_calls)
+        @test trap_calls[1][1] == 0.0
+        @test trap_calls[2][1] == dt / 2
+        @test trap.u != trap_ref.u
+    end
+
+    @testset "constrain_state! threading" begin
+        constrain_count = Ref(0)
+        constrain! = function (u, p, t)
+            constrain_count[] += 1
+            u[2] = 0.0
+            return nothing
+        end
+        res = run_step_exchange(
+            LieSplitOuter();
+            constrain_state! = constrain!,
+            dt = 0.1,
+            fast_dt = 0.1 / 4,
+            n_steps = 5,
+        )
+        @test constrain_count[] > 0
+        @test res.u[2] == 0.0
     end
 end

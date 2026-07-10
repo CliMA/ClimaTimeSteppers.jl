@@ -70,22 +70,6 @@ function (o::DualOffsetODEFunction)(du_exp, du_lim, u, p, t)
 end
 
 """
-    sub_timestep(dt, n_sub)
-
-Compute the sub-step size `dt / n_sub`. The default method divides plain
-numbers; a time type such as `ITime` may extend this with an exact division.
-"""
-sub_timestep(dt, n_sub) = dt / n_sub
-
-"""
-    refine_time(t)
-
-Express a time in the inner integrator's units. Identity by default; a time type
-such as `ITime` may extend this with a method that refines to its own period.
-"""
-refine_time(t) = t
-
-"""
     StepExchangeOuterCache{O, FR, FF, B, B2, DT}
 
 Workspace for a step-exchange [`Multirate`](@ref) method.
@@ -180,9 +164,9 @@ forcing. A tstop at `t + dt` aligns the final sub-step with the step end.
 """
 function subcycle!(inner, cache_imp!, u_start, p, t, dt, fast_dt)
     cache_imp!(u_start, p, t)
-    t_end = refine_time(t + dt)
+    t_end = t + dt
     inner.u .= u_start
-    inner.t = refine_time(t)
+    inner.t = t
     set_dt!(inner, fast_dt)
     empty!(inner.tstops)
     add_tstop!(inner, t_end)
@@ -216,7 +200,7 @@ function step_split_outer!(int, cache, outer::TrapezoidalSplitOuter)
     (; u, p, t, dt) = int
     cache_imp! = fast_fn.cache_imp!
     complement = outer.complement
-    half = sub_timestep(dt, 2)
+    half = dt / 2
 
     isnothing(complement) || complement(u, p, t, half)
     U0 .= u

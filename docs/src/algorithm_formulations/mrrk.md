@@ -125,6 +125,9 @@ Two outer methods are provided, distinguished by the operator-splitting order:
 The fast component `f1` of the `SplitODEProblem` is a full `ClimaODEFunction`, so the inner sub-cycle can be implicit-explicit: a vertically-implicit acoustic solve with its own Jacobian, Newton iteration, and limiter.
 The frozen forcing is a pair `(G, G_lim)`: the unlimited part is added to the inner explicit tendency and the limited part flows through the inner limiter, matching the split of the inner function.
 
+The step is sub-divided by integer division of `dt`: the fast sub-step size and, for `TrapezoidalSplitOuter`, the half-step `dt / 2`.
+For a floating-point `dt` this is ordinary division; for an `ITime` `dt` it uses the exact integer division provided by ClimaUtilities (v0.1.30 or newer), which refines the period when needed and errors when the step cannot be divided exactly.
+
 Each step-exchange outer method has an optional *outer implicit complement*, a callable `(u, p, t, dt) -> nothing` advancing `u` in place.
 It models an inner/outer implicit split where the inner integrator solves a restricted implicit operator and the complement solves the remainder as an outer implicit sub-step.
 `LieSplitOuter` calls it once over $\Delta t$; `TrapezoidalSplitOuter` brackets the sub-cycle with two half-step calls (Strang splitting).

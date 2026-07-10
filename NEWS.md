@@ -9,8 +9,9 @@ main
   `Multirate` alongside the stage-exchange methods. The fast component of the
   `SplitODEProblem` may be a full `ClimaODEFunction` (an implicit-explicit inner
   sub-cycle) with a dual `(explicit, limited)` frozen forcing and an optional
-  outer implicit complement. The `ITime` sub-step helpers are provided by a new
-  ClimaUtilities weakdep extension.
+  outer implicit complement. Sub-stepping divides `dt` by the sub-step count; for
+  an `ITime` `dt` this relies on the exact integer division provided by
+  ClimaUtilities (v0.1.30 or newer).
   PR [#442](https://github.com/CliMA/ClimaTimeSteppers.jl/pull/442).
 
 v0.10.1

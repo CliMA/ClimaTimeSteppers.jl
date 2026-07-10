@@ -1,15 +1,8 @@
 export LieSplitOuter, TrapezoidalSplitOuter
 
 #####
-##### Step-exchange multirate outer methods.
-#####
-##### The slow tendency is evaluated only at whole-step states (once for
-##### `LieSplitOuter`, twice for `TrapezoidalSplitOuter`); the fast system
-##### integrates the full step per pass with the slow forcing frozen. This is
-##### the split-explicit composition used by atmospheric dynamical cores, in
-##### contrast to the stage-exchange family ([`MultirateInfinitesimalStep`](@ref),
-##### [`WickerSkamarockRungeKutta`](@ref)), which re-evaluates the slow tendency
-##### at every outer stage.
+##### Step-exchange multirate outer methods. See
+##### docs/src/algorithm_formulations/mrrk.md ("Step-exchange (split-explicit) methods").
 #####
 
 """
@@ -79,21 +72,21 @@ end
 """
     sub_timestep(dt, n_sub)
 
-Sub-step size `dt / n_sub`. The identity fallback divides plain numbers; a
-refined time type (e.g. `ITime`) may add an exact-division method.
+Compute the sub-step size `dt / n_sub`. The default method divides plain
+numbers; a time type such as `ITime` may extend this with an exact division.
 """
 sub_timestep(dt, n_sub) = dt / n_sub
 
 """
-    refine_ns(t)
+    refine_time(t)
 
-Express a time in the inner integrator's units. Identity by default; a refined
-time type (e.g. `ITime`) may add a method.
+Express a time in the inner integrator's units. Identity by default; a time type
+such as `ITime` may extend this with a method that refines to its own period.
 """
-refine_ns(t) = t
+refine_time(t) = t
 
 """
-    StepExchangeOuterCache{O, FR, FF, B, DT}
+    StepExchangeOuterCache{O, FR, FF, B, B2, DT}
 
 Workspace for a step-exchange [`Multirate`](@ref) method.
 
@@ -105,26 +98,35 @@ Workspace for a step-exchange [`Multirate`](@ref) method.
 - `fast_fn`: the fast `ClimaODEFunction`, whose `cache!` refreshes the full
   cache once per outer step and whose `cache_imp!` refreshes the sub-cycle cache.
 - `G`, `G_lim`: frozen forcing pair, aliased into the inner sub-cycle's forcing.
-- `G2`, `G2_lim`: second-pass forcing pair for `TrapezoidalSplitOuter`.
-- `U0`: outer-step-start state.
+- `G2`, `G2_lim`: second-pass forcing pair for `TrapezoidalSplitOuter`; `nothing`
+  for `LieSplitOuter`.
+- `U0`: outer-step-start state for `TrapezoidalSplitOuter`; `nothing` for
+  `LieSplitOuter`.
 - `fast_dt`: inner sub-step size.
 """
-struct StepExchangeOuterCache{O <: StepExchangeOuter, FR, FF, B, DT}
+struct StepExchangeOuterCache{O <: StepExchangeOuter, FR, FF, B, B2, DT}
     outer::O
     freeze!::FR
     fast_fn::FF
     G::B
     G_lim::B
-    G2::B
-    G2_lim::B
-    U0::B
+    G2::B2
+    G2_lim::B2
+    U0::B2
     fast_dt::DT
 end
 
-# Step-exchange family: `prob.f.f1` is the fast `ClimaODEFunction` (IMEX inner)
-# and `prob.f.f2` is the forcing-freeze operation. The outer cache stores the
-# frozen forcing workspace and the outer method; the inner integrator sub-cycles
-# the fast function wrapped in a `DualOffsetODEFunction`.
+"""
+    second_pass_buffers(outer, u0)
+
+Allocate the second-pass forcing pair and step-start state used by the
+`TrapezoidalSplitOuter` step path, returning `nothing` for `LieSplitOuter`,
+which does not use them.
+"""
+second_pass_buffers(::LieSplitOuter, u0) = (nothing, nothing, nothing)
+second_pass_buffers(::TrapezoidalSplitOuter, u0) =
+    (zero(u0), zero(u0), zero(u0))
+
 function init_cache(
     prob::ODEProblem,
     alg::Multirate{F, <:StepExchangeOuter};
@@ -134,24 +136,25 @@ function init_cache(
 ) where {F}
     @assert prob.f isa SplitFunction
     u0 = prob.u0
+    G2, G2_lim, U0 = second_pass_buffers(alg.slow, u0)
     outercache = StepExchangeOuterCache(
         alg.slow,
         prob.f.f2,
         prob.f.f1,
         zero(u0),
         zero(u0),
-        zero(u0),
-        zero(u0),
-        zero(u0),
+        G2,
+        G2_lim,
+        U0,
         fast_dt,
     )
-    innerfun = init_inner(prob, outercache, dt)
+    innerfun = init_inner(prob, outercache)
     innerprob = cts_remake(prob; f = innerfun)
     innerinteg = init(innerprob, alg.fast; dt = fast_dt, save = false, kwargs...)
     return MultirateCache(outercache, innerinteg)
 end
 
-function init_inner(prob, outercache::StepExchangeOuterCache, dt)
+function init_inner(prob, outercache::StepExchangeOuterCache)
     fast_fn = outercache.fast_fn
     return ClimaODEFunction(;
         T_exp_T_lim! = DualOffsetODEFunction(
@@ -169,14 +172,17 @@ function init_inner(prob, outercache::StepExchangeOuterCache, dt)
     )
 end
 
-# Sub-cycle the inner problem from `u_start` over `[t, t + dt]` with the
-# currently-set frozen forcing. The tstop at `t + dt` lands the final sub-step
-# exactly on the step end.
+"""
+    subcycle!(inner, cache_imp!, u_start, p, t, dt, fast_dt)
+
+Sub-cycle the inner integrator from `u_start` over `[t, t + dt]` with the frozen
+forcing. A tstop at `t + dt` aligns the final sub-step with the step end.
+"""
 function subcycle!(inner, cache_imp!, u_start, p, t, dt, fast_dt)
     cache_imp!(u_start, p, t)
-    t_end = refine_ns(t + dt)
+    t_end = refine_time(t + dt)
     inner.u .= u_start
-    inner.t = refine_ns(t)
+    inner.t = refine_time(t)
     set_dt!(inner, fast_dt)
     empty!(inner.tstops)
     add_tstop!(inner, t_end)

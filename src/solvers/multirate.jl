@@ -8,15 +8,27 @@ A multirate Runge-Kutta scheme that pairs a slow (outer) algorithm with a
 fast (inner) algorithm. The problem must be a [`SplitODEProblem`](@ref) where
 `f1` is the fast tendency and `f2` is the slow tendency.
 
+The outer method's family sets the fast/slow exchange granularity. The
+stage-exchange family evaluates the slow tendency at every outer stage; the
+step-exchange family evaluates it only at whole-step states and freezes it while
+the fast system integrates the full step.
+
 # Arguments
 - `fast`: inner algorithm (e.g. `LSRK54CarpenterKennedy()`)
-- `slow`: outer algorithm — must be one of:
-  - [`LowStorageRungeKutta2N`](@ref)
-  - [`MultirateInfinitesimalStep`](@ref)
-  - [`WickerSkamarockRungeKutta`](@ref)
+- `slow`: outer algorithm, one of:
+  - [`LowStorageRungeKutta2N`](@ref) (stage-exchange)
+  - [`MultirateInfinitesimalStep`](@ref) (stage-exchange)
+  - [`WickerSkamarockRungeKutta`](@ref) (stage-exchange)
+  - [`LieSplitOuter`](@ref) (step-exchange)
+  - [`TrapezoidalSplitOuter`](@ref) (step-exchange)
 
 Pass `fast_dt` as a keyword argument to [`init`](@ref) or [`solve`](@ref)
 to set the inner timestep.
+
+For the step-exchange family, `f1` is a full `ClimaODEFunction` (an
+implicit-explicit inner sub-cycle), `f2` is the forcing-freeze operation
+`freeze!(G, G_lim, u, p, t)`, and the application derives `n_sub` and passes
+`fast_dt = dt / n_sub`.
 
 # Example
 ```julia

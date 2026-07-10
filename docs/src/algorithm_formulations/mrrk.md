@@ -105,3 +105,54 @@ This is a special case of MIS with $\alpha = \gamma = 0$ and a strictly lower-tr
 |:---|:---|:---|:---|
 | `WSRK2` | 2 | 2 | [WS1998](@cite), $c = (0, 1/2)$ |
 | `WSRK3` | 3 | 2 (3 for linear problems) | [WS2002](@cite), $c = (0, 1/3, 1/2)$ |
+
+## Step-exchange (split-explicit) methods
+
+The methods above are *stage-exchange*: they re-evaluate the slow tendency $f_S$
+at every outer stage. The *step-exchange* family instead evaluates $f_S$ only at
+whole-step states and keeps it fixed while the fast system integrates the full
+step. This is the split-explicit composition used by atmospheric dynamical
+cores, where the slow tendency is the expensive physics and the fast tendency is
+the acoustic or gravity-wave subsystem.
+
+Two outer methods are provided, distinguished by the operator-splitting order:
+
+| Algorithm | Slow evaluations per step | Order |
+|:---|:---|:---|
+| `LieSplitOuter` | 1 | 1 |
+| `TrapezoidalSplitOuter` | 2 | 2 |
+
+`LieSplitOuter` freezes $f_S$ at the step start and sub-cycles the fast system
+once over $\Delta t$. `TrapezoidalSplitOuter` freezes $f_S$ at the step start,
+sub-cycles to a predicted end state, re-evaluates $f_S$ there, averages the two,
+and sub-cycles again with the averaged forcing.
+
+The fast slot `f1` of the `SplitODEProblem` is a full `ClimaODEFunction`, so the
+inner sub-cycle can be implicit-explicit: a vertically-implicit acoustic solve
+with its own Jacobian, Newton iteration, and limiter. The frozen forcing is a
+pair `(G, G_lim)`: the unlimited part is added to the inner explicit tendency
+and the limited part flows through the inner limiter, matching the split of the
+inner function.
+
+Each step-exchange outer method has an optional *outer implicit complement*,
+a callable `(u, p, t, dt) -> nothing` advancing `u` in place. It models an
+inner/outer implicit split where the inner integrator solves a restricted
+implicit operator and the complement solves the remainder as an outer implicit
+sub-step. `LieSplitOuter` calls it once over $\Delta t$; `TrapezoidalSplitOuter`
+brackets the sub-cycle with two half-step calls (Strang splitting). The
+application provides the complement; the outer method only sequences it.
+
+### Choosing a family
+
+Use a stage-exchange method when fast and slow accuracy are coupled and the slow
+tendency is affordable at every stage. Use a step-exchange method when the slow
+tendency is expensive and its evaluation should be amortized across a whole step
+of fast sub-cycling.
+
+### Relation to the literature
+
+The stage-exchange family is the multirate-infinitesimal-step formulation. A
+tableau-based implicit-explicit multirate also exists (IMEX-MRI-GARK,
+[Chinomona and Reynolds 2021](https://doi.org/10.1137/20M1354349)) and is out of
+scope here. The step-exchange family is the split-explicit composition used by
+atmospheric cores.

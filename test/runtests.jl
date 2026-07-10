@@ -126,6 +126,7 @@ end
     include("solvers/explicit_rk.jl")
     include("solvers/lsrk.jl")
     include("solvers/multirate.jl")
+    include("solvers/multirate_step_exchange.jl")
     include("solvers/rosenbrock.jl")
     include("solvers/imex_ark.jl")
 end

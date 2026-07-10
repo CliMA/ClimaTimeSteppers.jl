@@ -4,6 +4,14 @@ ClimaTimeSteppers.jl Release Notes
 main
 -------
 
+- ![][badge-✨feature/enhancement] Added a step-exchange multirate outer family,
+  `LieSplitOuter` and `TrapezoidalSplitOuter`, usable as the `slow` argument to
+  `Multirate` alongside the stage-exchange methods. The fast slot may be a full
+  `ClimaODEFunction` (an implicit-explicit inner sub-cycle) with a dual
+  `(explicit, limited)` frozen forcing and an optional outer implicit complement.
+  The `ITime` sub-step helpers are provided by a new ClimaUtilities weakdep
+  extension.
+
 v0.10.1
 -------
 

@@ -4,6 +4,14 @@ ClimaTimeSteppers.jl Release Notes
 main
 -------
 
+v0.10.5
+-------
+- ![][badge-🐛bugfix] `RosenbrockAlgorithm` now falls back to `cache_imp!` at intermediate
+  stages when `update_cache` does not fire `cache!` (e.g. `UpdateEvery(EndOfStep)`).
+  Previously, `T_imp!` / `T_exp_T_lim!` at stages ≥ 2 could be evaluated against a
+  stale `p.precomputed`, producing an incorrect linear-solve RHS. Mirrors the ARK /
+  SSPRK post-Newton fallback in `solve_stage_implicit!`.
+
 v0.10.4
 -------
 - ![][badge-✨feature/enhancement] Added optional `T_post_imp!(du, u, p, t)` field on

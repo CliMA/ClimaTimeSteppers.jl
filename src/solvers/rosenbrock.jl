@@ -160,7 +160,7 @@ function step_u!(int, cache::RosenbrockCache{Nstages}) where {Nstages}
     T_exp_T_lim! = f.T_exp_T_lim!
     tgrad! = !has_T_imp(f) ? nothing : T_imp!.tgrad
 
-    (; cache!, dss!, constrain_state!) = f
+    (; cache!, cache_imp!, dss!, constrain_state!) = f
     (; update_cache, update_constrain_state) = f
 
     # TODO: This is only valid when Γ[i, i] is constant, otherwise we have to
@@ -206,12 +206,20 @@ function step_u!(int, cache::RosenbrockCache{Nstages}) where {Nstages}
         # operations ensures that the state is always continuous and
         # consistent with the cache, including between timesteps.
         # State is ready for tendency evaluation right after assembly + DSS;
-        # fire `EndOfStageSignal` (subtype of `WithDSS`).
+        # fire `EndOfStageSignal` (subtype of `WithDSS`). When `cache!` is
+        # skipped by policy (e.g. `UpdateEvery(EndOfStep)`), fall back to
+        # `cache_imp!` so the implicit-relevant cache tracks the stage
+        # state used by `T_imp!` and the linear solve — mirrors the ARK
+        # / SSPRK post-Newton fallback in `solve_stage_implicit!`.
         if i != 1
             dss!(U, p, t + αi * dt)
             needs_update!(update_constrain_state, EndOfStageSignal()) &&
                 constrain_state!(U, p, t + αi * dt)
-            needs_update!(update_cache, EndOfStageSignal()) && cache!(U, p, t + αi * dt)
+            if needs_update!(update_cache, EndOfStageSignal())
+                cache!(U, p, t + αi * dt)
+            else
+                cache_imp!(U, p, t + αi * dt)
+            end
         end
 
         if has_T_imp(f)

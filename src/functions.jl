@@ -27,6 +27,25 @@ unnecessary allocations.
 - `T_lim!(du, u, p, t)`: explicit tendency passed through the limiter.
 - `T_exp_T_lim!(du_exp, du_lim, u, p, t)`: fused alternative to separate `T_exp!`/`T_lim!`.
 - `T_imp!`: implicit tendency — typically an [`ClimaTimeSteppers.ODEFunction`](@ref) carrying Jacobian info.
+- `T_post_imp!(du, u, p, t)`: extra tendency evaluated at the Newton-solved stage
+    state `U*` and applied as `U ← U* + dtγ · du`. This is *Lie-Trotter
+    operator splitting* that approximates the fully-implicit stage equation
+    `U = U_start + dtγ · (T_imp(U) + T_post_imp(U))` when including
+    `T_post_imp` in the Newton residual and/or the Jacobian is inconvenient,
+    expensive, or numerically fragile (e.g., upwind corrections where the sign
+    of a velocity may flip during the Newton step). Instead, we solve
+    `U' = U_start + dtγ · T_imp(U')` with Newton and correct
+    `U ← U' + dtγ · T_post_imp(U')`. The splitting error at the stage is
+    `−dtγ² · (J_imp + J_post) · T_post_imp(U*)`, i.e.
+    `O(dtγ² · ‖T_post_imp‖ · ‖J‖)`; because the coefficient scales with
+    `‖T_post_imp‖` rather than the whole `‖T_imp + T_post_imp‖`, it is smaller
+    than what a quasi-Newton solve with the same partial Jacobian would give at
+    `max_iters = 1`. The splitting error does not vanish with additional
+    Newton iterations, so including this option is best reserved for
+    `T_post_imp` terms whose magnitude is genuinely small (grid-scale flux
+    corrections, weak nonlinear closures). The correction is folded into
+    `T_imp[i]` for downstream stage assembly, but does NOT participate in the
+    linear solve.
 
 **Auxiliary functions** (default to no-ops):
 - `lim!(u, p, t, u_ref)`: limiter applied after incrementing `u` from `u_ref` by `T_lim!`.
@@ -52,6 +71,7 @@ Use `UpdateEveryN(n, ...)` to skip every N-th call; see [`UpdateSignalHandler`](
 # Fields
 - `T_exp_T_lim!`: fused explicit tendency function (built from `T_exp!`/`T_lim!` at construction).
 - `T_imp!`: implicit tendency function (or `nothing`).
+- `T_post_imp!`: post-Newton correction tendency function (or `nothing`).
 - `lim!`: monotonicity limiter.
 - `dss!`: direct stiffness summation operator.
 - `constrain_state!`: physical-constraint enforcer.
@@ -64,6 +84,7 @@ Use `UpdateEveryN(n, ...)` to skip every N-th call; see [`UpdateSignalHandler`](
 - `HasExp` (type parameter): `true` when there is an explicit tendency.
 - `HasExpLim` (type parameter): `true` when there is a fused explicit/limiter tendency.
 - `HasImp` (type parameter): `true` when there is an implicit tendency.
+- `HasPostImp` (type parameter): `true` when there is a post-Newton correction tendency.
 
 Internally, `T_exp!` and `T_lim!` are merged into a single `T_exp_T_lim!`
 at construction time.
@@ -84,6 +105,7 @@ f = ClimaODEFunction(; T_exp!, T_imp! = T_imp)
 struct ClimaODEFunction{
     TEL,
     TI,
+    TPI,
     L,
     D,
     CS,
@@ -96,10 +118,12 @@ struct ClimaODEFunction{
     HasExp,
     HasExpLim,
     HasImp,
+    HasPostImp,
 } <:
        AbstractClimaODEFunction
     T_exp_T_lim!::TEL
     T_imp!::TI
+    T_post_imp!::TPI
     lim!::L
     dss!::D
     constrain_state!::CS
@@ -113,6 +137,7 @@ struct ClimaODEFunction{
         T_lim! = nothing,
         T_exp! = nothing,
         T_imp! = nothing,
+        T_post_imp! = nothing,
         lim! = Returns(nothing),
         dss! = Returns(nothing),
         constrain_state! = Returns(nothing),
@@ -153,9 +178,11 @@ struct ClimaODEFunction{
         end
         _has_exp_lim = !isnothing(T_exp_T_lim!)
         _has_imp = !isnothing(T_imp!)
+        _has_post_imp = !isnothing(T_post_imp!)
         args = (
             T_exp_T_lim!,
             T_imp!,
+            T_post_imp!,
             lim!,
             dss!,
             constrain_state!,
@@ -165,7 +192,11 @@ struct ClimaODEFunction{
             update_cache,
             update_constrain_state,
         )
-        return new{typeof.(args)..., _has_lim, _has_exp, _has_exp_lim, _has_imp}(args...)
+        return new{
+            typeof.(args)..., _has_lim, _has_exp, _has_exp_lim, _has_imp, _has_post_imp,
+        }(
+            args...,
+        )
     end
 end
 
@@ -173,7 +204,8 @@ end
 has_T_exp(f) = !isnothing(f.T_exp_T_lim!)
 has_T_exp(
     ::ClimaODEFunction{
-        <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, HasExp,
+        <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any,
+        HasExp,
     },
 ) where {HasExp} = HasExp
 
@@ -181,7 +213,7 @@ has_T_exp(
 has_T_lim(f) = false
 has_T_lim(
     ::ClimaODEFunction{
-        <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, HasLim,
+        <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, HasLim,
     },
 ) where {HasLim} = HasLim
 
@@ -190,7 +222,7 @@ has_T_exp_T_lim(f) = !isnothing(f.T_exp_T_lim!)
 has_T_exp_T_lim(
     ::ClimaODEFunction{
         <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any,
-        HasExpLim,
+        <:Any, HasExpLim,
     },
 ) where {HasExpLim} = HasExpLim
 
@@ -199,9 +231,18 @@ has_T_imp(f) = !isnothing(f.T_imp!)
 has_T_imp(
     ::ClimaODEFunction{
         <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any,
-        <:Any, HasImp,
+        <:Any, <:Any, HasImp,
     },
 ) where {HasImp} = HasImp
+
+"""Return `true` when the ODE function has a post-Newton correction tendency."""
+has_T_post_imp(f) = !isnothing(f.T_post_imp!)
+has_T_post_imp(
+    ::ClimaODEFunction{
+        <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any, <:Any,
+        <:Any, <:Any, <:Any, HasPostImp,
+    },
+) where {HasPostImp} = HasPostImp
 
 """
     initialize_function!(f, u0, p, t0)

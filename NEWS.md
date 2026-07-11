@@ -14,6 +14,24 @@ main
   ClimaUtilities (v0.1.30 or newer).
   PR [#442](https://github.com/CliMA/ClimaTimeSteppers.jl/pull/442).
 
+v0.10.5
+-------
+- ![][badge-🐛bugfix] `RosenbrockAlgorithm` now falls back to `cache_imp!` at intermediate
+  stages when `update_cache` does not fire `cache!` (e.g. `UpdateEvery(EndOfStep)`).
+  Previously, `T_imp!` / `T_exp_T_lim!` at stages ≥ 2 could be evaluated against a
+  stale `p.precomputed`, producing an incorrect linear-solve RHS. Mirrors the ARK /
+  SSPRK post-Newton fallback in `solve_stage_implicit!`.
+
+v0.10.4
+-------
+- ![][badge-✨feature/enhancement] Added optional `T_post_imp!(du, u, p, t)` field on
+  `ClimaODEFunction`. When set, it is evaluated on the Newton-solved stage state `U*`
+  (with `cache_imp!` refreshed on `U*` first) and applied as `U ← U* + dtγ · du`.
+  Its contribution is folded into `T_imp[i]` for downstream stage assembly, preserving
+  the ARK scheme structure. Useful for corrections whose dependence on the current state
+  is too nonlinear/discontinuous to include in the Newton solve itself
+  (e.g. upwind corrections where the sign of a velocity may flip during the step).
+
 v0.10.1
 -------
 

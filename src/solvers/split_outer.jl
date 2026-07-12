@@ -151,6 +151,7 @@ function init_inner(prob, outercache::StepExchangeOuterCache)
             outercache.G_lim,
         ),
         T_imp! = fast_fn.T_imp!,
+        T_post_imp! = fast_fn.T_post_imp!,
         cache! = fast_fn.cache_imp!,
         cache_imp! = fast_fn.cache_imp!,
         lim! = fast_fn.lim!,

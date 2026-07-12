@@ -187,20 +187,24 @@ end
     end
 
     @testset "constrain_state! threading" begin
-        constrain_count = Ref(0)
-        constrain! = function (u, p, t)
-            constrain_count[] += 1
-            u[2] = 0.0
-            return nothing
+        for outer in (LieSplitOuter(), TrapezoidalSplitOuter())
+            constrain_count = Ref(0)
+            constrain! = function (u, p, t)
+                constrain_count[] += 1
+                u[2] = 0.0
+                return nothing
+            end
+            n_steps = 5
+            res = run_step_exchange(
+                outer;
+                constrain_state! = constrain!,
+                dt = 0.1,
+                fast_dt = 0.1 / 4,
+                n_steps,
+            )
+            # Applied once per outer step, to the combined end-of-step state.
+            @test constrain_count[] == n_steps
+            @test res.u[2] == 0.0
         end
-        res = run_step_exchange(
-            LieSplitOuter();
-            constrain_state! = constrain!,
-            dt = 0.1,
-            fast_dt = 0.1 / 4,
-            n_steps = 5,
-        )
-        @test constrain_count[] > 0
-        @test res.u[2] == 0.0
     end
 end

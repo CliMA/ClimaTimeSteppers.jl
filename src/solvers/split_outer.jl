@@ -81,6 +81,8 @@ Workspace for a step-exchange [`Multirate`](@ref) method.
   state `U`.
 - `fast_fn`: the fast `ClimaODEFunction`, whose `cache!` refreshes the full
   cache once per outer step and whose `cache_imp!` refreshes the sub-cycle cache.
+  Its `constrain_state!` is applied once per outer step, to the combined
+  end-of-step state, under its `update_constrain_state` handler.
 - `G`, `G_lim`: frozen forcing pair, aliased into the inner sub-cycle's forcing.
 - `G2`, `G2_lim`: second-pass forcing pair for `TrapezoidalSplitOuter`; `nothing`
   for `LieSplitOuter`.
@@ -151,7 +153,8 @@ function init_inner(prob, outercache::StepExchangeOuterCache)
         cache_imp! = fast_fn.cache_imp!,
         lim! = fast_fn.lim!,
         dss! = fast_fn.dss!,
-        constrain_state! = fast_fn.constrain_state!,
+        # `constrain_state!` is applied by `step_split_outer!` once per outer
+        # step, not per sub-step; the inner default is a no-op.
         initialize_imp! = fast_fn.initialize_imp!,
     )
 end
@@ -190,6 +193,8 @@ function step_split_outer!(int, cache, outer::LieSplitOuter)
     freeze!(G, G_lim, u, p, t)
     subcycle!(innerinteg, fast_fn.cache_imp!, u, p, t, dt, fast_dt)
     u .= innerinteg.u
+    needs_update!(fast_fn.update_constrain_state, EndOfStepSignal()) &&
+        fast_fn.constrain_state!(u, p, t + dt)
     fast_fn.cache!(u, p, t + dt)
     return u
 end
@@ -212,6 +217,8 @@ function step_split_outer!(int, cache, outer::TrapezoidalSplitOuter)
     subcycle!(innerinteg, cache_imp!, U0, p, t, dt, fast_dt)
     u .= innerinteg.u
     isnothing(complement) || complement(u, p, t + half, half)
+    needs_update!(fast_fn.update_constrain_state, EndOfStepSignal()) &&
+        fast_fn.constrain_state!(u, p, t + dt)
     fast_fn.cache!(u, p, t + dt)
     return u
 end

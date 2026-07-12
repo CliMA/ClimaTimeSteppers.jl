@@ -80,7 +80,9 @@ Workspace for a step-exchange [`Multirate`](@ref) method.
 - `freeze!`: `freeze!(G, G_lim, U, p, t)` fills the frozen forcing pair at
   state `U`.
 - `fast_fn`: the fast `ClimaODEFunction`, whose `cache!` refreshes the full
-  cache once per outer step and whose `cache_imp!` refreshes the sub-cycle cache.
+  cache at whole-step states (the step end and, for `TrapezoidalSplitOuter`,
+  the second-pass restart and the state passed to the second complement call)
+  and whose `cache_imp!` refreshes the sub-cycle cache.
   Its `constrain_state!` is applied once per outer step, to the combined
   end-of-step state, under its `update_constrain_state` handler.
 - `G`, `G_lim`: frozen forcing pair, aliased into the inner sub-cycle's forcing.
@@ -214,9 +216,17 @@ function step_split_outer!(int, cache, outer::TrapezoidalSplitOuter)
     freeze!(G2, G2_lim, innerinteg.u, p, t + dt)
     @. G = (G + G2) / 2
     @. G_lim = (G_lim + G2_lim) / 2
+    # The second-pass freeze evaluates the predicted end state; refresh the
+    # full cache at the second-pass restart state before the second sub-cycle.
+    fast_fn.cache!(U0, p, t)
     subcycle!(innerinteg, cache_imp!, U0, p, t, dt, fast_dt)
     u .= innerinteg.u
-    isnothing(complement) || complement(u, p, t + half, half)
+    if !isnothing(complement)
+        # The sub-cycle refreshes only the implicit cache; refresh the full
+        # cache at the sub-cycled end state before the second complement call.
+        fast_fn.cache!(u, p, t + dt)
+        complement(u, p, t + half, half)
+    end
     needs_update!(fast_fn.update_constrain_state, EndOfStepSignal()) &&
         fast_fn.constrain_state!(u, p, t + dt)
     fast_fn.cache!(u, p, t + dt)

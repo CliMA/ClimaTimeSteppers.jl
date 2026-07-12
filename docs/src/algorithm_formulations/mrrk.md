@@ -121,6 +121,7 @@ Two outer methods are provided, distinguished by the operator-splitting order:
 
 `LieSplitOuter` freezes $f_S$ at the step start and sub-cycles the fast system once over $\Delta t$.
 `TrapezoidalSplitOuter` freezes $f_S$ at the step start, sub-cycles to a predicted end state, re-evaluates $f_S$ there, averages the two, and sub-cycles again with the averaged forcing.
+The second sub-cycle restarts from the step-start state after a full `cache!` refresh at that state, so the predicted-state forcing evaluation does not leave the cache paired with a state one step ahead.
 
 The fast component `f1` of the `SplitODEProblem` is a full `ClimaODEFunction`, so the inner sub-cycle can be implicit-explicit: a vertically-implicit acoustic solve with its own Jacobian, Newton iteration, and limiter.
 The frozen forcing is a pair `(G, G_lim)`: the unlimited part is added to the inner explicit tendency and the limited part flows through the inner limiter, matching the split of the inner function.
@@ -131,6 +132,7 @@ For a floating-point `dt` this is ordinary division; for an `ITime` `dt` it uses
 Each step-exchange outer method has an optional *outer implicit complement*, a callable `(u, p, t, dt) -> nothing` advancing `u` in place.
 It models an inner/outer implicit split where the inner integrator solves a restricted implicit operator and the complement solves the remainder as an outer implicit sub-step.
 `LieSplitOuter` calls it once over $\Delta t$; `TrapezoidalSplitOuter` brackets the sub-cycle with two half-step calls (Strang splitting).
+Before the second complement call, `TrapezoidalSplitOuter` refreshes the full cache at the sub-cycled end state, so the complement solve is paired with a cache consistent with its input state.
 The application provides the complement; the outer method only sequences it.
 
 ### Choosing a family

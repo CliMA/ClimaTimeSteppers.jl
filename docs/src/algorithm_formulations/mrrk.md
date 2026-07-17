@@ -105,3 +105,35 @@ This is a special case of MIS with $\alpha = \gamma = 0$ and a strictly lower-tr
 |:---|:---|:---|:---|
 | `WSRK2` | 2 | 2 | [WS1998](@cite), $c = (0, 1/2)$ |
 | `WSRK3` | 3 | 2 (3 for linear problems) | [WS2002](@cite), $c = (0, 1/3, 1/2)$ |
+
+## Step-exchange (split-explicit) methods
+
+The methods above are *stage-exchange*: they re-evaluate the slow tendency $f_S$ at every outer stage.
+The *step-exchange* family instead evaluates $f_S$ only at whole-step states and keeps it fixed while the fast system integrates the full step.
+This is the split-explicit composition used by atmospheric dynamical cores, where the slow tendency is the expensive physics and the fast tendency is the acoustic or gravity-wave subsystem.
+
+| Algorithm | Slow evaluations per step | Order |
+|:---|:---|:---|
+| `LieSplitOuter` | 1 | 1 |
+
+`LieSplitOuter` freezes $f_S$ at the step start and sub-cycles the fast system once over $\Delta t$.
+
+The fast component `f1` of the `SplitODEProblem` is a full `ClimaODEFunction`, so the inner sub-cycle can be implicit-explicit: a vertically-implicit acoustic solve with its own Jacobian, Newton iteration, and limiter.
+The frozen forcing is a pair `(G, G_lim)`: the unlimited part is added to the inner explicit tendency and the limited part is passed to the inner limiter, mirroring the split of the inner function.
+
+The step is sub-divided by integer division of `dt` into the fast sub-step size.
+For a floating-point `dt` this is ordinary division; for an `ITime` `dt` it uses the exact integer division provided by ClimaUtilities, which refines the period when needed and errors when the step cannot be divided exactly.
+
+### Choosing a family
+
+The families differ in where the fast and slow components exchange information.
+A stage-exchange method evaluates the slow tendency at stage-level intermediate states and integrates the fast system over partial stage intervals.
+A step-exchange method evaluates the slow tendency only at whole-step states and holds each evaluation frozen while the fast system integrates the full step.
+The evaluation count is therefore set by the order of the outer combination rather than by a stage structure.
+Choose stage exchange when fast and slow accuracy are coupled through the stages; choose step exchange when the slow tendency is expensive and should be evaluated at whole-step states only.
+
+### Relation to the literature
+
+The stage-exchange family is the multirate-infinitesimal-step formulation.
+A tableau-based implicit-explicit multirate also exists (IMEX-MRI-GARK, [Chinomona2021](@cite)) and is out of scope here.
+The step-exchange family is the split-explicit composition used by atmospheric cores.

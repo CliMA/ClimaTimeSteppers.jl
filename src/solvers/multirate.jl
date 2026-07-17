@@ -8,24 +8,42 @@ A multirate Runge-Kutta scheme that pairs a slow (outer) algorithm with a
 fast (inner) algorithm. The problem must be a [`SplitODEProblem`](@ref) where
 `f1` is the fast tendency and `f2` is the slow tendency.
 
+The outer method's family sets the fast/slow exchange granularity. The
+stage-exchange family evaluates the slow tendency at every outer stage; the
+step-exchange family evaluates it only at whole-step states and freezes it while
+the fast system integrates the full step.
+
 # Arguments
 - `fast`: inner algorithm (e.g. `LSRK54CarpenterKennedy()`)
-- `slow`: outer algorithm — must be one of:
-  - [`LowStorageRungeKutta2N`](@ref)
-  - [`MultirateInfinitesimalStep`](@ref)
-  - [`WickerSkamarockRungeKutta`](@ref)
+- `slow`: outer algorithm, one of:
+  - [`LowStorageRungeKutta2N`](@ref) (stage-exchange)
+  - [`MultirateInfinitesimalStep`](@ref) (stage-exchange)
+  - [`WickerSkamarockRungeKutta`](@ref) (stage-exchange)
+  - [`LieSplitOuter`](@ref) (step-exchange)
 
 Pass `fast_dt` as a keyword argument to [`init`](@ref) or [`solve`](@ref)
 to set the inner timestep.
 
-# Example
+For the step-exchange family, `f1` is a full `ClimaODEFunction` (an
+implicit-explicit inner sub-cycle), `f2` is `freeze!(G, G_lim, u, p, t)`, which
+fills the frozen slow forcing pair, and the application derives `n_sub` and
+passes `fast_dt = dt / n_sub`.
+
+# Examples
 ```julia
 using ClimaTimeSteppers
 import ClimaTimeSteppers as CTS
 
+# Stage-exchange: slow tendency re-evaluated at every outer stage.
 prob = CTS.SplitODEProblem(f_fast, f_slow, u0, tspan, p)
 alg  = Multirate(LSRK54CarpenterKennedy(), MIS3C())
 sol  = CTS.solve(prob, alg; dt = 0.1, fast_dt = 0.01)
+
+# Step-exchange: `f_fast` is a full `ClimaODEFunction`, `freeze!` fills the
+# frozen slow forcing pair, and the inner sub-cycle is implicit-explicit.
+prob = CTS.SplitODEProblem(f_fast, freeze!, u0, tspan, p)
+alg  = Multirate(IMEXAlgorithm(ARS343(), NewtonsMethod()), LieSplitOuter())
+sol  = CTS.solve(prob, alg; dt = 0.1, fast_dt = 0.1 / 4)
 ```
 """
 struct Multirate{F, S} <: TimeSteppingAlgorithm

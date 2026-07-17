@@ -159,6 +159,43 @@ end
         @test norm(limited.u .- exact_solution(args.dt * args.n_steps)) < 5.0e-3
     end
 
+    @testset "complement sequencing" begin
+        dt = 0.1
+        fast_dt = dt / 4
+        n_steps = 3
+        shift = [0.05, -0.02]
+
+        lie_calls = Tuple{Float64, Float64}[]
+        lie_complement = function (u, p, t, dt)
+            push!(lie_calls, (t, dt))
+            @. u += shift * dt
+            return nothing
+        end
+        lie = run_step_exchange(LieSplitOuter(lie_complement); dt, fast_dt, n_steps)
+        lie_ref = run_step_exchange(LieSplitOuter(); dt, fast_dt, n_steps)
+        # Lie applies the complement once per step over the full step.
+        @test length(lie_calls) == n_steps
+        @test all(c -> c[2] == dt, lie_calls)
+        @test lie_calls[1][1] == 0.0
+        @test lie.u != lie_ref.u
+
+        trap_calls = Tuple{Float64, Float64}[]
+        trap_complement = function (u, p, t, dt)
+            push!(trap_calls, (t, dt))
+            @. u += shift * dt
+            return nothing
+        end
+        trap =
+            run_step_exchange(TrapezoidalSplitOuter(trap_complement); dt, fast_dt, n_steps)
+        trap_ref = run_step_exchange(TrapezoidalSplitOuter(); dt, fast_dt, n_steps)
+        # Trapezoidal brackets each step with two half-step complement calls.
+        @test length(trap_calls) == 2 * n_steps
+        @test all(c -> c[2] == dt / 2, trap_calls)
+        @test trap_calls[1][1] == 0.0
+        @test trap_calls[2][1] == dt / 2
+        @test trap.u != trap_ref.u
+    end
+
     @testset "trapezoidal second-pass cache refresh" begin
         dt = 0.1
         log = []
@@ -189,6 +226,32 @@ end
         @test log[restart].u == log[mid].u
         @test log[final].t == dt
         @test log[final].u == integ.u
+    end
+
+    @testset "trapezoidal second-complement cache refresh" begin
+        dt = 0.1
+        log = []
+        complement = function (u, p, t, dt_c)
+            push!(log, (; hook = :complement, t, u = copy(u)))
+            return nothing
+        end
+        (; integ) = step_exchange_integrator(
+            TrapezoidalSplitOuter(complement);
+            log,
+            dt,
+            fast_dt = dt / 4,
+            n_steps = 1,
+        )
+        CTS.step!(integ)
+        complements = findall(e -> e.hook == :complement, log)
+        @test length(complements) == 2
+        full = findall(e -> e.hook == :cache, log)
+        # A full cache refresh occurs before the second complement call, paired
+        # with the sub-cycled end state and time.
+        refresh = findlast(<(complements[2]), full)
+        @test refresh !== nothing
+        @test log[full[refresh]].t == dt
+        @test log[full[refresh]].u == log[complements[2]].u
     end
 
     @testset "T_post_imp! threading" begin

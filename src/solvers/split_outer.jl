@@ -15,21 +15,35 @@ Supertype for the step-exchange outer methods [`LieSplitOuter`](@ref) and
 abstract type StepExchangeOuter <: TimeSteppingAlgorithm end
 
 """
-    LieSplitOuter()
+    LieSplitOuter(complement = nothing)
 
 First-order step-exchange outer method: freeze the slow forcing at the step
 start and sub-cycle the fast system once over the whole step.
+
+`complement` is an optional outer implicit complement `(u, p, t, dt) -> nothing`
+that advances `u` in place; the outer step calls it once over `dt` before the
+sub-cycle. `nothing` disables it.
 """
-struct LieSplitOuter <: StepExchangeOuter end
+struct LieSplitOuter{C} <: StepExchangeOuter
+    complement::C
+end
+LieSplitOuter() = LieSplitOuter(nothing)
 
 """
-    TrapezoidalSplitOuter()
+    TrapezoidalSplitOuter(complement = nothing)
 
 Second-order step-exchange outer method: average the slow forcing between the
 step start and a predicted step end, then sub-cycle the fast system over the
 whole step with the averaged forcing.
+
+`complement` is an optional outer implicit complement `(u, p, t, dt) -> nothing`
+that advances `u` in place; the outer step brackets the sub-cycle with two
+half-step calls (Strang splitting). `nothing` disables it.
 """
-struct TrapezoidalSplitOuter <: StepExchangeOuter end
+struct TrapezoidalSplitOuter{C} <: StepExchangeOuter
+    complement::C
+end
+TrapezoidalSplitOuter() = TrapezoidalSplitOuter(nothing)
 
 """
     DualOffsetODEFunction(f, G, G_lim)
@@ -61,7 +75,8 @@ end
 Workspace for a step-exchange [`Multirate`](@ref) method.
 
 # Fields
-- `outer`: the [`StepExchangeOuter`](@ref) method.
+- `outer`: the [`StepExchangeOuter`](@ref) method, with the optional
+  complement.
 - `freeze!`: `freeze!(G, G_lim, U, p, t)` fills the frozen forcing pair at
   state `U`.
 - `fast_fn`: the fast `ClimaODEFunction`; `cache!` refreshes the full cache at
@@ -172,7 +187,9 @@ function step_split_outer!(int, cache, outer::LieSplitOuter)
     (; outercache, innerinteg) = cache
     (; freeze!, fast_fn, G, G_lim, fast_dt) = outercache
     (; u, p, t, dt) = int
+    complement = outer.complement
 
+    isnothing(complement) || complement(u, p, t, dt)
     freeze!(G, G_lim, u, p, t)
     subcycle!(innerinteg, fast_fn.cache_imp!, u, p, t, dt, fast_dt)
     u .= innerinteg.u
@@ -187,7 +204,13 @@ function step_split_outer!(int, cache, outer::TrapezoidalSplitOuter)
     (; freeze!, fast_fn, G, G_lim, G2, G2_lim, U0, fast_dt) = outercache
     (; u, p, t, dt) = int
     cache_imp! = fast_fn.cache_imp!
+    complement = outer.complement
 
+    # `dt / 2` is only needed for the complement half-steps; compute it there so
+    # a `nothing` complement never divides `dt`.
+    if !isnothing(complement)
+        complement(u, p, t, dt / 2)
+    end
     U0 .= u
     freeze!(G, G_lim, U0, p, t)
     subcycle!(innerinteg, cache_imp!, U0, p, t, dt, fast_dt)
@@ -199,6 +222,12 @@ function step_split_outer!(int, cache, outer::TrapezoidalSplitOuter)
     fast_fn.cache!(U0, p, t)
     subcycle!(innerinteg, cache_imp!, U0, p, t, dt, fast_dt)
     u .= innerinteg.u
+    if !isnothing(complement)
+        # The sub-cycle refreshes only the implicit cache; refresh the full
+        # cache at the sub-cycled end state before the second complement call.
+        fast_fn.cache!(u, p, t + dt)
+        complement(u, p, t + dt / 2, dt / 2)
+    end
     needs_update!(fast_fn.update_constrain_state, EndOfStepSignal()) &&
         fast_fn.constrain_state!(u, p, t + dt)
     fast_fn.cache!(u, p, t + dt)

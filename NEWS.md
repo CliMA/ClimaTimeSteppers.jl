@@ -4,6 +4,16 @@ ClimaTimeSteppers.jl Release Notes
 main
 -------
 
+- ![][badge-✨feature/enhancement] Added a step-exchange multirate outer family
+  with its first member, `LieSplitOuter`, usable as the `slow` argument to
+  `Multirate` alongside the stage-exchange methods. The fast component of the
+  `SplitODEProblem` may be a full `ClimaODEFunction` (an implicit-explicit inner
+  sub-cycle) with a dual `(explicit, limited)` frozen forcing. Sub-stepping
+  divides `dt` by the sub-step count; for an `ITime` `dt` this relies on the
+  exact integer division provided by ClimaUtilities
+  ([CliMA/ClimaUtilities.jl#232](https://github.com/CliMA/ClimaUtilities.jl/pull/232)).
+  PR [#442](https://github.com/CliMA/ClimaTimeSteppers.jl/pull/442).
+
 v0.10.6
 -------
 - ![][badge-🐛bugfix] Explicit-only problems stepped with an SSP `IMEXAlgorithm` no

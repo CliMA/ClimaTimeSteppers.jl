@@ -4,6 +4,11 @@ ClimaTimeSteppers.jl Release Notes
 main
 -------
 
+- ![][badge-✨feature/enhancement] Added `TrapezoidalSplitOuter`, a second-order
+  step-exchange outer method: the slow forcing is averaged between the step
+  start and a predicted step end, and the fast system sub-cycles the full step
+  with the averaged forcing.
+
 - ![][badge-✨feature/enhancement] Added a step-exchange multirate outer family
   with its first member, `LieSplitOuter`, usable as the `slow` argument to
   `Multirate` alongside the stage-exchange methods. The fast component of the

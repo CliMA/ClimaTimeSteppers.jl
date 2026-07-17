@@ -1,4 +1,4 @@
-export LieSplitOuter
+export LieSplitOuter, TrapezoidalSplitOuter
 
 #####
 ##### Step-exchange multirate outer methods. See
@@ -8,7 +8,8 @@ export LieSplitOuter
 """
     StepExchangeOuter
 
-Supertype for the step-exchange outer methods, used as the `slow` argument to
+Supertype for the step-exchange outer methods [`LieSplitOuter`](@ref) and
+[`TrapezoidalSplitOuter`](@ref), used as the `slow` argument to
 [`Multirate`](@ref).
 """
 abstract type StepExchangeOuter <: TimeSteppingAlgorithm end
@@ -22,6 +23,15 @@ start and sub-cycle the fast system once over the whole step.
 struct LieSplitOuter <: StepExchangeOuter end
 
 """
+    TrapezoidalSplitOuter()
+
+Second-order step-exchange outer method: average the slow forcing between the
+step start and a predicted step end, then sub-cycle the fast system over the
+whole step with the averaged forcing.
+"""
+struct TrapezoidalSplitOuter <: StepExchangeOuter end
+
+"""
     DualOffsetODEFunction(f, G, G_lim)
 
 Wrap a fused explicit/limited tendency `f(du_exp, du_lim, u, p, t)` and add a
@@ -30,7 +40,8 @@ output. Generalizes [`OffsetODEFunction`](@ref) to the two-output
 (explicit, limited) form used by the step-exchange inner sub-cycle, so the
 inner limiter is applied to the limited forcing.
 
-`G` and `G_lim` are aliased, not copied; the outer step mutates them in place.
+`G` and `G_lim` are aliased, not copied; the outer step mutates them in place
+between sub-cycles.
 """
 struct DualOffsetODEFunction{F, A}
     f::F
@@ -45,7 +56,7 @@ function (o::DualOffsetODEFunction)(du_exp, du_lim, u, p, t)
 end
 
 """
-    StepExchangeOuterCache{O, FR, FF, B, DT}
+    StepExchangeOuterCache{O, FR, FF, B, B2, DT}
 
 Workspace for a step-exchange [`Multirate`](@ref) method.
 
@@ -58,16 +69,34 @@ Workspace for a step-exchange [`Multirate`](@ref) method.
   `constrain_state!` is applied once per outer step under its
   `update_constrain_state` handler.
 - `G`, `G_lim`: frozen forcing pair, aliased into the inner sub-cycle's forcing.
+- `G2`, `G2_lim`: second-pass forcing pair for `TrapezoidalSplitOuter`; `nothing`
+  for `LieSplitOuter`.
+- `U0`: outer-step-start state for `TrapezoidalSplitOuter`; `nothing` for
+  `LieSplitOuter`.
 - `fast_dt`: inner sub-step size.
 """
-struct StepExchangeOuterCache{O <: StepExchangeOuter, FR, FF, B, DT}
+struct StepExchangeOuterCache{O <: StepExchangeOuter, FR, FF, B, B2, DT}
     outer::O
     freeze!::FR
     fast_fn::FF
     G::B
     G_lim::B
+    G2::B2
+    G2_lim::B2
+    U0::B2
     fast_dt::DT
 end
+
+"""
+    second_pass_buffers(outer, u0)
+
+Allocate the second-pass forcing pair and step-start state used by the
+`TrapezoidalSplitOuter` step path, returning `nothing` for `LieSplitOuter`,
+which does not use them.
+"""
+second_pass_buffers(::LieSplitOuter, u0) = (nothing, nothing, nothing)
+second_pass_buffers(::TrapezoidalSplitOuter, u0) =
+    (zero(u0), zero(u0), zero(u0))
 
 function init_cache(
     prob::ODEProblem,
@@ -78,12 +107,16 @@ function init_cache(
 ) where {F}
     @assert prob.f isa SplitFunction
     u0 = prob.u0
+    G2, G2_lim, U0 = second_pass_buffers(alg.slow, u0)
     outercache = StepExchangeOuterCache(
         alg.slow,
         prob.f.f2,
         prob.f.f1,
         zero(u0),
         zero(u0),
+        G2,
+        G2_lim,
+        U0,
         fast_dt,
     )
     innerfun = init_inner(prob, outercache)
@@ -142,6 +175,29 @@ function step_split_outer!(int, cache, outer::LieSplitOuter)
 
     freeze!(G, G_lim, u, p, t)
     subcycle!(innerinteg, fast_fn.cache_imp!, u, p, t, dt, fast_dt)
+    u .= innerinteg.u
+    needs_update!(fast_fn.update_constrain_state, EndOfStepSignal()) &&
+        fast_fn.constrain_state!(u, p, t + dt)
+    fast_fn.cache!(u, p, t + dt)
+    return u
+end
+
+function step_split_outer!(int, cache, outer::TrapezoidalSplitOuter)
+    (; outercache, innerinteg) = cache
+    (; freeze!, fast_fn, G, G_lim, G2, G2_lim, U0, fast_dt) = outercache
+    (; u, p, t, dt) = int
+    cache_imp! = fast_fn.cache_imp!
+
+    U0 .= u
+    freeze!(G, G_lim, U0, p, t)
+    subcycle!(innerinteg, cache_imp!, U0, p, t, dt, fast_dt)
+    freeze!(G2, G2_lim, innerinteg.u, p, t + dt)
+    @. G = (G + G2) / 2
+    @. G_lim = (G_lim + G2_lim) / 2
+    # The second-pass freeze evaluates the predicted end state; refresh the
+    # full cache at the second-pass restart state before the second sub-cycle.
+    fast_fn.cache!(U0, p, t)
+    subcycle!(innerinteg, cache_imp!, U0, p, t, dt, fast_dt)
     u .= innerinteg.u
     needs_update!(fast_fn.update_constrain_state, EndOfStepSignal()) &&
         fast_fn.constrain_state!(u, p, t + dt)

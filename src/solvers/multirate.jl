@@ -20,6 +20,7 @@ the fast system integrates the full step.
   - [`MultirateInfinitesimalStep`](@ref) (stage-exchange)
   - [`WickerSkamarockRungeKutta`](@ref) (stage-exchange)
   - [`LieSplitOuter`](@ref) (step-exchange)
+  - [`TrapezoidalSplitOuter`](@ref) (step-exchange)
 
 Pass `fast_dt` as a keyword argument to [`init`](@ref) or [`solve`](@ref)
 to set the inner timestep.
@@ -42,7 +43,7 @@ sol  = CTS.solve(prob, alg; dt = 0.1, fast_dt = 0.01)
 # Step-exchange: `f_fast` is a full `ClimaODEFunction`, `freeze!` fills the
 # frozen slow forcing pair, and the inner sub-cycle is implicit-explicit.
 prob = CTS.SplitODEProblem(f_fast, freeze!, u0, tspan, p)
-alg  = Multirate(IMEXAlgorithm(ARS343(), NewtonsMethod()), LieSplitOuter())
+alg  = Multirate(IMEXAlgorithm(ARS343(), NewtonsMethod()), TrapezoidalSplitOuter())
 sol  = CTS.solve(prob, alg; dt = 0.1, fast_dt = 0.1 / 4)
 ```
 """

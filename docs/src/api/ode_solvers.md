@@ -185,6 +185,7 @@ WSRK3
 ### Step-exchange (split-explicit)
 ```@docs
 LieSplitOuter
+TrapezoidalSplitOuter
 ```
 
 ## Rosenbrock Methods

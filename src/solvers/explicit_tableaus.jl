@@ -90,9 +90,9 @@ Also called Heun's method ([Heun1900](@cite)).
 struct SSP22Heuns <: SSPRKAlgorithmName end
 function ExplicitTableau(::SSP22Heuns)
     return ExplicitTableau(; a = @SArray([
-            0 0
-            1 0
-        ]), b = @SArray([1 / 2, 1 / 2]))
+        0 0
+        1 0
+    ]), b = @SArray([1 / 2, 1 / 2]))
 end
 
 """

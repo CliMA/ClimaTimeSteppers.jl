@@ -191,6 +191,7 @@ include(joinpath("utilities", "async_utils.jl"))
 include("utilities/convergence_condition.jl")
 include("utilities/convergence_checker.jl")
 include("utilities/line_search.jl")
+include("nl_solvers/linear_solvers.jl")
 include("nl_solvers/newtons_method.jl")
 
 

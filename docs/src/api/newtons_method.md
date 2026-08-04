@@ -20,14 +20,24 @@ NewtonsMethod
 LineSearch
 ```
 
-## Krylov Linear Solver
+## Linear Solvers
 
-When the Jacobian is too expensive to form or factor, a Krylov method
-(e.g. GMRES) can solve the linear system approximately. The accuracy is
-controlled by a *forcing term* that sets the Krylov tolerance.
+When the Jacobian is too expensive to form or factor, an iterative linear
+solver can approximate `Δx` from matrix-vector products alone. Two
+implementations are provided, both subtypes of
+[`AbstractLinearSolveMethod`](@ref) and interchangeable via
+`NewtonsMethod`'s `krylov_method` field:
+
+- [`KrylovMethod`](@ref) — GMRES from `Krylov.jl`, with accuracy
+  controlled by a *forcing term* (see [`ForcingTerm`](@ref)).
+- [`RichardsonMethod`](@ref) — preconditioned minimum-residual
+  Richardson (Orthomin(1)), matching left-preconditioned GMRES(1) at
+  iteration 1 with lower per-iteration overhead.
 
 ```@docs
+AbstractLinearSolveMethod
 KrylovMethod
+RichardsonMethod
 ForcingTerm
 ConstantForcing
 EisenstatWalkerForcing

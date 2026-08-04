@@ -7,7 +7,8 @@ import ClimaCore.Fields as Fields
 # device vector type (e.g. CuVector for CuArray-backed states), so KrylovMethod
 # keeps its workspace on the GPU. This adapter supplies the block-wise copies
 # between the flat workspace vectors and the FieldVector layout; see
-# CTS.KrylovVectorAdapter.
+# CTS.KrylovVectorAdapter. The copies use Fields.fieldvector2array! and
+# Fields.array2fieldvector!, which require ClimaCore 0.15.
 CTS.krylov_adapter(x_prototype::Fields.FieldVector, ::Type{S}) where {S} =
     CTS.KrylovVectorAdapter(
         zero(x_prototype),

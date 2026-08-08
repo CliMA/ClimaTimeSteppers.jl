@@ -53,16 +53,16 @@ cbs = CallbackSet(
     EveryXSimulationSteps(cb3, 1),
     EveryXSimulationSteps(cb4, 4, atinit = true),
     EveryXSimulationSteps(_ -> begin
-            # Simulate uneven computational load across MPI ranks to test 
-            # the distributed robustness of EveryXWallTimeSeconds. 
-            # The root rank checks wall time and broadcasts, ensuring all ranks 
-            # fire the callback at the same step despite different loads.
-            if ClimaComms.iamroot(comm_ctx)
-                sleep(1 / 32)
-            else
-                sleep(1 / 64)
-            end
-        end, 1),
+        # Simulate uneven computational load across MPI ranks to test 
+        # the distributed robustness of EveryXWallTimeSeconds. 
+        # The root rank checks wall time and broadcasts, ensuring all ranks 
+        # fire the callback at the same step despite different loads.
+        if ClimaComms.iamroot(comm_ctx)
+            sleep(1 / 32)
+        else
+            sleep(1 / 64)
+        end
+    end, 1),
     EveryXWallTimeSeconds(cb5, 0.49, comm_ctx),
 )
 

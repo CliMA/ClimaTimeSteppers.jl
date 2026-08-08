@@ -1,7 +1,7 @@
 #=
 Edge case and error handling tests.
 =#
-using ClimaTimeSteppers, LinearAlgebra, Test
+using ClimaTimeSteppers, LinearAlgebra, StaticArrays, Test
 import ClimaTimeSteppers as CTS
 import ClimaTimeSteppers: ODEProblem, ODEFunction, solve
 
@@ -92,6 +92,24 @@ import ClimaTimeSteppers: ODEProblem, ODEFunction, solve
         sol = solve(prob, alg; dt = 0.01, save_everystep = false)
         @test sol.u[end][1] ≈ exp(-0.5) atol = 0.01
         @test sol.u[end][2] ≈ 2 * exp(-0.5) atol = 0.02
+    end
+
+    @testset "Explicit-only SSPRK with a state that rejects scalar addition" begin
+        # The `0` used in place of an implicit increment is a sentinel, not a
+        # value to broadcast: states whose elements are vectors (e.g. a
+        # ClimaCore `Geometry` vector) define no `+` against a scalar. Stepping
+        # an explicit-only problem must therefore never evaluate `U_exp + 0`.
+        @test_throws MethodError SVector(1.0, 2.0) + 0    # premise of this test
+
+        prob = ODEProblem(
+            ClimaODEFunction(; T_exp! = (du, u, p, t) -> (du .= .-u)),
+            [SVector(1.0, 2.0), SVector(3.0, 4.0)],
+            (0.0, 0.1),
+            nothing,
+        )
+        alg = ExplicitAlgorithm(SSP33ShuOsher())
+        sol = solve(prob, alg; dt = 0.01, save_everystep = false)
+        @test sol.u[end] ≈ [SVector(1.0, 2.0), SVector(3.0, 4.0)] .* exp(-0.1) rtol = 1e-4
     end
 
     @testset "Newton's method with zero initial residual" begin

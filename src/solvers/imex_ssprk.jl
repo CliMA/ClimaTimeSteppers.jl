@@ -164,7 +164,11 @@ end
     end
 
     inc_imp = !has_T_imp(f) ? 0 : fused_raw_increment(dt, a_imp, T_imp, v_i)
-    @. U = U_exp + inc_imp
+    if inc_imp !== 0
+        @. U = U_exp + inc_imp
+    else
+        @. U = U_exp
+    end
 
     # Apply DSS, set up and run the implicit solve (honoring `initialize_imp!`),
     # and update the cache/constraints. Shared with the IMEX-ARK path so the two

@@ -4,6 +4,16 @@ ClimaTimeSteppers.jl Release Notes
 main
 -------
 
+v0.10.6
+-------
+- ![][badge-🐛bugfix] Explicit-only problems stepped with an SSP `IMEXAlgorithm` no
+  longer broadcast the `0` implicit-increment sentinel into the stage state.
+  `update_stage!` evaluated `@. U = U_exp + inc_imp` unconditionally, so when
+  `inc_imp` was the `0` returned for a problem with no `T_imp!`, states whose
+  elements define no `+` against a scalar (e.g. a `ClimaCore` `Geometry` vector, or
+  a `StaticArrays` `SVector`) raised a `MethodError`. Now guarded by the same
+  `!== 0` check already used in `step_u!`.
+
 v0.10.5
 -------
 - ![][badge-🐛bugfix] `RosenbrockAlgorithm` now falls back to `cache_imp!` at intermediate

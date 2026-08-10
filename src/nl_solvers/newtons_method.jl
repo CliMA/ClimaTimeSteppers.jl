@@ -3,11 +3,11 @@ export JacobianFreeJVP, ForwardDiffJVP, ForwardDiffStepSize
 export ForwardDiffStepSize1, ForwardDiffStepSize2, ForwardDiffStepSize3
 export ForcingTerm, ConstantForcing, EisenstatWalkerForcing
 
-# TODO: Define ktypeof(::FieldVector) so that it returns CuVector for a
-#       FieldVector backed by CuArrays. Without this, Krylov.jl allocates
-#       CPU vectors for its workspace, breaking GPU execution of KrylovMethod.
-#       Only matters if KrylovMethod is used on GPU (ClimaAtmos currently uses
-#       direct ldiv! with max_iters = 1, so this has not been a blocker).
+# For states like ClimaCore's FieldVector, Krylov.ktypeof (defined in
+# ClimaCore's KrylovExt) is the state's flat device vector type, so the Krylov
+# workspace lives on the GPU; KrylovVectorAdapter (see krylov_adapter, extended
+# in ClimaTimeSteppersClimaCoreExt) translates between the two layouts at the
+# operator boundary with block-wise copies that avoid scalar indexing.
 
 abstract type AbstractVerbosity end
 struct Verbose <: AbstractVerbosity end
@@ -132,7 +132,7 @@ This is the default step size used by [`ForwardDiffJVP`](@ref).
 """
 struct ForwardDiffStepSize3 <: ForwardDiffStepSize end
 (::ForwardDiffStepSize3)(Δx, x) =
-    sqrt(eps(eltype(Δx))) * sum(x_i -> 1 + abs(x_i), x) / (length(x) * norm(Δx))
+    sqrt(eps(eltype(Δx))) * (length(x) + sum(abs, x)) / (length(x) * norm(Δx))
 
 """
     JacobianFreeJVP
@@ -352,6 +352,68 @@ function dense_inverse_matrix_from_operator!(dense_inv_matrix, dense_vector, op)
 end
 
 """
+    KrylovVectorAdapter
+
+Translation layer between the structured state vectors used by `f!`, `jvp!`,
+and preconditioners (e.g., a `ClimaCore.Fields.FieldVector`) and the flat
+workspace vectors of type `S = Krylov.ktypeof(x_prototype)` used by Krylov.jl.
+
+When `S` differs from the state type and a [`krylov_adapter`](@ref) method is
+available for it, [`KrylovMethod`](@ref) hands Krylov.jl a linear operator and
+preconditioner that copy each flat workspace vector into a structured staging
+buffer, apply the structured operation, and copy the result back. The copies
+are block-wise array-level `copyto!`s (no scalar indexing), so for GPU-backed
+states the entire Krylov solve stays on the GPU.
+
+Fields: `Δx_stage` and `jΔx_stage` are structured staging buffers, `b_flat` is
+the flat right-hand-side buffer, and `to_flat!(flat, structured)` /
+`from_flat!(structured, flat)` perform the block-wise copies.
+"""
+struct KrylovVectorAdapter{X, B, TF, FF}
+    Δx_stage::X
+    jΔx_stage::X
+    b_flat::B
+    to_flat!::TF
+    from_flat!::FF
+end
+
+"""
+    krylov_adapter(x_prototype, ::Type{S})
+
+Construct the [`KrylovVectorAdapter`](@ref) between states of type
+`typeof(x_prototype)` and flat Krylov workspace vectors of type `S`, or return
+`nothing` if no translation is needed (Krylov.jl natively supports the state
+type, as it does for dense arrays). Extended for `ClimaCore.Fields.FieldVector`
+in `ClimaTimeSteppersClimaCoreExt`.
+"""
+krylov_adapter(x_prototype, ::Type) = nothing
+
+# Applies a structured preconditioner to flat Krylov workspace vectors. The
+# staging buffers can be shared with the Jacobian operator because Krylov.jl
+# applies the two sequentially, never nested.
+struct FlatPreconditioner{M, A <: KrylovVectorAdapter}
+    M::M
+    adapter::A
+end
+
+function LinearAlgebra.ldiv!(
+    y::AbstractVector,
+    P::FlatPreconditioner,
+    b::AbstractVector,
+)
+    (; M, adapter) = P
+    adapter.from_flat!(adapter.Δx_stage, b)
+    ldiv!(adapter.jΔx_stage, M, adapter.Δx_stage)
+    adapter.to_flat!(y, adapter.jΔx_stage)
+    return y
+end
+
+# In-place fallback for completeness; Krylov.jl's GMRES only uses the
+# out-of-place form above. Reading all of x before writing it back makes the
+# shared staging buffers safe here as well.
+LinearAlgebra.ldiv!(P::FlatPreconditioner, x::AbstractVector) = ldiv!(x, P, x)
+
+"""
     KrylovMethod(;
         type = Val(GmresWorkspace),
         jacobian_free_jvp = nothing,
@@ -468,11 +530,14 @@ function allocate_cache(alg::KrylovMethod, x_prototype)
             Base.structdiff(kwargs, NamedTuple{(:memory,)}((kwargs[:memory],))) : kwargs
     end
 
+    S = Krylov.ktypeof(x_prototype)
     return (;
         jacobian_free_jvp_cache = isnothing(jacobian_free_jvp) ? nothing :
                                   allocate_cache(jacobian_free_jvp, x_prototype),
         forcing_term_cache = allocate_cache(forcing_term, x_prototype),
-        solver = type(l, l, args..., Krylov.ktypeof(x_prototype); kwargs...),
+        solver = type(l, l, args..., S; kwargs...),
+        adapter = S == typeof(x_prototype) ? nothing :
+                  krylov_adapter(x_prototype, S),
         debugger_cache = isnothing(debugger) ? nothing :
                          allocate_cache(debugger, x_prototype),
     )
@@ -492,23 +557,43 @@ NVTX.@annotate function solve_krylov!(
     (; jacobian_free_jvp, forcing_term, solve_kwargs) = alg
     (; disable_preconditioner, debugger, preconditioner) = alg
     type = solver_type(alg)
-    (; jacobian_free_jvp_cache, forcing_term_cache, solver, debugger_cache) = cache
+    (; jacobian_free_jvp_cache, forcing_term_cache, solver, adapter, debugger_cache) =
+        cache
     jΔx!(jΔx, Δx) =
         isnothing(jacobian_free_jvp) ? mul!(jΔx, j, Δx) :
         jvp!(jacobian_free_jvp, jacobian_free_jvp_cache, jΔx, Δx, x, f!, f, prepare_for_f!)
-    opj = LinearOperator(eltype(x), length(x), length(x), false, false, jΔx!)
-    M =
+    M_structured =
         disable_preconditioner ? I :
         (
             !isnothing(preconditioner) ? preconditioner :
             ((isnothing(j) || isnothing(jacobian_free_jvp)) ? I : j)
         )
+    if isnothing(adapter)
+        opj = LinearOperator(eltype(x), length(x), length(x), false, false, jΔx!)
+        b = f
+        M = M_structured
+    else
+        # Krylov.jl works with flat workspace vectors (see KrylovVectorAdapter),
+        # which are staged through structured buffers around each operator
+        # application.
+        jΔx_flat!(jΔx_flat, Δx_flat) = begin
+            adapter.from_flat!(adapter.Δx_stage, Δx_flat)
+            jΔx!(adapter.jΔx_stage, adapter.Δx_stage)
+            adapter.to_flat!(jΔx_flat, adapter.jΔx_stage)
+            return jΔx_flat
+        end
+        opj =
+            LinearOperator(eltype(x), length(x), length(x), false, false, jΔx_flat!)
+        adapter.to_flat!(adapter.b_flat, f)
+        b = adapter.b_flat
+        M = M_structured === I ? I : FlatPreconditioner(M_structured, adapter)
+    end
     print_debug!(debugger, debugger_cache, opj, M)
     ldiv = true
     atol = zero(eltype(Δx))
     rtol = get_rtol!(forcing_term, forcing_term_cache, f, n)
     verbose = Int(is_verbose(alg.verbose))
-    krylov_solve!(solver, opj, f; M, ldiv, atol, rtol, verbose, solve_kwargs...)
+    krylov_solve!(solver, opj, b; M, ldiv, atol, rtol, verbose, solve_kwargs...)
     iter = solver.stats.niter
     if !solver.stats.solved
         # The Krylov solve failed (a singular/inconsistent Jacobian is the usual
@@ -531,7 +616,11 @@ NVTX.@annotate function solve_krylov!(
         @debug "$type set Δx to 0 without running any iterations; if possible, \
                try decreasing the forcing term"
     end
-    Δx .= Krylov.solution(solver)
+    if isnothing(adapter)
+        Δx .= Krylov.solution(solver)
+    else
+        adapter.from_flat!(Δx, Krylov.solution(solver))
+    end
 end
 
 """

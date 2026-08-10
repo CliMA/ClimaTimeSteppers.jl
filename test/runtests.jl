@@ -76,6 +76,10 @@ end
     include("solvers/newtons_method.jl")
 end
 
+@safetestset "Newton-Krylov with FieldVector state" begin
+    include("solvers/krylov_fieldvector.jl")
+end
+
 # ============================================================================ #
 # Integration / system-level tests
 # ============================================================================ #

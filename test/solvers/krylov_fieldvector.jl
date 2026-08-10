@@ -5,8 +5,7 @@ using Revise; include("test/solvers/krylov_fieldvector.jl")
 Newton-Krylov solves with a ClimaCore FieldVector state. Exercises the flat
 Krylov workspace (Krylov.ktypeof from ClimaCore's KrylovExt) and the
 KrylovVectorAdapter block copies from ClimaTimeSteppersClimaCoreExt, including
-the FlatPreconditioner path. Requires ClimaCore (>= 0.15) in the test
-environment; runtests.jl skips this file when ClimaCore is not available.
+the FlatPreconditioner path.
 =#
 using ClimaTimeSteppers, LinearAlgebra, Test
 import ClimaTimeSteppers as CTS

@@ -76,11 +76,8 @@ end
     include("solvers/newtons_method.jl")
 end
 
-# Requires ClimaCore (not a default test dependency); skipped when absent.
-if !isnothing(Base.find_package("ClimaCore"))
-    @safetestset "Newton-Krylov with FieldVector state" begin
-        include("solvers/krylov_fieldvector.jl")
-    end
+@safetestset "Newton-Krylov with FieldVector state" begin
+    include("solvers/krylov_fieldvector.jl")
 end
 
 # ============================================================================ #

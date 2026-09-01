@@ -4,6 +4,17 @@ ClimaTimeSteppers.jl Release Notes
 main
 -------
 
+- ![][badge-✨feature/enhancement] Added an optional outer implicit complement
+  to the step-exchange outer methods: a callable `(u, p, t, dt) -> nothing`
+  advancing `u` in place, called once over the step by `LieSplitOuter` and as
+  two half-step calls bracketing the sub-cycle (Strang splitting) by
+  `TrapezoidalSplitOuter`.
+
+- ![][badge-✨feature/enhancement] Added `TrapezoidalSplitOuter`, a second-order
+  step-exchange outer method: the slow forcing is averaged between the step
+  start and a predicted step end, and the fast system sub-cycles the full step
+  with the averaged forcing.
+
 - ![][badge-✨feature/enhancement] Added a step-exchange multirate outer family
   with its first member, `LieSplitOuter`, usable as the `slow` argument to
   `Multirate` alongside the stage-exchange methods. The fast component of the

@@ -112,25 +112,36 @@ The methods above are *stage-exchange*: they re-evaluate the slow tendency $f_S$
 The *step-exchange* family instead evaluates $f_S$ only at whole-step states and keeps it fixed while the fast system integrates the full step.
 This is the split-explicit composition used by atmospheric dynamical cores, where the slow tendency is the expensive physics and the fast tendency is the acoustic or gravity-wave subsystem.
 
+Two outer methods are provided, distinguished by the operator-splitting order:
+
 | Algorithm | Slow evaluations per step | Order |
 |:---|:---|:---|
 | `LieSplitOuter` | 1 | 1 |
+| `TrapezoidalSplitOuter` | 2 | 2 |
 
 `LieSplitOuter` freezes $f_S$ at the step start and sub-cycles the fast system once over $\Delta t$.
+`TrapezoidalSplitOuter` freezes $f_S$ at the step start, sub-cycles to a predicted end state, re-evaluates $f_S$ there, averages the two, and sub-cycles again with the averaged forcing.
+The second sub-cycle restarts from the step-start state after a full `cache!` refresh at that state, so the predicted-state forcing evaluation does not leave the cache paired with a state one step ahead.
 
 The fast component `f1` of the `SplitODEProblem` is a full `ClimaODEFunction`, so the inner sub-cycle can be implicit-explicit: a vertically-implicit acoustic solve with its own Jacobian, Newton iteration, and limiter.
 The frozen forcing is a pair `(G, G_lim)`: the unlimited part is added to the inner explicit tendency and the limited part is passed to the inner limiter, mirroring the split of the inner function.
 
-The step is sub-divided by integer division of `dt` into the fast sub-step size.
+The step is sub-divided by integer division of `dt`: the fast sub-step size and, for `TrapezoidalSplitOuter`, the half-step `dt / 2`.
 For a floating-point `dt` this is ordinary division; for an `ITime` `dt` it uses the exact integer division provided by ClimaUtilities, which refines the period when needed and errors when the step cannot be divided exactly.
+
+Each step-exchange outer method has an optional *outer implicit complement*, a callable `(u, p, t, dt) -> nothing` advancing `u` in place.
+It models an inner/outer implicit split where the inner integrator solves a restricted implicit operator and the complement solves the remainder as an outer implicit sub-step.
+`LieSplitOuter` calls it once over $\Delta t$; `TrapezoidalSplitOuter` brackets the sub-cycle with two half-step calls (Strang splitting).
+Before the second complement call, `TrapezoidalSplitOuter` refreshes the full cache at the sub-cycled end state, so the complement solve is paired with a cache consistent with its input state.
+The application provides the complement; the outer method only sequences it.
 
 ### Choosing a family
 
 The families differ in where the fast and slow components exchange information.
 A stage-exchange method evaluates the slow tendency at stage-level intermediate states and integrates the fast system over partial stage intervals.
-A step-exchange method evaluates the slow tendency only at whole-step states and holds each evaluation frozen while the fast system integrates the full step.
-The evaluation count is therefore set by the order of the outer combination rather than by a stage structure.
-Choose stage exchange when fast and slow accuracy are coupled through the stages; choose step exchange when the slow tendency is expensive and should be evaluated at whole-step states only.
+A step-exchange method evaluates the slow tendency only at whole-step states, once per step for `LieSplitOuter` and twice (step start and a full-step predictor state) for `TrapezoidalSplitOuter`, and holds each evaluation frozen while the fast system integrates the full step.
+The evaluation count is therefore set by the order of the outer combination rather than by a stage structure, and is comparable to a low-stage-count stage-exchange method at second order.
+Choose stage exchange when fast and slow accuracy are coupled through the stages; choose step exchange when the slow tendency is expensive and should be evaluated at whole-step states only, or when the composition needs an outer implicit complement.
 
 ### Relation to the literature
 

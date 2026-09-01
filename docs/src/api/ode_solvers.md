@@ -182,6 +182,11 @@ WSRK2
 WSRK3
 ```
 
+### Step-exchange (split-explicit)
+```@docs
+LieSplitOuter
+```
+
 ## Rosenbrock Methods
 
 Linearly implicit methods that replace Newton iterations with a single

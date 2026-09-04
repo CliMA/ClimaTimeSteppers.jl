@@ -4,6 +4,12 @@ ClimaTimeSteppers.jl Release Notes
 main
 -------
 
+v0.10.7
+-------
+- `KrylovMethod` no longer falls back to scalar indexing on GPU-backed states (extended for
+  `ClimaCore.Fields.FieldVector` in `ClimaTimeSteppersClimaCoreExt`)
+- Added ClimaCore 0.16 to the compat bounds.
+
 v0.10.6
 -------
 - ![][badge-🐛bugfix] Explicit-only problems stepped with an SSP `IMEXAlgorithm` no

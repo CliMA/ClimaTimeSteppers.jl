@@ -3,6 +3,13 @@ ClimaTimeSteppers.jl Release Notes
 
 main
 -------
+- ![][badge-💥breaking] `KrylovMethod`'s default `solve_kwargs` changed from
+  `(;)` to `(; restart = true, reorthogonalization = true)`. In `Krylov.jl`,
+  `memory = 20` is only a preallocation hint when `restart = false` — the
+  Arnoldi basis grows unbounded, and single modified Gram-Schmidt (MGS)
+  accumulates rounding error in ill-conditioned Jacobians. The new default
+  is restarted GMRES(20) with a second MGS pass; pass `solve_kwargs = (;)`
+  to restore the previous behavior.
 
 v0.10.7
 -------

@@ -420,7 +420,7 @@ LinearAlgebra.ldiv!(P::FlatPreconditioner, x::AbstractVector) = ldiv!(x, P, x)
         forcing_term = ConstantForcing(0),
         args = (),
         kwargs = (; memory = 20),
-        solve_kwargs = (;),
+        solve_kwargs = (; restart = true, reorthogonalization = true),
         disable_preconditioner = false,
         verbose = Silent(),
         debugger = nothing,
@@ -433,8 +433,8 @@ controlled by the [`ForcingTerm`](@ref). Called via
 `Δx` is modified in-place. Allocate `cache` with
 `allocate_cache(method, x_prototype)`.
 
-This is a wrapper around `Krylov.jl` solvers. By default, GMRES is used with a
-Krylov subspace of size 20.
+This is a wrapper around `Krylov.jl` solvers. By default, restarted GMRES(20)
+with reorthogonalization is used.
 
 # Keyword Arguments
 - `type`: Krylov solver type, wrapped in `Val` (default `Val(GmresWorkspace)`).
@@ -443,14 +443,35 @@ Krylov subspace of size 20.
 - `forcing_term`: a [`ForcingTerm`](@ref) setting `rtol[n]`
   (default `ConstantForcing(0)` → exact solve)
 - `args`, `kwargs`: forwarded to the `Krylov.KrylovSolver` constructor
-  (default `args = ()`, `kwargs = (; memory = 20)` → GMRES subspace size 20)
+  (default `args = ()`, `kwargs = (; memory = 20)`). For GMRES, `memory` sets
+  the Arnoldi basis size; see "Restart and reorthogonalization" below for the
+  interaction with `solve_kwargs`.
 - `solve_kwargs`: forwarded to `Krylov.solve!`
+  (default `(; restart = true, reorthogonalization = true)` → GMRES(20) with
+  double modified Gram-Schmidt)
 - `disable_preconditioner`: if `true`, skip preconditioning even when `j` is
   available (default `false`)
 - `verbose`: `Verbose()` to print the Krylov residual each iteration
 - `debugger`: a [`KrylovMethodDebugger`](@ref) run before each Krylov solve
-- `preconditioner`: a custom left preconditioner `M` (e.g., a matrix-free 
+- `preconditioner`: a custom left preconditioner `M` (e.g., a matrix-free
    preconditioner or block-diagonal operator) supporting `ldiv!` (default `nothing`)
+
+# Restart and reorthogonalization (GMRES)
+
+`memory` and `restart` interact — in `Krylov.jl`, `memory` alone does not
+imply a bounded Arnoldi basis:
+
+- `restart = true`, `memory = m` — classical restarted GMRES(m): the basis is
+  bounded at `m` and the method restarts from the current iterate.
+- `restart = false`, `memory = m` — full (unrestarted) GMRES; `memory` is only
+  a preallocation hint, and `Krylov.jl` silently grows storage past `m` as the
+  basis grows.
+
+Full GMRES with single modified Gram-Schmidt (MGS) accumulates rounding
+error in the Arnoldi basis as it grows, which can stall or bias the solve
+for ill-conditioned Jacobians. The defaults therefore turn on both
+`restart` (bounded basis) and `reorthogonalization` (a second MGS pass).
+Override `solve_kwargs` to opt out.
 
 # Operator construction
 
@@ -508,7 +529,7 @@ Base.@kwdef struct KrylovMethod{
     forcing_term::F = ConstantForcing(0)
     args::A = ()
     kwargs::K = (; memory = 20)
-    solve_kwargs::S = (;)
+    solve_kwargs::S = (; restart = true, reorthogonalization = true)
     disable_preconditioner::Bool = false
     verbose::V = Silent()
     debugger::D = nothing

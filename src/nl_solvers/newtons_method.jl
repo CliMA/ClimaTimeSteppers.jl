@@ -433,8 +433,8 @@ controlled by the [`ForcingTerm`](@ref). Called via
 `Δx` is modified in-place. Allocate `cache` with
 `allocate_cache(method, x_prototype)`.
 
-This is a wrapper around `Krylov.jl` solvers. By default, GMRES is used with a
-Krylov subspace of size 20.
+This is a wrapper around `Krylov.jl` solvers. By default, unrestarted GMRES
+is used with a preallocation hint of 20 Arnoldi vectors.
 
 # Keyword Arguments
 - `type`: Krylov solver type, wrapped in `Val` (default `Val(GmresWorkspace)`).
@@ -443,13 +443,15 @@ Krylov subspace of size 20.
 - `forcing_term`: a [`ForcingTerm`](@ref) setting `rtol[n]`
   (default `ConstantForcing(0)` → exact solve)
 - `args`, `kwargs`: forwarded to the `Krylov.KrylovSolver` constructor
-  (default `args = ()`, `kwargs = (; memory = 20)` → GMRES subspace size 20)
+  (default `args = ()`, `kwargs = (; memory = 20)`). For GMRES, `memory` sets
+  the Arnoldi basis size; see "GMRES robustness options" below for the interaction
+  with `solve_kwargs`.
 - `solve_kwargs`: forwarded to `Krylov.solve!`
 - `disable_preconditioner`: if `true`, skip preconditioning even when `j` is
   available (default `false`)
 - `verbose`: `Verbose()` to print the Krylov residual each iteration
 - `debugger`: a [`KrylovMethodDebugger`](@ref) run before each Krylov solve
-- `preconditioner`: a custom left preconditioner `M` (e.g., a matrix-free 
+- `preconditioner`: a custom left preconditioner `M` (e.g., a matrix-free
    preconditioner or block-diagonal operator) supporting `ldiv!` (default `nothing`)
 
 # Operator construction
@@ -491,6 +493,25 @@ Verbose()` (to print the Krylov residual each iteration) or attach a
 All constructor and solver arguments can be overridden via `args`, `kwargs`, and
 `solve_kwargs`, so any `Krylov.jl` feature not explicitly covered by this
 wrapper remains accessible.
+
+# GMRES robustness options
+
+Two `Krylov.jl` GMRES kwargs affect numerical robustness and are passed
+via `solve_kwargs`:
+
+- `reorthogonalization::Bool = false` — a second modified Gram-Schmidt (MGS)
+  pass in the Arnoldi step. Single MGS loses orthogonality as the basis
+  grows, and the Givens residual GMRES monitors then decouples from the
+  true residual. Recommended `= true` whenever the basis grows large.
+  Cost: roughly doubles the orthogonalization work.
+- `restart::Bool = false` — bound the Arnoldi basis at `memory` and restart
+  from the current iterate. Restarting bounds storage but discards the
+  accumulated basis, so GMRES(m) loses the minimal-residual property and
+  can stagnate. `memory` and `restart` interact:
+    - `restart = true`, `memory = m` — classical restarted GMRES(m).
+    - `restart = false`, `memory = m` — full (unrestarted) GMRES; `memory`
+      is only a preallocation hint, and `Krylov.jl` silently grows storage
+      past `m` as the basis grows.
 """
 Base.@kwdef struct KrylovMethod{
     T <: Val{<:KrylovWorkspace},

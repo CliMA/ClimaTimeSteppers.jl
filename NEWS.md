@@ -3,6 +3,12 @@ ClimaTimeSteppers.jl Release Notes
 
 main
 -------
+- ![][badge-💥breaking] Removed the remaining 0.10-series deprecation shims:
+  the two-argument `SavedValues(tType, savevalType)` constructor, the unused
+  `only` kwarg on `benchmark_step`, and the `table_summary` alias in
+  `benchmark_step`'s return NamedTuple. Migrate to
+  `SavedValues{T,V}(Vector{T}(), Vector{V}())` and read the summaries under
+  `.summaries` on the return value.
 
 v0.10.7
 -------

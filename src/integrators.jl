@@ -127,18 +127,6 @@ struct SavedValues{tType, savevalType}
     saveval::Vector{savevalType}
 end
 
-# `false` suppresses `@deprecate`'s default re-export: `SavedValues` is an
-# internal type and must stay unexported (otherwise Documenter's exported-symbol
-# docstring check fails on it).
-@deprecate SavedValues(::Type{tType}, ::Type{savevalType}) where {tType, savevalType} SavedValues{
-    tType,
-    savevalType,
-}(
-    Vector{tType}(),
-    Vector{savevalType}(),
-) false
-
-
 # helper function for setting up sorted queues for tstops and saveat
 function tstops_and_saveat_queues(t0, tf, tstops, saveat = [])
     FT = typeof(first(promote(t0, tf)))

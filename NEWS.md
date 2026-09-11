@@ -3,6 +3,13 @@ ClimaTimeSteppers.jl Release Notes
 
 main
 -------
+
+v1.0.0
+-------
+
+First stable release. No API changes vs v0.10.7 other than the removal of
+the remaining deprecation shims below.
+
 - ![][badge-💥breaking] Removed the remaining 0.10-series deprecation shims:
   the two-argument `SavedValues(tType, savevalType)` constructor, the unused
   `only` kwarg on `benchmark_step`, and the `table_summary` alias in

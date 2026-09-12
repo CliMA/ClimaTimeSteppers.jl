@@ -46,7 +46,6 @@ function CTS.benchmark_step(
     trace = false,
     crop = false,
     hcrop = nothing,
-    only = nothing, # for backward compatibility
 )
     (; u, p, t, dt, alg, cache) = integrator
     dtγ = float(dt) # proxy for dtγ = float(dt) * a_imp[i, i], used by `Wfact!` and `initialize_imp!`
@@ -143,7 +142,7 @@ function CTS.benchmark_step(
 
     print_summary_table(summaries, call_counts)
 
-    return (; table_summary = summaries, trials) # for backward compatibility
+    return (; summaries, trials)
 end
 
 end

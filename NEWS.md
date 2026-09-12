@@ -4,6 +4,19 @@ ClimaTimeSteppers.jl Release Notes
 main
 -------
 
+v1.0.0
+-------
+
+First stable release. No API changes vs v0.10.7 other than the removal of
+the remaining deprecation shims below.
+
+- ![][badge-💥breaking] Removed the remaining 0.10-series deprecation shims:
+  the two-argument `SavedValues(tType, savevalType)` constructor, the unused
+  `only` kwarg on `benchmark_step`, and the `table_summary` alias in
+  `benchmark_step`'s return NamedTuple. Migrate to
+  `SavedValues{T,V}(Vector{T}(), Vector{V}())` and read the summaries under
+  `.summaries` on the return value.
+
 v0.10.7
 -------
 - `KrylovMethod` no longer falls back to scalar indexing on GPU-backed states (extended for

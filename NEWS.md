@@ -4,6 +4,11 @@ ClimaTimeSteppers.jl Release Notes
 main
 -------
 
+v1.0.1
+-------
+
+Updated to ClimaCore v1.
+
 v1.0.0
 -------
 

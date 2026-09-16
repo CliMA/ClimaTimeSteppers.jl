@@ -8,7 +8,7 @@ import ClimaCore.Fields as Fields
 # keeps its workspace on the GPU. This adapter supplies the block-wise copies
 # between the flat workspace vectors and the FieldVector layout; see
 # CTS.KrylovVectorAdapter. The copies use Fields.fieldvector2array! and
-# Fields.array2fieldvector!, which require ClimaCore 0.15.
+# Fields.array2fieldvector!.
 CTS.krylov_adapter(x_prototype::Fields.FieldVector, ::Type{S}) where {S} =
     CTS.KrylovVectorAdapter(
         zero(x_prototype),

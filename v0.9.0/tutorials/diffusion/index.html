@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Spherical Diffusion with ClimaCore · ClimaTimeSteppers</title><meta name="title" content="Spherical Diffusion with ClimaCore · ClimaTimeSteppers"/><meta property="og:title" content="Spherical Diffusion with ClimaCore · ClimaTimeSteppers"/><meta property="twitter:title" content="Spherical Diffusion with ClimaCore · ClimaTimeSteppers"/><meta name="description" content="Documentation for ClimaTimeSteppers."/><meta property="og:description" content="Documentation for ClimaTimeSteppers."/><meta property="twitter:description" content="Documentation for ClimaTimeSteppers."/><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../search_index.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><a class="docs-logo" href="../../"><img src="../../assets/logo.svg" alt="ClimaTimeSteppers logo"/></a><div class="docs-package-name"><span class="docs-autofit"><a href="../../">ClimaTimeSteppers</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../../">ClimaTimeSteppers.jl</a></li><li><input class="collapse-toggle" id="menuitem-2" type="checkbox"/><label class="tocitem" for="menuitem-2"><span class="docs-label">Algorithm Formulations</span><i class="docs-chevron"></i></label><ul class="collapsed"><li><a class="tocitem" href="../../algorithm_formulations/ode_solvers/">ODE Solvers</a></li><li><a class="tocitem" href="../../algorithm_formulations/newtons_method/">Newtons Method</a></li><li><a class="tocitem" href="../../algorithm_formulations/rosenbrock/">Rosenbrock Method</a></li><li><a class="tocitem" href="../../algorithm_formulations/lsrk/">Low-Storage RK</a></li><li><a class="tocitem" href="../../algorithm_formulations/mrrk/">Multirate RK</a></li></ul></li><li><input class="collapse-toggle" id="menuitem-3" type="checkbox"/><label class="tocitem" for="menuitem-3"><span class="docs-label">Algorithm Properties</span><i class="docs-chevron"></i></label><ul class="collapsed"><li><a class="tocitem" href="../../algorithm_properties/stability/">Stability</a></li><li><a class="tocitem" href="../../algorithm_properties/convergence/">Convergence</a></li></ul></li><li><input class="collapse-toggle" id="menuitem-4" type="checkbox" checked/><label class="tocitem" for="menuitem-4"><span class="docs-label">Tutorials</span><i class="docs-chevron"></i></label><ul class="collapsed"><li><a class="tocitem" href="../automatic_differentiation/">Automatic Differentiation</a></li><li class="is-active"><a class="tocitem" href>Spherical Diffusion with ClimaCore</a><ul class="internal"><li><a class="tocitem" href="#Spatial-setup"><span>Spatial setup</span></a></li><li><a class="tocitem" href="#Tendency-functions"><span>Tendency functions</span></a></li><li><a class="tocitem" href="#Building-and-solving-the-problem"><span>Building and solving the problem</span></a></li><li><a class="tocitem" href="#Visualization"><span>Visualization</span></a></li></ul></li><li><a class="tocitem" href="../imex_diffusion/">IMEX Time Stepping for Stiff Systems</a></li></ul></li><li><input class="collapse-toggle" id="menuitem-5" type="checkbox"/><label class="tocitem" for="menuitem-5"><span class="docs-label">API docs</span><i class="docs-chevron"></i></label><ul class="collapsed"><li><a class="tocitem" href="../../api/ode_solvers/">ODE Solvers</a></li><li><a class="tocitem" href="../../api/newtons_method/">Newtons Method</a></li><li><a class="tocitem" href="../../api/callbacks/">Callbacks</a></li></ul></li><li><input class="collapse-toggle" id="menuitem-6" type="checkbox"/><label class="tocitem" for="menuitem-6"><span class="docs-label">Developer docs</span><i class="docs-chevron"></i></label><ul class="collapsed"><li><a class="tocitem" href="../../dev/types/">Types</a></li><li><a class="tocitem" href="../../dev/report_gen/">Developer Guide</a></li></ul></li><li><a class="tocitem" href="../../contributing/">Contributing</a></li><li><a class="tocitem" href="../../references/">References</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Tutorials</a></li><li class="is-active"><a href>Spherical Diffusion with ClimaCore</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Spherical Diffusion with ClimaCore</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/CliMA/ClimaTimeSteppers.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/CliMA/ClimaTimeSteppers.jl/blob/main/docs/src/tutorials/diffusion.md" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Spherical-Diffusion-with-ClimaCore"><a class="docs-heading-anchor" href="#Spherical-Diffusion-with-ClimaCore">Spherical Diffusion with ClimaCore</a><a id="Spherical-Diffusion-with-ClimaCore-1"></a><a class="docs-heading-anchor-permalink" href="#Spherical-Diffusion-with-ClimaCore" title="Permalink"></a></h1><p>This tutorial solves 3D diffusion on a spherical shell using <a href="https://github.com/CliMA/ClimaCore.jl">ClimaCore.jl</a> for the spatial discretization and ClimaTimeSteppers for the time integration. It demonstrates the same IMEX pattern used in ClimaAtmos.jl, but applied to a spectral-element mesh instead of simple arrays.</p><ul><li><strong>Horizontal diffusion</strong> is treated <strong>explicitly</strong> (spectral element operators)</li><li><strong>Vertical diffusion</strong> is treated <strong>implicitly</strong> (finite differences with a tridiagonal Jacobian)</li><li><strong>DSS</strong> ensures continuity across spectral element boundaries</li></ul><p>A Gaussian perturbation is placed on the lowest vertical face and diffuses both horizontally and vertically over 500 seconds.</p><div class="admonition is-info" id="Note-91453b46bb5b5268"><header class="admonition-header">Note<a class="admonition-anchor" href="#Note-91453b46bb5b5268" title="Permalink"></a></header><div class="admonition-body"><p>This tutorial requires ClimaCore.jl and is more expensive to build than the <a href="../imex_diffusion/">IMEX tutorial</a>. Read that one first for the core ClimaTimeSteppers API.</p></div></div><h2 id="Spatial-setup"><a class="docs-heading-anchor" href="#Spatial-setup">Spatial setup</a><a id="Spatial-setup-1"></a><a class="docs-heading-anchor-permalink" href="#Spatial-setup" title="Permalink"></a></h2><pre><code class="language-julia hljs">import LinearAlgebra
+import ClimaTimeSteppers
+import ClimaCore
+import Plots
+import ClimaCore.MatrixFields: @name, ⋅, FieldMatrixWithSolver
+
+const meters = meter = 1.0
+const kilometers = kilometer = 1000meters
+const seconds = second = 1.0</code></pre><p>We build a 3D spherical shell grid by extruding a horizontal spectral element mesh with a vertical finite difference mesh:</p><pre><code class="language-julia hljs">radius = 6000kilometers
+height = 1kilometers
+
+number_horizontal_elements = 10
+horizontal_polynomial_order = 3
+number_vertical_elements = 10
+
+# Vertical grid (face-centered finite differences)
+vertdomain = ClimaCore.Domains.IntervalDomain(
+    ClimaCore.Geometry.ZPoint(0kilometers),
+    ClimaCore.Geometry.ZPoint(height);
+    boundary_names = (:bottom, :top),
+)
+vertmesh = ClimaCore.Meshes.IntervalMesh(vertdomain; nelems = number_vertical_elements)
+vertspace = ClimaCore.Spaces.FaceFiniteDifferenceSpace(vertmesh)
+
+# Horizontal grid (cubed-sphere spectral elements with GLL quadrature)
+horzdomain = ClimaCore.Domains.SphereDomain(radius)
+horzmesh = ClimaCore.Meshes.EquiangularCubedSphere(horzdomain, number_horizontal_elements)
+horztopology = ClimaCore.Topologies.Topology2D(ClimaCore.ClimaComms.context(), horzmesh)
+horzquad = ClimaCore.Spaces.Quadratures.GLL{horizontal_polynomial_order + 1}()
+horzspace = ClimaCore.Spaces.SpectralElementSpace2D(horztopology, horzquad)
+
+# 3D extruded space
+space = ClimaCore.Spaces.ExtrudedFiniteDifferenceSpace(horzspace, vertspace)</code></pre><h3 id="Initial-condition"><a class="docs-heading-anchor" href="#Initial-condition">Initial condition</a><a id="Initial-condition-1"></a><a class="docs-heading-anchor-permalink" href="#Initial-condition" title="Permalink"></a></h3><p>A Gaussian perturbation placed only on the lowest vertical face:</p><pre><code class="language-julia hljs">σ = 15.0
+(; lat, long, z) = ClimaCore.Fields.coordinate_field(space)
+φ_gauss = @. exp(-(lat^2 + long^2) / σ^2) * (z &lt; 0.005)
+
+# Pack into a FieldVector (ClimaCore&#39;s state container)
+Y₀ = ClimaCore.Fields.FieldVector(; my_var = copy(φ_gauss))</code></pre><h2 id="Tendency-functions"><a class="docs-heading-anchor" href="#Tendency-functions">Tendency functions</a><a id="Tendency-functions-1"></a><a class="docs-heading-anchor-permalink" href="#Tendency-functions" title="Permalink"></a></h2><p>The diffusion equation <span>$\partial_t u = K \nabla^2 u$</span> is split into horizontal (explicit) and vertical (implicit) parts.</p><h3 id="Explicit-tendency-(horizontal-diffusion)"><a class="docs-heading-anchor" href="#Explicit-tendency-(horizontal-diffusion)">Explicit tendency (horizontal diffusion)</a><a id="Explicit-tendency-(horizontal-diffusion)-1"></a><a class="docs-heading-anchor-permalink" href="#Explicit-tendency-(horizontal-diffusion)" title="Permalink"></a></h3><p>We use the <em>weak</em> divergence for the spectral element discretization — the output of a derivative operator is not continuously differentiable, so the weak form is needed for even-order derivatives:</p><pre><code class="language-julia hljs">diverg = ClimaCore.Operators.WeakDivergence()
+grad   = ClimaCore.Operators.Gradient()
+K = 3.0
+
+function T_exp!(∂ₜY, Y, _, _)
+    ∂ₜY.my_var .= K .* diverg.(grad.(Y.my_var))
+    return nothing
+end</code></pre><h3 id="Implicit-tendency-(vertical-diffusion)"><a class="docs-heading-anchor" href="#Implicit-tendency-(vertical-diffusion)">Implicit tendency (vertical diffusion)</a><a id="Implicit-tendency-(vertical-diffusion)-1"></a><a class="docs-heading-anchor-permalink" href="#Implicit-tendency-(vertical-diffusion)" title="Permalink"></a></h3><p>Vertical operators use face-to-center (<code>F2C</code>) and center-to-face (<code>C2F</code>) staggering. Boundary conditions (zero divergence at top and bottom) are set on the <code>C2F</code> operator:</p><pre><code class="language-julia hljs">diverg_vert = ClimaCore.Operators.DivergenceC2F(;
+    bottom = ClimaCore.Operators.SetDivergence(0.0),
+    top = ClimaCore.Operators.SetDivergence(0.0),
+)
+grad_vert = ClimaCore.Operators.GradientF2C()
+
+function T_imp!(∂ₜY, Y, _, _)
+    ∂ₜY.my_var .= K .* diverg_vert.(grad_vert.(Y.my_var))
+    return nothing
+end</code></pre><h3 id="Jacobian-(Wfact)"><a class="docs-heading-anchor" href="#Jacobian-(Wfact)">Jacobian (Wfact)</a><a id="Jacobian-(Wfact)-1"></a><a class="docs-heading-anchor-permalink" href="#Jacobian-(Wfact)" title="Permalink"></a></h3><p>The Jacobian prototype is a <code>FieldMatrix</code> — ClimaCore&#39;s sparse matrix type that stores per-column tridiagonal blocks. <code>Wfact</code> computes <span>$W = \Delta t\, \gamma\, J - I$</span>:</p><pre><code class="language-julia hljs">jacobian_matrix = ClimaCore.MatrixFields.FieldMatrix(
+    (@name(my_var), @name(my_var)) =&gt;
+        similar(φ_gauss, ClimaCore.MatrixFields.TridiagonalMatrixRow{Float64}),
+)
+
+div_matrix  = ClimaCore.MatrixFields.operator_matrix(diverg_vert)
+grad_matrix = ClimaCore.MatrixFields.operator_matrix(grad_vert)
+
+function Wfact(W, Y, p, dtγ, t)
+    @. W.matrix[@name(my_var), @name(my_var)] =
+        dtγ * div_matrix() ⋅ grad_matrix() - (LinearAlgebra.I,)
+    return nothing
+end
+
+T_imp_wrapped = ClimaTimeSteppers.ODEFunction(
+    T_imp!;
+    jac_prototype = FieldMatrixWithSolver(jacobian_matrix, Y₀),
+    Wfact = Wfact,
+)</code></pre><h3 id="DSS-(direct-stiffness-summation)"><a class="docs-heading-anchor" href="#DSS-(direct-stiffness-summation)">DSS (direct stiffness summation)</a><a id="DSS-(direct-stiffness-summation)-1"></a><a class="docs-heading-anchor-permalink" href="#DSS-(direct-stiffness-summation)" title="Permalink"></a></h3><p>On spectral element meshes, DSS enforces continuity across element boundaries. In ClimaAtmos this is done inside the <code>dss!</code> callback:</p><pre><code class="language-julia hljs">function dss!(state, p, t)
+    ClimaCore.Spaces.weighted_dss!(state.my_var)
+end</code></pre><h2 id="Building-and-solving-the-problem"><a class="docs-heading-anchor" href="#Building-and-solving-the-problem">Building and solving the problem</a><a id="Building-and-solving-the-problem-1"></a><a class="docs-heading-anchor-permalink" href="#Building-and-solving-the-problem" title="Permalink"></a></h2><pre><code class="language-julia hljs">t0    = 0seconds
+t_end = 500seconds
+dt    = 5seconds
+
+prob = ClimaTimeSteppers.ODEProblem(
+    ClimaTimeSteppers.ClimaODEFunction(; T_imp! = T_imp_wrapped, T_exp!, dss!),
+    Y₀,
+    (t0, t_end),
+    nothing,
+)
+
+algo = ClimaTimeSteppers.RosenbrockAlgorithm(
+    ClimaTimeSteppers.tableau(ClimaTimeSteppers.SSPKnoth()),
+)
+
+integrator = ClimaTimeSteppers.init(prob, algo; dt, saveat = t0:dt:t_end)</code></pre><h2 id="Visualization"><a class="docs-heading-anchor" href="#Visualization">Visualization</a><a id="Visualization-1"></a><a class="docs-heading-anchor-permalink" href="#Visualization" title="Permalink"></a></h2><p>We remap ClimaCore fields onto a regular lat-lon grid for plotting:</p><pre><code class="language-julia hljs">function remap(; target_z = 0.0, integrator = integrator)
+    longpts = range(-180.0, 180.0, 180)
+    latpts  = range(-90.0, 90.0, 90)
+    hcoords = [ClimaCore.Geometry.LatLongPoint(lat, long) for long in longpts, lat in latpts]
+    zcoords = [ClimaCore.Geometry.ZPoint(target_z)]
+    field   = integrator.u.my_var
+    remapper = ClimaCore.Remapping.Remapper(axes(field), hcoords, zcoords)
+    return ClimaCore.Remapping.interpolate(remapper, field)[:, :, begin]
+end</code></pre><h3 id="Initial-state-at-the-surface-(z-0)"><a class="docs-heading-anchor" href="#Initial-state-at-the-surface-(z-0)">Initial state at the surface (z = 0)</a><a id="Initial-state-at-the-surface-(z-0)-1"></a><a class="docs-heading-anchor-permalink" href="#Initial-state-at-the-surface-(z-0)" title="Permalink"></a></h3><pre><code class="language-julia hljs">Plots.heatmap(remap(); title = &quot;Initial condition (z = 0)&quot;)
+Plots.savefig(&quot;diff_initial_surface.png&quot;)</code></pre><p><img src="../diff_initial_surface.png" alt="Initial surface"/></p><h3 id="Initial-state-at-z-100-m-(should-be-empty)"><a class="docs-heading-anchor" href="#Initial-state-at-z-100-m-(should-be-empty)">Initial state at z = 100 m (should be empty)</a><a id="Initial-state-at-z-100-m-(should-be-empty)-1"></a><a class="docs-heading-anchor-permalink" href="#Initial-state-at-z-100-m-(should-be-empty)" title="Permalink"></a></h3><pre><code class="language-julia hljs">Plots.heatmap(remap(; target_z = 0.1kilometers); title = &quot;Initial condition (z = 100 m)&quot;)
+Plots.savefig(&quot;diff_initial_100m.png&quot;)</code></pre><p><img src="../diff_initial_100m.png" alt="Initial 100m"/></p><h3 id="Solve-and-inspect-the-final-state"><a class="docs-heading-anchor" href="#Solve-and-inspect-the-final-state">Solve and inspect the final state</a><a id="Solve-and-inspect-the-final-state-1"></a><a class="docs-heading-anchor-permalink" href="#Solve-and-inspect-the-final-state" title="Permalink"></a></h3><pre><code class="language-julia hljs">ClimaTimeSteppers.solve!(integrator)
+
+println(&quot;Initial extrema: &quot;, extrema(Y₀))
+println(&quot;Final extrema:   &quot;, extrema(integrator.u))</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Initial extrema: (-6.7618769531562785e-25, 0.999999997550737)
+Final extrema:   (-6.7618769531562785e-25, 0.999999997550737)</code></pre><p>After 500 seconds of diffusion, the peak value has decreased and the perturbation has spread both horizontally and vertically:</p><pre><code class="language-julia hljs">Plots.heatmap(remap(; target_z = 0.1kilometers); title = &quot;Final state (z = 100 m)&quot;)
+Plots.savefig(&quot;diff_final_100m.png&quot;)</code></pre><p><img src="../diff_final_100m.png" alt="Final 100m"/></p><p>The layer at z = 100 m, which started empty, now shows the diffused signal.</p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../automatic_differentiation/">« Automatic Differentiation</a><a class="docs-footer-nextpage" href="../imex_diffusion/">IMEX Time Stepping for Stiff Systems »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.17.0 on <span class="colophon-date" title="Wednesday 29 April 2026 23:56">Wednesday 29 April 2026</span>. Using Julia version 1.10.11.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>

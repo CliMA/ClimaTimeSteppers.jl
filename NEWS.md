@@ -4,6 +4,9 @@ ClimaTimeSteppers.jl Release Notes
 main
 -------
 
+`NullBroadcasted` now comes from LazyBroadcast.jl (v1.1), and NullBroadcasts.jl
+is no longer a dependency. Behavior is unchanged.
+
 v1.0.1
 -------
 

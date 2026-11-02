@@ -6,10 +6,10 @@ version = "1.0.1"
 [deps]
 ClimaComms = "3a4d1b5c-c61d-41fd-a00a-5873ba7a1b0d"
 Krylov = "ba0b0d4f-ebba-5204-a429-3ac8c609bfb7"
+LazyBroadcast = "9dccce8e-a116-406d-9fcc-a88ed4f510c8"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 LinearOperators = "5c8ed15e-5a4c-59e4-a42b-c7e8811fb125"
 NVTX = "5da4648a-3479-48b8-97b9-01cb529c0a1f"
-NullBroadcasts = "0d71be07-595a-4f89-9529-4065a4ab43a6"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
 [weakdeps]
@@ -29,11 +29,14 @@ CUDA = "4, 5, 6"
 ClimaComms = "0.5, 0.6"
 ClimaCore = "0.15, 0.16, 1"
 Krylov = "0.9, 0.10"
+LazyBroadcast = "1.1"
 LinearAlgebra = "1"
 LinearOperators = "2"
 NVTX = "0.3, 1"
-NullBroadcasts = "0.1"
 OrderedCollections = "1, 2.0"
 PrettyTables = "3"
 StaticArrays = "1"
 julia = "1.10"
+
+[sources]
+LazyBroadcast = {url = "https://github.com/CliMA/LazyBroadcast.jl", rev = "ne/merge-broadcast-packages"}

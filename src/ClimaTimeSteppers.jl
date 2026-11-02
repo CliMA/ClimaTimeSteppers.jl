@@ -38,7 +38,7 @@ module ClimaTimeSteppers
 using LinearAlgebra
 using LinearOperators
 using StaticArrays
-using NullBroadcasts: NullBroadcasted
+using LazyBroadcast: NullBroadcasted
 import ClimaComms
 using NVTX
 

@@ -8,7 +8,7 @@ using ClimaTimeSteppers:
     assign_fused_increment!,
     fused_raw_increment,
     zero_coeff
-using NullBroadcasts: NullBroadcasted
+using LazyBroadcast: NullBroadcasted
 using Random
 
 mat(args...) = materialize(args...)

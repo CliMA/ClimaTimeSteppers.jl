@@ -10,9 +10,9 @@ ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
 InteractiveUtils = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
 JET = "c3a54625-cd67-489e-a8e7-0a5a0ff4e31b"
 Krylov = "ba0b0d4f-ebba-5204-a429-3ac8c609bfb7"
+LazyBroadcast = "9dccce8e-a116-406d-9fcc-a88ed4f510c8"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 MPI = "da04e1cc-30fd-572f-bb4f-1f8673147195"
-NullBroadcasts = "0d71be07-595a-4f89-9529-4065a4ab43a6"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 SafeTestsets = "1bc83da4-3b8d-516f-aca4-4fe02f6d838f"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
@@ -30,3 +30,6 @@ MPI = "0.20"
 SafeTestsets = "0.1"
 StaticArrays = "1"
 julia = "1.10"
+
+[sources]
+LazyBroadcast = {url = "https://github.com/CliMA/LazyBroadcast.jl", rev = "ne/merge-broadcast-packages"}

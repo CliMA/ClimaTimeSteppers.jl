@@ -4,6 +4,22 @@ ClimaTimeSteppers.jl Release Notes
 main
 -------
 
+- ![][badge-✨feature/enhancement] Added two step-exchange outer methods for
+  `Multirate`: `LieSplitOuter` (first order) and `TrapezoidalSplitOuter`
+  (second order). They evaluate the slow tendency only at whole-step states,
+  and keep it fixed while the fast system sub-cycles over the full step.
+  - The fast component of the `SplitODEProblem` is a `ClimaODEFunction`, so
+    the inner algorithm can be an `IMEXAlgorithm`.
+  - The slow component `freeze!(G, G_lim, u, p, t)` fills the frozen forcing.
+    `G` is added to the explicit tendency and `G_lim` to the limited tendency
+    of the fast component.
+  - Both methods accept three optional callables, each `nothing` by default:
+    - `complement(u, p, t, dt)`, an outer implicit complement;
+    - `fast_step!(u, p, t, sub_dt)`, a state update after each inner step;
+    - `sub_cycle_start!(u, p, t)`, a hook before each sub-cycle.
+  - The documentation page on multirate methods describes both methods and the
+    order of all calls.
+
 v1.0.1
 -------
 

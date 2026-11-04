@@ -5,6 +5,7 @@ CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 ClimaComms = "3a4d1b5c-c61d-41fd-a00a-5873ba7a1b0d"
 ClimaTimeSteppers = "595c0a79-7f3d-439a-bc5a-b232dc3bde79"
 JET = "c3a54625-cd67-489e-a8e7-0a5a0ff4e31b"
+LazyBroadcast = "9dccce8e-a116-406d-9fcc-a88ed4f510c8"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 OrderedCollections = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
 PrettyTables = "08abe8d2-0d0c-5749-adfa-8a2ac140af0d"
@@ -23,3 +24,6 @@ OrderedCollections = "1"
 PrettyTables = "3"
 ProfileCanvas = "0.1"
 julia = "1.9"
+
+[sources]
+LazyBroadcast = {url = "https://github.com/CliMA/LazyBroadcast.jl", rev = "ne/merge-broadcast-packages"}

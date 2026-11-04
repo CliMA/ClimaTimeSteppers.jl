@@ -4,6 +4,9 @@ ClimaTimeSteppers.jl Release Notes
 main
 -------
 
+v1.1.0
+-------
+
 - ![][badge-✨feature/enhancement] Added two step-exchange outer methods for
   `Multirate`: `LieSplitOuter` (first order) and `TrapezoidalSplitOuter`
   (second order). They evaluate the slow tendency only at whole-step states,

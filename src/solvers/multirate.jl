@@ -4,28 +4,43 @@ export Multirate
 """
     Multirate(fast, slow)
 
-A multirate Runge-Kutta scheme that pairs a slow (outer) algorithm with a
-fast (inner) algorithm. The problem must be a [`SplitODEProblem`](@ref) where
-`f1` is the fast tendency and `f2` is the slow tendency.
+Multirate Runge-Kutta method that pairs a slow outer algorithm with a fast inner algorithm.
+
+The problem must be a [`SplitODEProblem`](@ref), where `f1` is the fast tendency and `f2` is the
+slow tendency. Pass the inner step length as `fast_dt` to [`init`](@ref) or [`solve`](@ref).
+
+The family of the outer method sets the states at which the fast and slow tendencies exchange
+information. The stage-exchange family evaluates the slow tendency at every outer stage. The
+step-exchange family evaluates it only at whole-step states and holds it fixed while the fast
+system sub-cycles over the step. For the step-exchange family, `f1` is a `ClimaODEFunction`,
+so the inner algorithm can be an `IMEXAlgorithm`, and `f2` is `freeze!(G, G_lim, u, p, t)`,
+which fills the slow forcing `G` of the explicit tendency and `G_lim` of the limited tendency
+at the state `u`.
 
 # Arguments
-- `fast`: inner algorithm (e.g. `LSRK54CarpenterKennedy()`)
-- `slow`: outer algorithm — must be one of:
-  - [`LowStorageRungeKutta2N`](@ref)
-  - [`MultirateInfinitesimalStep`](@ref)
-  - [`WickerSkamarockRungeKutta`](@ref)
+- `fast`: inner algorithm, for example `LSRK54CarpenterKennedy()`.
+- `slow`: outer algorithm, one of:
+  - [`LowStorageRungeKutta2N`](@ref) (stage-exchange).
+  - [`MultirateInfinitesimalStep`](@ref) (stage-exchange).
+  - [`WickerSkamarockRungeKutta`](@ref) (stage-exchange).
+  - [`LieSplitOuter`](@ref) (step-exchange).
+  - [`TrapezoidalSplitOuter`](@ref) (step-exchange).
 
-Pass `fast_dt` as a keyword argument to [`init`](@ref) or [`solve`](@ref)
-to set the inner timestep.
-
-# Example
+# Examples
 ```julia
 using ClimaTimeSteppers
 import ClimaTimeSteppers as CTS
 
+# Stage-exchange: slow tendency re-evaluated at every outer stage.
 prob = CTS.SplitODEProblem(f_fast, f_slow, u0, tspan, p)
 alg  = Multirate(LSRK54CarpenterKennedy(), MIS3C())
 sol  = CTS.solve(prob, alg; dt = 0.1, fast_dt = 0.01)
+
+# Step-exchange: `f_fast` is a full `ClimaODEFunction`, `freeze!` fills the
+# frozen slow forcing pair, and the inner sub-cycle is implicit-explicit.
+prob = CTS.SplitODEProblem(f_fast, freeze!, u0, tspan, p)
+alg  = Multirate(IMEXAlgorithm(ARS343(), NewtonsMethod()), TrapezoidalSplitOuter())
+sol  = CTS.solve(prob, alg; dt = 0.1, fast_dt = 0.1 / 4)
 ```
 """
 struct Multirate{F, S} <: TimeSteppingAlgorithm
@@ -43,8 +58,8 @@ Pre-allocated workspace for a [`Multirate`](@ref) method.
 - `outercache`: cache for the slow (outer) algorithm `alg.slow`, advancing the
   slow tendency `f2`.
 - `innerinteg`: a full sub-integrator for the fast (inner) algorithm `alg.fast`,
-  advancing the fast tendency `f1` (wrapped in an [`OffsetODEFunction`](@ref)
-  carrying the slow forcing) over the inner timestep `fast_dt`.
+  advancing the fast tendency `f1`, wrapped in a function that adds the slow forcing, over
+  the inner timestep `fast_dt`.
 """
 struct MultirateCache{OC, II}
     outercache::OC

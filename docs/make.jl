@@ -1,5 +1,6 @@
 using Documenter, DocumenterCitations, DocumenterMermaid
 using InteractiveUtils: subtypes
+using Random: RandomDevice
 using ClimaTimeSteppers
 using BenchmarkTools, CUDA, OrderedCollections, PrettyTables
 
@@ -105,7 +106,7 @@ makedocs(;
 # Documenter can also automatically deploy documentation to gh-pages.
 # See "Hosting Documentation" and deploydocs() in the Documenter manual
 # for more information.
-deploydocs(
+deploy() = deploydocs(
     repo = "github.com/CliMA/ClimaTimeSteppers.jl.git",
     target = "build",
     push_preview = all(
@@ -115,3 +116,4 @@ deploydocs(
     devbranch = "main",
     forcepush = true,
 )
+retry(deploy; delays = rand(RandomDevice(), 10:30, 9))()

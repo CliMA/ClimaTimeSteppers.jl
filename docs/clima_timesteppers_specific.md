@@ -112,6 +112,7 @@ Or via the GitHub Actions workflow (`julia-actions/julia-runtest@v1`).
 | Unit — convergence checker | `utils/convergence_checker.jl` | Norm tracking and stopping criteria |
 | Unit — ForwardEuler | `unit/forward_euler.jl` | `ForwardEulerODEFunction` wrapper |
 | Unit — incrementing ODE | `unit/incrementing_ode.jl` | `IncrementingODEFunction` wrapper |
+| Unit — stage constraint | `unit/stage_constraint.jl` | End-of-stage `constrain_state!` does not enter `T_imp` |
 | Unit — edge cases | `unit/edge_cases.jl` | Null explicit/implicit terms, degenerate inputs |
 | Unit — Jacobian update | `unit/jacobian_update.jl` | Jacobian refresh strategies |
 | Unit — Jacobian accuracy | `unit/jacobian_accuracy.jl` | Finite-difference Jacobian accuracy |

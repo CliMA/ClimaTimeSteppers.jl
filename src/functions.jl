@@ -66,6 +66,10 @@ Use `UpdateEvery(EndOfStep)` to fire only at step end, `UpdateEvery(EndOfStage)`
 every state-ready-for-tendency-eval point, or `UpdateEvery(WithDSS)` immediately
 before every `dss!` call (useful when constraints must be enforced on every
 DSS-going state, including pre-implicit and post-`initialize_imp!` states).
+In implicit stages, the post-Newton `constrain_state!` changes the stage value seen
+by `cache!` and the explicit tendencies, but its increment is not included in the
+implicit tendency, so it is not carried into later stages or the step update; the
+end-of-step call constrains the final state.
 Use `UpdateEveryN(n, ...)` to skip every N-th call; see [`UpdateSignalHandler`](@ref).
 
 # Fields

@@ -245,8 +245,19 @@ Shared by the IMEX-ARK and IMEX-SSPRK stage loops.
     dss!(U, p, t_imp)
     s = val_to_int(get_val_S(cache.tableau.b_imp))
     if !(i == s && is_fsal(alg))
-        needs_update!(update_constrain_state, EndOfStageSignal()) &&
+        if needs_update!(update_constrain_state, EndOfStageSignal())
+            # The constraint projects the stage value seen by `cache!` and the
+            # explicit tendencies, but its increment must not enter
+            # `T_imp[i] = (U - temp) / dtγ`: it would be re-applied in later
+            # stages and in the step update with weights `a_imp[j, i] / γ` and
+            # `b_imp[i] / γ` (e.g., (1 - γ) / γ ≈ 2.41 for ARS222). Shift `temp`
+            # by the increment instead. `T_imp[i]` is free scratch until it is
+            # overwritten in the stage tendency evaluation.
+            U_pre_constraint = cache.T_imp[i]
+            @. U_pre_constraint = U
             constrain_state!(U, p, t_imp)
+            @. temp += U - U_pre_constraint
+        end
         if needs_update!(update_cache, EndOfStageSignal())
             cache!(U, p, t_imp)
         else

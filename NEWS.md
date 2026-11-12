@@ -3,6 +3,16 @@ ClimaTimeSteppers.jl Release Notes
 
 main
 -------
+- ![][badge-🐛bugfix]![][badge-🔥behavioralΔ] With
+  `update_constrain_state = UpdateEvery(EndOfStage)` or `UpdateEvery(WithDSS)`,
+  the post-Newton `constrain_state!` increment in IMEX ARK and IMEX SSPRK
+  implicit stages is no longer recorded in the implicit tendency
+  `T_imp[i] = (U - temp) / dtγ`. Before, it was re-applied in later stages and in
+  the step update with weights `a_imp[j, i] / γ` and `b_imp[i] / γ` (≈ 2.41 for
+  ARS222; 2.77, -1.48 and 1 for ARS343), so a clip could overshoot the bound it
+  enforces. The constrained stage value is still what `cache!` and the explicit
+  tendencies see. Results with `UpdateEvery(EndOfStep)` (the default), or with a
+  constraint that leaves the state unchanged, are not affected.
 
 v1.0.1
 -------

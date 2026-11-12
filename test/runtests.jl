@@ -48,6 +48,10 @@ end
     include("unit/post_imp.jl")
 end
 
+@safetestset "Stage constraint" begin
+    include("unit/stage_constraint.jl")
+end
+
 @safetestset "Edge cases" begin
     include("unit/edge_cases.jl")
 end
